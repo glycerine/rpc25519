@@ -1114,13 +1114,13 @@ func Test102_time_truncate_works_under_synctest(t *testing.T) {
 	}
 }
 
-func Test103_userMaskTime(t *testing.T) {
+func Test103_bumpTime(t *testing.T) {
 
 	bubbleOrNot(func() {
 		cur := time.Now()
 		s := &Simnet{}
 		for range 100 {
-			next := s.userMaskTime(cur, "")
+			next := s.bumpTime(cur)
 
 			if !next.After(cur) { // we do want next > cur strictly, since we added 1 below.
 				panic(fmt.Sprintf("m(%v) < cur(%v) wrong", next, cur))

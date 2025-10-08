@@ -452,13 +452,9 @@ func (s *Simnet) nextUniqTm(atleast time.Time, who string) time.Time {
 		//const bump = timeMask0 // more than mask
 		//s.lastTimerDeadline = s.lastTimerDeadline.Add(bump)
 	}
-	//	if true {
-	// experiment
-	//s.lastTimerDeadline =
-	//	} else {
 	//was for a while:
-	s.lastTimerDeadline = s.userMaskTime(s.lastTimerDeadline, who)
-	//	}
+	s.lastTimerDeadline = s.bumpTime(s.lastTimerDeadline)
+
 	return s.lastTimerDeadline
 }
 
@@ -1958,22 +1954,6 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	now := time.Now()
 	//vv("top of handleSend(send = '%v')", send)
 	defer func() {
-
-		// if false {
-		// 	// experiment: try to get send on its own timestamp
-		// 	sendGoal := s.userMaskTime(now, send.who)
-		// 	sendSleep := sendGoal.Sub(now)
-		// 	if sendSleep <= 0 {
-		// 		panicf("wanted sendSleep(%v) to be > 0 ", sendSleep)
-		// 	}
-		// 	select {
-		// 	case <-time.After(sendSleep):
-		// 		if faketime {
-		// 			synctestWait_LetAllOtherGoroFinish() // barrier
-		// 		}
-		// 	case <-s.halt.ReqStop.Chan:
-		// 	}
-		// }
 		s.fin(send)
 		close(send.proceed)
 	}()
@@ -1989,9 +1969,11 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 
 	// make sure send happens before receive by doing
 	// this first.
-	send.completeTm = s.userMaskTime(now, origin.name) // send complete on the sender side.
+	send.completeTm = s.bumpTime(now)
+
 	// handleSend
-	send.arrivalTm = s.userMaskTime(send.unmaskedSendArrivalTm, origin.name)
+	send.arrivalTm = s.bumpTime(send.unmaskedSendArrivalTm)
+
 	//vv("set send.arrivalTm = '%v' for send = '%v'", send.arrivalTm, send)
 	// note that read matching time will be unique based on
 	// send arrival time.
@@ -2013,7 +1995,6 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 		// in the meantime? that does kind of throw a wrench
 		// into trying to only wake at for the reader at their
 		// userMaskTime ending in their goroID though. Ugh.
-		// send.arrivalTm = userMaskTime(send.unmaskedSendArrivalTm, send.target.who??)
 	}
 	if !s.statewiseConnected(send.origin, send.target) ||
 		probDrop >= 1 { // s.localDropSend(send) {
@@ -2398,7 +2379,7 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			// to let the readers go... or we could have the reading
 			// goroutine itself do its own sleep accoring to is ID?
 			/*
-				read.completeTm = s.userMaskTime(now, read.who)
+				read.completeTm = s.bumpTime(now)
 				dur := read.completeTm.Sub(now)
 				if dur > 0 {
 					time.Sleep(dur)
@@ -2427,22 +2408,6 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 				send.origin.timerQ.del(send.internalPendingTimerForSend)
 			}
 
-			// if false {
-			// 	// experiment: try to get read on its own timestamp
-			// 	readGoal := s.userMaskTime(now, read.who)
-			// 	readSleep := readGoal.Sub(now)
-			// 	if readSleep <= 0 {
-			// 		panicf("wanted readSleep(%v) to be > 0 ", readSleep)
-			// 	}
-			// 	select {
-			// 	case <-time.After(readSleep):
-			// 		if faketime {
-			// 			synctestWait_LetAllOtherGoroFinish() // barrier
-			// 		}
-			// 	case <-s.halt.ReqStop.Chan:
-			// 		return
-			// 	}
-			// }
 			s.fin(read)
 			close(read.proceed)
 			// send already closed in handleSend()
@@ -2565,7 +2530,7 @@ func (s *Simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 	// a) we are on a grid point now; and
 	// b) we are off a grid point and we want the next one.
 
-	goal = s.userMaskTime(now.Add(tick).Truncate(tick), "")
+	goal = s.bumpTime(now.Add(tick).Truncate(tick))
 
 	dur = goal.Sub(now)
 	//vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
@@ -2589,9 +2554,6 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	// so deliveries are all at a unique time point.
 	if true { // experiment with false?
 		if !op.reqtm.IsZero() {
-			// works fine, but non-determ?
-			//op.reqtm = userMaskTime(op.reqtm, op.who)
-			// experiment with... but now also uses userMaskTime.
 			op.reqtm = s.nextUniqTm(op.reqtm, op.bestName())
 		}
 	} else {
@@ -2704,7 +2666,7 @@ func (s *Simnet) scheduler() {
 				// likely set some timers etc.
 				sz := s.meq.Len()
 				if sz == 0 {
-					// durToGridPoint does userMaskTime for us now.
+					// durToGridPoint does bumpTime for us now.
 					dur, _ := s.durToGridPoint(now, s.scenario.tick)
 
 					//vv("i=%v, elap=0 and no work, just advance time by dur='%v' and try to dispatch below.", i, dur)
@@ -2854,7 +2816,7 @@ func (s *Simnet) scheduler() {
 					//if npop == 0 {
 					s.armTimer(now, i)
 					if s.lastArmToFire.IsZero() {
-						// durToGridPoint does userMaskTime for us now.
+						// durToGridPoint does bumpTime for us now.
 						dur, _ := s.durToGridPoint(now, s.scenario.tick)
 						vv("dur = %v; tick=%v", dur, s.scenario.tick)
 						time.Sleep(dur)
@@ -3147,7 +3109,8 @@ func (s *Simnet) handleTimer(timer *mop) {
 	// mask it up!
 	timer.unmaskedCompleteTm = timer.completeTm
 	timer.unmaskedDur = timer.timerDur
-	timer.completeTm = s.userMaskTime(timer.completeTm, who) // handle timer
+
+	timer.completeTm = s.bumpTime(timer.completeTm) // handle timer
 	timer.timerDur = timer.completeTm.Sub(timer.initTm)
 	//vv("masked timer(sn %v):\n dur: %v -> %v\n completeTm: %v -> %v\n timer.who: %v", timer.sn, timer.unmaskedDur, timer.timerDur, nice9(timer.unmaskedCompleteTm), nice9(timer.completeTm), timer.who)
 
@@ -3190,10 +3153,6 @@ func (s *Simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 			//	panic(fmt.Sprintf("negative dur will collide with s.lastArmDur = -1 ?!?: %v", dur))
 			//}
 			if dur > s.scenario.tick {
-				//dur = s.scenario.tick
-				//when2 = now.Add(dur)
-				//when2 = userMaskTime(now.Add(dur), s.who)
-
 				dur, when2 = s.durToGridPoint(now, s.scenario.tick)
 				//vv("called durToGridPoint, when2 = '%v'", when2)
 			}
@@ -3268,6 +3227,7 @@ const timeMask9 = time.Microsecond*100 - 1
 
 const minTickNanos = 100_000
 
+/*
 // userMaskTime makes the last 5 digits
 // of a nanosecond timestamp match the who goroutineID
 // which must be < minTickNanos (100_000)
@@ -3302,6 +3262,29 @@ func (s *Simnet) userMaskTime(tm time.Time, who0 string) (newtm time.Time) {
 			// arg. our correction did not help.
 			// it should have for any who > 0, so wat?
 			panic(fmt.Sprintf("arg! newtm(%v) <= now(%v) || newtm.Before(tm='%v'); who=%v", nice(newtm), nice(now), nice(tm), who))
+		}
+	}
+	return
+}
+*/
+
+func (s *Simnet) bumpTime(tm time.Time) (newtm time.Time) {
+	// always bump to next 100 usec, so we are
+	// for sure after tm.
+	now := time.Now()
+	newtm = tm.Truncate(timeMask0).Add(timeMask0)
+	if newtm.Before(tm) {
+		panic(fmt.Sprintf("arg. want newtm(%v) >= tm(%v)", newtm, tm))
+	}
+	if newtm.After(now) {
+		return
+	} else {
+		newtm = now.Truncate(timeMask0).Add(timeMask0)
+		//if newtm.Before(now) {
+		if lte(newtm, now) || newtm.Before(tm) {
+			// arg. our correction did not help.
+			// it should have for any who > 0, so wat?
+			panic(fmt.Sprintf("arg! newtm(%v) <= now(%v) || newtm.Before(tm='%v')", nice(newtm), nice(now), nice(tm)))
 		}
 	}
 	return
