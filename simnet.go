@@ -2951,12 +2951,16 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// 	}
 		// 	now = time.Now()
 		// }
-		s.xdispatchtm[op.sn] = fmt.Sprintf("%v_%v", now.Format(rfc3339NanoTz0), perm)
+
+		// the client register can be deleted by the next client READ
+		// if we do not give it the operation too.
+		xdis := fmt.Sprintf("%v_%v_%v", now.Format(rfc3339NanoTz0), op.kind, chompAnyUniqSuffix(op.bestName()))
+		s.xdispatchtm[op.sn] = xdis
 
 		//s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, time.Time{}, op.whence()))
 		s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, now, op.whence()))
 
-		vv("in distributeMEQ, meq has op = '%v'", op)
+		vv("in distributeMEQ, meq has op = '%v'\n  ->  xdis = '%v'", op, xdis)
 		switch op.kind {
 		case CLOSE_SIMNODE:
 			//vv("CLOSE_SIMNODE '%v'", op.closeSimnode.simnodeName)
