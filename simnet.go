@@ -957,10 +957,12 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	if tick < time.Duration(minTickNanos) {
 		panicf("must have tick >= minTickNanos(%v)", time.Duration(minTickNanos))
 	}
-	minHop := time.Millisecond * 10
-	maxHop := minHop
-	var seed [32]byte
-	scen := NewScenario(tick, minHop, maxHop, seed)
+	// minHop := time.Millisecond * 10
+	// maxHop := minHop
+	// var seed [32]byte
+	// scen := NewScenario(tick, minHop, maxHop, seed)
+
+	scen := NewScenarioBaseline(tick)
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
@@ -1925,7 +1927,7 @@ func (s *Simnet) statewiseConnected(origin, target *simnode) (linked bool) {
 
 func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	now := time.Now()
-	//vv("top of handleSend(send = '%v')", send)
+	vv("top of handleSend(send = '%v')", send)
 	defer func() {
 
 		// if false {
@@ -1961,7 +1963,7 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	send.completeTm = s.userMaskTime(now, origin.name) // send complete on the sender side.
 	// handleSend
 	send.arrivalTm = s.userMaskTime(send.unmaskedSendArrivalTm, origin.name)
-	//vv("send.arrivalTm = '%v'", send.arrivalTm)
+	vv("set send.arrivalTm = '%v' for send = '%v'", send.arrivalTm, send)
 	// note that read matching time will be unique based on
 	// send arrival time.
 
@@ -2952,9 +2954,11 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// 	now = time.Now()
 		// }
 
-		// the client register can be deleted by the next client READ
-		// if we do not give it the operation too.
-		xdis := fmt.Sprintf("%v_%v_%v", now.Format(rfc3339NanoTz0), op.kind, chompAnyUniqSuffix(op.bestName()))
+		cs := "SERVER"
+		if op.originCli {
+			cs = "CLIENT"
+		}
+		xdis := fmt.Sprintf("%v_%v_%v_%v", now.Format(rfc3339NanoTz0), cs, op.kind, chompAnyUniqSuffix(op.bestName()))
 		s.xdispatchtm[op.sn] = xdis
 
 		//s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, time.Time{}, op.whence()))
@@ -3006,7 +3010,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		case SCENARIO:
 			s.finishScenario()
 			s.initScenario(op.scen)
-			//panic("TODO, impossible to restart network??? - wait why?")
+
 			restartNewScenario = true
 			return
 

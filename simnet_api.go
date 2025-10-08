@@ -111,6 +111,13 @@ func (s *scenario) rngTieBreaker() int {
 	}
 }
 
+func NewScenarioBaseline(tick time.Duration) *scenario {
+	minHop := time.Millisecond * 10
+	maxHop := minHop
+	var seed [32]byte
+	return NewScenario(tick, minHop, maxHop, seed)
+}
+
 // Faultstate is one of HEALTHY, FAULTY,
 // ISOLATED, or FAULTY_ISOLATED.
 //
