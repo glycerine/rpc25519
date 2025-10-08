@@ -422,7 +422,13 @@ func (s *Simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 		//const bump = timeMask0 // more than mask
 		//s.lastTimerDeadline = s.lastTimerDeadline.Add(bump)
 	}
+	//	if true {
+	// experiment
+	//s.lastTimerDeadline =
+	//	} else {
+	//was for a while:
 	s.lastTimerDeadline = s.userMaskTime(s.lastTimerDeadline, who)
+	//	}
 	return s.lastTimerDeadline
 }
 
@@ -584,6 +590,7 @@ type Simnet struct {
 	// have duplicates.
 	dns map[string]*simnode
 	//dns *dmap[string, *simnode]
+	dnsOrdered *omap[string, *simnode]
 
 	// circuits[A][B] is the bi-directed, very cyclic,
 	// graph of the network. A sparse matrix, circuits[A]
@@ -760,8 +767,10 @@ func (s *Simnet) handleServerRegistration(op *mop) {
 	if already {
 		panic(fmt.Sprintf("server name already taken: '%v'", srvnode.name))
 	}
+
 	s.dns[srvnode.name] = srvnode
 	s.node2server[srvnode] = srvnode
+	s.dnsOrdered.set(srvnode.name, srvnode)
 
 	op.origin = srvnode
 
@@ -843,6 +852,8 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	clinode.setNetAddrSameNetAs(reg.localHostPortStr, srvnode.netAddr)
 	s.allnodes[clinode] = true
 	s.dns[clinode.name] = clinode
+	s.dnsOrdered.set(clinode.name, clinode)
+
 	regop.origin = clinode
 
 	// add simnode to graph
@@ -947,8 +958,11 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 		scenario:                scen,
 		simnetSnapshotRequestCh: make(chan *SimnetSnapshot),
 		simnetCloseNodeCh:       make(chan *closeSimnode),
-		dns:                     make(map[string]*simnode),
-		node2server:             make(map[*simnode]*simnode),
+
+		dns:        make(map[string]*simnode),
+		dnsOrdered: newOmap[string, *simnode](),
+
+		node2server: make(map[*simnode]*simnode),
 
 		// graph of circuits, edges are circuits[from][to]
 		circuits: newDmap[*simnode, *dmap[*simnode, *simconn]](),
@@ -1363,6 +1377,7 @@ func (s *Simnet) shutdownSimnode(target *simnode) (undo Alteration) {
 			//vv("deleting from s.node2server '%v'", node.name)
 			delete(s.node2server, node)
 			delete(s.dns, node.name)
+			s.dnsOrdered.delkey(node.name)
 			delete(s.servers, node.serverBaseID)
 			delete(s.allnodes, node)
 			delete(s.orphans, node)
@@ -1878,21 +1893,21 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	//vv("top of handleSend(send = '%v')", send)
 	defer func() {
 
-		if false {
-			// experiment: try to get send on its own timestamp
-			sendGoal := s.userMaskTime(now, send.who)
-			sendSleep := sendGoal.Sub(now)
-			if sendSleep <= 0 {
-				panicf("wanted sendSleep(%v) to be > 0 ", sendSleep)
-			}
-			select {
-			case <-time.After(sendSleep):
-				if faketime {
-					synctestWait_LetAllOtherGoroFinish() // barrier
-				}
-			case <-s.halt.ReqStop.Chan:
-			}
-		}
+		// if false {
+		// 	// experiment: try to get send on its own timestamp
+		// 	sendGoal := s.userMaskTime(now, send.who)
+		// 	sendSleep := sendGoal.Sub(now)
+		// 	if sendSleep <= 0 {
+		// 		panicf("wanted sendSleep(%v) to be > 0 ", sendSleep)
+		// 	}
+		// 	select {
+		// 	case <-time.After(sendSleep):
+		// 		if faketime {
+		// 			synctestWait_LetAllOtherGoroFinish() // barrier
+		// 		}
+		// 	case <-s.halt.ReqStop.Chan:
+		// 	}
+		// }
 		s.fin(send)
 		close(send.proceed)
 	}()
@@ -2346,22 +2361,22 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 				send.origin.timerQ.del(send.internalPendingTimerForSend)
 			}
 
-			if false {
-				// experiment: try to get read on its own timestamp
-				readGoal := s.userMaskTime(now, read.who)
-				readSleep := readGoal.Sub(now)
-				if readSleep <= 0 {
-					panicf("wanted readSleep(%v) to be > 0 ", readSleep)
-				}
-				select {
-				case <-time.After(readSleep):
-					if faketime {
-						synctestWait_LetAllOtherGoroFinish() // barrier
-					}
-				case <-s.halt.ReqStop.Chan:
-					return
-				}
-			}
+			// if false {
+			// 	// experiment: try to get read on its own timestamp
+			// 	readGoal := s.userMaskTime(now, read.who)
+			// 	readSleep := readGoal.Sub(now)
+			// 	if readSleep <= 0 {
+			// 		panicf("wanted readSleep(%v) to be > 0 ", readSleep)
+			// 	}
+			// 	select {
+			// 	case <-time.After(readSleep):
+			// 		if faketime {
+			// 			synctestWait_LetAllOtherGoroFinish() // barrier
+			// 		}
+			// 	case <-s.halt.ReqStop.Chan:
+			// 		return
+			// 	}
+			// }
 			s.fin(read)
 			close(read.proceed)
 			// send already closed in handleSend()
@@ -2497,17 +2512,21 @@ func (s *Simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	//vv("i=%v, add2meq %v", loopi, op)
 
-	s.addPerma(op.who)
+	s.addPerma(op.who, op)
 
 	// experiment try to separate out each meq in time?
 
 	// need to bump up the time... with nextUniqTm,
 	// so deliveries are all at a unique time point.
-	if !op.reqtm.IsZero() {
-		// works fine, but non-determ?
-		//op.reqtm = userMaskTime(op.reqtm, op.who)
-		// experiment with... but now also uses userMaskTime.
-		op.reqtm = s.nextUniqTm(op.reqtm, op.who)
+	if true { // experiment with false?
+		if !op.reqtm.IsZero() {
+			// works fine, but non-determ?
+			//op.reqtm = userMaskTime(op.reqtm, op.who)
+			// experiment with... but now also uses userMaskTime.
+			op.reqtm = s.nextUniqTm(op.reqtm, op.who)
+		}
+	} else {
+		op.reqtm = time.Now()
 	}
 
 	s.meq.add(op)
@@ -2524,12 +2543,31 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 // to a more stable integer identifier
 // based on their first appearance to the simnet.
 // This is the s.perma map.
-func (s *Simnet) addPerma(who int) {
+func (s *Simnet) addPermaOrig(who int) {
 	if _, already := s.perma[who]; already {
 		return
 	}
 	s.perma[who] = s.nextPerma
 	s.nextPerma++
+}
+
+func (s *Simnet) addPerma(who int, op *mop) {
+	name := op.earlyName
+	if op.origin != nil {
+		name = op.origin.name
+	}
+	s.perma[who] = s.dnsOrder(name) + 1
+}
+
+func (s *Simnet) dnsOrder(name string) int {
+	biggest := 0
+	for i, okv := range s.dnsOrdered.cached() {
+		if okv.key == name {
+			return i
+		}
+		biggest = i
+	}
+	return biggest + 1
 }
 
 // scheduler is the heart of the simnet
@@ -2562,7 +2600,7 @@ func (s *Simnet) scheduler() {
 		}
 	}()
 	s.who = goID()
-	s.addPerma(s.who)
+	//s.addPerma(s.who, nil)
 
 	var nextReport time.Time
 
@@ -2644,7 +2682,7 @@ func (s *Simnet) scheduler() {
 				}
 			}
 			totalSleepDur += elap
-			//vv("i=%v, nextTimer fired. s.lastArmDur=%v; s.lastArmToFire = %v; elap = '%v'", i, s.lastArmDur, s.lastArmToFire, elap)
+			vv("i=%v, nextTimer fired. s.lastArmDur=%v; s.lastArmToFire = %v; elap = '%v'", i, s.lastArmDur, s.lastArmToFire, elap)
 			//if elap == 0 {
 			//vv("i=%v, cool: elap was 0, nice. single stepping the next goro... nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
 			//}
@@ -2804,7 +2842,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	} else {
 		verboseVerbose = false
 	}
-	pp("i=%v, top distributeMEQ, size %v", i, sz)
+	vv("i=%v, top distributeMEQ, size %v", i, sz)
 	// meq is trying for
 	// more deterministic event ordering. we have
 	// accumulated and held any events from the
@@ -2820,8 +2858,13 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	// Once we hit steady state we could try to
 	// get more determinism, but start up is inherently
 	// parallel at the moment.
-	// TODO Solution: we need to add a small clock increment
-	// after every operation we process.
+	//
+	// If we try and add a small clock increment
+	// after every operation we process, then we
+	// end up being driven by first come first served
+	// which is threading non-deterministic based on
+	// which client goro gets scheduled first, not good.
+	// We want our tie breaking as it is more deterministic.
 	who := make(map[int]*mop)
 
 	// if we don't process all the meq and assign
@@ -2829,11 +2872,6 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	// the subsequent queued events might get to run first?
 	var op *mop
 	for j := 0; ; j++ {
-
-		//if j > 0 {
-		//	// try to separate each action in time.
-		//	s.dispatchAll(now, -1, i)
-		//}
 
 		top := s.meq.peek()
 		if top == nil {
@@ -2847,25 +2885,25 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		perm := s.perma[op.who]
 		who[perm] = op
 
-		if false {
-			// experiment
-			goaltm := s.userMaskTime(now, op.who)
-			dur := goaltm.Sub(now)
-			if dur <= 0 {
-				panicf("wanted dur(%v) > 0", dur)
-			}
-			pp("waiting for dur = %v for op = %v", dur, op)
-			select {
-			case <-time.After(dur):
-				if faketime {
-					synctestWait_LetAllOtherGoroFinish() // barrier
-				}
-			case <-s.halt.ReqStop.Chan:
-				shutdown = true
-				return
-			}
-			now = time.Now()
-		}
+		// if false {
+		// 	// experiment
+		// 	goaltm := s.userMaskTime(now, op.who)
+		// 	dur := goaltm.Sub(now)
+		// 	if dur <= 0 {
+		// 		panicf("wanted dur(%v) > 0", dur)
+		// 	}
+		// 	pp("waiting for dur = %v for op = %v", dur, op)
+		// 	select {
+		// 	case <-time.After(dur):
+		// 		if faketime {
+		// 			synctestWait_LetAllOtherGoroFinish() // barrier
+		// 		}
+		// 	case <-s.halt.ReqStop.Chan:
+		// 		shutdown = true
+		// 		return
+		// 	}
+		// 	now = time.Now()
+		// }
 		s.xdispatchtm[op.sn] = now
 
 		s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, now, op.whence()))
@@ -2950,8 +2988,20 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	_ = nd
 	s.ndtot += nd
 
+	select {
+	case <-time.After(time.Nanosecond):
+	case <-s.halt.ReqStop.Chan:
+		//vv("i=%v <-s.halt.ReqStop.Chan", i)
+		return
+	}
+	now = time.Now()
+
 	armed := s.armTimer(now, i)
 	_ = armed
+
+	if !armed {
+		vv("timer NOT armed")
+	}
 
 	if !armed && nd == 0 && npop == 0 {
 		// can see alot of this while waiting for stuff
@@ -3210,7 +3260,8 @@ func (s *Simnet) userMaskTime(tm time.Time, who0 int) (newtm time.Time) {
 	}
 	who, ok := s.perma[who0]
 	if !ok {
-		panic(fmt.Sprintf("bad, goro not in s.perma: %v", who0))
+		// scheduler, leave who == 0
+		//panic(fmt.Sprintf("bad, goro not in s.perma: %v", who0))
 	}
 	// always bump to next 100 usec, so we are
 	// for sure after tm.
@@ -3559,12 +3610,15 @@ func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 		s.circuits.delkey(node)
 		delete(s.node2server, node)
 		delete(s.dns, node.name)
+		s.dnsOrdered.delkey(node.name)
+
 		//vv("handleCloseSimnode deleted node.name '%v' from dns", node.name)
 		delete(s.servers, node.serverBaseID)
 		delete(s.allnodes, node)
 		delete(s.orphans, node)
 	}
 	delete(s.dns, target)
+	s.dnsOrdered.delkey(target)
 	//vv("handleCloseSimnode deleted target '%v' from dns", target)
 	// set req.err if need be
 }
@@ -3594,6 +3648,7 @@ func (s *Simnet) newServerRegMop(srvreg *serverRegistration) (op *mop) {
 		reqtm:     srvreg.reqtm,
 		earlyName: srvreg.server.name,
 	}
+	vv("newServerRegMop(%p) has reqtm='%v' from srvreq.reqtm = '%v'; op = '%v'", op, op.reqtm, srvreg.reqtm, op)
 	return
 }
 

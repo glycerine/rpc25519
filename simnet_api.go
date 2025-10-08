@@ -579,8 +579,8 @@ type serverRegistration struct {
 	who                 int
 }
 
-func (s *Simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *serverRegistration {
-	return &serverRegistration{
+func (s *Simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) (r *serverRegistration) {
+	r = &serverRegistration{
 		server:       srv,
 		serverBaseID: srv.cfg.serverBaseID,
 		srvNetAddr:   srvNetAddr,
@@ -588,6 +588,8 @@ func (s *Simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *ser
 		reqtm:        time.Now(),
 		who:          goID(),
 	}
+	vv("serverRegistration(%p) reqtm: %v", r, nice9(r.reqtm))
+	return
 }
 
 func (s *Simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConnCh chan *simconn, err error) {

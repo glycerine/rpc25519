@@ -1120,7 +1120,7 @@ func Test103_userMaskTime(t *testing.T) {
 		cur := time.Now()
 		s := &Simnet{perma: make(map[int]int)}
 		gid := goID()
-		s.addPerma(gid)
+		//s.addPerma(gid, nil)
 		for range 100 {
 			next := s.userMaskTime(cur, gid)
 
