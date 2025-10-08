@@ -2831,12 +2831,8 @@ func (s *Simnet) scheduler() {
 }
 
 func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario, shutdown bool) {
-	sz := s.meq.Len()
-	if sz > 1 {
-		verboseVerbose = true
-	} else {
-		verboseVerbose = false
-	}
+
+	//sz := s.meq.Len()
 	//vv("i=%v, top distributeMEQ: %v", i, s.showMEQ())
 	//defer func() {
 	//	vv("i=%v, end of distributeMEQ: %v", i, s.showMEQ())
