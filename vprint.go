@@ -245,6 +245,10 @@ func stopOn(err error) {
 	os.Exit(1)
 }
 
+func panicf(format string, a ...interface{}) {
+	panic(fmt.Sprintf(format, a...))
+}
+
 /*func fileLine(depth int) string {
 	_, fileName, fileLine, ok := runtime.Caller(depth)
 	var s string

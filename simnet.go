@@ -1848,7 +1848,7 @@ func (s *Simnet) statewiseConnected(origin, target *simnode) (linked bool) {
 
 func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	now := time.Now()
-	//vv("top of handleSend(send = '%v')", send)
+	vv("top of handleSend(send = '%v')", send)
 	defer func() {
 		s.fin(send)
 		close(send.proceed)
@@ -2301,6 +2301,21 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			// cleanup the timer that scheduled this send, if any.
 			if send.internalPendingTimerForSend != nil {
 				send.origin.timerQ.del(send.internalPendingTimerForSend)
+			}
+
+			// experiment: try to get read on its own timestamp
+			readGoal := s.userMaskTime(now, read.who)
+			readSleep := readGoal.Sub(now)
+			if readSleep <= 0 {
+				panicf("wanted readSleep(%v) to be > 0 ", readSleep)
+			}
+			select {
+			case <-time.After(readSleep):
+				if faketime {
+					synctestWait_LetAllOtherGoroFinish() // barrier
+				}
+			case <-s.halt.ReqStop.Chan:
+				return
 			}
 
 			s.fin(read)
@@ -2763,6 +2778,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	for j := 0; ; j++ {
 		if j > 0 {
 			// try to separate each action in time.
+			s.dispatchAll(now, -1, i)
 			select {
 			case <-time.After(s.mintick):
 				if faketime {
@@ -2784,7 +2800,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		npop++
 		who[s.perma[op.who]] = op
 
-		vv("meq has op = '%v'", op)
+		//vv("meq has op = '%v'", op)
 		switch op.kind {
 		case CLOSE_SIMNODE:
 			//vv("CLOSE_SIMNODE '%v'", op.closeSimnode.simnodeName)
