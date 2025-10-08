@@ -2885,8 +2885,12 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		//who[perm] = op
 
 		xdis := op.repeatable(now)
+
+		// must hold xmut.Lock else race vs simnetNextMopSn()
+		s.xmut.Lock()
 		s.xdispatchtm[op.sn] = xdis
 		s.xb3hashDis.Write([]byte(xdis))
+		s.xmut.Unlock()
 
 		//vv("in distributeMEQ, meq has op = '%v'\n  ->  xdis = '%v'", op, xdis)
 		switch op.kind {
