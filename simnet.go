@@ -413,7 +413,7 @@ func (s *Simnet) showMEQ() (r string) {
 	r += fmt.Sprintf("\n meq size %v:\n%v", sz, s.meq)
 
 	i := 0
-	r = fmt.Sprintf(" ------- MEQ  --------\n")
+	r = fmt.Sprintf(" ------- MEQ len %v --------\n", s.meq.Len())
 	for it := s.meq.Tree.Min(); !it.Limit(); it = it.Next() {
 
 		item := it.Item() // interface{}
@@ -523,7 +523,7 @@ func (s *Simnet) simnetNextMopSn() (sn int64) {
 	sn = s.nextMopSn
 	s.nextMopSn++
 	s.xissuetm = append(s.xissuetm, time.Now())
-	s.xdispatchtm = append(s.xdispatchtm, time.Time{})
+	s.xdispatchtm = append(s.xdispatchtm, "")
 
 	s.xfintm = append(s.xfintm, time.Time{})
 	s.xwhence = append(s.xwhence, "")
@@ -555,7 +555,7 @@ type Simnet struct {
 	xwhence     []string
 	xkind       []mopkind
 	xissuetm    []time.Time
-	xdispatchtm []time.Time
+	xdispatchtm []string
 	xfintm      []time.Time
 	xwho        []int
 	xorigin     []string
@@ -2887,7 +2887,9 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		verboseVerbose = false
 	}
 	vv("i=%v, top distributeMEQ: %v", i, s.showMEQ())
-
+	defer func() {
+		vv("i=%v, end of distributeMEQ: %v", i, s.showMEQ())
+	}()
 	// meq is trying for
 	// more deterministic event ordering. we have
 	// accumulated and held any events from the
@@ -2949,11 +2951,12 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// 	}
 		// 	now = time.Now()
 		// }
-		s.xdispatchtm[op.sn] = now
+		s.xdispatchtm[op.sn] = fmt.Sprintf("%v_%v", now.Format(rfc3339NanoTz0), perm)
 
+		//s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, time.Time{}, op.whence()))
 		s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, now, op.whence()))
 
-		vv("meq has op = '%v'", op)
+		vv("in distributeMEQ, meq has op = '%v'", op)
 		switch op.kind {
 		case CLOSE_SIMNODE:
 			//vv("CLOSE_SIMNODE '%v'", op.closeSimnode.simnodeName)
@@ -3033,13 +3036,15 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	_ = nd
 	s.ndtot += nd
 
-	select {
-	case <-time.After(time.Nanosecond):
-	case <-s.halt.ReqStop.Chan:
-		//vv("i=%v <-s.halt.ReqStop.Chan", i)
-		return
-	}
-	now = time.Now()
+	/*
+		select {
+		case <-time.After(time.Nanosecond):
+		case <-s.halt.ReqStop.Chan:
+			//vv("i=%v <-s.halt.ReqStop.Chan", i)
+			return
+		}
+		now = time.Now()
+	*/
 
 	armed := s.armTimer(now, i)
 	_ = armed
@@ -3070,10 +3075,10 @@ func (s *Simnet) haveNextTimer(now time.Time) <-chan time.Time {
 		if dur == 0 {
 			vv("dur was 0 !!!") // never seen. good.
 		}
-		//vv("haveNextTimer: no timer at the moment, don't wait on it.")
+		vv("haveNextTimer: no timer at the moment, don't wait on it.")
 		//return nil
 	}
-	//vv("haveNextTimer: s.lastArmToFire = %v; s.lastArmDur = %v", s.lastArmToFire, s.lastArmDur)
+	vv("haveNextTimer: s.lastArmToFire = %v; s.lastArmDur = %v", s.lastArmToFire, s.lastArmDur)
 	return s.nextTimer.C
 }
 
@@ -3201,16 +3206,6 @@ func (s *Simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 
 			when2 := when
 
-			// arg. if a mop is already masked, it should not
-			// be re-masked again. lets assume that the times
-			// in the meq are to be honored. any add to meq must
-			// add the right tm.
-			// if lte(when, now) {
-			// 	when2 = userMaskTime(now, op.who)
-			// } else {
-			// 	when2 = userMaskTime(when, op.who)
-			// }
-
 			dur := when2.Sub(now)
 			//if dur < 0 {
 			//old: vv("times were not all unique, but they should be! op='%v'", op)
@@ -3220,7 +3215,9 @@ func (s *Simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 				//dur = s.scenario.tick
 				//when2 = now.Add(dur)
 				//when2 = userMaskTime(now.Add(dur), s.who)
+
 				dur, when2 = s.durToGridPoint(now, s.scenario.tick)
+				vv("called durToGridPoint, when2 = '%v'", when2)
 			}
 
 			s.lastArmToFire = when2
@@ -3230,7 +3227,7 @@ func (s *Simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 			// should be okay, since we can't be here and
 			// also waiting on the timer.
 			s.nextTimer.Reset(dur) // this should be the only such reset.
-			//vv("i=%v, arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", loopi, when2, dur, when2.Sub(now), op)
+			vv("i=%v, arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", loopi, when2, dur, when2.Sub(now), op)
 			//return dur
 			return true
 		}
@@ -3417,7 +3414,7 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.Xwhence = append([]string{}, s.xwhence...)
 	req.Xkind = append([]mopkind{}, s.xkind...)
 	req.Xissuetm = append([]time.Time{}, s.xissuetm...)
-	req.Xdispatchtm = append([]time.Time{}, s.xdispatchtm...)
+	req.Xdispatchtm = append([]string{}, s.xdispatchtm...)
 	req.Xfintm = append([]time.Time{}, s.xfintm...)
 	req.Xwho = append([]int{}, s.xwho...)
 	req.Xorigin = append([]string{}, s.xorigin...)

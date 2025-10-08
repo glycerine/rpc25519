@@ -912,7 +912,7 @@ type SimnetSnapshot struct {
 	Xkind     []mopkind // send,read,timer,discard,...
 
 	Xissuetm    []time.Time // when issued
-	Xdispatchtm []time.Time // when dispatched (more determistic we hope)
+	Xdispatchtm []string    // when dispatched _ name (more determistic)
 
 	Xfintm  []time.Time // when finished
 	Xwho    []int
@@ -1114,9 +1114,9 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 
 	// try to print in dispatch order?
 	dis := newOmap[string, int]()
-	for i, tm := range snap.Xdispatchtm {
-		vv("adding dis.set snap.Xdispatchtm[i] = '%v' for i = %v", tm, i)
-		dis.set(fmt.Sprintf("%v_%v", tm.Format(rfc3339NanoTz0), i), i)
+	for i, d := range snap.Xdispatchtm {
+		vv("adding dis.set snap.Xdispatchtm[i] = '%v' for i = %v", d, i)
+		dis.set(d, i)
 	}
 
 	// avoid sn order as is non-deterministic when
@@ -1128,10 +1128,11 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		_ = dispatchTm
 
 		if !snap.Xfintm[sn].IsZero() {
-			//elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			elap := snap.Xfintm[sn].Sub(snap.Xdispatchtm[sn])
+			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
+			//elap := snap.Xfintm[sn].Sub(snap.Xdispatchtm[sn])
+			//elap := ""
 			fmt.Fprintf(fd, "%v %v\t%v %v [gid %v; %v; fin< %v]\n",
-				nice9(snap.Xdispatchtm[sn]), snap.Xwhence[sn], snap.Xkind[sn],
+				snap.Xdispatchtm[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap, snap.Xwho[sn], chompAnyUniqSuffix(snap.Xorigin[sn]), snap.Xfinorder[sn])
 		} else {
 			// not finished yet
