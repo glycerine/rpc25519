@@ -30,9 +30,10 @@ type GoroControl struct {
 
 // Message operation
 type mop struct {
-	sn    int64
-	who   int    // goro number
-	where string // generic fileLine (send,read,timer have their own atm)
+	sn        int64
+	who       int    // goro number
+	where     string // generic fileLine (send,read,timer have their own atm)
+	earlyName string // before origin assigned, let mop.String print
 
 	proceedMop *mop // in meq, should close(proceed) at completeTm
 
@@ -287,7 +288,7 @@ func (s *mop) tm() time.Time {
 
 // mop.sn assignment by client code is
 // non-deterministic. the client or the
-// server could get their read in first,
+// server could get their read request allocated a sn first,
 // for example. so avoid using .sn to break ties
 // until after looking at origin:target.
 func newMasterEventQueue(owner string) *pq {
@@ -438,7 +439,10 @@ func (s *Simnet) fin(op *mop) {
 	w := op.whence() // file:line where created.
 	s.xwhence[op.sn] = w
 	s.xkind[op.sn] = op.kind
-	perm := s.perma[op.who]
+	perm, ok := s.perma[op.who]
+	if !ok {
+		panicf("op.who = %v was not in s.perma", op.who)
+	}
 	s.xwho[op.sn] = perm
 	if op.origin != nil {
 		s.xorigin[op.sn] = op.origin.name
@@ -2792,7 +2796,13 @@ func (s *Simnet) scheduler() {
 }
 
 func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario, shutdown bool) {
-	vv("i=%v, top distributeMEQ, size %v", i, s.meq.Len())
+	sz := s.meq.Len()
+	if sz > 1 {
+		verboseVerbose = true
+	} else {
+		verboseVerbose = false
+	}
+	pp("i=%v, top distributeMEQ, size %v", i, sz)
 	// meq is trying for
 	// more deterministic event ordering. we have
 	// accumulated and held any events from the
@@ -2840,6 +2850,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		if dur <= 0 {
 			panicf("wanted dur(%v) > 0", dur)
 		}
+		pp("waiting for dur = %v for op = %v", dur, op)
 		select {
 		case <-time.After(dur):
 			if faketime {
@@ -2854,7 +2865,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 
 		s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, now, op.whence()))
 
-		//vv("meq has op = '%v'", op)
+		vv("meq has op = '%v'", op)
 		switch op.kind {
 		case CLOSE_SIMNODE:
 			//vv("CLOSE_SIMNODE '%v'", op.closeSimnode.simnodeName)
@@ -3562,6 +3573,7 @@ func (s *Simnet) newClientRegMop(clireg *clientRegistration) (op *mop) {
 		proceed:   clireg.proceed,
 		who:       clireg.who,
 		reqtm:     clireg.reqtm,
+		earlyName: clireg.client.name,
 	}
 	return
 }
@@ -3575,6 +3587,7 @@ func (s *Simnet) newServerRegMop(srvreg *serverRegistration) (op *mop) {
 		proceed:   srvreg.proceed,
 		who:       srvreg.who,
 		reqtm:     srvreg.reqtm,
+		earlyName: srvreg.server.name,
 	}
 	return
 }

@@ -1137,7 +1137,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		}
 	}
 	fmt.Fprintf(fd, "dispatch order based Xhash: %v\n", snap.XhashDis)
-	fmt.Fprintf(fd, "fin() finish order based Xhash: %v\n", snap.XhashFin)
+	//fmt.Fprintf(fd, "fin() finish order based Xhash: %v\n", snap.XhashFin)
 	//vv("path = '%v' for %v/ nw=%v; out='%v'", path, len(snap.Xorder), nw, fd.Name())
 }
 

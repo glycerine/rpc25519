@@ -167,6 +167,9 @@ func (op *mop) String() string {
 		who += fmt.Sprintf("(%v)", op.origin.name)
 	} else {
 		who += "(origin nil)"
+		if op.earlyName != "" {
+			who += " earlyName: " + op.earlyName
+		}
 	}
 	now := time.Now()
 	var ini, arr, complete string
