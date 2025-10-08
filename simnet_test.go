@@ -1118,9 +1118,7 @@ func Test103_userMaskTime(t *testing.T) {
 
 	bubbleOrNot(func() {
 		cur := time.Now()
-		s := &Simnet{perma: make(map[string]int)}
-		//gid := goID()
-		//s.addPerma(gid, nil)
+		s := &Simnet{}
 		for range 100 {
 			next := s.userMaskTime(cur, "")
 

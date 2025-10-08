@@ -476,12 +476,12 @@ func (s *Simnet) fin(op *mop) {
 	s.xwhence[op.sn] = w
 	s.xkind[op.sn] = op.kind
 	nm := op.bestName()
-	perm, ok := s.perma[nm]
+	tie, ok := s.tiebreak[nm]
 	if !ok {
 		// snapshot request for test code, leave perm == 0.
 		//panicf("op.bestName = %v was not in s.perma", nm)
 	}
-	s.xwho[op.sn] = perm
+	s.xwho[op.sn] = tie
 	if op.origin != nil {
 		s.xorigin[op.sn] = op.origin.name
 	}
@@ -489,7 +489,27 @@ func (s *Simnet) fin(op *mop) {
 		s.xtarget[op.sn] = op.target.name
 	}
 
-	s.xb3hashFin.Write(whoWhatWhenWhere(perm, op.kind, now, w))
+	s.xb3hashFin.Write([]byte(op.repeatable(now)))
+}
+
+// repeatable tries to report the dispatch or fin() completing
+// of an operation at the given time (now) in a loggable
+// string that is not tied to goroutine identity; to
+// test for determinism and diagnose issues during replay.
+func (op *mop) repeatable(now time.Time) string {
+
+	// We chomp off the long random suffix of nm
+	// to try and make repeated runs more deterministic.
+
+	return fmt.Sprintf("%v_%v_%v_%v_%v", now.Format(rfc3339NanoTz0), op.cliOrSrvString(), op.kind, chompAnyUniqSuffix(op.bestName()), op.whence())
+}
+
+func (op *mop) cliOrSrvString() (cs string) {
+	cs = "SERVER"
+	if op.originCli {
+		cs = "CLIENT"
+	}
+	return
 }
 
 func whoWhatWhenWhere(who int, what mopkind, whenTm time.Time, where string) []byte {
@@ -561,12 +581,20 @@ type Simnet struct {
 	xorigin     []string
 	xtarget     []string
 
-	// sequentially issued IDs to mitigate
-	// the problem of changing goroutineIDs
-	// on the second run of the load test
+	// when we break ties in the meq for
+	// same time-stamp operations, we
+	// want to get as deterministic order
+	// as possible. We use the sort of
+	// the (simnet fake DNS) names in the
+	// system. meq does same:
+	// tm, priority of operation, origin.name
+	// sender.name, ...
+	// e.g. on the second run of the load test
 	// in simgrid_test 707.
-	perma     map[string]int // key: name -> dns order + 1
-	nextPerma int
+	tiebreak map[string]int // key: name -> dns order + 1
+	// tiebreakVersion avoids recomputing
+	// tiebreak on every add2meq
+	tiebreakVersion int64
 
 	xmut       sync.Mutex
 	xb3hashFin *blake3.Hasher // ordered by fin() call time
@@ -803,7 +831,7 @@ func (s *Simnet) handleServerRegistration(op *mop) {
 	s.dns[srvnode.name] = srvnode
 	s.node2server[srvnode] = srvnode
 	s.dnsOrdered.set(srvnode.name, srvnode)
-	s.redoPerma()
+	s.redoTiebreak()
 	op.origin = srvnode
 
 	basesrv, ok := s.servers[reg.serverBaseID]
@@ -885,7 +913,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	s.allnodes[clinode] = true
 	s.dns[clinode.name] = clinode
 	s.dnsOrdered.set(clinode.name, clinode)
-	s.redoPerma()
+	s.redoTiebreak()
 
 	regop.origin = clinode
 
@@ -966,8 +994,9 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
-		mintick: time.Duration(minTickNanos),
-		perma:   make(map[string]int),
+		mintick:         time.Duration(minTickNanos),
+		tiebreak:        make(map[string]int),
+		tiebreakVersion: -1,
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
 		xb3hashFin:     blake3.New(64, nil),
 		xb3hashDis:     blake3.New(64, nil),
@@ -1413,7 +1442,7 @@ func (s *Simnet) shutdownSimnode(target *simnode) (undo Alteration) {
 			delete(s.node2server, node)
 			delete(s.dns, node.name)
 			s.dnsOrdered.delkey(node.name)
-			s.redoPerma()
+			s.redoTiebreak()
 
 			delete(s.servers, node.serverBaseID)
 			delete(s.allnodes, node)
@@ -2549,8 +2578,10 @@ func (s *Simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	//vv("i=%v, add2meq %v", loopi, op)
 
-	//s.addPerma(op.who, op)
-	s.redoPerma()
+	if s.dnsOrdered.version != s.tiebreakVersion {
+		s.redoTiebreak()
+		s.tiebreakVersion = s.dnsOrdered.version
+	}
 
 	// experiment try to separate out each meq in time?
 
@@ -2574,46 +2605,11 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	return
 }
 
-// Since a test like 707 that runs the
-// same simnet simulation twice in a row will end up
-// using different goroutineIDs for the
-// same simnodes (ugh), we map goroutineIDs
-// to a more stable integer identifier
-// based on their first appearance to the simnet.
-// This is the s.perma map.
-/*
-func (s *Simnet) addPermaOrig(who int) {
-	if _, already := s.perma[who]; already {
-		return
-	}
-	s.perma[who] = s.nextPerma
-	s.nextPerma++
-}
-*/
-func (s *Simnet) redoPerma() {
-	/*
-		name := op.earlyName
-		if op.origin != nil {
-			name = op.origin.name
-		}
-	*/
-	clear(s.perma)
+func (s *Simnet) redoTiebreak() {
+	clear(s.tiebreak)
 	for i, okv := range s.dnsOrdered.cached() {
-		s.perma[okv.key] = i + 1
+		s.tiebreak[okv.key] = i + 1
 	}
-}
-
-func (s *Simnet) dnsOrder(name string) int {
-	// linear search but meh its a small set of node names
-	// and the cached array should pre-fetch into L1 well.
-	biggest := 0
-	for i, okv := range s.dnsOrdered.cached() {
-		if okv.key == name {
-			return i
-		}
-		biggest = i
-	}
-	return biggest + 1
 }
 
 // scheduler is the heart of the simnet
@@ -2646,7 +2642,6 @@ func (s *Simnet) scheduler() {
 		}
 	}()
 	s.who = goID()
-	//s.addPerma(s.who, nil)
 
 	var nextReport time.Time
 
@@ -2914,7 +2909,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	// which is threading non-deterministic based on
 	// which client goro gets scheduled first, not good.
 	// We want our tie breaking as it is more deterministic.
-	who := make(map[int]*mop)
+	//who := make(map[int]*mop)
 
 	// if we don't process all the meq and assign
 	// them timepoints in the future to run, then
@@ -2931,38 +2926,13 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		}
 		op = s.meq.pop()
 		npop++
-		perm := s.perma[op.bestName()]
-		who[perm] = op
+		//nm := op.bestName()
+		//perm := s.tiebreak[nm]
+		//who[perm] = op
 
-		// if false {
-		// 	// experiment
-		// 	goaltm := s.userMaskTime(now, op.who)
-		// 	dur := goaltm.Sub(now)
-		// 	if dur <= 0 {
-		// 		panicf("wanted dur(%v) > 0", dur)
-		// 	}
-		// 	pp("waiting for dur = %v for op = %v", dur, op)
-		// 	select {
-		// 	case <-time.After(dur):
-		// 		if faketime {
-		// 			synctestWait_LetAllOtherGoroFinish() // barrier
-		// 		}
-		// 	case <-s.halt.ReqStop.Chan:
-		// 		shutdown = true
-		// 		return
-		// 	}
-		// 	now = time.Now()
-		// }
-
-		cs := "SERVER"
-		if op.originCli {
-			cs = "CLIENT"
-		}
-		xdis := fmt.Sprintf("%v_%v_%v_%v", now.Format(rfc3339NanoTz0), cs, op.kind, chompAnyUniqSuffix(op.bestName()))
+		xdis := op.repeatable(now)
 		s.xdispatchtm[op.sn] = xdis
-
-		//s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, time.Time{}, op.whence()))
-		s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, now, op.whence()))
+		s.xb3hashDis.Write([]byte(xdis))
 
 		//vv("in distributeMEQ, meq has op = '%v'\n  ->  xdis = '%v'", op, xdis)
 		switch op.kind {
@@ -3308,10 +3278,10 @@ func (s *Simnet) userMaskTime(tm time.Time, who0 string) (newtm time.Time) {
 	// if who0 >= minTickNanos {
 	// 	panic(fmt.Sprintf("who goID = %v >= minTickNanos limit. simnet currently has a max goroutine limit of minTickNanos(%v)", who0, minTickNanos))
 	// }
-	who, ok := s.perma[who0]
+	who, ok := s.tiebreak[who0]
 	if !ok {
 		// scheduler, leave who == 0
-		//panic(fmt.Sprintf("bad, goro not in s.perma: %v", who0))
+		//panic(fmt.Sprintf("bad, goro not in s.tiebreak: %v", who0))
 	}
 	// hack!
 	who = 0
@@ -3664,7 +3634,7 @@ func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 		delete(s.node2server, node)
 		delete(s.dns, node.name)
 		s.dnsOrdered.delkey(node.name)
-		s.redoPerma()
+		s.redoTiebreak()
 
 		//vv("handleCloseSimnode deleted node.name '%v' from dns", node.name)
 		delete(s.servers, node.serverBaseID)
@@ -3673,7 +3643,7 @@ func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 	}
 	delete(s.dns, target)
 	s.dnsOrdered.delkey(target)
-	s.redoPerma()
+	s.redoTiebreak()
 
 	//vv("handleCloseSimnode deleted target '%v' from dns", target)
 	// set req.err if need be
