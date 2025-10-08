@@ -434,25 +434,19 @@ func (s *mop) clone() (c *mop) {
 	return
 }
 
-// want decentralized userMaskTime instead, mostly...
-// but try again for more deterministic scheduling.
+// try again for more deterministic scheduling.
 // simnet wide next deadline assignment for all
 // timers on all nodes, and all send and read points.
 func (s *Simnet) nextUniqTm(atleast time.Time, who string) time.Time {
-	//	if who == 0 {
-	//		panic("who 0 not set!")
-	//	}
+
 	if atleast.After(s.lastTimerDeadline) {
 		s.lastTimerDeadline = atleast
 	} else {
 		// INVAR: atleast <= s.lastTimerDeadline
-		// I think userMaskTime alone might suffice now.
-		// We know that s.lastTimerDeadline is acceptable.
 
 		//const bump = timeMask0 // more than mask
 		//s.lastTimerDeadline = s.lastTimerDeadline.Add(bump)
 	}
-	//was for a while:
 	s.lastTimerDeadline = s.bumpTime(s.lastTimerDeadline)
 
 	return s.lastTimerDeadline
@@ -1962,7 +1956,7 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	send.senderLC = origin.lc
 	send.originLC = origin.lc
 
-	// do we want to always advance by 0.1 msec (to match userMaskTime) to allow
+	// do we want to always advance by 0.1 msec to allow
 	// any amount of extra sleep to get the reader goro
 	// alone when they pick up the read?
 	send.unmaskedSendArrivalTm = send.initTm.Add(s.scenario.rngHop())
@@ -1989,12 +1983,10 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 		probDrop = tarconn.dropSend
 
 		// so we want the reader to have a unique wake
-		// time of their own, right? yeah but we don't really
-		// know which reader goro will get it at this point.
-		// For instance, they might disconnect and come back
-		// in the meantime? that does kind of throw a wrench
-		// into trying to only wake at for the reader at their
-		// userMaskTime ending in their goroID though. Ugh.
+		// time of their own, right? used to think
+		// we wanted this... but goroID are not repeatable
+		// from run to run, so its very hard to
+		// pick the same one to be awake on each run.
 	}
 	if !s.statewiseConnected(send.origin, send.target) ||
 		probDrop >= 1 { // s.localDropSend(send) {
@@ -3207,7 +3199,6 @@ func (simnode *simnode) soonestTimerLessThan(bound *mop) *mop {
 
 // We assume atm that all goID are < 100_000.
 // So this suffices to avoid collissions.
-// We validate this assumption in userMaskTime too.
 const timeMask0 = time.Microsecond * 100 // then add GoID on top.
 const timeMask9 = time.Microsecond*100 - 1
 
@@ -3226,47 +3217,6 @@ const timeMask9 = time.Microsecond*100 - 1
 // 2006-01-02T15:04:05.000099999-07:00
 
 const minTickNanos = 100_000
-
-/*
-// userMaskTime makes the last 5 digits
-// of a nanosecond timestamp match the who goroutineID
-// which must be < minTickNanos (100_000)
-func (s *Simnet) userMaskTime(tm time.Time, who0 string) (newtm time.Time) {
-	// if who0 <= 0 {
-	// 	panic(fmt.Sprintf("who %v not set or negative!", who0))
-	// }
-	// if who0 >= minTickNanos {
-	// 	panic(fmt.Sprintf("who goID = %v >= minTickNanos limit. simnet currently has a max goroutine limit of minTickNanos(%v)", who0, minTickNanos))
-	// }
-	who, ok := s.tiebreak[who0]
-	if !ok {
-		// scheduler, leave who == 0
-		//panic(fmt.Sprintf("bad, goro not in s.tiebreak: %v", who0))
-	}
-	// hack!
-	who = 0
-
-	// always bump to next 100 usec, so we are
-	// for sure after tm.
-	now := time.Now()
-	newtm = tm.Truncate(timeMask0).Add(timeMask0 + time.Duration(who))
-	if newtm.Before(tm) {
-		panic(fmt.Sprintf("arg. want newtm(%v) >= tm(%v)", newtm, tm))
-	}
-	if newtm.After(now) {
-		return
-	} else {
-		newtm = now.Truncate(timeMask0).Add(timeMask0 + time.Duration(who))
-		//if newtm.Before(now) {
-		if lte(newtm, now) || newtm.Before(tm) {
-			// arg. our correction did not help.
-			// it should have for any who > 0, so wat?
-			panic(fmt.Sprintf("arg! newtm(%v) <= now(%v) || newtm.Before(tm='%v'); who=%v", nice(newtm), nice(now), nice(tm), who))
-		}
-	}
-	return
-}
-*/
 
 func (s *Simnet) bumpTime(tm time.Time) (newtm time.Time) {
 	// always bump to next 100 usec, so we are
