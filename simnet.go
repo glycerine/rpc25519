@@ -869,7 +869,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 		// Think of it as inducing more client error
 		// recovery testing; which is a good thing.
 		//
-		vv("simnet: client name already taken: '%v'", reg.client.name)
+		//vv("simnet: client name already taken: '%v'", reg.client.name)
 		panic(fmt.Sprintf("client name already taken: '%v'", reg.client.name))
 
 		// or, recognizing that the "real world" network
@@ -1927,7 +1927,7 @@ func (s *Simnet) statewiseConnected(origin, target *simnode) (linked bool) {
 
 func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	now := time.Now()
-	vv("top of handleSend(send = '%v')", send)
+	//vv("top of handleSend(send = '%v')", send)
 	defer func() {
 
 		// if false {
@@ -1963,7 +1963,7 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	send.completeTm = s.userMaskTime(now, origin.name) // send complete on the sender side.
 	// handleSend
 	send.arrivalTm = s.userMaskTime(send.unmaskedSendArrivalTm, origin.name)
-	vv("set send.arrivalTm = '%v' for send = '%v'", send.arrivalTm, send)
+	//vv("set send.arrivalTm = '%v' for send = '%v'", send.arrivalTm, send)
 	// note that read matching time will be unique based on
 	// send arrival time.
 
@@ -2712,7 +2712,7 @@ func (s *Simnet) scheduler() {
 					// durToGridPoint does userMaskTime for us now.
 					dur, _ := s.durToGridPoint(now, s.scenario.tick)
 
-					vv("i=%v, elap=0 and no work, just advance time by dur='%v' and try to dispatch below.", i, dur)
+					//vv("i=%v, elap=0 and no work, just advance time by dur='%v' and try to dispatch below.", i, dur)
 
 					time.Sleep(dur)
 					// should we barrier now? no other selects
@@ -2728,7 +2728,7 @@ func (s *Simnet) scheduler() {
 				}
 			}
 			totalSleepDur += elap
-			vv("i=%v, nextTimer fired. s.lastArmDur=%v; s.lastArmToFire = %v; elap = '%v'", i, s.lastArmDur, s.lastArmToFire, elap)
+			//vv("i=%v, nextTimer fired. s.lastArmDur=%v; s.lastArmToFire = %v; elap = '%v'", i, s.lastArmDur, s.lastArmToFire, elap)
 			//if elap == 0 {
 			//vv("i=%v, cool: elap was 0, nice. single stepping the next goro... nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
 			//}
@@ -2804,7 +2804,7 @@ func (s *Simnet) scheduler() {
 			s.add2meq(s.newAlterNodeMop(alt), i)
 
 		case alt := <-s.alterHostCh:
-			vv("i=%v alterHostCh ->  alt='%v'", i, alt)
+			//vv("i=%v alterHostCh ->  alt='%v'", i, alt)
 			//s.handleAlterHost(op.alt)
 			s.add2meq(s.newAlterHostMop(alt), i)
 
@@ -2888,10 +2888,10 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	} else {
 		verboseVerbose = false
 	}
-	vv("i=%v, top distributeMEQ: %v", i, s.showMEQ())
-	defer func() {
-		vv("i=%v, end of distributeMEQ: %v", i, s.showMEQ())
-	}()
+	//vv("i=%v, top distributeMEQ: %v", i, s.showMEQ())
+	//defer func() {
+	//	vv("i=%v, end of distributeMEQ: %v", i, s.showMEQ())
+	//}()
 	// meq is trying for
 	// more deterministic event ordering. we have
 	// accumulated and held any events from the
@@ -2964,7 +2964,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		//s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, time.Time{}, op.whence()))
 		s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, now, op.whence()))
 
-		vv("in distributeMEQ, meq has op = '%v'\n  ->  xdis = '%v'", op, xdis)
+		//vv("in distributeMEQ, meq has op = '%v'\n  ->  xdis = '%v'", op, xdis)
 		switch op.kind {
 		case CLOSE_SIMNODE:
 			//vv("CLOSE_SIMNODE '%v'", op.closeSimnode.simnodeName)
@@ -3058,7 +3058,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	_ = armed
 
 	if !armed {
-		vv("timer NOT armed")
+		//vv("timer NOT armed")
 	}
 
 	if !armed && nd == 0 && npop == 0 {
@@ -3083,10 +3083,10 @@ func (s *Simnet) haveNextTimer(now time.Time) <-chan time.Time {
 		if dur == 0 {
 			vv("dur was 0 !!!") // never seen. good.
 		}
-		vv("haveNextTimer: no timer at the moment, don't wait on it.")
+		//vv("haveNextTimer: no timer at the moment, don't wait on it.")
 		//return nil
 	}
-	vv("haveNextTimer: s.lastArmToFire = %v; s.lastArmDur = %v", s.lastArmToFire, s.lastArmDur)
+	//vv("haveNextTimer: s.lastArmToFire = %v; s.lastArmDur = %v", s.lastArmToFire, s.lastArmDur)
 	return s.nextTimer.C
 }
 
@@ -3225,7 +3225,7 @@ func (s *Simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 				//when2 = userMaskTime(now.Add(dur), s.who)
 
 				dur, when2 = s.durToGridPoint(now, s.scenario.tick)
-				vv("called durToGridPoint, when2 = '%v'", when2)
+				//vv("called durToGridPoint, when2 = '%v'", when2)
 			}
 
 			s.lastArmToFire = when2
@@ -3235,7 +3235,7 @@ func (s *Simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 			// should be okay, since we can't be here and
 			// also waiting on the timer.
 			s.nextTimer.Reset(dur) // this should be the only such reset.
-			vv("i=%v, arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", loopi, when2, dur, when2.Sub(now), op)
+			//vv("i=%v, arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", loopi, when2, dur, when2.Sub(now), op)
 			//return dur
 			return true
 		}
@@ -3592,7 +3592,7 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 // not have intermediate layer Server/Client read/send loops
 // still going on old goroutines.
 func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
-	vv("CLOSE_SIMNODE '%v'; reason='%v'", clop.closeSimnode.simnodeName, clop.closeSimnode.reason)
+	//vv("CLOSE_SIMNODE '%v'; reason='%v'", clop.closeSimnode.simnodeName, clop.closeSimnode.reason)
 
 	defer func() {
 		s.fin(clop)
@@ -3704,7 +3704,7 @@ func (s *Simnet) newServerRegMop(srvreg *serverRegistration) (op *mop) {
 		reqtm:     srvreg.reqtm,
 		earlyName: srvreg.server.name,
 	}
-	vv("newServerRegMop(%p) has reqtm='%v' from srvreq.reqtm = '%v'; op = '%v'", op, op.reqtm, srvreg.reqtm, op)
+	//vv("newServerRegMop(%p) has reqtm='%v' from srvreq.reqtm = '%v'; op = '%v'", op, op.reqtm, srvreg.reqtm, op)
 	return
 }
 
