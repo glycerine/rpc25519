@@ -3305,6 +3305,9 @@ func (s *Simnet) userMaskTime(tm time.Time, who0 string) (newtm time.Time) {
 		// scheduler, leave who == 0
 		//panic(fmt.Sprintf("bad, goro not in s.perma: %v", who0))
 	}
+	// hack!
+	who = 0
+
 	// always bump to next 100 usec, so we are
 	// for sure after tm.
 	now := time.Now()
