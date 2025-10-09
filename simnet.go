@@ -615,7 +615,7 @@ func (s *Simnet) fin(op *mop) {
 	s.xkind[op.sn] = op.kind
 	nm := op.bestName()
 	tie := s.xtiebreak[nm]
-	// 0 okay for scheduler
+	// (tie of 0 okay for scheduler, no need to check ok)
 	s.xwho[op.sn] = tie
 	if op.origin != nil {
 		s.xorigin[op.sn] = op.origin.name
