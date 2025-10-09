@@ -2885,24 +2885,31 @@ func (s *Simnet) scheduler() {
 			// a deterministic order, and dispatch in that
 			// order.
 			if true { // green for tests here, tube, jsync.
+
+				if faketime {
+					synctestWait_LetAllOtherGoroFinish() // barrier
+				}
 				var shouldExit bool
-				var saw0, saw1 int
-				saw1 = 1 // allow saw0 check to find 0,0 (two in a row).
+				var saw0, saw1, saw2 int
+				saw2 = 1
+				saw1 = 1 // find 0,0,0 (three zeros in a row).
 				// loop seeking a fixed point: no more
 				// client requests coming in.
 				var j int
 				for ; ; j++ {
 					saw0 = saw1
-					shouldExit, saw1 = s.add2meqUntilSelectDefault(i)
+					saw1 = saw2
+					shouldExit, saw2 = s.add2meqUntilSelectDefault(i)
 					if shouldExit {
 						return
 					}
-					if saw1 > 0 {
-						//vv("i=%v, on j=%v, saw1 additional %v", i, j, saw1)
+					if saw2 > 0 {
+						//vv("i=%v, on j=%v, saw1 additional %v", i, j, saw2)
 					} else {
-						if saw0 == 0 {
+						if saw0 == 0 && saw1 == 0 && saw2 == 0 {
 							break
-						} // else go 1 more round, b/c batch sizes of 707 are varying.
+						}
+						// else go 1 more round, b/c batch sizes of 707 are varying at 18 or 17, and this keeps them at 18 on issueOrder:181. chrunk: 19 vs 18 even with this on. require 3 zeros in a row and but another barrier earlier.
 					}
 					if faketime {
 						synctestWait_LetAllOtherGoroFinish() // barrier
