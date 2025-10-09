@@ -519,7 +519,9 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 		nPeer := nNodes - 1
 		wantRead := nPeer * wantSendPerPeer
 
-		bubbleOrNot(func() {
+		// realtime timestamp diffs will cause false
+		// alarms, so only under bubble.
+		onlyBubbled(t, func() {
 
 			n := nNodes
 			gridCfg := &simGridConfig{
