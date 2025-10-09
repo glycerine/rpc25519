@@ -454,12 +454,9 @@ func newOneTimeSliceQ(owner string) *pq {
 		// mop.origin nil, so try not to seg fault on it.
 		if av.origin == nil && bv.origin != nil {
 			// seen in tube tests! on client register.
-			// panicf("no nil av.origin allowed in the oneTimeSliceQ: %v", av)
 			return -1
 		}
 		if av.origin != nil && bv.origin == nil {
-			//if bv.origin == nil {
-			//panicf("no nil bv.origin allowed in the oneTimeSliceQ: %v", bv)
 			return 1
 		}
 		// we want to handle the both origin == nil cases
@@ -612,18 +609,13 @@ func (s *Simnet) fin(op *mop) {
 
 	s.xfinorder[op.sn] = s.nextMopSn
 	s.xfintm[op.sn] = now
-	//if op.sn == 3 {
-	//panicf("where 3? now = %v", nice9(now))
-	//}
+
 	w := op.whence() // file:line where created.
 	s.xwhence[op.sn] = w
 	s.xkind[op.sn] = op.kind
 	nm := op.bestName()
-	tie, ok := s.tiebreak[nm]
-	if !ok {
-		// snapshot request for test code, leave perm == 0.
-		//panicf("op.bestName = %v was not in s.perma", nm)
-	}
+	tie := s.xtiebreak[nm]
+	// 0 okay for scheduler
 	s.xwho[op.sn] = tie
 	if op.origin != nil {
 		s.xorigin[op.sn] = op.origin.name
@@ -690,13 +682,7 @@ func (s *Simnet) simnetNextMopSn() (sn int64) {
 	defer s.xmut.Unlock()
 	sn = s.nextMopSn
 	s.nextMopSn++
-	if sn == 3 {
-		// after the increment to avoid a double panic deadlock,
-		// since the panicing server on shutdown will try to send
-		// a Close packet/message to its peer.
-		//vv("about to panic at sn == 3")
-		//panic("at sn == 3")
-	}
+
 	s.xissuetm = append(s.xissuetm, time.Now())
 	s.xdispatchtm = append(s.xdispatchtm, "")
 
@@ -746,10 +732,12 @@ type Simnet struct {
 	// sender.name, ...
 	// e.g. on the second run of the load test
 	// in simgrid_test 707.
-	tiebreak map[string]int // key: name -> dns order + 1
+
+	// NB: must hold xmut for xtiebreak too... can we delete it? <-TODO
+	xtiebreak map[string]int // key: name -> dns order + 1
 	// tiebreakVersion avoids recomputing
 	// tiebreak on every add2meq
-	tiebreakVersion int64
+	xtiebreakVersion int64
 
 	xmut       sync.Mutex
 	xb3hashFin *blake3.Hasher // ordered by fin() call time
@@ -1155,9 +1143,9 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
-		mintick:         time.Duration(minTickNanos),
-		tiebreak:        make(map[string]int),
-		tiebreakVersion: -1,
+		mintick:          time.Duration(minTickNanos),
+		xtiebreak:        make(map[string]int),
+		xtiebreakVersion: -1,
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
 		xb3hashFin:     blake3.New(64, nil),
 		xb3hashDis:     blake3.New(64, nil),
@@ -2717,10 +2705,12 @@ func (s *Simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	//vv("i=%v, add2meq %v", loopi, op)
 
-	if s.dnsOrdered.version != s.tiebreakVersion {
-		s.redoTiebreak()
-		s.tiebreakVersion = s.dnsOrdered.version
+	s.xmut.Lock()
+	if s.dnsOrdered.version != s.xtiebreakVersion {
+		s.redoTiebreakNoLock()
+		s.xtiebreakVersion = s.dnsOrdered.version
 	}
+	s.xmut.Unlock()
 
 	// experiment try to separate out each meq in time?
 
@@ -2749,9 +2739,15 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 }
 
 func (s *Simnet) redoTiebreak() {
-	clear(s.tiebreak)
+	s.xmut.Lock()
+	defer s.xmut.Unlock()
+	s.redoTiebreakNoLock()
+}
+
+func (s *Simnet) redoTiebreakNoLock() {
+	clear(s.xtiebreak)
 	for i, okv := range s.dnsOrdered.cached() {
-		s.tiebreak[okv.key] = i + 1
+		s.xtiebreak[okv.key] = i + 1
 	}
 }
 

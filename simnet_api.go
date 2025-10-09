@@ -1146,7 +1146,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				nice9(snap.Xfintm[sn]),
 				chompAnyUniqSuffix(snap.Xorigin[sn]), snap.Xfinorder[sn],
 				sn,
-				snap.Xwho[sn], // tie
+				snap.Xwho[sn], // tiebreaker for this node
 			)
 
 		} else {
