@@ -404,17 +404,151 @@ func newMasterEventQueue(owner string) *pq {
 	}
 }
 
-func (s *Simnet) showMEQ() (r string) {
-	sz := s.meq.Len()
+func newOneTimeSliceQ(owner string) *pq {
+
+	cmp := func(a, b rb.Item) int {
+		av := a.(*mop)
+		bv := b.(*mop)
+
+		if av == nil {
+			panic("no nil events allowed in the oneTimeSliceQ")
+			return -1
+		}
+		if bv == nil {
+			panic("no nil events allowed in the oneTimeSliceQ")
+			return 1
+		}
+		asn := av.sn
+		bsn := bv.sn
+		// be sure to keep delete by sn working
+		if asn == bsn {
+			return 0
+		}
+		//atm := av.tm()
+		//btm := bv.tm()
+		//if atm.Before(btm) {
+		//	return -1
+		//}
+		//if atm.After(btm) {
+		//	return 1
+		//}
+		acli := av.cliOrSrvString()
+		bcli := bv.cliOrSrvString()
+		if acli < bcli {
+			return -1
+		}
+		if acli > bcli {
+			return 1
+		}
+		// either both client or both server
+
+		apri := av.priority()
+		bpri := bv.priority()
+		if apri < bpri {
+			return -1
+		}
+		if apri > bpri {
+			return 1
+		}
+		// same priority, i.e. both reads
+
+		// chompAnyUniqSuffix(op.bestName()), op.whence())
+
+		// some alt from <-s.alterHostCh, newAlterHostMop(alt)) had
+		// mop.origin nil, so try not to seg fault on it.
+		if av.origin == nil && bv.origin != nil {
+			return -1
+		}
+		if av.origin != nil && bv.origin == nil {
+			return 1
+		}
+		if av.origin != nil && bv.origin != nil {
+			aname := chompAnyUniqSuffix(av.bestName())
+			bname := chompAnyUniqSuffix(bv.bestName())
+			if aname < bname {
+				return -1
+			}
+			if aname > bname {
+				return 1
+			}
+		}
+		if av.target == nil && bv.target != nil {
+			return -1
+		}
+		if av.target != nil && bv.target == nil {
+			return 1
+		}
+		if av.target != nil && bv.target != nil {
+			atname := chompAnyUniqSuffix(av.target.name)
+			btname := chompAnyUniqSuffix(bv.target.name)
+			if atname < btname {
+				return -1
+			}
+			if atname > btname {
+				return 1
+			}
+		}
+		// same origin, same target.
+		aw := av.whence()
+		bw := bv.whence()
+		if aw < bw {
+			return -1
+		}
+		if aw > bw {
+			return 1
+		}
+
+		if av.senderLC < av.senderLC {
+			return -1
+		}
+		if av.senderLC > av.senderLC {
+			return 1
+		}
+
+		if av.readerLC < av.readerLC {
+			return -1
+		}
+		if av.readerLC > av.readerLC {
+			return 1
+		}
+
+		if av.originLC < av.originLC {
+			return -1
+		}
+		if av.originLC > av.originLC {
+			return 1
+		}
+
+		panicf("oneTimeSliceQ could not tell these two different sn events apart to sort them deterministically!\n av='%v' \n bv='%v'", av, bv)
+
+		// sn are non-deterministic. never use them!
+		//if asn < bsn {
+		//	return -1
+		//}
+		//if asn > bsn {
+		//	return 1
+		//}
+		return 0
+	}
+	return &pq{
+		Owner:   owner,
+		Orderby: "oneTimeSliceQ priority() then name...",
+		Tree:    rb.NewTree(cmp),
+		cmp:     cmp,
+	}
+}
+
+func (s *Simnet) showQ(q *pq, name string) (r string) {
+	sz := q.Len()
 	if sz == 0 {
-		r += "\n empty meq\n"
+		r += fmt.Sprintf("\n empty Q: %v\n", name)
 		return
 	}
-	r += fmt.Sprintf("\n meq size %v:\n%v", sz, s.meq)
+	r += fmt.Sprintf("\n %v size %v:\n%v", name, sz, q)
 
 	i := 0
-	r = fmt.Sprintf(" ------- MEQ len %v --------\n", s.meq.Len())
-	for it := s.meq.Tree.Min(); !it.Limit(); it = it.Next() {
+	r = fmt.Sprintf(" ------- %v len %v --------\n", name, q.Len())
+	for it := q.Tree.Min(); !it.Limit(); it = it.Next() {
 
 		item := it.Item() // interface{}
 		if isNil(item) {
@@ -527,17 +661,22 @@ func whoWhatWhenWhere(who int, what mopkind, whenTm time.Time, where string) []b
 	return append(b[:], []byte(where)...)
 }
 
+// remember: issuing sn is inherently racy since
+// clients and servers at startup are all trying
+// to start sending and reading from the network at around
+// the same point in time. We cannot count on the
+// sn serial number order to be reproducible.
 func (s *Simnet) simnetNextMopSn() (sn int64) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 	sn = s.nextMopSn
 	s.nextMopSn++
-	if sn == 5 {
+	if sn == 3 {
 		// after the increment to avoid a double panic deadlock,
 		// since the panicing server on shutdown will try to send
 		// a Close packet/message to its peer.
-		vv("about to panic at sn == 5")
-		panic("at sn == 5")
+		//vv("about to panic at sn == 3")
+		//panic("at sn == 3")
 	}
 	s.xissuetm = append(s.xissuetm, time.Now())
 	s.xdispatchtm = append(s.xdispatchtm, "")
@@ -624,6 +763,10 @@ type Simnet struct {
 	scenario *scenario
 
 	meq *pq // the master event queue.
+
+	// one time slice worth of meq events
+	// queue, for distributeMEQ()
+	curSliceQ *pq
 
 	cfg *Config
 
@@ -998,6 +1141,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 		xb3hashFin:     blake3.New(64, nil),
 		xb3hashDis:     blake3.New(64, nil),
 		meq:            newMasterEventQueue("scheduler"),
+		curSliceQ:      newOneTimeSliceQ("scheduler"),
 		cfg:            cfg,
 		srv:            srv,
 		cliRegisterCh:  make(chan *clientRegistration),
@@ -1975,7 +2119,8 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	// handleSend
 	send.arrivalTm = s.bumpTime(send.unmaskedSendArrivalTm)
 
-	//vv("set send.arrivalTm = '%v' for send = '%v'", send.arrivalTm, send)
+	vv("set send.arrivalTm = '%v' for send = '%v'", send.arrivalTm, send)
+
 	// note that read matching time will be unique based on
 	// send arrival time.
 
@@ -2717,7 +2862,7 @@ func (s *Simnet) scheduler() {
 					return
 				}
 				if saw1 > 0 {
-					vv("on j=%v, saw1 additional %v", j, saw1)
+					vv("i=%v, on j=%v, saw1 additional %v", i, j, saw1)
 					saw1 = 0
 				} else {
 					break
@@ -2726,7 +2871,14 @@ func (s *Simnet) scheduler() {
 					synctestWait_LetAllOtherGoroFinish() // 2nd barrier
 				}
 			}
-			vv("i=%v finish fixed point loop after j = %v", i, j)
+			//vv("i=%v finish fixed point loop after j = %v", i, j) // why sometimes do we jump now from 0.0003 to 0.0005, and sometimes to 0.0006 (between i=8 and i=9 on 707) meq at end of i=8 has cli send with tm 0.0005 => next is 0.0005. cli send in meq with tm of 0.0006 means next wake will be 0.0006. so why does the pq timestamp for the mop vary?
+			// One approach that was introducing non-determinism
+			// was that we were using the reqtm to sort mop in the meq.
+			// The reqtm is client side set and thus non-deterministic.
+			// And meq was sorted on reqtm to determine how to
+			// dispatch the meq(!) Yikes. We really want to sort
+			// on dispatch time, or maybe not sort on time at all,
+			// just dispatch in a deterministic order everything <= now.
 			s.tickLogicalClocks()
 
 			_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
@@ -2865,13 +3017,20 @@ func (s *Simnet) scheduler() {
 	}
 }
 
+// One aspect that was introducing non-determinism
+// was that we were using the reqtm to sort mop in the meq.
+// The reqtm is client side set and thus non-deterministic.
+// And meq was sorted on reqtm to determine how to
+// dispatch the meq(!) Yikes. We really want to sort
+// on dispatch time, or maybe not sort on time at all,
+// just dispatch in a deterministic order everything <= now.
 func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario, shutdown bool) {
 
 	//sz := s.meq.Len()
-	vv("i=%v, top distributeMEQ: %v", i, s.showMEQ())
-	defer func() {
-		vv("i=%v, end of distributeMEQ: %v", i, s.showMEQ())
-	}()
+	//vv("i=%v, top distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
+	//defer func() {
+	//	vv("i=%v, end of distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
+	//}()
 	// meq is trying for
 	// more deterministic event ordering. we have
 	// accumulated and held any events from the
@@ -2896,6 +3055,12 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	// We want our tie breaking as it is more deterministic.
 	//who := make(map[int]*mop)
 
+	// always starts empty
+	sliceQlen := s.curSliceQ.Len()
+	if sliceQlen != 0 {
+		panicf("s.curSliceQ.Len() = %v, but should always start 0", sliceQlen)
+	}
+
 	// if we don't process all the meq and assign
 	// them timepoints in the future to run, then
 	// the subsequent queued events might get to run first?
@@ -2911,10 +3076,18 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		}
 		op = s.meq.pop()
 		npop++
-		//nm := op.bestName()
-		//perm := s.tiebreak[nm]
-		//who[perm] = op
+		added, _ := s.curSliceQ.add(op)
+		if !added {
+			panicf("should never have conflict adding to curSliceQ: why could we not add op='%v' to curSliceQ = '%v'", op, s.showQ(s.curSliceQ, "curSliceQ"))
+		}
+	}
+	if npop == 0 {
+		return
+	}
+	//defer s.curSliceQ.deleteAll()
 
+	for s.curSliceQ.Len() > 0 {
+		op = s.curSliceQ.pop()
 		xdis := op.repeatable(now)
 
 		// must hold xmut.Lock else race vs simnetNextMopSn()
@@ -2992,10 +3165,10 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
 		}
 
-		if strings.Contains(xdis, "CLIENT_SEND_auto-cli-from-srv_grid_node_0-to-srv_grid_node_1_cli.go") {
-			vv("about to panic at 1st common variance point")
-			panic("stopping after our 1st common variance point at line 6: sometimes dispatches at 00.0005, sometimes at 00.0004")
-		}
+		//if strings.Contains(xdis, "CLIENT_SEND_auto-cli-from-srv_grid_node_0-to-srv_grid_node_1_cli.go") {
+		//vv("about to panic at 1st common variance point")
+		//panic("stopping after our 1st common variance point at line 6: sometimes dispatches at 00.0005, sometimes at 00.0004; sometimes 00.0006")
+		//}
 	} // end for
 
 	//if len(who) > 1 {
