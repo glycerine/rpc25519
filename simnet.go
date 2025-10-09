@@ -2851,34 +2851,36 @@ func (s *Simnet) scheduler() {
 			// requests we have in the meq (<= now) into
 			// a deterministic order, and dispatch in that
 			// order.
-			var shouldExit bool
-			var saw1 int
-			// loop seeking a fixed point: no more
-			// client requests coming in.
-			var j int
-			for ; ; j++ {
-				shouldExit, saw1 = s.add2meqUntilSelectDefault(i)
-				if shouldExit {
-					return
+			if false {
+				var shouldExit bool
+				var saw1 int
+				// loop seeking a fixed point: no more
+				// client requests coming in.
+				var j int
+				for ; ; j++ {
+					shouldExit, saw1 = s.add2meqUntilSelectDefault(i)
+					if shouldExit {
+						return
+					}
+					if saw1 > 0 {
+						vv("i=%v, on j=%v, saw1 additional %v", i, j, saw1)
+						saw1 = 0
+					} else {
+						break
+					}
+					if faketime {
+						synctestWait_LetAllOtherGoroFinish() // barrier
+					}
 				}
-				if saw1 > 0 {
-					vv("i=%v, on j=%v, saw1 additional %v", i, j, saw1)
-					saw1 = 0
-				} else {
-					break
-				}
-				if faketime {
-					synctestWait_LetAllOtherGoroFinish() // 2nd barrier
+			} else {
+				if slept {
+					if faketime {
+						synctestWait_LetAllOtherGoroFinish() // barrier
+					}
 				}
 			}
 			//vv("i=%v finish fixed point loop after j = %v", i, j) // why sometimes do we jump now from 0.0003 to 0.0005, and sometimes to 0.0006 (between i=8 and i=9 on 707) meq at end of i=8 has cli send with tm 0.0005 => next is 0.0005. cli send in meq with tm of 0.0006 means next wake will be 0.0006. so why does the pq timestamp for the mop vary?
-			// One approach that was introducing non-determinism
-			// was that we were using the reqtm to sort mop in the meq.
-			// The reqtm is client side set and thus non-deterministic.
-			// And meq was sorted on reqtm to determine how to
-			// dispatch the meq(!) Yikes. We really want to sort
-			// on dispatch time, or maybe not sort on time at all,
-			// just dispatch in a deterministic order everything <= now.
+
 			s.tickLogicalClocks()
 
 			_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
@@ -3027,10 +3029,10 @@ func (s *Simnet) scheduler() {
 func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario, shutdown bool) {
 
 	//sz := s.meq.Len()
-	//vv("i=%v, top distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
-	//defer func() {
-	//	vv("i=%v, end of distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
-	//}()
+	vv("i=%v, top distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
+	defer func() {
+		vv("i=%v, end of distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
+	}()
 	// meq is trying for
 	// more deterministic event ordering. we have
 	// accumulated and held any events from the
@@ -3084,7 +3086,14 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	if npop == 0 {
 		return
 	}
-	//defer s.curSliceQ.deleteAll()
+	vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
+
+	// TODO: we could randomize dispatch order
+	// within the time slice using the
+	// controlled/reproducible scenario.rng pseudo RNG.
+	// s.scen.rng.Uint64() ... if we are sure
+	// that would not violate causality. but we
+	// do check that at the matchmaker.
 
 	for s.curSliceQ.Len() > 0 {
 		op = s.curSliceQ.pop()
@@ -3096,7 +3105,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		s.xb3hashDis.Write([]byte(xdis))
 		s.xmut.Unlock()
 
-		vv("in distributeMEQ, meq has op = '%v'\n  ->  xdis = '%v'", op, xdis)
+		vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
 
 		switch op.kind {
 		case CLOSE_SIMNODE:
@@ -3203,9 +3212,9 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// can see alot of this while waiting for stuff
 		// e.g. a first leader election. Let user test code
 		// activate it with a simnet.NoisyNothing call.
-		if s.noisyNothing.Load() {
-			alwaysPrintf("timer not armed, simnet npop=0 and num dispatched = 0, quiescent?")
-		}
+		//if s.noisyNothing.Load() {
+		alwaysPrintf("timer not armed, simnet npop=0 and num dispatched = 0, quiescent?")
+		//}
 	}
 	return
 }

@@ -390,7 +390,7 @@ func (s *node2) Start(
 				for {
 					select {
 					case frag := <-ckt.Reads:
-						//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag) // not seen!!!
+						vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag) // not seen!!!
 
 						s.seen.Set(AliasDecode(frag.FromPeerID), ckt)
 
