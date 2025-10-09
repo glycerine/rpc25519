@@ -613,10 +613,10 @@ func (s *Simnet) fin(op *mop) {
 	w := op.whence() // file:line where created.
 	s.xwhence[op.sn] = w
 	s.xkind[op.sn] = op.kind
-	nm := op.bestName()
-	tie := s.xtiebreak[nm]
+	//nm := op.bestName()
+	//tie := s.xtiebreak[nm]
 	// (tie of 0 okay for scheduler, no need to check ok)
-	s.xwho[op.sn] = tie
+	//s.xwho[op.sn] = tie
 	if op.origin != nil {
 		s.xorigin[op.sn] = op.origin.name
 	}
@@ -690,7 +690,7 @@ func (s *Simnet) simnetNextMopSn() (sn int64) {
 	s.xwhence = append(s.xwhence, "")
 	s.xkind = append(s.xkind, -1)
 	s.xfinorder = append(s.xfinorder, -1)
-	s.xwho = append(s.xwho, -1)
+	//s.xwho = append(s.xwho, -1)
 	s.xorigin = append(s.xorigin, "")
 	s.xtarget = append(s.xtarget, "")
 
@@ -718,9 +718,9 @@ type Simnet struct {
 	xissuetm    []time.Time
 	xdispatchtm []string
 	xfintm      []time.Time
-	xwho        []int
-	xorigin     []string
-	xtarget     []string
+	//xwho        []int
+	xorigin []string
+	xtarget []string
 
 	// when we break ties in the meq for
 	// same time-stamp operations, we
@@ -734,10 +734,10 @@ type Simnet struct {
 	// in simgrid_test 707.
 
 	// NB: must hold xmut for xtiebreak too... can we delete it? <-TODO
-	xtiebreak map[string]int // key: name -> dns order + 1
+	//xtiebreak map[string]int // key: name -> dns order + 1
 	// tiebreakVersion avoids recomputing
 	// tiebreak on every add2meq
-	xtiebreakVersion int64
+	//xtiebreakVersion int64
 
 	xmut       sync.Mutex
 	xb3hashFin *blake3.Hasher // ordered by fin() call time
@@ -978,7 +978,7 @@ func (s *Simnet) handleServerRegistration(op *mop) {
 	s.dns[srvnode.name] = srvnode
 	s.node2server[srvnode] = srvnode
 	s.dnsOrdered.set(srvnode.name, srvnode)
-	s.redoTiebreak()
+	//s.redoTiebreak()
 	op.origin = srvnode
 
 	basesrv, ok := s.servers[reg.serverBaseID]
@@ -1060,7 +1060,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	s.allnodes[clinode] = true
 	s.dns[clinode.name] = clinode
 	s.dnsOrdered.set(clinode.name, clinode)
-	s.redoTiebreak()
+	//s.redoTiebreak()
 
 	regop.origin = clinode
 
@@ -1143,9 +1143,9 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
-		mintick:          time.Duration(minTickNanos),
-		xtiebreak:        make(map[string]int),
-		xtiebreakVersion: -1,
+		mintick: time.Duration(minTickNanos),
+		//xtiebreak:        make(map[string]int),
+		//xtiebreakVersion: -1,
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
 		xb3hashFin:     blake3.New(64, nil),
 		xb3hashDis:     blake3.New(64, nil),
@@ -1592,7 +1592,7 @@ func (s *Simnet) shutdownSimnode(target *simnode) (undo Alteration) {
 			delete(s.node2server, node)
 			delete(s.dns, node.name)
 			s.dnsOrdered.delkey(node.name)
-			s.redoTiebreak()
+			//s.redoTiebreak()
 
 			delete(s.servers, node.serverBaseID)
 			delete(s.allnodes, node)
@@ -2705,12 +2705,12 @@ func (s *Simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	//vv("i=%v, add2meq %v", loopi, op)
 
-	s.xmut.Lock()
-	if s.dnsOrdered.version != s.xtiebreakVersion {
-		s.redoTiebreakNoLock()
-		s.xtiebreakVersion = s.dnsOrdered.version
-	}
-	s.xmut.Unlock()
+	// s.xmut.Lock()
+	// if s.dnsOrdered.version != s.xtiebreakVersion {
+	// 	s.redoTiebreakNoLock()
+	// 	s.xtiebreakVersion = s.dnsOrdered.version
+	// }
+	// s.xmut.Unlock()
 
 	// experiment try to separate out each meq in time?
 
@@ -2738,18 +2738,18 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	return
 }
 
-func (s *Simnet) redoTiebreak() {
-	s.xmut.Lock()
-	defer s.xmut.Unlock()
-	s.redoTiebreakNoLock()
-}
+// func (s *Simnet) redoTiebreak() {
+// 	s.xmut.Lock()
+// 	defer s.xmut.Unlock()
+// 	s.redoTiebreakNoLock()
+// }
 
-func (s *Simnet) redoTiebreakNoLock() {
-	clear(s.xtiebreak)
-	for i, okv := range s.dnsOrdered.cached() {
-		s.xtiebreak[okv.key] = i + 1
-	}
-}
+// func (s *Simnet) redoTiebreakNoLock() {
+// 	clear(s.xtiebreak)
+// 	for i, okv := range s.dnsOrdered.cached() {
+// 		s.xtiebreak[okv.key] = i + 1
+// 	}
+// }
 
 // scheduler is the heart of the simnet
 // network simulator. It is the central
@@ -3598,7 +3598,7 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.Xissuetm = append([]time.Time{}, s.xissuetm...)
 	req.Xdispatchtm = append([]string{}, s.xdispatchtm...)
 	req.Xfintm = append([]time.Time{}, s.xfintm...)
-	req.Xwho = append([]int{}, s.xwho...)
+	//req.Xwho = append([]int{}, s.xwho...)
 	req.Xorigin = append([]string{}, s.xorigin...)
 	req.Xtarget = append([]string{}, s.xtarget...)
 
@@ -3835,7 +3835,7 @@ func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 		delete(s.node2server, node)
 		delete(s.dns, node.name)
 		s.dnsOrdered.delkey(node.name)
-		s.redoTiebreak()
+		//s.redoTiebreak()
 
 		//vv("handleCloseSimnode deleted node.name '%v' from dns", node.name)
 		delete(s.servers, node.serverBaseID)
@@ -3844,7 +3844,7 @@ func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 	}
 	delete(s.dns, target)
 	s.dnsOrdered.delkey(target)
-	s.redoTiebreak()
+	//s.redoTiebreak()
 
 	//vv("handleCloseSimnode deleted target '%v' from dns", target)
 	// set req.err if need be
