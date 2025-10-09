@@ -922,10 +922,9 @@ type SimnetSnapshot struct {
 	Xissuetm    []time.Time // when issued
 	Xdispatchtm []string    // when dispatched _ name (more determistic)
 
-	Xfintm []time.Time // when finished
-	//Xwho    []int
-	Xorigin []string // name of origin simnode, to be goro ID independent.
-	Xtarget []string // name of target simnode, to be goro ID independent.
+	Xfintm  []time.Time // when finished
+	Xorigin []string    // name of origin simnode, to be goro ID independent.
+	Xtarget []string    // name of target simnode, to be goro ID independent.
 
 	XhashFin string // hash of the sequence of fin()
 	XhashDis string // hash of the sequence of dispatches
@@ -1139,7 +1138,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
 			//elap := snap.Xfintm[sn].Sub(snap.Xdispatchtm[sn])
 			//elap := ""
-			fmt.Fprintf(fd, "[dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [%v; fin< %v] [sn:%v]\n", //  [tie:%v]\n",
+			fmt.Fprintf(fd, "[dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [%v; fin< %v] [sn:%v]\n",
 				snap.Xdispatchtm[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
 				nice9(snap.Xissuetm[sn]),
@@ -1147,8 +1146,6 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				chompAnyUniqSuffix(snap.Xorigin[sn]), snap.Xfinorder[sn],
 				sn,
 			)
-			//snap.Xwho[sn], // tiebreaker for this node
-			//)
 
 		} else {
 			// not finished yet
