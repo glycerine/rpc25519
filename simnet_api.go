@@ -1132,13 +1132,16 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	dis := newOmap[int64, int]()
 	for sn, order := range snap.XissueOrder {
 		//vv("adding dis.set snap.XissueOrder[sn=%v] = '%v'", sn, order)
-		if order == 0 {
+		switch {
+		case order == 0:
 			panicf("what to do with XissueOrder[%v] = %v ??", sn, order)
-		} else if order < 0 {
+		case order < 0:
 			// -1 means was not hashed and not
 			// issued, so we can ignore
+		case order > 0:
+			// actually issued and hashed (but may not have finished).
+			dis.set(order, sn)
 		}
-		dis.set(order, sn)
 	}
 
 	// avoid sn order as is non-deterministic when
@@ -1146,16 +1149,17 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	//for sn := range snap.Xcountsn
 
 	// print in issue order, not sn order.
-	for _, sn := range dis.all() {
-
+	for iss, sn := range dis.all() {
+		if snap.XissueOrder[sn] != iss {
+			panicf("assert error, should always hold that (%v)snap.XissueOrder[sn] == iss(%v)", snap.XissueOrder[sn], iss)
+		}
 		// we leave out the spurious diff producing op.sn
 		// so that if we _do_ see a diff we know it
 		// is real and we can track it down.
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			//elap := snap.Xfintm[sn].Sub(snap.Xdispatchtm[sn])
-			//elap := ""
-			fmt.Fprintf(fd, "[dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v]\n", // ; fin< %v]\n", //  [sn:%v]\n",
+			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v]\n", // ; fin< %v]\n", //  [sn:%v]\n",
+				snap.XissueOrder[sn],
 				snap.Xdispatchtm[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
 				nice9(snap.Xissuetm[sn]),
@@ -1166,9 +1170,17 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 			)
 
 		} else {
-			// not finished yet - can float to top and mess up order.
-			fmt.Fprintf(fd, "%v %v not_finished\n",
-				nice9(snap.Xissuetm[sn]), sn)
+			// hashed/issued, but not finished yet
+			//fmt.Fprintf(fd, "%v %v not_finished\n",
+			//	nice9(snap.Xissuetm[sn]), sn)
+			fmt.Fprintf(fd, "not_finished [issueOrder:%v] [dispatch:%v] %v\t%v [issue:%v] [origin %v]\n",
+				snap.XissueOrder[sn],
+				snap.Xdispatchtm[sn],
+				snap.Xwhence[sn],
+				snap.Xkind[sn],
+				nice9(snap.Xissuetm[sn]),
+				chompAnyUniqSuffix(snap.Xorigin[sn]),
+			)
 		}
 	}
 	fmt.Fprintf(fd, "dispatch order based Xhash: %v\n", snap.XhashDis)
