@@ -2119,7 +2119,7 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	// handleSend
 	send.arrivalTm = s.bumpTime(send.unmaskedSendArrivalTm)
 
-	vv("set send.arrivalTm = '%v' for send = '%v'", send.arrivalTm, send)
+	//vv("set send.arrivalTm = '%v' for send = '%v'", send.arrivalTm, send)
 
 	// note that read matching time will be unique based on
 	// send arrival time.
@@ -2336,10 +2336,11 @@ func (s *Simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 
 // does not call armTimer.
 func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
-	defer func() {
-		//vv("=== end of dispatch %v", simnode.name)
-	}()
+	//defer func() {
+	//vv("=== end of dispatch %v", simnode.name)
+	//}()
 	if limit == 0 {
+		//vv("limit is 0, returning from dispatchReadsSends")
 		return
 	}
 
@@ -2349,6 +2350,7 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 	nS := simnode.preArrQ.Tree.Len() // number of sends
 
 	if nR == 0 && nS == 0 {
+		//vv("nR == 0 && ns == 0, returning from dispatchReadsSends")
 		return
 	}
 
@@ -2383,7 +2385,7 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 				continue
 			}
 
-			//vv("eval match: read = '%v'; connected = %v; s.localDeafRead(read)=%v", read, s.statewiseConnected(read.origin, read.target), s.localDeafRead(read))
+			//vv("eval match: read = '%v'; connected = %v; s.localDeafRead(read)=%v", read, s.statewiseConnected(read.origin, read.target), s.localDeafRead(read, send))
 			//vv("eval match: send = '%v'; connected = %v; s.localDropSend(send)=%v", send, s.statewiseConnected(send.origin, send.target), s.localDropSend(send))
 
 			//simnode.optionallyApplyChaos()
@@ -2395,7 +2397,7 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			// can be made, and only then decide on drop or not.
 
 			if send.arrivalTm.After(now) {
-				// send has not arrived yet.
+				//vv("send has not arrived yet.")
 
 				// are we done? since preArrQ is ordered
 				// by arrivalTm, all subsequent pre-arrivals (sends)
@@ -2508,7 +2510,7 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 
 			// advance our logical clock
 			simnode.lc = max(simnode.lc, send.originLC) + 1
-			////zz("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, simnode.lc, simnode.lc-read.originLC, read.sn)
+			//vv("servicing read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, simnode.lc, simnode.lc-read.originLC, read.sn) // 707 not seen
 
 			// track clocks on either end for this send and read.
 			read.readerLC = simnode.lc
@@ -3029,10 +3031,10 @@ func (s *Simnet) scheduler() {
 func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario, shutdown bool) {
 
 	//sz := s.meq.Len()
-	vv("i=%v, top distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
-	defer func() {
-		vv("i=%v, end of distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
-	}()
+	//vv("i=%v, top distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
+	//defer func() {
+	//vv("i=%v, end of distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
+	//}()
 	// meq is trying for
 	// more deterministic event ordering. we have
 	// accumulated and held any events from the
@@ -3084,101 +3086,104 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		}
 	}
 	if npop == 0 {
-		return
+		// still have to dispatch below! might be
+		// time to match sender and receiver after
+		// sender has "traversed" the network
+	} else {
+		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
+
+		// TODO: we could randomize dispatch order
+		// within the time slice using the
+		// controlled/reproducible scenario.rng pseudo RNG.
+		// s.scen.rng.Uint64() ... if we are sure
+		// that would not violate causality. but we
+		// do check that at the matchmaker.
+
+		for s.curSliceQ.Len() > 0 {
+			op = s.curSliceQ.pop()
+			xdis := op.repeatable(now)
+
+			// must hold xmut.Lock else race vs simnetNextMopSn()
+			s.xmut.Lock()
+			s.xdispatchtm[op.sn] = xdis
+			s.xb3hashDis.Write([]byte(xdis))
+			s.xmut.Unlock()
+
+			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
+
+			switch op.kind {
+			case CLOSE_SIMNODE:
+				//vv("CLOSE_SIMNODE '%v'", op.closeSimnode.simnodeName)
+				s.handleCloseSimnode(op, now, i)
+
+			// case TIMER_FIRES: // not currently used.
+			// 	vv("TIMER_FIRES: %v", op)
+			// 	tC := op.proceedMop.timerC.Value()
+			// 	if tC != nil {
+			// 		select {
+			// 		//case op.proceedMop.timerC <- now: // might need to make buffered?
+			// 		case *tC <- now: // might need to make buffered?
+			// 			vv("TIMER_FIRES delivered to timer: %v", op.proceedMop)
+			// 		case <-s.halt.ReqStop.Chan:
+			// 			vv("i=%v <-s.halt.ReqStop.Chan", i)
+			// 			return
+			// 		}
+			// 	}
+			// 	// let op be GC-ed.
+
+			case TIMER:
+				//vv("i=%v, meq sees timer='%v'", i, op)
+				s.handleTimer(op)
+
+			case TIMER_DISCARD:
+				//vv("i=%v, meq sees discard='%v'", i, op)
+				s.handleDiscardTimer(op)
+
+			case SEND:
+				//vv("i=%v, meq sees send='%v'", i, op)
+				s.handleSend(op, 1, i)
+
+			case READ:
+				//vv("i=%v meq sees read='%v'", i, op)
+				s.handleRead(op, 1, i)
+			case SNAPSHOT:
+				s.handleSimnetSnapshotRequest(op, now, i)
+			case CLIENT_REG:
+				s.handleClientRegistration(op)
+			case SERVER_REG:
+				s.handleServerRegistration(op)
+
+			case SCENARIO:
+				s.finishScenario()
+				s.initScenario(op.scen)
+
+				restartNewScenario = true
+				return
+
+			case FAULT_CKT:
+				s.injectCircuitFault(op, true)
+			case FAULT_HOST:
+				s.injectHostFault(op)
+			case REPAIR_CKT:
+				s.handleCircuitRepair(op, true)
+			case REPAIR_HOST:
+				s.handleHostRepair(op)
+			case ALTER_HOST:
+				s.handleAlterHost(op)
+			case ALTER_NODE:
+				s.handleAlterCircuit(op, true)
+			case BATCH:
+				s.handleBatch(op)
+			default:
+				panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
+			}
+
+			//if strings.Contains(xdis, "CLIENT_SEND_auto-cli-from-srv_grid_node_0-to-srv_grid_node_1_cli.go") {
+			//vv("about to panic at 1st common variance point")
+			//panic("stopping after our 1st common variance point at line 6: sometimes dispatches at 00.0005, sometimes at 00.0004; sometimes 00.0006")
+			//}
+		} // end for
 	}
-	vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
-
-	// TODO: we could randomize dispatch order
-	// within the time slice using the
-	// controlled/reproducible scenario.rng pseudo RNG.
-	// s.scen.rng.Uint64() ... if we are sure
-	// that would not violate causality. but we
-	// do check that at the matchmaker.
-
-	for s.curSliceQ.Len() > 0 {
-		op = s.curSliceQ.pop()
-		xdis := op.repeatable(now)
-
-		// must hold xmut.Lock else race vs simnetNextMopSn()
-		s.xmut.Lock()
-		s.xdispatchtm[op.sn] = xdis
-		s.xb3hashDis.Write([]byte(xdis))
-		s.xmut.Unlock()
-
-		vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
-
-		switch op.kind {
-		case CLOSE_SIMNODE:
-			//vv("CLOSE_SIMNODE '%v'", op.closeSimnode.simnodeName)
-			s.handleCloseSimnode(op, now, i)
-
-		// case TIMER_FIRES: // not currently used.
-		// 	vv("TIMER_FIRES: %v", op)
-		// 	tC := op.proceedMop.timerC.Value()
-		// 	if tC != nil {
-		// 		select {
-		// 		//case op.proceedMop.timerC <- now: // might need to make buffered?
-		// 		case *tC <- now: // might need to make buffered?
-		// 			vv("TIMER_FIRES delivered to timer: %v", op.proceedMop)
-		// 		case <-s.halt.ReqStop.Chan:
-		// 			vv("i=%v <-s.halt.ReqStop.Chan", i)
-		// 			return
-		// 		}
-		// 	}
-		// 	// let op be GC-ed.
-
-		case TIMER:
-			//vv("i=%v, meq sees timer='%v'", i, op)
-			s.handleTimer(op)
-
-		case TIMER_DISCARD:
-			//vv("i=%v, meq sees discard='%v'", i, op)
-			s.handleDiscardTimer(op)
-
-		case SEND:
-			//vv("i=%v, meq sees send='%v'", i, op)
-			s.handleSend(op, 1, i)
-
-		case READ:
-			//vv("i=%v meq sees read='%v'", i, op)
-			s.handleRead(op, 1, i)
-		case SNAPSHOT:
-			s.handleSimnetSnapshotRequest(op, now, i)
-		case CLIENT_REG:
-			s.handleClientRegistration(op)
-		case SERVER_REG:
-			s.handleServerRegistration(op)
-
-		case SCENARIO:
-			s.finishScenario()
-			s.initScenario(op.scen)
-
-			restartNewScenario = true
-			return
-
-		case FAULT_CKT:
-			s.injectCircuitFault(op, true)
-		case FAULT_HOST:
-			s.injectHostFault(op)
-		case REPAIR_CKT:
-			s.handleCircuitRepair(op, true)
-		case REPAIR_HOST:
-			s.handleHostRepair(op)
-		case ALTER_HOST:
-			s.handleAlterHost(op)
-		case ALTER_NODE:
-			s.handleAlterCircuit(op, true)
-		case BATCH:
-			s.handleBatch(op)
-		default:
-			panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
-		}
-
-		//if strings.Contains(xdis, "CLIENT_SEND_auto-cli-from-srv_grid_node_0-to-srv_grid_node_1_cli.go") {
-		//vv("about to panic at 1st common variance point")
-		//panic("stopping after our 1st common variance point at line 6: sometimes dispatches at 00.0005, sometimes at 00.0004; sometimes 00.0006")
-		//}
-	} // end for
 
 	//if len(who) > 1 {
 	//	vv("i=%v; who count = %v", i, len(who))
@@ -3212,9 +3217,9 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// can see alot of this while waiting for stuff
 		// e.g. a first leader election. Let user test code
 		// activate it with a simnet.NoisyNothing call.
-		//if s.noisyNothing.Load() {
-		alwaysPrintf("timer not armed, simnet npop=0 and num dispatched = 0, quiescent?")
-		//}
+		if s.noisyNothing.Load() {
+			alwaysPrintf("timer not armed, simnet npop=0 and num dispatched = 0, quiescent?")
+		}
 	}
 	return
 }
