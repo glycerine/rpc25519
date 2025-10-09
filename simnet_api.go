@@ -1134,17 +1134,20 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	for dispatchTm, sn := range dis.all() {
 		_ = dispatchTm
 
+		// we leave out the spurious diff producing op.sn
+		// so that if we _do_ see a diff we know it
+		// is real and we can track it down.
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
 			//elap := snap.Xfintm[sn].Sub(snap.Xdispatchtm[sn])
 			//elap := ""
-			fmt.Fprintf(fd, "[dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [%v; fin< %v] [sn:%v]\n",
+			fmt.Fprintf(fd, "[dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [%v; fin< %v]\n", //  [sn:%v]\n",
 				snap.Xdispatchtm[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
 				nice9(snap.Xissuetm[sn]),
 				nice9(snap.Xfintm[sn]),
 				chompAnyUniqSuffix(snap.Xorigin[sn]), snap.Xfinorder[sn],
-				sn,
+				//sn,
 			)
 
 		} else {
