@@ -1176,8 +1176,8 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	}
 
 	//tick := time.Millisecond * 5 // 2x - 3x faster sim (25.4 sec on tube)
-	tick := time.Millisecond // (33 sec on tube)
-	//tick := time.Duration(minTickNanos) // (74 sec on tube)
+	//tick := time.Millisecond // (33 sec on tube)
+	tick := time.Duration(minTickNanos) // (74 sec on tube)
 	if tick < time.Duration(minTickNanos) {
 		panicf("must have tick >= minTickNanos(%v)", time.Duration(minTickNanos))
 	}
@@ -2811,7 +2811,11 @@ func (s *Simnet) scheduler() {
 		}
 
 		// let goroutines get blocked waiting on the select arms below.
-		time.Sleep(0)
+		select {
+		case <-s.halt.ReqStop.Chan:
+			return
+		case <-time.After(0):
+		}
 		if faketime {
 			synctestWait_LetAllOtherGoroFinish() // 1st barrier
 		}
@@ -2846,13 +2850,20 @@ func (s *Simnet) scheduler() {
 				// determinism and reproducibility. Released goro will
 				// likely set some timers etc.
 				sz := s.meq.Len()
-				if sz == 0 {
+				if false && sz == 0 {
 					// durToGridPoint does bumpTime for us now.
 					dur, _ := s.durToGridPoint(now, s.scenario.tick)
 
 					//vv("ADVANCE time in main scheduler: i=%v, elap=0 and no work, just advance time by dur='%v' and try to dispatch below.", i, dur)
 
-					time.Sleep(dur)
+					select {
+					case <-s.halt.ReqStop.Chan:
+						return
+					case <-time.After(dur):
+					}
+					// bad, raw sleep can cause
+					// synctest deadlock on cleanup: time.Sleep(dur)
+
 					// should we barrier now? no other selects
 					// are possible in here, so...pointless? But
 					// might give a small increase in determinism
@@ -2890,33 +2901,38 @@ func (s *Simnet) scheduler() {
 			// order.
 
 			// load up our select arms as much as possible
-			time.Sleep(0)
+			select {
+			case <-s.halt.ReqStop.Chan:
+				return
+			case <-time.After(0):
+			}
+			//time.Sleep(1)
 			if faketime {
 				synctestWait_LetAllOtherGoroFinish() // barrier
 			}
 			var shouldExit bool
-			var saw0, saw1, saw2 int
-			saw2 = 1
-			saw1 = 1 // find 0,0,0 (three zeros in a row).
+			// must observe N zeros in a row...
+			var zeroSeenCount int
+			var saw0, saw1 int
+			saw1 = 1
 			// loop seeking a fixed point: no more
 			// client requests coming in.
 			var j int
-			for ; ; j++ {
+			for ; zeroSeenCount < 40; j++ {
 				saw0 = saw1
-				saw1 = saw2
-				shouldExit, saw2 = s.add2meqUntilSelectDefault(i)
+				shouldExit, saw1 = s.add2meqUntilSelectDefault(i)
 				if shouldExit {
 					return
 				}
-				if saw2 > 0 {
-					//vv("i=%v, on j=%v, saw1 additional %v", i, j, saw2)
-				} else {
-					if saw0 == 0 && saw1 == 0 && saw2 == 0 {
-						break
-					}
-					// else go 1 more round, b/c batch sizes of 707 are varying at 18 or 17, and this keeps them at 18 on issueOrder:181. chrunk: 19 vs 18 even with this on. require 3 zeros in a row and add a prior barrier. arg. still varying batch sizes...
+				if saw1 == 0 && saw0 == 0 {
+					zeroSeenCount++
 				}
-				time.Sleep(0)
+				//time.Sleep(1)
+				select {
+				case <-s.halt.ReqStop.Chan:
+					return
+				case <-time.After(0):
+				}
 				if faketime {
 					synctestWait_LetAllOtherGoroFinish() // barrier
 				}
@@ -3163,7 +3179,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			s.xb3hashDis.Write([]byte(xdis))
 			s.xissueHash[op.sn] = asBlake33B(s.xb3hashDis)
 
-			fmt.Printf("on s.xissueLast = %v, hash = %v\n", s.xissueLast, asBlake33B(s.xb3hashDis))
+			//fmt.Printf("on s.xissueLast = %v, hash = %v\n", s.xissueLast, asBlake33B(s.xb3hashDis))
 			s.xmut.Unlock()
 
 			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
@@ -4041,6 +4057,7 @@ func (s *Simnet) Close() {
 // and execute their requests in that order.
 func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 	for ; ; saw++ {
+		zeroTimeoutCh := time.After(0)
 		select {
 		case batch := <-s.submitBatchCh:
 			s.add2meq(batch, i)
@@ -4131,7 +4148,8 @@ func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 			//vv("simnet.halt.ReqStop totalSleepDur = %v (%0.2f%%) since bb = %v)", totalSleepDur, pct, bb)
 			shouldExit = true
 			return
-		default:
+		case <-zeroTimeoutCh:
+			//default:
 			return
 		}
 	}
