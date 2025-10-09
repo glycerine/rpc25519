@@ -1131,8 +1131,9 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 		return net
 	}
 
-	//tick := time.Millisecond * 5 // 2x faster sim. :)
-	tick := time.Duration(minTickNanos)
+	//tick := time.Millisecond * 5 // 2x - 3x faster sim (25.4 sec on tube)
+	tick := time.Millisecond // (33 sec on tube)
+	//tick := time.Duration(minTickNanos) // (74 sec on tube)
 	if tick < time.Duration(minTickNanos) {
 		panicf("must have tick >= minTickNanos(%v)", time.Duration(minTickNanos))
 	}
@@ -2864,7 +2865,7 @@ func (s *Simnet) scheduler() {
 			// requests we have in the meq (<= now) into
 			// a deterministic order, and dispatch in that
 			// order.
-			if false {
+			if true { // green for tests here, tube, jsync.
 				var shouldExit bool
 				var saw1 int
 				// loop seeking a fixed point: no more
@@ -2876,7 +2877,7 @@ func (s *Simnet) scheduler() {
 						return
 					}
 					if saw1 > 0 {
-						vv("i=%v, on j=%v, saw1 additional %v", i, j, saw1)
+						//vv("i=%v, on j=%v, saw1 additional %v", i, j, saw1)
 						saw1 = 0
 					} else {
 						break
