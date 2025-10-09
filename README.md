@@ -1,6 +1,34 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* Recent News (2025 Oct 9): v1.30.0 DST for gosimnet
+
+The included network simulator (simnet.go,
+also available separately from 
+https://github.com/glycerine/gosimnet )
+has been upgraded to support 
+Deterministic Simulation Testing (DST).
+
+To counter the inherent non-determinism of the
+Go runtime (which insists on starting multiple
+threads), we leverage testing/synctest and
+a dispatch fixed-point strategy.
+
+After each of the simnet scheduler's time slices,
+the scheduler iterates on accepting new 
+client requests until a fixed point of no more requests to
+the network is obtained. This is made possible
+by deploying the synctest barrier called 
+synctest.Wait. Then we reproducibly
+and deterministically order the dispatch 
+sequence of the received requests for 
+that time slice according to the psuedo 
+random number generator in use for that 
+testing scenario. 
+
+Test 707 in simgrid_test.go, for example, verifies 
+that a cluster load test is reproducible.
+
 * Recent News (2025 Sept 18): v1.29.2 includes Tube, our RAFT implementation.
 
 The rpc25519/tube/ subdirectory contains Tube, 
