@@ -921,6 +921,7 @@ type SimnetSnapshot struct {
 
 	Xissuetm            []time.Time // when issued
 	XissueOrder         []int64     // order issued (same as order hashed)
+	XissueBatch         []int64     // who were we sorted with?
 	XissueHash          []string    // (cumulative) hash at this point
 	XdispatchRepeatable []string    // when dispatched _ name (more determistic)
 
@@ -1159,7 +1160,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		// is real and we can track it down.
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [hash %v]\n\n", // ; fin< %v]\n", //  [sn:%v]\n",
+			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [hash %v] [batch %v]\n\n", // ; fin< %v]\n", //  [sn:%v]\n",
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
@@ -1167,6 +1168,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				nice9(snap.Xfintm[sn]),
 				chompAnyUniqSuffix(snap.Xorigin[sn]),
 				snap.XissueHash[sn],
+				snap.XissueBatch[sn],
 				//snap.Xfinorder[sn],
 				//sn,
 			)

@@ -729,6 +729,7 @@ func (s *Simnet) simnetNextMopSn() (sn int64) {
 
 	s.xissuetm = append(s.xissuetm, time.Now())
 	s.xissueOrder = append(s.xissueOrder, -1)
+	s.xissueBatch = append(s.xissueBatch, -1)
 	s.xissueHash = append(s.xissueHash, "")
 	s.xdispatchRepeatable = append(s.xdispatchRepeatable, "")
 
@@ -763,6 +764,7 @@ type Simnet struct {
 	xkind       []mopkind
 	xissuetm    []time.Time
 	xissueOrder []int64
+	xissueBatch []int64
 	xissueHash  []string
 	xissueLast  int64
 
@@ -890,6 +892,8 @@ type Simnet struct {
 	nextTimer     *time.Timer
 	lastArmToFire time.Time
 	lastArmDur    time.Duration
+
+	curBatchNum int64
 }
 
 // a simnode is a client or server in the network.
@@ -3126,6 +3130,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// time to match sender and receiver after
 		// sender has "traversed" the network
 	} else {
+		s.curBatchNum++
 		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
 
 		for s.curSliceQ.Len() > 0 {
@@ -3144,6 +3149,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			// but we have not seen yet (so not in hash).
 			s.xissueLast++
 			s.xissueOrder[op.sn] = s.xissueLast
+			s.xissueBatch[op.sn] = s.curBatchNum
 			s.xb3hashDis.Write([]byte(xdis))
 			s.xissueHash[op.sn] = asBlake33B(s.xb3hashDis)
 
@@ -3604,6 +3610,7 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.Xkind = append([]mopkind{}, s.xkind...)
 	req.Xissuetm = append([]time.Time{}, s.xissuetm...)
 	req.XissueOrder = append([]int64{}, s.xissueOrder...)
+	req.XissueBatch = append([]int64{}, s.xissueBatch...)
 	req.XissueHash = append([]string{}, s.xissueHash...)
 	req.XdispatchRepeatable = append([]string{}, s.xdispatchRepeatable...)
 	req.Xfintm = append([]time.Time{}, s.xfintm...)
