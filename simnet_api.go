@@ -1139,7 +1139,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
 			//elap := snap.Xfintm[sn].Sub(snap.Xdispatchtm[sn])
 			//elap := ""
-			fmt.Fprintf(fd, "%v %v\t%v %v [issue:%v] [fin:%v] [%v; fin< %v] [sn:%v] [tie:%v]\n",
+			fmt.Fprintf(fd, "[dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [%v; fin< %v] [sn:%v] [tie:%v]\n",
 				snap.Xdispatchtm[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
 				nice9(snap.Xissuetm[sn]),

@@ -633,17 +633,21 @@ func panicIfFinalHashDifferent(xorderPath string) {
 	vv("matches = '%#v'", matches)
 	var firstHash string
 	var lines0 []string
+	var full0 []string
 	for i, m := range matches {
-		hash, lines := getLastHash(m)
+		hash, lines, full := getLastHash(m)
 		if i == 0 {
 			firstHash = hash
 			lines0 = lines
+			full0 = full
 			continue
 		}
 		if hash != firstHash {
 			for i, line := range lines {
 				if lines0[i] != line {
-					panicf("line %v has first diff:\n%v\n%v", i+1, lines0[i], line)
+					//panicf("line %v has first diff:\n%v\n%v", i+1, lines0[i], line)
+					// show sn and tie, even though we ignored in the diff:
+					panicf("line %v has first diff:\n%v\n%v", i+1, full0[i], full[i])
 				}
 			}
 			panic(fmt.Sprintf("file[0]='%v'\n (hash: '%v')\n and file[%v]='%v'\n (hash: '%v')\n disagree on last hash", matches[0], firstHash, i, matches[i], hash))
@@ -651,7 +655,7 @@ func panicIfFinalHashDifferent(xorderPath string) {
 	}
 }
 
-func getLastHash(path string) (hash string, lines []string) {
+func getLastHash(path string) (hash string, lines, full []string) {
 	by, err := os.ReadFile(path)
 	panicOn(err)
 	pos := bytes.LastIndex(by, []byte("blake3.33B-"))
@@ -659,6 +663,7 @@ func getLastHash(path string) (hash string, lines []string) {
 	lines = strings.Split(string(by), "\n")
 	// trim off the non-deterministics sn serial number at the end.
 	for i, line := range lines {
+		full = append(full, line)
 		pos := strings.LastIndex(line, "[sn:")
 		if pos >= 0 {
 			lines[i] = line[:pos]
