@@ -729,7 +729,8 @@ func (s *Simnet) simnetNextMopSn() (sn int64) {
 
 	s.xissuetm = append(s.xissuetm, time.Now())
 	s.xissueOrder = append(s.xissueOrder, -1)
-	s.xdispatchtm = append(s.xdispatchtm, "")
+	s.xissueHash = append(s.xissueHash, "")
+	s.xdispatchRepeatable = append(s.xdispatchRepeatable, "")
 
 	s.xfintm = append(s.xfintm, time.Time{})
 	s.xwhence = append(s.xwhence, "")
@@ -762,10 +763,11 @@ type Simnet struct {
 	xkind       []mopkind
 	xissuetm    []time.Time
 	xissueOrder []int64
+	xissueHash  []string
 	xissueLast  int64
 
-	xdispatchtm []string
-	xfintm      []time.Time
+	xdispatchRepeatable []string
+	xfintm              []time.Time
 
 	xorigin []string
 	xtarget []string
@@ -3132,7 +3134,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 
 			// must hold xmut.Lock else race vs simnetNextMopSn()
 			s.xmut.Lock()
-			s.xdispatchtm[op.sn] = xdis
+			s.xdispatchRepeatable[op.sn] = xdis
 			// update xissuetm, since original was by client
 			// in simnetNextMopSn() and not deterministic.
 			s.xissuetm[op.sn] = now
@@ -3143,6 +3145,8 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			s.xissueLast++
 			s.xissueOrder[op.sn] = s.xissueLast
 			s.xb3hashDis.Write([]byte(xdis))
+			s.xissueHash[op.sn] = asBlake33B(s.xb3hashDis)
+
 			fmt.Printf("on s.xissueLast = %v, hash = %v\n", s.xissueLast, asBlake33B(s.xb3hashDis))
 			s.xmut.Unlock()
 
@@ -3600,7 +3604,8 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.Xkind = append([]mopkind{}, s.xkind...)
 	req.Xissuetm = append([]time.Time{}, s.xissuetm...)
 	req.XissueOrder = append([]int64{}, s.xissueOrder...)
-	req.Xdispatchtm = append([]string{}, s.xdispatchtm...)
+	req.XissueHash = append([]string{}, s.xissueHash...)
+	req.XdispatchRepeatable = append([]string{}, s.xdispatchRepeatable...)
 	req.Xfintm = append([]time.Time{}, s.xfintm...)
 
 	req.Xorigin = append([]string{}, s.xorigin...)

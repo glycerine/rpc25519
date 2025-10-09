@@ -919,9 +919,10 @@ type SimnetSnapshot struct {
 	Xwhence   []string  // file:line creation place
 	Xkind     []mopkind // send,read,timer,discard,...
 
-	Xissuetm    []time.Time // when issued
-	XissueOrder []int64     // order issued (same as order hashed)
-	Xdispatchtm []string    // when dispatched _ name (more determistic)
+	Xissuetm            []time.Time // when issued
+	XissueOrder         []int64     // order issued (same as order hashed)
+	XissueHash          []string    // (cumulative) hash at this point
+	XdispatchRepeatable []string    // when dispatched _ name (more determistic)
 
 	Xfintm  []time.Time // when finished
 	Xorigin []string    // name of origin simnode, to be goro ID independent.
@@ -1122,8 +1123,8 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 
 	// try to print in dispatch order
 	// dis := newOmap[string, int]()
-	// for i, d := range snap.Xdispatchtm { // sort on repeatable() string
-	// 	//vv("adding dis.set snap.Xdispatchtm[i] = '%v' for i = %v", d, i)
+	// for i, d := range snap.XdispatchRepeatable { // sort on repeatable() string
+	// 	//vv("adding dis.set snap.XdispatchRepeatable[i] = '%v' for i = %v", d, i)
 	// 	dis.set(d, i)
 	// }
 
@@ -1158,24 +1159,26 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		// is real and we can track it down.
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v]\n", // ; fin< %v]\n", //  [sn:%v]\n",
+			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [hash %v]\n", // ; fin< %v]\n", //  [sn:%v]\n",
 				snap.XissueOrder[sn],
-				snap.Xdispatchtm[sn], snap.Xwhence[sn], snap.Xkind[sn],
+				snap.XdispatchRepeatable[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
 				nice9(snap.Xissuetm[sn]),
 				nice9(snap.Xfintm[sn]),
 				chompAnyUniqSuffix(snap.Xorigin[sn]),
+				snap.XissueHash[sn],
 				//snap.Xfinorder[sn],
 				//sn,
 			)
 
 		} else {
+			continue // skip these
 			// hashed/issued, but not finished yet
 			//fmt.Fprintf(fd, "%v %v not_finished\n",
 			//	nice9(snap.Xissuetm[sn]), sn)
 			fmt.Fprintf(fd, "not_finished [issueOrder:%v] [dispatch:%v] %v\t%v [issue:%v] [origin %v]\n",
 				snap.XissueOrder[sn],
-				snap.Xdispatchtm[sn],
+				snap.XdispatchRepeatable[sn],
 				snap.Xwhence[sn],
 				snap.Xkind[sn],
 				nice9(snap.Xissuetm[sn]),
@@ -1183,7 +1186,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 			)
 		}
 	}
-	fmt.Fprintf(fd, "dispatch order based Xhash: %v\n", snap.XhashDis)
+	//fmt.Fprintf(fd, "dispatch order based Xhash: %v\n", snap.XhashDis)
 	//fmt.Fprintf(fd, "fin() finish order based Xhash: %v\n", snap.XhashFin)
 	//vv("path = '%v' for %v/ nw=%v; out='%v'", path, len(snap.Xorder), nw, fd.Name())
 }
