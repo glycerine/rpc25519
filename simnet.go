@@ -160,6 +160,17 @@ type mop struct {
 	alterNode    *simnodeAlteration
 	batch        *SimnetBatch
 	closeSimnode *closeSimnode
+
+	pseudorandom uint64
+}
+
+// set a non-zero op.pseudorandom value.
+func (s *Simnet) setPseudorandom(op *mop) {
+	var x uint64
+	for x == 0 {
+		x = s.scenario.rng.Uint64()
+	}
+	op.pseudorandom = x
 }
 
 func (op *mop) bestName() string {
@@ -427,6 +438,12 @@ func newOneTimeSliceQ(owner string) *pq {
 		// be sure to keep delete by sn working
 		if asn == bsn {
 			return 0
+		}
+		if av.pseudorandom < bv.pseudorandom {
+			return -1
+		}
+		if av.pseudorandom > bv.pseudorandom {
+			return 1
 		}
 		acli := av.cliOrSrvString()
 		bcli := bv.cliOrSrvString()
@@ -772,7 +789,7 @@ type Simnet struct {
 
 	node2server map[*simnode]*simnode
 
-	// Ugh. TODO: we might need per-client dns because in general
+	// Ugh. We might need per-client dns because in general
 	// it is impossible for a new auto-cli to know
 	// that its name will be unique? as a 2nd connection
 	// attempt may be made when in reality the first
@@ -781,12 +798,11 @@ type Simnet struct {
 	// enforce a unique name when the real network
 	// can only know what is locally unique, not
 	// globally. First we'll try adding random suffixes
-	// to the names externally. OR we could use
-	// internal unique names (append a long random string)
-	// and have separate display names that can
-	// have duplicates.
-	dns map[string]*simnode
-	//dns *dmap[string, *simnode]
+	// to the names externally. Seems to suffice for
+	// now, along with trimming for reproduciblity
+	// check in 707 using chompAnyUniqSuffix().
+
+	dns        map[string]*simnode
 	dnsOrdered *omap[string, *simnode]
 
 	// circuits[A][B] is the bi-directed, very cyclic,
@@ -3054,6 +3070,15 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		}
 		op = s.meq.pop()
 		npop++
+
+		// we can randomize dispatch order
+		// within the time slice using the
+		// controlled/reproducible scenario.rng pseudo RNG.
+		// s.scen.rng.Uint64() ... if we are sure
+		// that would not violate causality. but we
+		// do check that at the matchmaker.
+		s.setPseudorandom(op)
+
 		added, _ := s.curSliceQ.add(op)
 		if !added {
 			panicf("should never have conflict adding to curSliceQ: why could we not add op='%v' to curSliceQ = '%v'", op, s.showQ(s.curSliceQ, "curSliceQ"))
@@ -3065,13 +3090,6 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// sender has "traversed" the network
 	} else {
 		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
-
-		// TODO: we could randomize dispatch order
-		// within the time slice using the
-		// controlled/reproducible scenario.rng pseudo RNG.
-		// s.scen.rng.Uint64() ... if we are sure
-		// that would not violate causality. but we
-		// do check that at the matchmaker.
 
 		for s.curSliceQ.Len() > 0 {
 			op = s.curSliceQ.pop()
