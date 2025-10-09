@@ -501,7 +501,7 @@ func (s *node2) loadDone(me string, addSends, addReads int) bool {
 }
 
 func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
-	//return
+
 	// At one point, tube raft grid had sporadic
 	// read loss resulting in a hung client. It
 	// could have been at the tube layer, but to
@@ -509,6 +509,10 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	// simnet grid, lower level, and see that we
 	// deliver everything sent with
 	// no faults injected.
+
+	// We later added a determinism/reproducible
+	// test check below with the call to
+	// panicIfFinalHashDifferent(xorderPath).
 
 	loadtest := func(nNodes, wantSendPerPeer int, sendEvery time.Duration, xorderPath string) {
 
