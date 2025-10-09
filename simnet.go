@@ -342,18 +342,6 @@ func newMasterEventQueue(owner string) *pq {
 			return 1
 		}
 
-		/* possible addition:
-		acli := av.cliOrSrvString()
-		bcli := bv.cliOrSrvString()
-		if acli < bcli {
-			return -1
-		}
-		if acli > bcli {
-			return 1
-		}
-		// either both client or both server
-		*/
-
 		apri := av.priority()
 		bpri := bv.priority()
 		if apri < bpri {
@@ -382,16 +370,6 @@ func newMasterEventQueue(owner string) *pq {
 		if aname > bname {
 			return 1
 		}
-		/* old, replaced with above
-		if av.origin != nil && bv.origin != nil {
-			if av.origin.name < bv.origin.name {
-				return -1
-			}
-			if av.origin.name > bv.origin.name {
-				return 1
-			}
-		}
-		*/
 
 		// timers might not have target...
 
@@ -412,16 +390,7 @@ func newMasterEventQueue(owner string) *pq {
 				return 1
 			}
 		}
-		/* old, replaced with above
-		if av.target != nil && bv.target != nil {
-			if av.target.name < bv.target.name {
-				return -1
-			}
-			if av.target.name > bv.target.name {
-				return 1
-			}
-		}
-		*/
+
 		// same origin, same target.
 		aw := av.whence()
 		bw := bv.whence()
@@ -452,6 +421,17 @@ func newMasterEventQueue(owner string) *pq {
 		if av.originLC > av.originLC {
 			return 1
 		}
+
+		// possible addition:
+		acli := av.cliOrSrvString()
+		bcli := bv.cliOrSrvString()
+		if acli < bcli {
+			return -1
+		}
+		if acli > bcli {
+			return 1
+		}
+		// either both client or both server
 
 		if asn < bsn {
 			return -1
@@ -495,15 +475,6 @@ func newOneTimeSliceQ(owner string) *pq {
 		if av.pseudorandom > bv.pseudorandom {
 			return 1
 		}
-		acli := av.cliOrSrvString()
-		bcli := bv.cliOrSrvString()
-		if acli < bcli {
-			return -1
-		}
-		if acli > bcli {
-			return 1
-		}
-		// either both client or both server
 
 		apri := av.priority()
 		bpri := bv.priority()
@@ -586,6 +557,16 @@ func newOneTimeSliceQ(owner string) *pq {
 		if av.originLC > av.originLC {
 			return 1
 		}
+
+		acli := av.cliOrSrvString()
+		bcli := bv.cliOrSrvString()
+		if acli < bcli {
+			return -1
+		}
+		if acli > bcli {
+			return 1
+		}
+		// either both client or both server
 
 		atm := av.tm()
 		btm := bv.tm()
