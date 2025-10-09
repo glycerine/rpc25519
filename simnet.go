@@ -532,6 +532,13 @@ func (s *Simnet) simnetNextMopSn() (sn int64) {
 	defer s.xmut.Unlock()
 	sn = s.nextMopSn
 	s.nextMopSn++
+	if sn == 5 {
+		// after the increment to avoid a double panic deadlock,
+		// since the panicing server on shutdown will try to send
+		// a Close packet/message to its peer.
+		vv("about to panic at sn == 5")
+		panic("at sn == 5")
+	}
 	s.xissuetm = append(s.xissuetm, time.Now())
 	s.xdispatchtm = append(s.xdispatchtm, "")
 
@@ -2677,6 +2684,7 @@ func (s *Simnet) scheduler() {
 				}
 			}
 			totalSleepDur += elap
+			_ = slept
 			//vv("i=%v, nextTimer fired. s.lastArmDur=%v; s.lastArmToFire = %v; elap = '%v'", i, s.lastArmDur, s.lastArmToFire, elap)
 			//if elap == 0 {
 			//vv("i=%v, cool: elap was 0, nice. single stepping the next goro... nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
@@ -2685,13 +2693,40 @@ func (s *Simnet) scheduler() {
 			// problem: if we barrier here, we
 			// cannot allow other goro to wake us
 			// on our select case arms, to queue up their mops.
-			// BUT, we still might get a tiny increase in
-			// determinism, and it should be fast anyway...
-			if slept {
+			//
+			// We use a "buffer and sort to deterministic order"
+			// strategy to try to address this source of
+			// non-determinism.
+			//
+			// We collect requests from any and all blocked
+			// clients (waiting in our select case arms) and
+			// add them to the meq. We loop until no more
+			// requests are found (default select case hit
+			// and saw1 == 0). Then we sort the buffered
+			// requests we have in the meq (<= now) into
+			// a deterministic order, and dispatch in that
+			// order.
+			var shouldExit bool
+			var saw1 int
+			// loop seeking a fixed point: no more
+			// client requests coming in.
+			var j int
+			for ; ; j++ {
+				shouldExit, saw1 = s.add2meqUntilSelectDefault(i)
+				if shouldExit {
+					return
+				}
+				if saw1 > 0 {
+					vv("on j=%v, saw1 additional %v", j, saw1)
+					saw1 = 0
+				} else {
+					break
+				}
 				if faketime {
 					synctestWait_LetAllOtherGoroFinish() // 2nd barrier
 				}
 			}
+			vv("i=%v finish fixed point loop after j = %v", i, j)
 			s.tickLogicalClocks()
 
 			_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
@@ -2833,10 +2868,10 @@ func (s *Simnet) scheduler() {
 func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario, shutdown bool) {
 
 	//sz := s.meq.Len()
-	//vv("i=%v, top distributeMEQ: %v", i, s.showMEQ())
-	//defer func() {
-	//	vv("i=%v, end of distributeMEQ: %v", i, s.showMEQ())
-	//}()
+	vv("i=%v, top distributeMEQ: %v", i, s.showMEQ())
+	defer func() {
+		vv("i=%v, end of distributeMEQ: %v", i, s.showMEQ())
+	}()
 	// meq is trying for
 	// more deterministic event ordering. we have
 	// accumulated and held any events from the
@@ -2888,7 +2923,8 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		s.xb3hashDis.Write([]byte(xdis))
 		s.xmut.Unlock()
 
-		//vv("in distributeMEQ, meq has op = '%v'\n  ->  xdis = '%v'", op, xdis)
+		vv("in distributeMEQ, meq has op = '%v'\n  ->  xdis = '%v'", op, xdis)
+
 		switch op.kind {
 		case CLOSE_SIMNODE:
 			//vv("CLOSE_SIMNODE '%v'", op.closeSimnode.simnodeName)
@@ -2954,6 +2990,11 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			s.handleBatch(op)
 		default:
 			panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
+		}
+
+		if strings.Contains(xdis, "CLIENT_SEND_auto-cli-from-srv_grid_node_0-to-srv_grid_node_1_cli.go") {
+			vv("about to panic at 1st common variance point")
+			panic("stopping after our 1st common variance point at line 6: sometimes dispatches at 00.0005, sometimes at 00.0004")
 		}
 	} // end for
 
@@ -3734,4 +3775,111 @@ func (s *Simnet) Close() {
 		return
 	}
 	s.halt.ReqStop.Close()
+}
+
+// call add2meq on as much additional work
+// from blocked client goroutines as we
+// can without advancing time. thus we try
+// to increase the determinism of may
+// clients contending for the simnet: let
+// as many in as want in (in this time slice),
+// then sort them into a consistently repeatable order,
+// and execute their requests in that order.
+func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
+	for ; ; saw++ {
+		select {
+		case batch := <-s.submitBatchCh:
+			s.add2meq(batch, i)
+		case timer := <-s.addTimer:
+			//vv("i=%v, addTimer ->  timer='%v'", i, timer)
+			//s.handleTimer(timer)
+			s.add2meq(timer, i)
+
+		case discard := <-s.discardTimerCh:
+			//vv("i=%v, discardTimer ->  discard='%v'", i, discard)
+			//s.handleDiscardTimer(discard)
+			s.add2meq(discard, i)
+
+		case send := <-s.msgSendCh:
+			//vv("i=%v, msgSendCh ->  send='%v'", i, send)
+			//s.handleSend(send)
+			s.add2meq(send, i)
+
+		case read := <-s.msgReadCh:
+			//vv("i=%v msgReadCh ->  read='%v'", i, read)
+			//s.handleRead(read)
+			s.add2meq(read, i)
+
+		case reg := <-s.cliRegisterCh:
+			// "connect" in network lingo, client reaches out to listening server.
+			//vv("i=%v, cliRegisterCh got reg from '%v' = '%v'", i, reg.client.name, reg)
+			//s.handleClientRegistration(reg)
+			s.add2meq(s.newClientRegMop(reg), i)
+			//vv("back from handleClientRegistration for '%v'", reg.client.name)
+
+		case srvreg := <-s.srvRegisterCh:
+			// "bind/listen" on a socket, server waits for any client to "connect"
+			//vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
+			//s.handleServerRegistration(srvreg)
+			// do not vv here, as it is very racey with the server who
+			// has been given permission to proceed.
+			s.add2meq(s.newServerRegMop(srvreg), i)
+
+		case scenario := <-s.newScenarioCh:
+			//vv("i=%v, newScenarioCh ->  scenario='%v'", i, scenario)
+			s.add2meq(s.newScenarioMop(scenario), i)
+
+		case alt := <-s.alterSimnodeCh:
+			//vv("i=%v alterSimnodeCh ->  alt='%v'", i, alt)
+			//s.handleAlterCircuit(alt, true)
+			s.add2meq(s.newAlterNodeMop(alt), i)
+
+		case alt := <-s.alterHostCh:
+			//vv("i=%v alterHostCh ->  alt='%v'", i, alt)
+			//s.handleAlterHost(op.alt)
+			s.add2meq(s.newAlterHostMop(alt), i)
+
+		case cktFault := <-s.injectCircuitFaultCh:
+			//vv("i=%v injectCircuitFaultCh ->  cktFault='%v'", i, cktFault)
+			//s.injectCircuitFault(cktFault, true)
+			s.add2meq(s.newCktFaultMop(cktFault), i)
+
+		case hostFault := <-s.injectHostFaultCh:
+			//vv("i=%v injectHostFaultCh ->  hostFault='%v'", i, hostFault)
+			//s.injectHostFault(hostFault)
+			s.add2meq(s.newHostFaultMop(hostFault), i)
+
+		case repairCkt := <-s.repairCircuitCh:
+			//vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
+			//s.handleCircuitRepair(repairCkt, true)
+			s.add2meq(s.newRepairCktMop(repairCkt), i)
+
+		case repairHost := <-s.repairHostCh:
+			//vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
+			//s.handleHostRepair(repairHost)
+			s.add2meq(s.newRepairHostMop(repairHost), i)
+
+		case snapReq := <-s.simnetSnapshotRequestCh:
+			//vv("i=%v simnetSnapshotRequestCh -> snapReq", i)
+			// user can confirm/view all current faults/health
+			//s.handleSimnetSnapshotRequest(snapReq, now, i)
+			s.add2meq(s.newSnapReqMop(snapReq), i)
+
+		case closeSimnodeReq := <-s.simnetCloseNodeCh:
+			//vv("i=%v simnetCloseNodeCh -> closeNodeReq", i)
+			s.add2meq(s.newCloseSimnodeMop(closeSimnodeReq), i)
+
+		case <-s.halt.ReqStop.Chan:
+			//vv("i=%v <-s.halt.ReqStop.Chan", i)
+			//bb := time.Since(s.bigbang)
+			//pct := 100 * float64(totalSleepDur) / float64(bb)
+			//_ = pct
+			//vv("simnet.halt.ReqStop totalSleepDur = %v (%0.2f%%) since bb = %v)", totalSleepDur, pct, bb)
+			shouldExit = true
+			return
+		default:
+			return
+		}
+	}
+	return
 }

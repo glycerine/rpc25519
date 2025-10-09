@@ -325,7 +325,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		r := recover()
 		if r != nil {
 			// see a ts mutex deadlock under synctest on shutdown, comment out:
-			alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
+			//alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'", r) // , stack())
 		} else {
 			//vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
 		}
@@ -524,7 +524,8 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	defer func() {
 		r := recover()
 		if r != nil {
-			alwaysPrintf("cli runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, allstacks())
+			// printing here can deadlock a synctest test. e.g. 707.
+			//alwaysPrintf("cli runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, allstacks())
 		} else {
 			//vv("cli runSendLoop defer/shutdown running. reason='%v'. conn local '%v' -> '%v' remote", stopReason, local(conn), remote(conn))
 		}

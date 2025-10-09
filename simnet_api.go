@@ -491,6 +491,7 @@ func (s *Simnet) newReadMop(isCli bool) (op *mop) {
 
 // clones msg to prevent race with srv.go:517
 func (s *Simnet) newSendMop(msg *Message, isCli bool) (op *mop) {
+	vv("newSendMop creation with isCli = %v", isCli)
 	op = &mop{
 		originCli: isCli,
 		msg:       msg.CopyForSimNetSend(),
