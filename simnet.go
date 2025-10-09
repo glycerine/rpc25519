@@ -2886,20 +2886,23 @@ func (s *Simnet) scheduler() {
 			// order.
 			if true { // green for tests here, tube, jsync.
 				var shouldExit bool
-				var saw1 int
+				var saw0, saw1 int
+				saw1 = 1 // allow saw0 check to find 0,0 (two in a row).
 				// loop seeking a fixed point: no more
 				// client requests coming in.
 				var j int
 				for ; ; j++ {
+					saw0 = saw1
 					shouldExit, saw1 = s.add2meqUntilSelectDefault(i)
 					if shouldExit {
 						return
 					}
 					if saw1 > 0 {
 						//vv("i=%v, on j=%v, saw1 additional %v", i, j, saw1)
-						saw1 = 0
 					} else {
-						break
+						if saw0 == 0 {
+							break
+						} // else go 1 more round, b/c batch sizes of 707 are varying.
 					}
 					if faketime {
 						synctestWait_LetAllOtherGoroFinish() // barrier
@@ -3135,7 +3138,8 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 
 		for s.curSliceQ.Len() > 0 {
 			op = s.curSliceQ.pop()
-			xdis := op.repeatable(now)
+			// get the batch number (and size) into the hash too.
+			xdis := fmt.Sprintf("%v_[batch_%v_with_batchSize_%v]", op.repeatable(now), s.curBatchNum, npop)
 
 			// must hold xmut.Lock else race vs simnetNextMopSn()
 			s.xmut.Lock()
