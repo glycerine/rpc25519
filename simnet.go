@@ -1156,6 +1156,8 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 			return
 		}
 	}()
+	synctestWait_LetAllOtherGoroFinish()
+
 }
 
 // idempotent, all servers do this, then register through the same path.
@@ -2718,6 +2720,7 @@ func (s *Simnet) Start() {
 	//alwaysPrintf("simnet.Start: faketime = %v", faketime)
 	//}
 	go s.scheduler()
+	//synctestWait_LetAllOtherGoroFinish()
 }
 
 // durToGridPoint:

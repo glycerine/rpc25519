@@ -426,6 +426,7 @@ func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 				//vv("client.Call() returned with cliErr = '%v'", cliErr740)
 				close(cliErrIsSet740)
 			}()
+			synctestWait_LetAllOtherGoroFinish()
 
 			// let the call get blocked.
 			//vv("cli_test 740: about to block on test740callStarted")
@@ -464,6 +465,7 @@ func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 				//vv("client.Call() returned with cliErr = '%v'", cliErr741)
 				close(cliErrIsSet741)
 			}()
+			synctestWait_LetAllOtherGoroFinish()
 
 			// let the call get blocked on the server (only works under test, of course).
 			<-mustCancelMe.callStarted
@@ -984,8 +986,11 @@ func Test101_gosimnet_basics(t *testing.T) {
 					} // end for
 
 				}(c2)
+				synctestWait_LetAllOtherGoroFinish()
+
 			} // end for
 		}() // end server
+		synctestWait_LetAllOtherGoroFinish()
 
 		// gosimnet
 		//cli := network.NewSimClient("cli_" + t.Name())

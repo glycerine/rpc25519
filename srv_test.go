@@ -198,6 +198,7 @@ func Test003_client_notification_callbacks(t *testing.T) {
 				}
 			}
 		}()
+		synctestWait_LetAllOtherGoroFinish()
 
 		for i := 0; i < 3; i++ {
 			req := NewMessage()
@@ -266,6 +267,7 @@ func Test004_server_push(t *testing.T) {
 				}
 			}
 		}()
+		synctestWait_LetAllOtherGoroFinish()
 
 		req := NewMessage()
 		req.JobSerz = []byte("Hello from server push.")
@@ -567,6 +569,7 @@ func Test014_server_push_quic(t *testing.T) {
 				}
 			}
 		}()
+		synctestWait_LetAllOtherGoroFinish()
 
 		req := NewMessage()
 		req.JobSerz = []byte("Hello from server push.")
@@ -697,6 +700,7 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 				}
 			}
 		}()
+		synctestWait_LetAllOtherGoroFinish()
 
 		// the new stuff under test
 

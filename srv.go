@@ -238,6 +238,7 @@ func (s *Server) runServerMain(
 		tlsConn := conn.(*tls.Conn)
 
 		go s.handleTLSConnection(tlsConn)
+		synctestWait_LetAllOtherGoroFinish()
 	}
 }
 
@@ -363,7 +364,9 @@ func (s *Server) serveConn(conn net.Conn) {
 	pair.cliStaticPub = cliStaticPub
 
 	go pair.runSendLoop(conn)
+	synctestWait_LetAllOtherGoroFinish()
 	go pair.runReadLoop(conn)
+	synctestWait_LetAllOtherGoroFinish()
 }
 
 func (s *Server) handleTLSConnection(conn *tls.Conn) {
@@ -757,6 +760,8 @@ func (pair *rwPair) handleIncomingMessage(ctx context.Context, req *Message, job
 	// call sequentially; we cannot block here: this
 	// has to be in a new goroutine.
 	go pair.Server.processWork(job)
+	synctestWait_LetAllOtherGoroFinish()
+
 }
 
 // Client and Server both use (their own copies) to keep code in sync.
@@ -2410,6 +2415,7 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 	boundCh := make(chan net.Addr, 1)
 	//vv("about to call runServerMain")
 	go s.runServerMain(s.cfg.ServerAddr, s.cfg.TCPonly_no_TLS, s.cfg.CertPath, boundCh)
+	synctestWait_LetAllOtherGoroFinish()
 
 	select {
 	case serverAddr = <-boundCh:

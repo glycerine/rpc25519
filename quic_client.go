@@ -53,6 +53,7 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 		case <-c.halt.ReqStop.Chan:
 		}
 	}()
+	synctestWait_LetAllOtherGoroFinish()
 
 	// Server address to connect to
 	serverAddr, err := net.ResolveUDPAddr("udp", quicServerAddr)
@@ -203,6 +204,8 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 
 	cpair := &cliPairState{}
 	go c.runSendLoop(wrap, cpair)
+	synctestWait_LetAllOtherGoroFinish()
+
 	c.runReadLoop(wrap, cpair)
 }
 

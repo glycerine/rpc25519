@@ -269,8 +269,13 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 				pair.cliStaticPub = cliStaticPub
 
 				go pair.runSendLoop(wrap)
+				synctestWait_LetAllOtherGoroFinish()
+
 				go pair.runReadLoop(wrap)
+				synctestWait_LetAllOtherGoroFinish()
 			}
 		}(conn)
+		synctestWait_LetAllOtherGoroFinish()
+
 	}
 }

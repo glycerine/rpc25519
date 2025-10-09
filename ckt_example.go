@@ -106,6 +106,8 @@ func (me *PeerImpl) Start(
 				}
 
 			}(echoToURL)
+			synctestWait_LetAllOtherGoroFinish()
+
 		// new Circuit connection arrives
 		case ckt := <-newCircuitCh:
 			wg.Add(1)
@@ -171,6 +173,7 @@ func (me *PeerImpl) Start(
 				}
 
 			}(ckt)
+			synctestWait_LetAllOtherGoroFinish()
 
 		case <-done0:
 			//vv("ctx0 cancelled, cause: '%v'", context.Cause(ctx0))

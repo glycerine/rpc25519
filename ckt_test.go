@@ -331,6 +331,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						panicOn(err)
 						//vv("%v: (ckt '%v') (passive) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
 						go passiveSide(ckt2)
+						synctestWait_LetAllOtherGoroFinish()
 
 					case frag := <-s.requestToSend:
 						// external test code requests that we send.
@@ -384,6 +385,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 			}
 			go passiveSide(rckt)
+			synctestWait_LetAllOtherGoroFinish()
 
 		case remoteURL := <-s.startCircuitWith:
 			//vv("%v: requested startCircuitWith: '%v'", name, remoteURL) // not seen 410
@@ -449,6 +451,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						panicOn(err)
 						//vv("%v: (ckt '%v') (active) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
 						go activeSide(ckt2)
+						synctestWait_LetAllOtherGoroFinish()
 
 					case <-ctx.Done():
 						////vv("%v: (ckt '%v') (active) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx))
@@ -486,6 +489,8 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				}
 			}
 			go activeSide(ckt)
+			synctestWait_LetAllOtherGoroFinish()
+
 		}
 	}
 	return nil

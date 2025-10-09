@@ -253,6 +253,8 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 
 	cpair := &cliPairState{}
 	go c.runSendLoop(conn, cpair)
+	synctestWait_LetAllOtherGoroFinish()
+
 	c.runReadLoop(conn, cpair)
 }
 
@@ -305,6 +307,8 @@ func (c *Client) runClientTCP(serverAddr string) {
 	cpair := &cliPairState{} // track the last compression used, so we can echo it.
 	c.cpair = cpair
 	go c.runSendLoop(conn, cpair)
+	synctestWait_LetAllOtherGoroFinish()
+
 	c.runReadLoop(conn, cpair)
 }
 
@@ -1810,6 +1814,7 @@ func (c *Client) Start() (err error) {
 	}
 
 	go c.runClientMain(c.cfg.ClientDialToHostPort, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
+	synctestWait_LetAllOtherGoroFinish()
 
 	// wait for connection (or not).
 	select {

@@ -25,8 +25,27 @@ func onlyBubbled(t *testing.T, f func()) {
 	synctest.Run(f)
 }
 
+// will not durably block, b/c not created within bubble!
+//var barrierExclusiveCh chan bool = make(chan bool, 1)
+
+var barrierExclusiveCh *chan bool
+
 func synctestWait_LetAllOtherGoroFinish() {
+	// have to use channel as a mutex, because
+	// actual sync.Mutex are not durably blocking in synctest.
+	//vv("about to ask for exclusive access to synctest barrier synctestWait_LetAllOtherGoroFinish")
+
+	select {
+	case *barrierExclusiveCh <- true:
+	}
+
 	synctest.Wait()
+
+	select {
+	case <-*barrierExclusiveCh:
+	}
+
+	//vv("released exclusive access to synctest barrier synctestWait_LetAllOtherGoroFinish")
 }
 
 // ideally we want every client goro to run

@@ -127,6 +127,7 @@ func (s *syncer2) Start(
 				}
 
 			}(ckt)
+			synctestWait_LetAllOtherGoroFinish()
 
 		case <-done0:
 			//zz("%v: done0!", s.name)

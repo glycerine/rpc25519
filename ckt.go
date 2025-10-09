@@ -768,6 +768,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 	u.GetReadsForToPeerID(pb.ReadsIn, peerID)
 	u.GetErrorsForToPeerID(pb.ErrorsIn, peerID)
 	go pb.peerbackPump()
+	synctestWait_LetAllOtherGoroFinish()
 
 	return pb
 }
@@ -1452,6 +1453,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 		knownLocalPeer.active.Del(localPeerID)
 
 	}()
+	synctestWait_LetAllOtherGoroFinish()
 
 	//localPeerURL := lpb.URL()
 	//vv("unlockedStartLocalPeer: lpb.URL() = '%v'; peerServiceName='%v', isUpdatedPeerID='%v'; pleaseAssignNewPeerID='%v'; \nstack=%v\n", lpb.URL(), peerServiceName, isUpdatedPeerID, pleaseAssignNewPeerID, stack())

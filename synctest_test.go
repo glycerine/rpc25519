@@ -331,6 +331,7 @@ func Test840_synctestonly_remote_cancel_by_context(t *testing.T) {
 				//vv("client.Call() returned with cliErr = '%v'", cliErr40)
 				close(cliErrIsSet40)
 			}()
+            synctestWait_LetAllOtherGoroFinish()
 
 			// let the call get blocked.
 			//vv("cli_test 040: about to block on test040callStarted")
@@ -369,6 +370,7 @@ func Test840_synctestonly_remote_cancel_by_context(t *testing.T) {
 				//vv("client.Call() returned with cliErr = '%v'", cliErr41)
 				close(cliErrIsSet41)
 			}()
+            synctestWait_LetAllOtherGoroFinish()
 
 			// let the call get blocked on the server (only works under test, of course).
 			<-mustCancelMe.callStarted

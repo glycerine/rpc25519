@@ -19,7 +19,7 @@ func bubbleOrNot(f func()) {
 	f()
 }
 
-func onlyBubbled(t *testing.T, f func()) {
+func onlyBubbled(t *testing.T, f func(t *testing.T)) {
 	t.Skip("onlyBubbled: skipping test")
 }
 

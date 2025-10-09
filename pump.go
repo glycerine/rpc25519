@@ -104,6 +104,8 @@ func (pb *LocalPeer) peerbackPump() {
 					countErrAntiDeadlockMustQueue++
 					//vv("ErrAntiDeadlockMustQueue count=%v", countErrAntiDeadlockMustQueue)
 					go closeCktInBackgroundToAvoidDeadlock(queueSendCh, msg, pb.Halt)
+					synctestWait_LetAllOtherGoroFinish()
+
 				}
 			}()
 		}
@@ -396,6 +398,7 @@ func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 	if err == ErrAntiDeadlockMustQueue {
 		//vv("err == ErrAntiDeadlockMustQueue, closing in background goro")
 		go closeCktInBackgroundToAvoidDeadlock(queueSendCh, shut, pb.Halt)
+		synctestWait_LetAllOtherGoroFinish()
 	}
 }
 

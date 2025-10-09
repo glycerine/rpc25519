@@ -540,6 +540,7 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 				} //end select
 			} // end for seenCount
 		}()
+		synctestWait_LetAllOtherGoroFinish()
 
 		// ===========================
 		// end bistream download part.

@@ -62,7 +62,10 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr) {
 			//vv("%v simnet server got new conn '%#v', about to start read/send loops", netAddr, conn) // not seen
 			pair := s.newRWPair(conn)
 			go pair.runSendLoop(conn)
+			synctestWait_LetAllOtherGoroFinish()
+
 			go pair.runReadLoop(conn)
+			synctestWait_LetAllOtherGoroFinish()
 
 		case <-s.halt.ReqStop.Chan:
 			return

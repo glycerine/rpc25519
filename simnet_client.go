@@ -84,6 +84,8 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 		cpair := &cliPairState{}
 		c.cpair = cpair
 		go c.runSendLoop(conn, cpair)
+		synctestWait_LetAllOtherGoroFinish()
+
 		// does not return until client is stopped.
 		c.runReadLoop(conn, cpair)
 	}
