@@ -628,6 +628,17 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	//vv("end of 707")
 }
 
+// note that a manual diff on disk like
+// diff snap707.000.snaptxt snap707.001.snaptxt
+// may well show op.sn serial number differences
+// due to client goro logical races which we
+// cannot avoid under the current Go
+// runtime. Thus we exclude the sn from
+// all decision making to create determinism
+// despite of this, and the sn are trimmed
+// off before diffing the lines in the 707 test.
+//
+// The hash excludes the op.sn for this reason.
 func panicIfFinalHashDifferent(xorderPath string) {
 
 	// snap707.001.snaptxt
