@@ -341,6 +341,19 @@ func newMasterEventQueue(owner string) *pq {
 		if atm.After(btm) {
 			return 1
 		}
+
+		/* possible addition:
+		acli := av.cliOrSrvString()
+		bcli := bv.cliOrSrvString()
+		if acli < bcli {
+			return -1
+		}
+		if acli > bcli {
+			return 1
+		}
+		// either both client or both server
+		*/
+
 		apri := av.priority()
 		bpri := bv.priority()
 		if apri < bpri {
@@ -359,6 +372,17 @@ func newMasterEventQueue(owner string) *pq {
 		if av.origin != nil && bv.origin == nil {
 			return 1
 		}
+		// we want to handle the both origin == nil cases
+		// here with bestName to use the earlyName.
+		aname := chompAnyUniqSuffix(av.bestName())
+		bname := chompAnyUniqSuffix(bv.bestName())
+		if aname < bname {
+			return -1
+		}
+		if aname > bname {
+			return 1
+		}
+		/* old, replaced with above
 		if av.origin != nil && bv.origin != nil {
 			if av.origin.name < bv.origin.name {
 				return -1
@@ -367,12 +391,28 @@ func newMasterEventQueue(owner string) *pq {
 				return 1
 			}
 		}
+		*/
+
+		// timers might not have target...
+
 		if av.target == nil && bv.target != nil {
 			return -1
 		}
 		if av.target != nil && bv.target == nil {
 			return 1
 		}
+
+		if av.target != nil && bv.target != nil {
+			atname := chompAnyUniqSuffix(av.target.name)
+			btname := chompAnyUniqSuffix(bv.target.name)
+			if atname < btname {
+				return -1
+			}
+			if atname > btname {
+				return 1
+			}
+		}
+		/* old, replaced with above
 		if av.target != nil && bv.target != nil {
 			if av.target.name < bv.target.name {
 				return -1
@@ -381,7 +421,17 @@ func newMasterEventQueue(owner string) *pq {
 				return 1
 			}
 		}
+		*/
 		// same origin, same target.
+		aw := av.whence()
+		bw := bv.whence()
+		if aw < bw {
+			return -1
+		}
+		if aw > bw {
+			return 1
+		}
+
 		if av.senderLC < av.senderLC {
 			return -1
 		}
