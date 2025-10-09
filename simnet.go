@@ -1131,7 +1131,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 		return net
 	}
 
-	//tick := time.Millisecond
+	//tick := time.Millisecond * 5 // 2x faster sim. :)
 	tick := time.Duration(minTickNanos)
 	if tick < time.Duration(minTickNanos) {
 		panicf("must have tick >= minTickNanos(%v)", time.Duration(minTickNanos))
@@ -2864,7 +2864,7 @@ func (s *Simnet) scheduler() {
 			// requests we have in the meq (<= now) into
 			// a deterministic order, and dispatch in that
 			// order.
-			if true {
+			if false {
 				var shouldExit bool
 				var saw1 int
 				// loop seeking a fixed point: no more
@@ -3123,7 +3123,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			s.xb3hashDis.Write([]byte(xdis))
 			s.xmut.Unlock()
 
-			vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
+			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
 
 			op.dispatchTm = now
 

@@ -491,7 +491,7 @@ func (s *Simnet) newReadMop(isCli bool) (op *mop) {
 
 // clones msg to prevent race with srv.go:517
 func (s *Simnet) newSendMop(msg *Message, isCli bool) (op *mop) {
-	vv("newSendMop creation with isCli = %v", isCli)
+	//vv("newSendMop creation with isCli = %v", isCli)
 	op = &mop{
 		originCli: isCli,
 		msg:       msg.CopyForSimNetSend(),
@@ -1131,7 +1131,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	// the client goroutines first start creating simnet api calls.
 	//for sn := range snap.Xcountsn
 
-	// print in dispatch time order
+	// print in dispatch time order, not sn order.
 	for dispatchTm, sn := range dis.all() {
 		_ = dispatchTm
 
@@ -1139,13 +1139,15 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
 			//elap := snap.Xfintm[sn].Sub(snap.Xdispatchtm[sn])
 			//elap := ""
-			fmt.Fprintf(fd, "%v %v\t%v %v [issue:%v] [fin:%v] [tie %v; %v; fin< %v]\n",
+			fmt.Fprintf(fd, "%v %v\t%v %v [issue:%v] [fin:%v] [tie %v; %v; fin< %v] [sn:%v]\n",
 				snap.Xdispatchtm[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
 				nice9(snap.Xissuetm[sn]),
 				nice9(snap.Xfintm[sn]),
 				snap.Xwho[sn], // tie
-				chompAnyUniqSuffix(snap.Xorigin[sn]), snap.Xfinorder[sn])
+				chompAnyUniqSuffix(snap.Xorigin[sn]), snap.Xfinorder[sn],
+				sn)
+
 		} else {
 			// not finished yet
 			fmt.Fprintf(fd, "%v %v not_finished\n",
