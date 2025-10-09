@@ -655,7 +655,7 @@ func (s *Simnet) fin(op *mop) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 
-	s.xfinorder[op.sn] = s.nextMopSn
+	s.xfinOrder[op.sn] = s.nextMopSn
 	s.xfintm[op.sn] = now
 
 	w := op.whence() // file:line where created.
@@ -728,13 +728,14 @@ func (s *Simnet) simnetNextMopSn() (sn int64) {
 	s.nextMopSn++
 
 	s.xissuetm = append(s.xissuetm, time.Now())
+	s.xissueOrder = append(s.xissueOrder, -1)
 	s.xdispatchtm = append(s.xdispatchtm, "")
 
 	s.xfintm = append(s.xfintm, time.Time{})
 	s.xwhence = append(s.xwhence, "")
 	s.xkind = append(s.xkind, -1)
-	s.xfinorder = append(s.xfinorder, -1)
-	//s.xwho = append(s.xwho, -1)
+	s.xfinOrder = append(s.xfinOrder, -1)
+
 	s.xorigin = append(s.xorigin, "")
 	s.xtarget = append(s.xtarget, "")
 
@@ -756,13 +757,16 @@ type Simnet struct {
 
 	// fin records execution/finishing order
 	// for mop sn into xorder.
-	xfinorder   []int64
+	xfinOrder   []int64
 	xwhence     []string
 	xkind       []mopkind
 	xissuetm    []time.Time
+	xissueOrder []int64
+	xissueLast  int64
+
 	xdispatchtm []string
 	xfintm      []time.Time
-	//xwho        []int
+
 	xorigin []string
 	xtarget []string
 
@@ -3132,7 +3136,14 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			// update xissuetm, since original was by client
 			// in simnetNextMopSn() and not deterministic.
 			s.xissuetm[op.sn] = now
+
+			// start xissueOrder at 1, leave 0 unused, to help debug.
+			// -1 means client got in simnetNextMopSn()
+			// but we have not seen yet (so not in hash).
+			s.xissueLast++
+			s.xissueOrder[op.sn] = s.xissueLast
 			s.xb3hashDis.Write([]byte(xdis))
+			vv("on s.xissueLast = %v, hash = %v", s.xissueLast, asBlake33B(s.xb3hashDis))
 			s.xmut.Unlock()
 
 			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
@@ -3584,20 +3595,19 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	}
 
 	req.Xcountsn = s.nextMopSn
-	req.Xfinorder = append([]int64{}, s.xfinorder...)
+	req.XfinOrder = append([]int64{}, s.xfinOrder...)
 	req.Xwhence = append([]string{}, s.xwhence...)
 	req.Xkind = append([]mopkind{}, s.xkind...)
 	req.Xissuetm = append([]time.Time{}, s.xissuetm...)
+	req.XissueOrder = append([]int64{}, s.xissueOrder...)
 	req.Xdispatchtm = append([]string{}, s.xdispatchtm...)
 	req.Xfintm = append([]time.Time{}, s.xfintm...)
-	//req.Xwho = append([]int{}, s.xwho...)
+
 	req.Xorigin = append([]string{}, s.xorigin...)
 	req.Xtarget = append([]string{}, s.xtarget...)
 
-	sumFin := s.xb3hashFin.Sum(nil)
-	req.XhashFin = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sumFin[:33])
-	sumDis := s.xb3hashDis.Sum(nil)
-	req.XhashDis = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sumDis[:33])
+	req.XhashFin = asBlake33B(s.xb3hashFin)
+	req.XhashDis = asBlake33B(s.xb3hashDis)
 
 	req.NetClosed = s.halt.ReqStop.IsClosed()
 	if len(s.servers) == 0 {
@@ -3746,6 +3756,11 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 		} // end alone
 	}
 	// end handleSimnetSnapshotRequest
+}
+
+func asBlake33B(h *blake3.Hasher) string {
+	sum := h.Sum(nil)
+	return "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 }
 
 // TODO: maybe unify with shutdownSimnode?

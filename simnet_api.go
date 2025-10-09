@@ -915,11 +915,12 @@ type SimnetSnapshot struct {
 
 	// mop creation/finish data.
 	Xcountsn  int64     // number of mop issued
-	Xfinorder []int64   // finish order (nextMopSn at time of finish)
+	XfinOrder []int64   // finish order (nextMopSn at time of finish)
 	Xwhence   []string  // file:line creation place
 	Xkind     []mopkind // send,read,timer,discard,...
 
 	Xissuetm    []time.Time // when issued
+	XissueOrder []int64     // order issued (same as order hashed)
 	Xdispatchtm []string    // when dispatched _ name (more determistic)
 
 	Xfintm  []time.Time // when finished
@@ -1119,20 +1120,33 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	panicOn(err)
 	defer fd.Close()
 
-	// try to print in dispatch order?
-	dis := newOmap[string, int]()
-	for i, d := range snap.Xdispatchtm { // sort on repeatable() string
-		//vv("adding dis.set snap.Xdispatchtm[i] = '%v' for i = %v", d, i)
-		dis.set(d, i)
+	// try to print in dispatch order
+	// dis := newOmap[string, int]()
+	// for i, d := range snap.Xdispatchtm { // sort on repeatable() string
+	// 	//vv("adding dis.set snap.Xdispatchtm[i] = '%v' for i = %v", d, i)
+	// 	dis.set(d, i)
+	// }
+
+	// The xb3hashDis hash order is captured by the
+	// XissueOrder, which maps sn -> issue order
+	dis := newOmap[int64, int]()
+	for sn, order := range snap.XissueOrder {
+		//vv("adding dis.set snap.XissueOrder[sn=%v] = '%v'", sn, order)
+		if order == 0 {
+			panicf("what to do with XissueOrder[%v] = %v ??", sn, order)
+		} else if order < 0 {
+			// -1 means was not hashed and not
+			// issued, so we can ignore
+		}
+		dis.set(order, sn)
 	}
 
 	// avoid sn order as is non-deterministic when
 	// the client goroutines first start creating simnet api calls.
 	//for sn := range snap.Xcountsn
 
-	// print in dispatch time order, not sn order.
-	for dispatchTm, sn := range dis.all() {
-		_ = dispatchTm
+	// print in issue order, not sn order.
+	for _, sn := range dis.all() {
 
 		// we leave out the spurious diff producing op.sn
 		// so that if we _do_ see a diff we know it
@@ -1141,17 +1155,18 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
 			//elap := snap.Xfintm[sn].Sub(snap.Xdispatchtm[sn])
 			//elap := ""
-			fmt.Fprintf(fd, "[dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [%v; fin< %v]\n", //  [sn:%v]\n",
+			fmt.Fprintf(fd, "[dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v]\n", // ; fin< %v]\n", //  [sn:%v]\n",
 				snap.Xdispatchtm[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
 				nice9(snap.Xissuetm[sn]),
 				nice9(snap.Xfintm[sn]),
-				chompAnyUniqSuffix(snap.Xorigin[sn]), snap.Xfinorder[sn],
+				chompAnyUniqSuffix(snap.Xorigin[sn]),
+				//snap.Xfinorder[sn],
 				//sn,
 			)
 
 		} else {
-			// not finished yet
+			// not finished yet - can float to top and mess up order.
 			fmt.Fprintf(fd, "%v %v not_finished\n",
 				nice9(snap.Xissuetm[sn]), sn)
 		}
