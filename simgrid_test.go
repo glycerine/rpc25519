@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -390,7 +391,7 @@ func (s *node2) Start(
 				for {
 					select {
 					case frag := <-ckt.Reads:
-						vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag) // not seen!!!
+						//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag) // not seen!!!
 
 						s.seen.Set(AliasDecode(frag.FromPeerID), ckt)
 
@@ -631,21 +632,30 @@ func panicIfFinalHashDifferent(xorderPath string) {
 
 	vv("matches = '%#v'", matches)
 	var firstHash string
+	var lines0 []string
 	for i, m := range matches {
-		hash := getLastHash(m)
+		hash, lines := getLastHash(m)
 		if i == 0 {
 			firstHash = hash
+			lines0 = lines
 			continue
 		}
 		if hash != firstHash {
+			for i, line := range lines {
+				if lines0[i] != line {
+					panicf("line %v has first diff:\n%v\n%v", i+1, lines0[i], line)
+				}
+			}
 			panic(fmt.Sprintf("file[0]='%v'\n (hash: '%v')\n and file[%v]='%v'\n (hash: '%v')\n disagree on last hash", matches[0], firstHash, i, matches[i], hash))
 		}
 	}
 }
 
-func getLastHash(path string) string {
+func getLastHash(path string) (hash string, lines []string) {
 	by, err := os.ReadFile(path)
 	panicOn(err)
 	pos := bytes.LastIndex(by, []byte("blake3.33B-"))
-	return string(by[pos : len(by)-1])
+	hash = string(by[pos : len(by)-1])
+	lines = strings.Split(string(by), "\n")
+	return
 }

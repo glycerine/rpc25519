@@ -460,28 +460,34 @@ func newOneTimeSliceQ(owner string) *pq {
 
 		// some alt from <-s.alterHostCh, newAlterHostMop(alt)) had
 		// mop.origin nil, so try not to seg fault on it.
-		if av.origin == nil && bv.origin != nil {
+		if av.origin == nil { //&& bv.origin != nil {
+			panic("no nil av.origin allowed in the oneTimeSliceQ")
 			return -1
 		}
-		if av.origin != nil && bv.origin == nil {
+		//if av.origin != nil && bv.origin == nil {
+		if bv.origin == nil {
+			panic("no nil bv.origin allowed in the oneTimeSliceQ")
 			return 1
 		}
-		if av.origin != nil && bv.origin != nil {
-			aname := chompAnyUniqSuffix(av.bestName())
-			bname := chompAnyUniqSuffix(bv.bestName())
-			if aname < bname {
+		//if av.origin != nil && bv.origin != nil {
+		aname := chompAnyUniqSuffix(av.bestName())
+		bname := chompAnyUniqSuffix(bv.bestName())
+		if aname < bname {
+			return -1
+		}
+		if aname > bname {
+			return 1
+		}
+		//}
+		// timers might not have target...
+		/*
+			if av.target == nil && bv.target != nil {
 				return -1
 			}
-			if aname > bname {
+			if av.target != nil && bv.target == nil {
 				return 1
 			}
-		}
-		if av.target == nil && bv.target != nil {
-			return -1
-		}
-		if av.target != nil && bv.target == nil {
-			return 1
-		}
+		*/
 		if av.target != nil && bv.target != nil {
 			atname := chompAnyUniqSuffix(av.target.name)
 			btname := chompAnyUniqSuffix(bv.target.name)
@@ -3111,6 +3117,9 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			// must hold xmut.Lock else race vs simnetNextMopSn()
 			s.xmut.Lock()
 			s.xdispatchtm[op.sn] = xdis
+			// update xissuetm, since original was by client
+			// in simnetNextMopSn() and not deterministic.
+			s.xissuetm[op.sn] = now
 			s.xb3hashDis.Write([]byte(xdis))
 			s.xmut.Unlock()
 
