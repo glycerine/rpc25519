@@ -2109,13 +2109,8 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 
 	// make sure send happens before receive by doing
 	// this first.
-	//send.completeTm = s.bumpTime(now)
-	send.completeTm = now // no bumping. simpler to debug for now.
-	//if send.sn == 3 || send.sn == 4 || send.sn == 5 {
+	send.completeTm = s.bumpTime(now)
 	//vv("hop = %v; send.completeTm = %v  now = %v\n  send='%v'", hop, send.completeTm, now, send)
-	// with bumping, we go 5->6 in first instance, 4->5 in 2nd.
-	// simnet.go:2134 [goID 22] 2000-01-01 00:00:00.000500000 +0000 UTC send.completeTm = 2000-01-01 00:00:00.0006 +0000 UTC  now = 2000-01-01 00:00:00.0005 +0000 UTC
-	//}
 
 	// handleSend
 	send.arrivalTm = s.bumpTime(send.unmaskedSendArrivalTm)
