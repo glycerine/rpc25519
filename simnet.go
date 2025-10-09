@@ -2884,42 +2884,35 @@ func (s *Simnet) scheduler() {
 			// requests we have in the meq (<= now) into
 			// a deterministic order, and dispatch in that
 			// order.
-			if true { // green for tests here, tube, jsync.
 
+			// load up our select arms as much as possible
+			if faketime {
+				synctestWait_LetAllOtherGoroFinish() // barrier
+			}
+			var shouldExit bool
+			var saw0, saw1, saw2 int
+			saw2 = 1
+			saw1 = 1 // find 0,0,0 (three zeros in a row).
+			// loop seeking a fixed point: no more
+			// client requests coming in.
+			var j int
+			for ; ; j++ {
+				saw0 = saw1
+				saw1 = saw2
+				shouldExit, saw2 = s.add2meqUntilSelectDefault(i)
+				if shouldExit {
+					return
+				}
+				if saw2 > 0 {
+					//vv("i=%v, on j=%v, saw1 additional %v", i, j, saw2)
+				} else {
+					if saw0 == 0 && saw1 == 0 && saw2 == 0 {
+						break
+					}
+					// else go 1 more round, b/c batch sizes of 707 are varying at 18 or 17, and this keeps them at 18 on issueOrder:181. chrunk: 19 vs 18 even with this on. require 3 zeros in a row and add a prior barrier.
+				}
 				if faketime {
 					synctestWait_LetAllOtherGoroFinish() // barrier
-				}
-				var shouldExit bool
-				var saw0, saw1, saw2 int
-				saw2 = 1
-				saw1 = 1 // find 0,0,0 (three zeros in a row).
-				// loop seeking a fixed point: no more
-				// client requests coming in.
-				var j int
-				for ; ; j++ {
-					saw0 = saw1
-					saw1 = saw2
-					shouldExit, saw2 = s.add2meqUntilSelectDefault(i)
-					if shouldExit {
-						return
-					}
-					if saw2 > 0 {
-						//vv("i=%v, on j=%v, saw1 additional %v", i, j, saw2)
-					} else {
-						if saw0 == 0 && saw1 == 0 && saw2 == 0 {
-							break
-						}
-						// else go 1 more round, b/c batch sizes of 707 are varying at 18 or 17, and this keeps them at 18 on issueOrder:181. chrunk: 19 vs 18 even with this on. require 3 zeros in a row and but another barrier earlier.
-					}
-					if faketime {
-						synctestWait_LetAllOtherGoroFinish() // barrier
-					}
-				}
-			} else {
-				if slept {
-					if faketime {
-						synctestWait_LetAllOtherGoroFinish() // barrier
-					}
 				}
 			}
 			//vv("i=%v finish fixed point loop after j = %v", i, j) // why sometimes do we jump now from 0.0003 to 0.0005, and sometimes to 0.0006 (between i=8 and i=9 on 707) meq at end of i=8 has cli send with tm 0.0005 => next is 0.0005. cli send in meq with tm of 0.0006 means next wake will be 0.0006. so why does the pq timestamp for the mop vary?
