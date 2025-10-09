@@ -2909,7 +2909,7 @@ func (s *Simnet) scheduler() {
 					if saw0 == 0 && saw1 == 0 && saw2 == 0 {
 						break
 					}
-					// else go 1 more round, b/c batch sizes of 707 are varying at 18 or 17, and this keeps them at 18 on issueOrder:181. chrunk: 19 vs 18 even with this on. require 3 zeros in a row and add a prior barrier.
+					// else go 1 more round, b/c batch sizes of 707 are varying at 18 or 17, and this keeps them at 18 on issueOrder:181. chrunk: 19 vs 18 even with this on. require 3 zeros in a row and add a prior barrier. arg. still varying batch sizes...
 				}
 				if faketime {
 					synctestWait_LetAllOtherGoroFinish() // barrier
