@@ -2718,11 +2718,18 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 
 	// experiment try to separate out each meq in time?
 
-	// need to bump up the time... with nextUniqTm,
-	// so deliveries are all at a unique time point.
-	if true { // experiment with false?
+	// we wanted to bump up the time... with nextUniqTm,
+	// so deliveries are all at a unique time point. But it
+	// turns out to introduce alot of non-determinism?!?!
+	if false { // experiment with false?
 		if !op.reqtm.IsZero() {
-			op.reqtm = s.nextUniqTm(op.reqtm, op.bestName())
+			reqtm2 := s.nextUniqTm(op.reqtm, op.bestName())
+			diff := reqtm2.Sub(op.reqtm)
+			// this is messing up our consistency!!!
+			// simnet.go:2727 [goID 22] 2000-01-01 00:00:00.000300000 +0000 UTC bumping reqtm from 2000-01-01 00:00:00.000300000Z -> 2000-01-01 00:00:00.000500000Z (diff = 200µs)
+			// simnet.go:2727 [goID 22] 2000-01-01 00:00:00.000300000 +0000 UTC bumping reqtm from 2000-01-01 00:00:00.000300000Z -> 2000-01-01 00:00:00.000600000Z (diff = 300µs)
+			vv("bumping reqtm from %v -> %v (diff = %v)", nice9(op.reqtm), nice9(reqtm2), diff)
+			op.reqtm = reqtm2
 		}
 	} else {
 		op.reqtm = time.Now()
@@ -2837,7 +2844,7 @@ func (s *Simnet) scheduler() {
 					// durToGridPoint does bumpTime for us now.
 					dur, _ := s.durToGridPoint(now, s.scenario.tick)
 
-					vv("ADVANCE time: i=%v, elap=0 and no work, just advance time by dur='%v' and try to dispatch below.", i, dur)
+					vv("ADVANCE time in main scheduler: i=%v, elap=0 and no work, just advance time by dur='%v' and try to dispatch below.", i, dur)
 
 					time.Sleep(dur)
 					// should we barrier now? no other selects
@@ -2932,7 +2939,7 @@ func (s *Simnet) scheduler() {
 			s.add2meq(discard, i)
 
 		case send := <-s.msgSendCh:
-			//vv("i=%v, msgSendCh ->  send='%v'", i, send)
+			vv("i=%v, msgSendCh ->  send='%v'", i, send)
 			//s.handleSend(send)
 			s.add2meq(send, i)
 
@@ -3265,7 +3272,11 @@ func (s *Simnet) haveNextTimer(now time.Time) <-chan time.Time {
 		//vv("haveNextTimer: no timer at the moment, don't wait on it.")
 		//return nil
 	}
-	vv("ADVANCE time, in haveNextTimer(): s.lastArmToFire = %v; s.lastArmDur = %v", s.lastArmToFire, s.lastArmDur)
+	comment := ""
+	if s.lastArmDur == math.MinInt64 {
+		comment = "(no timer armed on last attempt)"
+	}
+	vv("ADVANCE time, in haveNextTimer(): s.lastArmToFire = %v; s.lastArmDur = %v %v", s.lastArmToFire, s.lastArmDur, comment)
 	return s.nextTimer.C
 }
 
