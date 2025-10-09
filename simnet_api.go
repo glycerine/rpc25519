@@ -1122,7 +1122,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 
 	// try to print in dispatch order?
 	dis := newOmap[string, int]()
-	for i, d := range snap.Xdispatchtm {
+	for i, d := range snap.Xdispatchtm { // sort on repeatable() string
 		//vv("adding dis.set snap.Xdispatchtm[i] = '%v' for i = %v", d, i)
 		dis.set(d, i)
 	}
