@@ -501,7 +501,7 @@ func (s *node2) loadDone(me string, addSends, addReads int) bool {
 }
 
 func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
-	return
+	//return
 	// At one point, tube raft grid had sporadic
 	// read loss resulting in a hung client. It
 	// could have been at the tube layer, but to
@@ -657,5 +657,12 @@ func getLastHash(path string) (hash string, lines []string) {
 	pos := bytes.LastIndex(by, []byte("blake3.33B-"))
 	hash = string(by[pos : len(by)-1])
 	lines = strings.Split(string(by), "\n")
+	// trim off the non-deterministics sn serial number at the end.
+	for i, line := range lines {
+		pos := strings.LastIndex(line, "[sn:")
+		if pos >= 0 {
+			lines[i] = line[:pos]
+		}
+	}
 	return
 }
