@@ -428,14 +428,6 @@ func newOneTimeSliceQ(owner string) *pq {
 		if asn == bsn {
 			return 0
 		}
-		//atm := av.tm()
-		//btm := bv.tm()
-		//if atm.Before(btm) {
-		//	return -1
-		//}
-		//if atm.After(btm) {
-		//	return 1
-		//}
 		acli := av.cliOrSrvString()
 		bcli := bv.cliOrSrvString()
 		if acli < bcli {
@@ -460,16 +452,18 @@ func newOneTimeSliceQ(owner string) *pq {
 
 		// some alt from <-s.alterHostCh, newAlterHostMop(alt)) had
 		// mop.origin nil, so try not to seg fault on it.
-		if av.origin == nil { //&& bv.origin != nil {
-			panic("no nil av.origin allowed in the oneTimeSliceQ")
+		if av.origin == nil && bv.origin != nil {
+			// seen in tube tests! on client register.
+			// panicf("no nil av.origin allowed in the oneTimeSliceQ: %v", av)
 			return -1
 		}
-		//if av.origin != nil && bv.origin == nil {
-		if bv.origin == nil {
-			panic("no nil bv.origin allowed in the oneTimeSliceQ")
+		if av.origin != nil && bv.origin == nil {
+			//if bv.origin == nil {
+			//panicf("no nil bv.origin allowed in the oneTimeSliceQ: %v", bv)
 			return 1
 		}
-		//if av.origin != nil && bv.origin != nil {
+		// we want to handle the both origin == nil cases
+		// here with bestName to use the earlyName.
 		aname := chompAnyUniqSuffix(av.bestName())
 		bname := chompAnyUniqSuffix(bv.bestName())
 		if aname < bname {
@@ -478,16 +472,16 @@ func newOneTimeSliceQ(owner string) *pq {
 		if aname > bname {
 			return 1
 		}
-		//}
+
 		// timers might not have target...
-		/*
-			if av.target == nil && bv.target != nil {
-				return -1
-			}
-			if av.target != nil && bv.target == nil {
-				return 1
-			}
-		*/
+
+		if av.target == nil && bv.target != nil {
+			return -1
+		}
+		if av.target != nil && bv.target == nil {
+			return 1
+		}
+
 		if av.target != nil && bv.target != nil {
 			atname := chompAnyUniqSuffix(av.target.name)
 			btname := chompAnyUniqSuffix(bv.target.name)
@@ -529,15 +523,27 @@ func newOneTimeSliceQ(owner string) *pq {
 			return 1
 		}
 
-		panicf("oneTimeSliceQ could not tell these two different sn events apart to sort them deterministically!\n av='%v' \n bv='%v'", av, bv)
+		atm := av.tm()
+		btm := bv.tm()
+		if atm.Before(btm) {
+			return -1
+		}
+		if atm.After(btm) {
+			return 1
+		}
 
-		// sn are non-deterministic. never use them!
-		//if asn < bsn {
-		//	return -1
-		//}
-		//if asn > bsn {
-		//	return 1
-		//}
+		// sn are non-deterministic. only use as an
+		// extreme last resort. tube has some srv.go:2272
+		// calls that do look virtually identical...
+		// av='mop{SERVER(srv_node_4) TIMER init:0s, arr:unk, complete:5s op.sn:286, who:654, msg.sn:0 timer set at srv.go:2272}'
+		// bv='mop{SERVER(srv_node_4) TIMER init:0s, arr:unk, complete:5s op.sn:283, who:656, msg.sn:0 timer set at srv.go:2272}'
+
+		if asn < bsn {
+			return -1
+		}
+		if asn > bsn {
+			return 1
+		}
 		return 0
 	}
 	return &pq{
