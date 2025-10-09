@@ -2811,6 +2811,7 @@ func (s *Simnet) scheduler() {
 		}
 
 		// let goroutines get blocked waiting on the select arms below.
+		time.Sleep(0)
 		if faketime {
 			synctestWait_LetAllOtherGoroFinish() // 1st barrier
 		}
@@ -2889,6 +2890,7 @@ func (s *Simnet) scheduler() {
 			// order.
 
 			// load up our select arms as much as possible
+			time.Sleep(0)
 			if faketime {
 				synctestWait_LetAllOtherGoroFinish() // barrier
 			}
@@ -2914,6 +2916,7 @@ func (s *Simnet) scheduler() {
 					}
 					// else go 1 more round, b/c batch sizes of 707 are varying at 18 or 17, and this keeps them at 18 on issueOrder:181. chrunk: 19 vs 18 even with this on. require 3 zeros in a row and add a prior barrier. arg. still varying batch sizes...
 				}
+				time.Sleep(0)
 				if faketime {
 					synctestWait_LetAllOtherGoroFinish() // barrier
 				}

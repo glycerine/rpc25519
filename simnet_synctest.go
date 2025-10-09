@@ -38,7 +38,7 @@ func synctestWait_LetAllOtherGoroFinish() {
 	select {
 	case *barrierExclusiveCh <- true:
 	}
-
+	time.Sleep(0)
 	synctest.Wait()
 
 	select {
