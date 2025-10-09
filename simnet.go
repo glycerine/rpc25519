@@ -2132,11 +2132,11 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	// this first.
 	//send.completeTm = s.bumpTime(now)
 	send.completeTm = now // no bumping. simpler to debug for now.
-	if send.sn == 3 || send.sn == 4 || send.sn == 5 {
-		vv("hop = %v; send.completeTm = %v  now = %v\n  send='%v'", hop, send.completeTm, now, send)
-		// with bumping, we go 5->6 in first instance, 4->5 in 2nd.
-		// simnet.go:2134 [goID 22] 2000-01-01 00:00:00.000500000 +0000 UTC send.completeTm = 2000-01-01 00:00:00.0006 +0000 UTC  now = 2000-01-01 00:00:00.0005 +0000 UTC
-	}
+	//if send.sn == 3 || send.sn == 4 || send.sn == 5 {
+	//vv("hop = %v; send.completeTm = %v  now = %v\n  send='%v'", hop, send.completeTm, now, send)
+	// with bumping, we go 5->6 in first instance, 4->5 in 2nd.
+	// simnet.go:2134 [goID 22] 2000-01-01 00:00:00.000500000 +0000 UTC send.completeTm = 2000-01-01 00:00:00.0006 +0000 UTC  now = 2000-01-01 00:00:00.0005 +0000 UTC
+	//}
 
 	// handleSend
 	send.arrivalTm = s.bumpTime(send.unmaskedSendArrivalTm)
@@ -2558,7 +2558,7 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			*/
 
 			// matchmaking
-			vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
+			//vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
 			read.sendmop = send
 			send.readmop = read
 
@@ -2844,7 +2844,7 @@ func (s *Simnet) scheduler() {
 					// durToGridPoint does bumpTime for us now.
 					dur, _ := s.durToGridPoint(now, s.scenario.tick)
 
-					vv("ADVANCE time in main scheduler: i=%v, elap=0 and no work, just advance time by dur='%v' and try to dispatch below.", i, dur)
+					//vv("ADVANCE time in main scheduler: i=%v, elap=0 and no work, just advance time by dur='%v' and try to dispatch below.", i, dur)
 
 					time.Sleep(dur)
 					// should we barrier now? no other selects
@@ -2939,7 +2939,7 @@ func (s *Simnet) scheduler() {
 			s.add2meq(discard, i)
 
 		case send := <-s.msgSendCh:
-			vv("i=%v, msgSendCh ->  send='%v'", i, send)
+			//vv("i=%v, msgSendCh ->  send='%v'", i, send)
 			//s.handleSend(send)
 			s.add2meq(send, i)
 
@@ -3272,11 +3272,11 @@ func (s *Simnet) haveNextTimer(now time.Time) <-chan time.Time {
 		//vv("haveNextTimer: no timer at the moment, don't wait on it.")
 		//return nil
 	}
-	comment := ""
-	if s.lastArmDur == math.MinInt64 {
-		comment = "(no timer armed on last attempt)"
-	}
-	vv("ADVANCE time, in haveNextTimer(): s.lastArmToFire = %v; s.lastArmDur = %v %v", s.lastArmToFire, s.lastArmDur, comment)
+	//comment := ""
+	//if s.lastArmDur == math.MinInt64 {
+	//	comment = "(no timer armed on last attempt)"
+	//}
+	//vv("ADVANCE time, in haveNextTimer(): s.lastArmToFire = %v; s.lastArmDur = %v %v", s.lastArmToFire, s.lastArmDur, comment)
 	return s.nextTimer.C
 }
 
