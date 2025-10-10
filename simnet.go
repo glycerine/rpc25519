@@ -6,6 +6,7 @@ package rpc25519
 import (
 	"fmt"
 	"math"
+	"os"
 	"runtime"
 	"sort"
 	"strings"
@@ -718,8 +719,29 @@ func (s *Simnet) fin(op *mop) {
 	}
 	if hash0 != curhash {
 		// a read is failing here 1st!?!
+		// grab a snapshot
+		cursnap := s.getInternalSnapshot(now)
+		ReportSnapDiff(prev, cursnap, os.Stdout)
 		panicf("previously our accum hash0 = '%v', but curhash = '%v'", hash0, curhash)
 	}
+}
+
+func (s *Simnet) getInternalSnapshot(now time.Time) (cursnap *SimnetSnapshot) {
+	cursnap = &SimnetSnapshot{
+		reqtm:   now,
+		who:     goID(),
+		proceed: make(chan struct{}),
+		where:   fileLine(1),
+	}
+	// make our own mop so as not to allocate another sn
+	// and thus disturb the current state of the system.
+	req := &mop{
+		kind:    SNAPSHOT,
+		snapReq: cursnap,
+	}
+	req.proceed = req.snapReq.proceed
+	s.handleSimnetSnapshotRequest(req, now, -1, true)
+	return
 }
 
 // repeatable tries to report the dispatch or fin() completing
@@ -3235,7 +3257,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 				//vv("i=%v meq sees read='%v'", i, op)
 				s.handleRead(op, 1, i)
 			case SNAPSHOT:
-				s.handleSimnetSnapshotRequest(op, now, i)
+				s.handleSimnetSnapshotRequest(op, now, i, false)
 			case CLIENT_REG:
 				s.handleClientRegistration(op)
 			case SERVER_REG:
@@ -3624,14 +3646,18 @@ func (s *Simnet) allConnString() (r string) {
 // without data races inherent in just printing the simnet
 // fields, by asking the simnet nicely to return a snapshot
 // of the internal state of the network in a SimnetSnapshot.
-func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi int64) {
+func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi int64, internal bool) {
 	var req *SimnetSnapshot = reqop.snapReq
 	defer func() {
-		s.fin(reqop)
-		close(req.proceed)
+		if !internal {
+			s.fin(reqop)
+			close(req.proceed)
+		}
 	}()
-	s.xmut.Lock()
-	defer s.xmut.Unlock()
+	if !internal {
+		s.xmut.Lock()
+		defer s.xmut.Unlock()
+	}
 
 	req.Asof = now
 	req.Loopi = loopi

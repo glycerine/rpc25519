@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	//"runtime"
+	"io"
 	"path/filepath"
 	"time"
 )
@@ -1295,4 +1296,7 @@ func (s *Simnet) CloseSimnode(simnodeName string, reason error) (err error) {
 		return
 	}
 	return
+}
+func ReportSnapDiff(a, b *SimnetSnapshot, w io.Writer) {
+
 }
