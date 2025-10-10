@@ -6,7 +6,7 @@ package rpc25519
 import (
 	"fmt"
 	"math"
-	"os"
+	//"os"
 	"runtime"
 	"sort"
 	"strings"
@@ -721,7 +721,10 @@ func (s *Simnet) fin(op *mop) {
 		// a read is failing here 1st!?!
 		// grab a snapshot
 		cursnap := s.getInternalSnapshot(now)
-		ReportSnapDiff(prev, cursnap, os.Stdout)
+		xpath := s.cfg.repeatTraceViolatedOutpath
+		cursnap.ToFile(xpath)
+		err := snapFilesDifferent(xpath, false) // like 707
+		vv("snapFilesDifferent err = %v", err)
 		panicf("previously our accum hash0 = '%v', but curhash = '%v'", hash0, curhash)
 	}
 }

@@ -950,7 +950,8 @@ type UploadReaderFunc func(ctx context.Context, req *Message, lastReply *Message
 type Config struct {
 
 	// for 707 simgrid_test to trace repeat
-	repeatTrace *SimnetSnapshot
+	repeatTrace                *SimnetSnapshot
+	repeatTraceViolatedOutpath string
 
 	// ServerBaseID allows simnet to treat all
 	// connections originating from the server

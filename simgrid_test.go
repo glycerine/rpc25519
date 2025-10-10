@@ -545,6 +545,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 			cfg.ServerAddr = "127.0.0.1:0"
 			cfg.QuietTestMode = true
 			cfg.repeatTrace = prevSnap
+			cfg.repeatTraceViolatedOutpath = xorderPath
 			gridCfg.RpcCfg = cfg
 			cfg.SimnetGOMAXPROCS = 8
 
@@ -617,7 +618,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	snap0 := loadtest(nil, nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
 	snap1 := loadtest(snap0, nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
 	_, _ = snap0, snap1
-	err := filesDifferent(xorderPath, false)
+	err := snapFilesDifferent(xorderPath, false)
 	if err != nil {
 		panic(err)
 	}
@@ -651,7 +652,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 // off before diffing the lines in the 707 test.
 //
 // The hash excludes the op.sn for this reason.
-func filesDifferent(xorderPath string, dopanic bool) (errmsg error) {
+func snapFilesDifferent(xorderPath string, dopanic bool) (errmsg error) {
 
 	// snap707.001.snaptxt
 	matches, err := filepath.Glob(xorderPath + "*.snaptxt")
