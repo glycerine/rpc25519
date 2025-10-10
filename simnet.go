@@ -175,7 +175,7 @@ func (s *Simnet) setPseudorandom(op *mop) {
 }
 
 func (op *mop) bestName() string {
-	if op.kind == NEWGORO {
+	if op.kind == NEW_GORO {
 		return op.newGoroReq.name
 	}
 	if op.origin != nil {
@@ -186,7 +186,7 @@ func (op *mop) bestName() string {
 
 func (op *mop) whence() string {
 	switch op.kind {
-	case NEWGORO:
+	case NEW_GORO:
 		return op.where
 	case SCENARIO:
 	case CLIENT_REG:
@@ -220,7 +220,7 @@ func (op *mop) whence() string {
 // missed a priority if we add a new mopkind.
 func (s *mop) priority() int64 {
 	switch s.kind {
-	case NEWGORO:
+	case NEW_GORO:
 		return 100
 
 	case SCENARIO:
@@ -266,7 +266,7 @@ func (s *mop) priority() int64 {
 func (s *mop) tm() time.Time {
 	switch s.kind {
 
-	case NEWGORO:
+	case NEW_GORO:
 		return s.reqtm
 
 	case SEND:
@@ -1223,22 +1223,23 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	s := &Simnet{
 		mintick: time.Duration(minTickNanos),
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
-		xb3hashFin:     blake3.New(64, nil),
-		xb3hashDis:     blake3.New(64, nil),
-		meq:            newMasterEventQueue("scheduler"),
-		curSliceQ:      newOneTimeSliceQ("scheduler"),
-		cfg:            cfg,
-		srv:            srv,
-		cliRegisterCh:  make(chan *clientRegistration),
-		srvRegisterCh:  make(chan *serverRegistration),
-		alterSimnodeCh: make(chan *simnodeAlteration),
-		alterHostCh:    make(chan *simnodeAlteration),
-		submitBatchCh:  make(chan *mop),
-		msgSendCh:      make(chan *mop),
-		msgReadCh:      make(chan *mop),
-		addTimer:       make(chan *mop),
-		discardTimerCh: make(chan *mop),
-		newScenarioCh:  make(chan *scenario),
+		xb3hashFin:      blake3.New(64, nil),
+		xb3hashDis:      blake3.New(64, nil),
+		meq:             newMasterEventQueue("scheduler"),
+		curSliceQ:       newOneTimeSliceQ("scheduler"),
+		cfg:             cfg,
+		srv:             srv,
+		cliRegisterCh:   make(chan *clientRegistration),
+		srvRegisterCh:   make(chan *serverRegistration),
+		alterSimnodeCh:  make(chan *simnodeAlteration),
+		alterHostCh:     make(chan *simnodeAlteration),
+		submitBatchCh:   make(chan *mop),
+		msgSendCh:       make(chan *mop),
+		msgReadCh:       make(chan *mop),
+		addTimer:        make(chan *mop),
+		discardTimerCh:  make(chan *mop),
+		newScenarioCh:   make(chan *scenario),
+		simnetNewGoroCh: make(chan *newGoroRequest),
 
 		injectCircuitFaultCh: make(chan *circuitFault),
 		injectHostFaultCh:    make(chan *hostFault),
@@ -1341,7 +1342,7 @@ type mopkind int
 const (
 	MOP_UNDEFINED mopkind = 0
 
-	NEWGORO mopkind = 1
+	NEW_GORO mopkind = 1
 
 	SCENARIO mopkind = 2
 
@@ -3048,6 +3049,7 @@ func (s *Simnet) scheduler() {
 			s.add2meq(s.newCloseSimnodeMop(closeSimnodeReq), i)
 
 		case newGoroReq := <-s.simnetNewGoroCh:
+			vv("simnetNewGoroCh -> newGoroReq.name = '%v'", newGoroReq.name)
 			s.add2meq(s.newGoroMop(newGoroReq), i)
 
 		case <-s.halt.ReqStop.Chan:
@@ -3172,7 +3174,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// sender has "traversed" the network
 	} else {
 		s.curBatchNum++
-		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
+		vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
 
 		for s.curSliceQ.Len() > 0 {
 			op = s.curSliceQ.pop()
@@ -3198,12 +3200,12 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			//fmt.Printf("on s.xissueLast = %v, hashDis = %v\n", s.xissueLast, asBlake33B(s.xb3hashDis))
 			s.xmut.Unlock()
 
-			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
+			vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
 
 			op.dispatchTm = now
 
 			switch op.kind {
-			case NEWGORO:
+			case NEW_GORO:
 				s.handleNewGoro(op, now, i)
 
 			case CLOSE_SIMNODE:
@@ -4179,5 +4181,6 @@ func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 }
 
 func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
+	vv("top handleNewGoro: '%v'", op.newGoroReq.name)
 	close(op.newGoroReq.proceed)
 }

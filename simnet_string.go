@@ -114,6 +114,8 @@ func (state Faultstate) String() string {
 
 func (k mopkind) String() string {
 	switch k {
+	case NEW_GORO:
+		return "NEW_GORO"
 	case TIMER:
 		return "TIMER"
 	case TIMER_DISCARD:
@@ -154,6 +156,9 @@ func (k mopkind) String() string {
 func (op *mop) String() string {
 	if op == nil {
 		return "(nil *mop)"
+	}
+	if op.kind == NEW_GORO {
+		return fmt.Sprintf("mop{NEW_GORO op.who:%v op.sn:%v, name:%v}", op.who, op.sn, op.newGoroReq.name)
 	}
 	var msgSerial int64
 	if op.msg != nil {

@@ -48,20 +48,19 @@ type newGoroRequest struct {
 
 func (s *Simnet) newGoroMop(req *newGoroRequest) *mop {
 	return &mop{
-		kind:       NEWGORO,
+		kind:       NEW_GORO,
 		newGoroReq: req,
 	}
 }
 func (s *Simnet) NewGoro(name string) {
-	if name == "" {
-		panic("assign a name")
-	}
-	vv("NewGoro called name = '%v' at %v", name, fileLine(2))
 	if s == nil {
 		// not running under simnet probably.
 		return
 	}
-	return // stub for a moment.
+	if name == "" {
+		panic("assign a name")
+	}
+	vv("NewGoro called name = '%v' at %v", name, fileLine(2))
 	r := &newGoroRequest{
 		name:    name,
 		where:   fileLine(2),
