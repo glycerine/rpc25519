@@ -972,7 +972,11 @@ type simnode struct {
 }
 
 func (s *simnode) newGoro(purpose string) {
-	s.net.NewGoro(s.name + "___" + purpose)
+	// s.name will have uniquifying randomness at the
+	// end, which chomp will truncate off, so put
+	// purpose in front rather than at the end where
+	// it could be lost.
+	s.net.NewGoro("newGoro_" + purpose + "_" + s.name)
 }
 
 func (s *simnode) id() string {

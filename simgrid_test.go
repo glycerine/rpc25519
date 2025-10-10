@@ -268,7 +268,7 @@ func (s *simGridNode) Start(grid *simGrid) error {
 	panicOn(err)
 
 	// appears that under simnet, the PeerAPI is not getting the server base address with simnet://127... in it.
-	peerName := s.node.name + "_lpb"
+	peerName := s.node.name + "_simgrid_test_StartLocalPeer"
 	s.lpb, err = s.srv.PeerAPI.StartLocalPeer(context.Background(), "simgrid", "", nil, peerName, false)
 	panicOn(err)
 	s.node.lpb = s.lpb
