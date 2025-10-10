@@ -779,6 +779,9 @@ func (s *Simnet) simnetNextBatchSn() int64 {
 
 // simnet simulates a network entirely with channels in memory.
 type Simnet struct {
+	xsn2dis       map[int64]int64
+	xdis2sn       map[int64]int64
+	nextDispatch  int64
 	xsn2descDebug map[int64]string
 	mintick       time.Duration
 	ndtotPrev     int64
@@ -1230,6 +1233,8 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
+		xsn2dis:       make(map[int64]int64),
+		xdis2sn:       make(map[int64]int64),
 		xsn2descDebug: make(map[int64]string),
 		mintick:       time.Duration(minTickNanos),
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
@@ -3135,25 +3140,30 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			// get the batch number (and size) into the hash too.
 			xdis := fmt.Sprintf("%v_[batch_%v_with_batchSize_%v]", op.repeatable(now), s.curBatchNum, npop)
 
+			sn := op.sn
 			// must hold xmut.Lock else race vs simnetNextMopSn()
 			s.xmut.Lock()
 
-			desc := s.xsn2descDebug[op.sn]
-			batch += fmt.Sprintf("%v:%v, ", op.sn, desc)
+			desc := s.xsn2descDebug[sn]
+			next := s.nextDispatch
+			s.nextDispatch++
+			s.xsn2dis[sn] = next
+			s.xdis2sn[next] = sn
+			batch += fmt.Sprintf("%v:%v, ", next, desc)
 
-			s.xdispatchRepeatable[op.sn] = xdis
+			s.xdispatchRepeatable[sn] = xdis
 			// update xissuetm, since original was by client
 			// in simnetNextMopSn() and not deterministic.
-			s.xissuetm[op.sn] = now
+			s.xissuetm[sn] = now
 
 			// start xissueOrder at 1, leave 0 unused, to help debug.
 			// -1 means client got in simnetNextMopSn()
 			// but we have not seen yet (so not in hash).
 			s.xissueLast++
-			s.xissueOrder[op.sn] = s.xissueLast
-			s.xissueBatch[op.sn] = s.curBatchNum
+			s.xissueOrder[sn] = s.xissueLast
+			s.xissueBatch[sn] = s.curBatchNum
 			s.xb3hashDis.Write([]byte(xdis))
-			s.xissueHash[op.sn] = asBlake33B(s.xb3hashDis)
+			s.xissueHash[sn] = asBlake33B(s.xb3hashDis)
 
 			//fmt.Printf("on s.xissueLast = %v, hashDis = %v\n", s.xissueLast, asBlake33B(s.xb3hashDis))
 			s.xmut.Unlock()
@@ -3238,7 +3248,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			//}
 		} // end for
 
-		vv("in distributeMEQ, batchNum:%v (size %v) batch = '%v'", s.curBatchNum, npop, batch)
+		fmt.Printf("RRRRRRRR simnet.go:3241 in distributeMEQ, batchNum:%v (size %v) batch = '%v'\n\n", s.curBatchNum, npop, batch)
 
 	}
 
