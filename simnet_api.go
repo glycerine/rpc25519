@@ -1211,7 +1211,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		// is real and we can track it down.
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v]\n\n", // ; fin< %v]\n", //  [sn:%v]\n",
+			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v]\n\n", // [fin hash %v] [fin repeatable %v]\n\n", // ; fin< %v]\n", //  [sn:%v]\n",
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
@@ -1220,8 +1220,8 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				chompAnyUniqSuffix(snap.Xorigin[sn]),
 				snap.XissueHash[sn],
 				snap.XissueBatch[sn],
-				snap.XfinHash[sn],
-				snap.XfinRepeatable[sn],
+				//snap.XfinHash[sn],
+				//snap.XfinRepeatable[sn],
 				//snap.Xfinorder[sn],
 				//sn,
 			)

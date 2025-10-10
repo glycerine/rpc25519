@@ -686,7 +686,7 @@ func (s *Simnet) fin(op *mop) {
 	s.xfinRepeatable[op.sn] = rep
 	s.xfinHash[op.sn] = asBlake33B(s.xb3hashFin)
 
-	fmt.Printf("s.xfinHash[%v] = %v\n", op.sn, s.xfinHash[op.sn])
+	//fmt.Printf("s.xfinHash[%v] = %v\n", op.sn, s.xfinHash[op.sn])
 
 }
 
@@ -3174,7 +3174,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// sender has "traversed" the network
 	} else {
 		s.curBatchNum++
-		vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
+		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
 
 		for s.curSliceQ.Len() > 0 {
 			op = s.curSliceQ.pop()
@@ -3200,7 +3200,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			//fmt.Printf("on s.xissueLast = %v, hashDis = %v\n", s.xissueLast, asBlake33B(s.xb3hashDis))
 			s.xmut.Unlock()
 
-			vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
+			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
 
 			op.dispatchTm = now
 
