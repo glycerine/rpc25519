@@ -2826,9 +2826,9 @@ func (s *Simnet) scheduler() {
 	// bigbang is the "start of time" -- don't change below.
 	s.bigbang = now
 
-	var totalSleepDur time.Duration
+	//var totalSleepDur time.Duration
 
-	//restartI:
+iloop:
 	for i := int64(0); ; i++ {
 
 		now := time.Now()
@@ -2844,251 +2844,194 @@ func (s *Simnet) scheduler() {
 		}
 
 		// let goroutines get blocked waiting on the select arms below.
-		if faketime {
-			synctestWait_LetAllOtherGoroFinish() // 1st barrier
-		}
+		//if faketime {
+		//	synctestWait_LetAllOtherGoroFinish() // 1st barrier
+		//}
 		//vv("i=%v, about to select", i)
-		preSelectTm := now
+		//preSelectTm := now
 		preSelMeqSz := s.meq.Len()
 		_ = preSelMeqSz
 
+		igridtm := s.bigbang.Add(time.Duration(i) * s.scenario.tick)
+
 		// what we want to maximize determinism:
-		// single goro at time, see if we can make any
-		// progress, make all the progress we can,
-		// only once no further progress, then allow
-		// the next goro. Try to release them with
-		// a clock that corresponds to their goID.
+		// let as many goro make progress as can
+		// within this time slice.
+		// TODO: figure out respecting/re-arming the timer or not?
 
-		select { // scheduler main select
+		for {
+			s.tickLogicalClocks()
 
-		case <-s.haveNextTimer(preSelectTm):
-			now = time.Now()
-			elap := now.Sub(preSelectTm)
-			slept := elap > 0
-			if elap == 0 {
-				if faketime && s.lastArmDur > 0 {
-					panic(fmt.Sprintf("why awake when elap=0 but lastArmDur=%v", s.lastArmDur))
-				}
-				// A timer of dur zero is equivalent to synctest.Wait;
-				// so time has not advanced, but the rest of the
-				// bubble is blocked now. Do we want to sleep to
-				// advance time now? Only if the meq is empty,
-				// otherwise try to dispatch again before advancing
-				// time, with the design aim of maximizing
-				// determinism and reproducibility. Released goro will
-				// likely set some timers etc.
-				sz := s.meq.Len()
-				if sz == 0 {
-					// durToGridPoint does bumpTime for us now.
-					dur, _ := s.durToGridPoint(now, s.scenario.tick)
-
-					//vv("ADVANCE time in main scheduler: i=%v, elap=0 and no work, just advance time by dur='%v' and try to dispatch below.", i, dur)
-
-					time.Sleep(dur)
-					// should we barrier now? no other selects
-					// are possible in here, so...pointless? But
-					// might give a small increase in determinism
-					// from background goro racing to meet our next
-					// select call --
-					// so try it if we have actually slept at all.
-					slept = true
-				} else {
-					//vv("i=%v, elap=0 but have sz meq=%v :\n %v", i, sz, s.meq)
-					// just continue? nope. we get bubble deadlock.
-				}
+			// let goroutines get blocked waiting on the select arms below.
+			select {
+			case <-s.halt.ReqStop.Chan:
+				return
+			case <-time.After(0):
 			}
-			totalSleepDur += elap
-			_ = slept
-			//vv("i=%v, nextTimer fired. s.lastArmDur=%v; s.lastArmToFire = %v; elap = '%v'", i, s.lastArmDur, s.lastArmToFire, elap)
-			//if elap == 0 {
-			//vv("i=%v, cool: elap was 0, nice. single stepping the next goro... nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
-			//}
-
-			// problem: if we barrier here, we
-			// cannot allow other goro to wake us
-			// on our select case arms, to queue up their mops.
-			//
-			// We use a "buffer and sort to deterministic order"
-			// strategy to try to address this source of
-			// non-determinism.
-			//
-			// We collect requests from any and all blocked
-			// clients (waiting in our select case arms) and
-			// add them to the meq. We loop until no more
-			// requests are found (default select case hit
-			// and saw1 == 0). Then we sort the buffered
-			// requests we have in the meq (<= now) into
-			// a deterministic order, and dispatch in that
-			// order.
-
-			// load up our select arms as much as possible
 			if faketime {
 				synctestWait_LetAllOtherGoroFinish() // barrier
 			}
-			var shouldExit bool
-			var saw0, saw1, saw2 int
-			saw2 = 1
-			saw1 = 1 // find 0,0,0 (three zeros in a row).
-			// loop seeking a fixed point: no more
-			// client requests coming in.
-			var j int
-			for ; ; j++ {
-				saw0 = saw1
-				saw1 = saw2
-				shouldExit, saw2 = s.add2meqUntilSelectDefault(i)
-				if shouldExit {
+
+			// accept as many client operations during
+			// this time slice as we can; no fixed bound.
+			now = time.Now()
+			left := igridtm.Sub(now)
+			if left == 0 {
+				_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
+				if shutdown {
 					return
 				}
-				if saw2 > 0 {
-					//vv("i=%v, on j=%v, saw1 additional %v", i, j, saw2)
-				} else {
-					if saw0 == 0 && saw1 == 0 && saw2 == 0 {
-						break
-					}
-					// else go 1 more round, b/c batch sizes of 707 are varying at 18 or 17, and this keeps them at 18 on issueOrder:181. chrunk: 19 vs 18 even with this on. require 3 zeros in a row and add a prior barrier. arg. still varying batch sizes...
+				if restartNewScenario {
+					vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
+					// what else needs resetting/doing here?
+					//i = 0
+					//continue restartI
 				}
-				if faketime {
-					synctestWait_LetAllOtherGoroFinish() // barrier
-				}
+				continue iloop
 			}
-			//vv("i=%v finish fixed point loop after j = %v", i, j) // why sometimes do we jump now from 0.0003 to 0.0005, and sometimes to 0.0006 (between i=8 and i=9 on 707) meq at end of i=8 has cli send with tm 0.0005 => next is 0.0005. cli send in meq with tm of 0.0006 means next wake will be 0.0006. so why does the pq timestamp for the mop vary?
+			if left < 0 {
+				panicf("should never overrun our igridtm(%v) -- but might happen without synctest... now = %v", nice9(igridtm), nice9(now))
+			}
+			// INVAR: left > 0
+			select { // scheduler main select
 
-			s.tickLogicalClocks()
+			case <-time.After(left):
+				now = time.Now()
+				s.tickLogicalClocks()
+				_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
+				if shutdown {
+					return
+				}
+				if restartNewScenario {
+					vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
+					// what else needs resetting/doing here?
+					//i = 0
+					//continue restartI
+				}
 
-			_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
-			if shutdown {
+			case batch := <-s.submitBatchCh:
+				s.add2meq(batch, i)
+			case timer := <-s.addTimer:
+				//vv("i=%v, addTimer ->  timer='%v'", i, timer)
+				//s.handleTimer(timer)
+				s.add2meq(timer, i)
+
+			case discard := <-s.discardTimerCh:
+				//vv("i=%v, discardTimer ->  discard='%v'", i, discard)
+				//s.handleDiscardTimer(discard)
+				s.add2meq(discard, i)
+
+			case send := <-s.msgSendCh:
+				//vv("i=%v, msgSendCh ->  send='%v'", i, send)
+				//s.handleSend(send)
+				s.add2meq(send, i)
+
+			case read := <-s.msgReadCh:
+				//vv("i=%v msgReadCh ->  read='%v'", i, read)
+				//s.handleRead(read)
+				s.add2meq(read, i)
+
+			case reg := <-s.cliRegisterCh:
+				// "connect" in network lingo, client reaches out to listening server.
+				//vv("i=%v, cliRegisterCh got reg from '%v' = '%v'", i, reg.client.name, reg)
+				//s.handleClientRegistration(reg)
+				s.add2meq(s.newClientRegMop(reg), i)
+				//vv("back from handleClientRegistration for '%v'", reg.client.name)
+
+			case srvreg := <-s.srvRegisterCh:
+				// "bind/listen" on a socket, server waits for any client to "connect"
+				//vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
+				//s.handleServerRegistration(srvreg)
+				// do not vv here, as it is very racey with the server who
+				// has been given permission to proceed.
+				s.add2meq(s.newServerRegMop(srvreg), i)
+
+			case scenario := <-s.newScenarioCh:
+				//vv("i=%v, newScenarioCh ->  scenario='%v'", i, scenario)
+				s.add2meq(s.newScenarioMop(scenario), i)
+
+			case alt := <-s.alterSimnodeCh:
+				//vv("i=%v alterSimnodeCh ->  alt='%v'", i, alt)
+				//s.handleAlterCircuit(alt, true)
+				s.add2meq(s.newAlterNodeMop(alt), i)
+
+			case alt := <-s.alterHostCh:
+				//vv("i=%v alterHostCh ->  alt='%v'", i, alt)
+				//s.handleAlterHost(op.alt)
+				s.add2meq(s.newAlterHostMop(alt), i)
+
+			case cktFault := <-s.injectCircuitFaultCh:
+				//vv("i=%v injectCircuitFaultCh ->  cktFault='%v'", i, cktFault)
+				//s.injectCircuitFault(cktFault, true)
+				s.add2meq(s.newCktFaultMop(cktFault), i)
+
+			case hostFault := <-s.injectHostFaultCh:
+				//vv("i=%v injectHostFaultCh ->  hostFault='%v'", i, hostFault)
+				//s.injectHostFault(hostFault)
+				s.add2meq(s.newHostFaultMop(hostFault), i)
+
+			case repairCkt := <-s.repairCircuitCh:
+				//vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
+				//s.handleCircuitRepair(repairCkt, true)
+				s.add2meq(s.newRepairCktMop(repairCkt), i)
+
+			case repairHost := <-s.repairHostCh:
+				//vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
+				//s.handleHostRepair(repairHost)
+				s.add2meq(s.newRepairHostMop(repairHost), i)
+
+			case snapReq := <-s.simnetSnapshotRequestCh:
+				//vv("i=%v simnetSnapshotRequestCh -> snapReq", i)
+				// user can confirm/view all current faults/health
+				//s.handleSimnetSnapshotRequest(snapReq, now, i)
+				s.add2meq(s.newSnapReqMop(snapReq), i)
+
+			case closeSimnodeReq := <-s.simnetCloseNodeCh:
+				//vv("i=%v simnetCloseNodeCh -> closeNodeReq", i)
+				s.add2meq(s.newCloseSimnodeMop(closeSimnodeReq), i)
+
+			case newGoroReq := <-s.simnetNewGoroCh:
+				vv("simnetNewGoroCh -> newGoroReq.name = '%v'", newGoroReq.name)
+				s.add2meq(s.newGoroMop(newGoroReq), i)
+
+			case <-s.halt.ReqStop.Chan:
+				//vv("i=%v <-s.halt.ReqStop.Chan", i)
+				//bb := time.Since(s.bigbang)
+				//pct := 100 * float64(totalSleepDur) / float64(bb)
+				//_ = pct
+				//vv("simnet.halt.ReqStop totalSleepDur = %v (%0.2f%%) since bb = %v)", totalSleepDur, pct, bb)
 				return
-			}
-			if restartNewScenario {
-				vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
-				// what else needs resetting/doing here?
-				//i = 0
-				//continue restartI
-			}
-			// end case wakeup <-s.haveNextTimer
 
-		case batch := <-s.submitBatchCh:
-			s.add2meq(batch, i)
-		case timer := <-s.addTimer:
-			//vv("i=%v, addTimer ->  timer='%v'", i, timer)
-			//s.handleTimer(timer)
-			s.add2meq(timer, i)
-
-		case discard := <-s.discardTimerCh:
-			//vv("i=%v, discardTimer ->  discard='%v'", i, discard)
-			//s.handleDiscardTimer(discard)
-			s.add2meq(discard, i)
-
-		case send := <-s.msgSendCh:
-			//vv("i=%v, msgSendCh ->  send='%v'", i, send)
-			//s.handleSend(send)
-			s.add2meq(send, i)
-
-		case read := <-s.msgReadCh:
-			//vv("i=%v msgReadCh ->  read='%v'", i, read)
-			//s.handleRead(read)
-			s.add2meq(read, i)
-
-		case reg := <-s.cliRegisterCh:
-			// "connect" in network lingo, client reaches out to listening server.
-			//vv("i=%v, cliRegisterCh got reg from '%v' = '%v'", i, reg.client.name, reg)
-			//s.handleClientRegistration(reg)
-			s.add2meq(s.newClientRegMop(reg), i)
-			//vv("back from handleClientRegistration for '%v'", reg.client.name)
-
-		case srvreg := <-s.srvRegisterCh:
-			// "bind/listen" on a socket, server waits for any client to "connect"
-			//vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
-			//s.handleServerRegistration(srvreg)
-			// do not vv here, as it is very racey with the server who
-			// has been given permission to proceed.
-			s.add2meq(s.newServerRegMop(srvreg), i)
-
-		case scenario := <-s.newScenarioCh:
-			//vv("i=%v, newScenarioCh ->  scenario='%v'", i, scenario)
-			s.add2meq(s.newScenarioMop(scenario), i)
-
-		case alt := <-s.alterSimnodeCh:
-			//vv("i=%v alterSimnodeCh ->  alt='%v'", i, alt)
-			//s.handleAlterCircuit(alt, true)
-			s.add2meq(s.newAlterNodeMop(alt), i)
-
-		case alt := <-s.alterHostCh:
-			//vv("i=%v alterHostCh ->  alt='%v'", i, alt)
-			//s.handleAlterHost(op.alt)
-			s.add2meq(s.newAlterHostMop(alt), i)
-
-		case cktFault := <-s.injectCircuitFaultCh:
-			//vv("i=%v injectCircuitFaultCh ->  cktFault='%v'", i, cktFault)
-			//s.injectCircuitFault(cktFault, true)
-			s.add2meq(s.newCktFaultMop(cktFault), i)
-
-		case hostFault := <-s.injectHostFaultCh:
-			//vv("i=%v injectHostFaultCh ->  hostFault='%v'", i, hostFault)
-			//s.injectHostFault(hostFault)
-			s.add2meq(s.newHostFaultMop(hostFault), i)
-
-		case repairCkt := <-s.repairCircuitCh:
-			//vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
-			//s.handleCircuitRepair(repairCkt, true)
-			s.add2meq(s.newRepairCktMop(repairCkt), i)
-
-		case repairHost := <-s.repairHostCh:
-			//vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
-			//s.handleHostRepair(repairHost)
-			s.add2meq(s.newRepairHostMop(repairHost), i)
-
-		case snapReq := <-s.simnetSnapshotRequestCh:
-			//vv("i=%v simnetSnapshotRequestCh -> snapReq", i)
-			// user can confirm/view all current faults/health
-			//s.handleSimnetSnapshotRequest(snapReq, now, i)
-			s.add2meq(s.newSnapReqMop(snapReq), i)
-
-		case closeSimnodeReq := <-s.simnetCloseNodeCh:
-			//vv("i=%v simnetCloseNodeCh -> closeNodeReq", i)
-			s.add2meq(s.newCloseSimnodeMop(closeSimnodeReq), i)
-
-		case newGoroReq := <-s.simnetNewGoroCh:
-			vv("simnetNewGoroCh -> newGoroReq.name = '%v'", newGoroReq.name)
-			s.add2meq(s.newGoroMop(newGoroReq), i)
-
-		case <-s.halt.ReqStop.Chan:
-			//vv("i=%v <-s.halt.ReqStop.Chan", i)
-			bb := time.Since(s.bigbang)
-			pct := 100 * float64(totalSleepDur) / float64(bb)
-			_ = pct
-			//vv("simnet.halt.ReqStop totalSleepDur = %v (%0.2f%%) since bb = %v)", totalSleepDur, pct, bb)
-			return
-
-			/*		default:
-					vv("i=%v, default: nobody else wanted to use our services.", i)
-					now = time.Now()
-					sz := s.meq.Len()
-					var npop int
-					if sz > 0 {
-						npop = s.distributeMEQ(now, i)
-					} // else {
-					//vv("i=%v, sz=%v, just advance time and try to dispatch on next loop", i, sz)
-					_ = npop
-					//if npop == 0 {
-					s.armTimer(now, i)
-					if s.lastArmToFire.IsZero() {
-						// durToGridPoint does bumpTime for us now.
-						dur, _ := s.durToGridPoint(now, s.scenario.tick)
-						vv("dur = %v; tick=%v", dur, s.scenario.tick)
-						time.Sleep(dur)
+				/*		default:
+						vv("i=%v, default: nobody else wanted to use our services.", i)
+						now = time.Now()
+						sz := s.meq.Len()
+						var npop int
+						if sz > 0 {
+							npop = s.distributeMEQ(now, i)
+						} // else {
+						//vv("i=%v, sz=%v, just advance time and try to dispatch on next loop", i, sz)
+						_ = npop
+						//if npop == 0 {
+						s.armTimer(now, i)
+						if s.lastArmToFire.IsZero() {
+							// durToGridPoint does bumpTime for us now.
+							dur, _ := s.durToGridPoint(now, s.scenario.tick)
+							vv("dur = %v; tick=%v", dur, s.scenario.tick)
+							time.Sleep(dur)
+						}
+						//}
+				*/
+			} // end select
+			if false {
+				if i > 0 && i%2000 == 0 {
+					if s.ndtot > s.ndtotPrev {
+						s.ndtotPrev = s.ndtot
+					} else {
+						vv("stalled? i=%v no new dispatches in last 2000 iterataioins... bottom of scheduler loop. since bb: %v; faketime=%v", i, time.Since(s.bigbang), faketime)
+						alwaysPrintf("schedulerReport %v", s.schedulerReport())
+						panic("stalled?")
 					}
-					//}
-			*/
-		} // end select
-		if false {
-			if i > 0 && i%2000 == 0 {
-				if s.ndtot > s.ndtotPrev {
-					s.ndtotPrev = s.ndtot
-				} else {
-					vv("stalled? i=%v no new dispatches in last 2000 iterataioins... bottom of scheduler loop. since bb: %v; faketime=%v", i, time.Since(s.bigbang), faketime)
-					alwaysPrintf("schedulerReport %v", s.schedulerReport())
-					panic("stalled?")
 				}
 			}
 		}
