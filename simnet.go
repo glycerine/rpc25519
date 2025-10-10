@@ -668,9 +668,7 @@ func (s *Simnet) fin(op *mop) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 
-	fin := s.nextMopSn
 	sn := op.sn
-	s.xfinOrder[sn] = fin
 	s.xfintm[sn] = now
 
 	orig := s.xsn2descDebug[sn]
@@ -687,7 +685,7 @@ func (s *Simnet) fin(op *mop) {
 		s.xtarget[sn] = op.target.name
 	}
 
-	rep := fmt.Sprintf("%v_[xfinOrder: %v]", op.repeatable(now), fin)
+	rep := fmt.Sprintf("%v", op.repeatable(now))
 	s.xb3hashFin.Write([]byte(rep))
 	s.xfinRepeatable[sn] = rep
 	s.xfinHash[sn] = asBlake33B(s.xb3hashFin)
@@ -765,7 +763,6 @@ func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 	s.xfinRepeatable = append(s.xfinRepeatable, "")
 	s.xwhence = append(s.xwhence, "")
 	s.xkind = append(s.xkind, -1)
-	s.xfinOrder = append(s.xfinOrder, -1)
 
 	s.xorigin = append(s.xorigin, "")
 	s.xtarget = append(s.xtarget, "")
@@ -792,7 +789,6 @@ type Simnet struct {
 
 	// fin records execution/finishing order
 	// for mop sn into xorder.
-	xfinOrder   []int64
 	xwhence     []string
 	xkind       []mopkind
 	xissuetm    []time.Time
@@ -3149,7 +3145,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			s.nextDispatch++
 			s.xsn2dis[sn] = next
 			s.xdis2sn[next] = sn
-			batch += fmt.Sprintf("%v:%v, ", next, desc)
+			batch += fmt.Sprintf("[sn %v][disp %v]:%v, ", sn, next, desc)
 
 			s.xdispatchRepeatable[sn] = xdis
 			// update xissuetm, since original was by client
@@ -3623,7 +3619,6 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	}
 
 	req.Xcountsn = s.nextMopSn
-	req.XfinOrder = append([]int64{}, s.xfinOrder...)
 	req.Xwhence = append([]string{}, s.xwhence...)
 	req.Xkind = append([]mopkind{}, s.xkind...)
 	req.Xissuetm = append([]time.Time{}, s.xissuetm...)

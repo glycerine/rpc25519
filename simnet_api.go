@@ -963,10 +963,9 @@ type SimnetSnapshot struct {
 	DNS                map[string]string // srvnode.name:simnode.name
 
 	// mop creation/finish data.
-	Xcountsn  int64     // number of mop issued
-	XfinOrder []int64   // finish order (nextMopSn at time of finish)
-	Xwhence   []string  // file:line creation place
-	Xkind     []mopkind // send,read,timer,discard,...
+	Xcountsn int64     // number of mop issued
+	Xwhence  []string  // file:line creation place
+	Xkind    []mopkind // send,read,timer,discard,...
 
 	Xissuetm            []time.Time // when issued
 	XissueOrder         []int64     // order issued (same as order hashed)
@@ -1209,9 +1208,10 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		// we leave out the spurious diff producing op.sn
 		// so that if we _do_ see a diff we know it
 		// is real and we can track it down.
+
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v] [fin < %v] [sn:%v]\n\n",
+			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v]\n\n", //  [sn:%v]\n\n",
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
@@ -1222,8 +1222,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				snap.XissueBatch[sn],
 				snap.XfinHash[sn],
 				snap.XfinRepeatable[sn],
-				snap.XfinOrder[sn],
-				sn,
+				//sn,
 			)
 
 		} else {
