@@ -714,19 +714,17 @@ func diffpos(as, bs string) (pos int, difftext string) {
 	return i + 1, string(bsRunes[i:])
 }
 
-/*
 func TestDiffPos(t *testing.T) {
-	if diffpos("ab", "ab") != -1 {
+	if pos, _ := diffpos("ab", "ab"); pos != -1 {
 		panic("expected -1")
 	}
-	if diffpos("ab", "abc") != 2 {
+	if pos, _ := diffpos("ab", "abc"); pos != 2 {
 		panic("expected 2")
 	}
-	if diffpos("abc", "ab") != 2 {
+	if pos, _ := diffpos("abc", "ab"); pos != 2 {
 		panic("expected 2")
 	}
-	if pos := diffpos("ac", "ab"); pos != 1 {
+	if pos, _ := diffpos("ac", "ab"); pos != 1 {
 		panicf("expected 1, got %v", pos)
 	}
 }
-*/
