@@ -516,7 +516,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	// test check below with the call to
 	// panicIfFinalHashDifferent(xorderPath).
 
-	loadtest := func(nNodes, wantSendPerPeer int, sendEvery time.Duration, xorderPath string) {
+	loadtest := func(nNodes, wantSendPerPeer int, sendEvery time.Duration, xorderPath string) (snap *SimnetSnapshot) {
 
 		nPeer := nNodes - 1
 		wantRead := nPeer * wantSendPerPeer
@@ -554,6 +554,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 			}
 			c := newSimGrid(gridCfg, nodes)
 			c.Start()
+			//vv("c.net = %p", c.net) // yes, new simnet each time.
 			defer c.Close()
 
 			for i, g := range nodes {
@@ -598,10 +599,11 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 				}
 			}
 
-			snap := c.net.GetSimnetSnapshot()
+			snap = c.net.GetSimnetSnapshot()
 			//vv("snap.Xfinorder len = '%v'; Xhash='%v'", len(snap.Xfinorder), snap.Xhash) // 53343
 			snap.ToFile(xorderPath)
 		}) // end bubbleOrNot
+		return
 	} // end loadtest func definition
 
 	// 15 nodes, 100 frag: 60 seconds testtime for realtime. 70sec faketime
@@ -611,9 +613,13 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	sendEvery1 := time.Millisecond
 	xorderPath := homed("~/rpc25519/snap707")
 	removeAllFilesWithPrefix(xorderPath)
-	loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
-	loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
-	panicIfFinalHashDifferent(xorderPath)
+	snap0 := loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
+	snap1 := loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
+	_, _ = snap0, snap1
+	err := filesDifferent(xorderPath, false)
+	if err != nil {
+		panic(err)
+	}
 	return
 
 	//loadtest(2, 1, 1, time.Second, "707 loadtest 1")
@@ -644,7 +650,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 // off before diffing the lines in the 707 test.
 //
 // The hash excludes the op.sn for this reason.
-func panicIfFinalHashDifferent(xorderPath string) {
+func filesDifferent(xorderPath string, dopanic bool) (errmsg error) {
 
 	// snap707.001.snaptxt
 	matches, err := filepath.Glob(xorderPath + "*.snaptxt")
@@ -669,12 +675,21 @@ func panicIfFinalHashDifferent(xorderPath string) {
 					pos, next := diffpos(lines0[i], line)
 
 					// show sn and tie, even though we ignored in the diff:
-					panicf("line %v has first diff:\n%v\n%v\n -> at char pos %v (at diff point: '%v')\n", i+1, full0[i], full[i], pos, next)
+					errmsg = fmt.Errorf("line %v has first diff:\n%v\n%v\n -> at char pos %v (at diff point: '%v')\n", i+1, full0[i], full[i], pos, next)
+					if dopanic {
+						panic(errmsg)
+					}
+					return
 				}
 			}
-			panic(fmt.Sprintf("file[0]='%v'\n (hash: '%v')\n and file[%v]='%v'\n (hash: '%v')\n disagree on last hash", matches[0], firstHash, i, matches[i], hash))
+			errmsg = fmt.Errorf("file[0]='%v'\n (hash: '%v')\n and file[%v]='%v'\n (hash: '%v')\n disagree on last hash", matches[0], firstHash, i, matches[i], hash)
+			if dopanic {
+				panic(errmsg)
+			}
+			return
 		}
 	}
+	return
 }
 
 func getLastHash(path string) (hash string, lines, full []string) {

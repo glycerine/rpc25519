@@ -3244,7 +3244,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			//}
 		} // end for
 
-		fmt.Printf("RRRRRRRR simnet.go:3241 in distributeMEQ, batchNum:%v (size %v) batch = '%v'\n\n", s.curBatchNum, npop, batch)
+		//fmt.Printf("RRRRRRRR simnet.go:3241 in distributeMEQ, batchNum:%v (size %v) batch = '%v'\n\n", s.curBatchNum, npop, batch)
 
 	}
 
@@ -3636,6 +3636,14 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.XhashFin = asBlake33B(s.xb3hashFin)
 	req.XhashDis = asBlake33B(s.xb3hashDis)
 
+	req.Xsn2dis = make(map[int64]int64)
+	for k, v := range s.xsn2dis {
+		req.Xsn2dis[k] = v
+	}
+	req.Xdis2sn = make(map[int64]int64)
+	for k, v := range s.xdis2sn {
+		req.Xdis2sn[k] = v
+	}
 	req.NetClosed = s.halt.ReqStop.IsClosed()
 	if len(s.servers) == 0 {
 		req.GetSimnetStatusErr = fmt.Errorf("no servers found in simnet; "+

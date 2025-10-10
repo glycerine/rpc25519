@@ -982,6 +982,9 @@ type SimnetSnapshot struct {
 	XhashFin string // hash of the sequence of fin()
 	XhashDis string // hash of the sequence of dispatches
 
+	Xsn2dis map[int64]int64
+	Xdis2sn map[int64]int64
+
 	ScenarioNum    int
 	ScenarioSeed   [32]byte
 	ScenarioTick   time.Duration
@@ -1209,9 +1212,14 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		// so that if we _do_ see a diff we know it
 		// is real and we can track it down.
 
+		// two reads can finish in the same time quantum/
+		// at the same time point. then their clients
+		// can proceed at that point. I don't see how
+		// that can create non-determinism.
+
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v]\n\n", //  [sn:%v]\n\n",
+			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v]\n\n", // [fin hash %v] [fin repeatable %v]\n\n", //  [sn:%v]\n\n",
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
@@ -1220,8 +1228,8 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				chompAnyUniqSuffix(snap.Xorigin[sn]),
 				snap.XissueHash[sn],
 				snap.XissueBatch[sn],
-				snap.XfinHash[sn],
-				snap.XfinRepeatable[sn],
+				//snap.XfinHash[sn],
+				//snap.XfinRepeatable[sn],
 				//sn,
 			)
 
