@@ -48,8 +48,13 @@ type newGoroRequest struct {
 
 func (s *Simnet) newGoroMop(req *newGoroRequest) *mop {
 	return &mop{
-		kind:       NEW_GORO,
 		newGoroReq: req,
+		sn:         s.simnetNextMopSn(),
+		kind:       NEW_GORO,
+		proceed:    req.proceed,
+		reqtm:      req.reqtm,
+		who:        req.who,
+		where:      req.where,
 	}
 }
 func (s *Simnet) NewGoro(name string) {
