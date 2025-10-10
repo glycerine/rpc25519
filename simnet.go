@@ -160,6 +160,7 @@ type mop struct {
 	alterNode    *simnodeAlteration
 	batch        *SimnetBatch
 	closeSimnode *closeSimnode
+	newGoroReq   *newGoroRequest
 
 	pseudorandom uint64
 }
@@ -182,6 +183,8 @@ func (op *mop) bestName() string {
 
 func (op *mop) whence() string {
 	switch op.kind {
+	case NEWGORO:
+		return op.where
 	case SCENARIO:
 	case CLIENT_REG:
 	case SERVER_REG:
@@ -214,48 +217,55 @@ func (op *mop) whence() string {
 // missed a priority if we add a new mopkind.
 func (s *mop) priority() int64 {
 	switch s.kind {
-	case SCENARIO:
+	case NEWGORO:
 		return 100
 
-	case CLIENT_REG:
+	case SCENARIO:
 		return 200
-	case SERVER_REG:
+
+	case CLIENT_REG:
 		return 300
+	case SERVER_REG:
+		return 400
 
 	case FAULT_CKT:
-		return 400
-	case FAULT_HOST:
 		return 500
-	case REPAIR_CKT:
+	case FAULT_HOST:
 		return 600
-	case REPAIR_HOST:
+	case REPAIR_CKT:
 		return 700
+	case REPAIR_HOST:
+		return 800
 
 	case ALTER_HOST:
-		return 800
-	case ALTER_NODE:
 		return 900
+	case ALTER_NODE:
+		return 1000
 
 	case BATCH:
-		return 1000 // not sure. how strongly prioritized should batches be?
+		return 1100 // not sure. how strongly prioritized should batches be?
 
 	case SEND:
-		return 1100
-	case READ:
 		return 1200
-	case TIMER:
+	case READ:
 		return 1300
-	case TIMER_DISCARD:
+	case TIMER:
 		return 1400
-	case CLOSE_SIMNODE:
+	case TIMER_DISCARD:
 		return 1500
-	case SNAPSHOT:
+	case CLOSE_SIMNODE:
 		return 1600
+	case SNAPSHOT:
+		return 1700
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs priority", int(s.kind)))
 }
 func (s *mop) tm() time.Time {
 	switch s.kind {
+
+	case NEWGORO:
+		return s.reqtm
+
 	case SEND:
 		if s.arrivalTm.IsZero() {
 			return s.reqtm // not yet hit handleSend(); s.initTm same == s.reqtm
@@ -874,6 +884,8 @@ type Simnet struct {
 	allnodes map[*simnode]bool
 	orphans  map[*simnode]bool // cli without baseserver
 
+	simnetNewGoroCh chan *newGoroRequest
+
 	cliRegisterCh chan *clientRegistration
 	srvRegisterCh chan *serverRegistration
 
@@ -1318,32 +1330,34 @@ type mopkind int
 const (
 	MOP_UNDEFINED mopkind = 0
 
-	SCENARIO mopkind = 1
+	NEWGORO mopkind = 1
 
-	CLIENT_REG mopkind = 2
-	SERVER_REG mopkind = 3
+	SCENARIO mopkind = 2
 
-	FAULT_CKT   mopkind = 4
-	FAULT_HOST  mopkind = 5
-	REPAIR_CKT  mopkind = 6
-	REPAIR_HOST mopkind = 7
-	ALTER_HOST  mopkind = 8
-	ALTER_NODE  mopkind = 9
+	CLIENT_REG mopkind = 3
+	SERVER_REG mopkind = 4
+
+	FAULT_CKT   mopkind = 5
+	FAULT_HOST  mopkind = 6
+	REPAIR_CKT  mopkind = 7
+	REPAIR_HOST mopkind = 8
+	ALTER_HOST  mopkind = 9
+	ALTER_NODE  mopkind = 10
 
 	// atomically apply a set of the above.
-	BATCH mopkind = 10
+	BATCH mopkind = 11
 
 	// core network primitives
-	SEND          mopkind = 11
-	READ          mopkind = 12
-	TIMER         mopkind = 13
-	TIMER_DISCARD mopkind = 14
+	SEND          mopkind = 12
+	READ          mopkind = 13
+	TIMER         mopkind = 14
+	TIMER_DISCARD mopkind = 15
 
 	// remove simnode from system, it has shutdown for real.
-	CLOSE_SIMNODE mopkind = 15
+	CLOSE_SIMNODE mopkind = 16
 
 	// report a snapshot of the entire network/state.
-	SNAPSHOT mopkind = 16
+	SNAPSHOT mopkind = 17
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
@@ -3175,6 +3189,9 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			op.dispatchTm = now
 
 			switch op.kind {
+			case NEWGORO:
+				s.handleNewGoro(op, now, i)
+
 			case CLOSE_SIMNODE:
 				//vv("CLOSE_SIMNODE '%v'", op.closeSimnode.simnodeName)
 				s.handleCloseSimnode(op, now, i)
@@ -4128,6 +4145,9 @@ func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 		case closeSimnodeReq := <-s.simnetCloseNodeCh:
 			//vv("i=%v simnetCloseNodeCh -> closeNodeReq", i)
 			s.add2meq(s.newCloseSimnodeMop(closeSimnodeReq), i)
+
+		case newGoroReq := <-s.simnetNewGoroCh:
+			s.add2meq(s.newGoroMop(newGoroReq), i)
 
 		case <-s.halt.ReqStop.Chan:
 			//vv("i=%v <-s.halt.ReqStop.Chan", i)

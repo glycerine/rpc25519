@@ -37,6 +37,38 @@ import (
 //
 //=========================================
 
+type newGoroRequest struct {
+	// provide
+	f     func()
+	where string
+	net   *Simnet
+	reqtm time.Time
+}
+
+func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
+	op.newGoroReq.f()
+}
+
+func (s *Simnet) newGoroMop(req *newGoroRequest) *mop {
+	return &mop{
+		kind:       NEWGORO,
+		newGoroReq: req,
+	}
+}
+func (s *Simnet) NewGoro(f func()) {
+	r := &newGoroRequest{
+		f:     f,
+		where: fileLine(2),
+		net:   s,
+		reqtm: time.Now(),
+	}
+	select {
+	case s.simnetNewGoroCh <- r:
+	case <-s.halt.ReqStop.Chan:
+		//vv("i=%v <-s.halt.ReqStop.Chan", i)
+	}
+}
+
 // scenario will, in the future, provide for testing different
 // timeout settings under network partition and
 // flakiness (partial failure). Stubbed for now.
