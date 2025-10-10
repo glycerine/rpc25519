@@ -669,25 +669,30 @@ func (s *Simnet) fin(op *mop) {
 	defer s.xmut.Unlock()
 
 	fin := s.nextMopSn
-	s.xfinOrder[op.sn] = fin
-	s.xfintm[op.sn] = now
+	sn := op.sn
+	s.xfinOrder[sn] = fin
+	s.xfintm[sn] = now
+
+	orig := s.xsn2descDebug[sn]
+	orig += fmt.Sprintf("[elap:%v]", now.Sub(s.xissuetm[sn]))
+	s.xsn2descDebug[sn] = orig
 
 	w := op.whence() // file:line where created.
-	s.xwhence[op.sn] = w
-	s.xkind[op.sn] = op.kind
+	s.xwhence[sn] = w
+	s.xkind[sn] = op.kind
 	if op.origin != nil {
-		s.xorigin[op.sn] = op.origin.name
+		s.xorigin[sn] = op.origin.name
 	}
 	if op.target != nil {
-		s.xtarget[op.sn] = op.target.name
+		s.xtarget[sn] = op.target.name
 	}
 
 	rep := fmt.Sprintf("%v_[xfinOrder: %v]", op.repeatable(now), fin)
 	s.xb3hashFin.Write([]byte(rep))
-	s.xfinRepeatable[op.sn] = rep
-	s.xfinHash[op.sn] = asBlake33B(s.xb3hashFin)
+	s.xfinRepeatable[sn] = rep
+	s.xfinHash[sn] = asBlake33B(s.xb3hashFin)
 
-	//fmt.Printf("s.xfinHash[%v] = %v\n", op.sn, s.xfinHash[op.sn])
+	//fmt.Printf("s.xfinHash[%v] = %v\n", op.sn, s.xfinHash[sn])
 
 }
 
@@ -746,7 +751,8 @@ func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 	defer s.xmut.Unlock()
 	sn = s.nextMopSn
 	s.nextMopSn++
-	vv("issue sn: %v  %v  at %v", sn, desc, fileLine(2))
+	//vv("issue sn: %v  %v  at %v", sn, desc, fileLine(2))
+	s.xsn2descDebug[sn] = desc
 
 	s.xissuetm = append(s.xissuetm, time.Now())
 	s.xissueOrder = append(s.xissueOrder, -1)
@@ -773,9 +779,10 @@ func (s *Simnet) simnetNextBatchSn() int64 {
 
 // simnet simulates a network entirely with channels in memory.
 type Simnet struct {
-	mintick   time.Duration
-	ndtotPrev int64
-	ndtot     int64 // num dispatched total.
+	xsn2descDebug map[int64]string
+	mintick       time.Duration
+	ndtotPrev     int64
+	ndtot         int64 // num dispatched total.
 
 	nextMopSn         int64
 	simnetLastBatchSn int64
@@ -1223,7 +1230,8 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
-		mintick: time.Duration(minTickNanos),
+		xsn2descDebug: make(map[int64]string),
+		mintick:       time.Duration(minTickNanos),
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
 		xb3hashFin:      blake3.New(64, nil),
 		xb3hashDis:      blake3.New(64, nil),
@@ -3119,7 +3127,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// sender has "traversed" the network
 	} else {
 		s.curBatchNum++
-		var batch []int64
+		var batch string
 		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
 
 		for s.curSliceQ.Len() > 0 {
@@ -3127,9 +3135,12 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			// get the batch number (and size) into the hash too.
 			xdis := fmt.Sprintf("%v_[batch_%v_with_batchSize_%v]", op.repeatable(now), s.curBatchNum, npop)
 
-			batch = append(batch, op.sn)
 			// must hold xmut.Lock else race vs simnetNextMopSn()
 			s.xmut.Lock()
+
+			desc := s.xsn2descDebug[op.sn]
+			batch += fmt.Sprintf("%v:%v, ", op.sn, desc)
+
 			s.xdispatchRepeatable[op.sn] = xdis
 			// update xissuetm, since original was by client
 			// in simnetNextMopSn() and not deterministic.
@@ -3147,7 +3158,6 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			//fmt.Printf("on s.xissueLast = %v, hashDis = %v\n", s.xissueLast, asBlake33B(s.xb3hashDis))
 			s.xmut.Unlock()
 
-			vv("in distributeMEQ, batchNum:%v (size %v) batch = '%#v'", s.curBatchNum, npop, batch)
 			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
 
 			op.dispatchTm = now
@@ -3227,6 +3237,9 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			//panic("stopping after our 1st common variance point at line 6: sometimes dispatches at 00.0005, sometimes at 00.0004; sometimes 00.0006")
 			//}
 		} // end for
+
+		vv("in distributeMEQ, batchNum:%v (size %v) batch = '%v'", s.curBatchNum, npop, batch)
+
 	}
 
 	//if len(who) > 1 {
