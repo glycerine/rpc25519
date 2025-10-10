@@ -427,7 +427,7 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 
 func (s *rwPair) runSendLoop(conn net.Conn) {
 	if s.cfg.UseSimNet {
-		s.Server.simnode.newGoro()
+		s.Server.simnode.newGoro("rwPair.runSendLoop")
 	}
 	stopReason := ""
 	_ = stopReason
@@ -550,7 +550,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 func (s *rwPair) runReadLoop(conn net.Conn) {
 	if s.cfg.UseSimNet {
-		s.Server.simnode.newGoro()
+		s.Server.simnode.newGoro("rwPair.runReadLoop")
 	}
 	//if s.Server.cfg.UseSimNet {}
 	stopReason := ""

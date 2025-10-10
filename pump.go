@@ -24,7 +24,7 @@ func (pb *LocalPeer) peerbackPump() {
 	if pb.PeerAPI.isSim {
 		cfg := pb.PeerAPI.u.GetConfig()
 		// pb.NewAddr might be too varying
-		cfg.GetSimnet().NewGoro(pb.PeerServiceName + "_" + pb.BaseServerName)
+		cfg.GetSimnet().NewGoro(pb.PeerName + "_peerbackPump")
 	}
 
 	countErrAntiDeadlockMustQueue := 0

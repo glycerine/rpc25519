@@ -318,7 +318,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	if c.cfg.UseSimNet {
 		// might () or might not () be a new goroutine, but
 		// cover all the bases.
-		c.simnode.newGoro()
+		c.simnode.newGoro("Client.runReadLoop")
 	}
 	var err error
 	ctx, canc := context.WithCancel(context.Background())
@@ -523,7 +523,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 
 func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	if c.cfg.UseSimNet {
-		c.simnode.newGoro()
+		c.simnode.newGoro("Client.runSendLoop")
 	}
 
 	var gcMe []*autoCliInRwPair

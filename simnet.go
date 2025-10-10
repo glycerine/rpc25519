@@ -971,8 +971,8 @@ type simnode struct {
 	okReadDueToProb      int64
 }
 
-func (s *simnode) newGoro() {
-	s.net.NewGoro(s.name)
+func (s *simnode) newGoro(purpose string) {
+	s.net.NewGoro(s.name + "___" + purpose)
 }
 
 func (s *simnode) id() string {

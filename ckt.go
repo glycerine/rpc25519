@@ -1443,7 +1443,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	go func() {
 		//vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
 		if p.isSim {
-			cfg.GetSimnet().NewGoro(peerName)
+			cfg.GetSimnet().NewGoro(peerName + "_peerServiceFunc")
 		}
 
 		err := knownLocalPeer.peerServiceFunc(lpb, ctx1, newCircuitCh)
