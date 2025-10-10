@@ -925,9 +925,11 @@ type SimnetSnapshot struct {
 	XissueHash          []string    // (cumulative) hash at this point
 	XdispatchRepeatable []string    // when dispatched _ name (more determistic)
 
-	Xfintm  []time.Time // when finished
-	Xorigin []string    // name of origin simnode, to be goro ID independent.
-	Xtarget []string    // name of target simnode, to be goro ID independent.
+	Xfintm         []time.Time // when finished
+	XfinHash       []string    // (cumulative) hash at this point
+	XfinRepeatable []string
+	Xorigin        []string // name of origin simnode, to be goro ID independent.
+	Xtarget        []string // name of target simnode, to be goro ID independent.
 
 	XhashFin string // hash of the sequence of fin()
 	XhashDis string // hash of the sequence of dispatches
@@ -1160,7 +1162,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		// is real and we can track it down.
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [hash %v] [batch %v]\n\n", // ; fin< %v]\n", //  [sn:%v]\n",
+			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v]\n\n", // ; fin< %v]\n", //  [sn:%v]\n",
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
@@ -1169,6 +1171,8 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				chompAnyUniqSuffix(snap.Xorigin[sn]),
 				snap.XissueHash[sn],
 				snap.XissueBatch[sn],
+				snap.XfinHash[sn],
+				snap.XfinRepeatable[sn],
 				//snap.Xfinorder[sn],
 				//sn,
 			)

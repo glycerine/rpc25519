@@ -668,7 +668,10 @@ func (s *Simnet) fin(op *mop) {
 		s.xtarget[op.sn] = op.target.name
 	}
 
-	s.xb3hashFin.Write([]byte(op.repeatable(now)))
+	rep := op.repeatable(now)
+	s.xb3hashFin.Write([]byte(rep))
+	s.xfinRepeatable[op.sn] = rep
+	s.xfinHash[op.sn] = asBlake33B(s.xb3hashFin)
 }
 
 // repeatable tries to report the dispatch or fin() completing
@@ -734,6 +737,8 @@ func (s *Simnet) simnetNextMopSn() (sn int64) {
 	s.xdispatchRepeatable = append(s.xdispatchRepeatable, "")
 
 	s.xfintm = append(s.xfintm, time.Time{})
+	s.xfinHash = append(s.xfinHash, "")
+	s.xfinRepeatable = append(s.xfinRepeatable, "")
 	s.xwhence = append(s.xwhence, "")
 	s.xkind = append(s.xkind, -1)
 	s.xfinOrder = append(s.xfinOrder, -1)
@@ -770,6 +775,8 @@ type Simnet struct {
 
 	xdispatchRepeatable []string
 	xfintm              []time.Time
+	xfinHash            []string
+	xfinRepeatable      []string
 
 	xorigin []string
 	xtarget []string
@@ -3618,6 +3625,8 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.XissueHash = append([]string{}, s.xissueHash...)
 	req.XdispatchRepeatable = append([]string{}, s.xdispatchRepeatable...)
 	req.Xfintm = append([]time.Time{}, s.xfintm...)
+	req.XfinHash = append([]string{}, s.xfinHash...)
+	req.XfinRepeatable = append([]string{}, s.xfinRepeatable...)
 
 	req.Xorigin = append([]string{}, s.xorigin...)
 	req.Xtarget = append([]string{}, s.xtarget...)
