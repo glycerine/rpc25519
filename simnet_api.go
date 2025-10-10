@@ -65,7 +65,7 @@ func (s *Simnet) NewGoro(name string) {
 	if name == "" {
 		panic("assign a name")
 	}
-	vv("NewGoro called name = '%v' at %v", name, fileLine(2))
+	//vv("NewGoro called name = '%v' at %v", name, fileLine(2))
 	r := &newGoroRequest{
 		name:    name,
 		where:   fileLine(2),

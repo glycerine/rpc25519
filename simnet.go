@@ -2991,7 +2991,7 @@ iloop:
 				s.add2meq(s.newCloseSimnodeMop(closeSimnodeReq), i)
 
 			case newGoroReq := <-s.simnetNewGoroCh:
-				vv("simnetNewGoroCh -> newGoroReq.name = '%v'", newGoroReq.name)
+				//vv("simnetNewGoroCh -> newGoroReq.name = '%v'", newGoroReq.name)
 				s.add2meq(s.newGoroMop(newGoroReq), i)
 
 			case <-s.halt.ReqStop.Chan:
@@ -4124,6 +4124,6 @@ func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 }
 
 func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
-	vv("top handleNewGoro: '%v'", op.newGoroReq.name)
+	//vv("top handleNewGoro: '%v'", op.newGoroReq.name)
 	close(op.newGoroReq.proceed)
 }
