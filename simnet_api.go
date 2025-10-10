@@ -38,15 +38,12 @@ import (
 //=========================================
 
 type newGoroRequest struct {
-	// provide
-	f     func()
-	where string
-	net   *Simnet
-	reqtm time.Time
-}
-
-func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
-	op.newGoroReq.f()
+	name    string
+	where   string
+	net     *Simnet
+	reqtm   time.Time
+	proceed chan struct{}
+	who     int
 }
 
 func (s *Simnet) newGoroMop(req *newGoroRequest) *mop {
@@ -55,15 +52,31 @@ func (s *Simnet) newGoroMop(req *newGoroRequest) *mop {
 		newGoroReq: req,
 	}
 }
-func (s *Simnet) NewGoro(f func()) {
+func (s *Simnet) NewGoro(name string) {
+	if name == "" {
+		panic("assign a name")
+	}
+	vv("NewGoro called name = '%v' at %v", name, fileLine(2))
+	if s == nil {
+		// not running under simnet probably.
+		return
+	}
+	return // stub for a moment.
 	r := &newGoroRequest{
-		f:     f,
-		where: fileLine(2),
-		net:   s,
-		reqtm: time.Now(),
+		name:    name,
+		where:   fileLine(2),
+		net:     s,
+		reqtm:   time.Now(),
+		proceed: make(chan struct{}),
+		who:     goID(),
 	}
 	select {
 	case s.simnetNewGoroCh <- r:
+	case <-s.halt.ReqStop.Chan:
+		//vv("i=%v <-s.halt.ReqStop.Chan", i)
+	}
+	select {
+	case <-r.proceed:
 	case <-s.halt.ReqStop.Chan:
 		//vv("i=%v <-s.halt.ReqStop.Chan", i)
 	}

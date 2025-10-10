@@ -315,6 +315,11 @@ type cliPairState struct {
 }
 
 func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
+	if c.cfg.UseSimNet {
+		// might () or might not () be a new goroutine, but
+		// cover all the bases.
+		c.simnode.newGoro()
+	}
 	var err error
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
@@ -517,6 +522,9 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 }
 
 func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
+	if c.cfg.UseSimNet {
+		c.simnode.newGoro()
+	}
 
 	var gcMe []*autoCliInRwPair
 	var stopReason string

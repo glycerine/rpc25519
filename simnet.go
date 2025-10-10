@@ -175,6 +175,9 @@ func (s *Simnet) setPseudorandom(op *mop) {
 }
 
 func (op *mop) bestName() string {
+	if op.kind == NEWGORO {
+		return op.newGoroReq.name
+	}
 	if op.origin != nil {
 		return op.origin.name
 	}
@@ -966,6 +969,10 @@ type simnode struct {
 	droppedSendDueToProb int64
 	deafReadDueToProb    int64
 	okReadDueToProb      int64
+}
+
+func (s *simnode) newGoro() {
+	s.net.NewGoro(s.name)
 }
 
 func (s *simnode) id() string {
@@ -3036,6 +3043,9 @@ func (s *Simnet) scheduler() {
 			//vv("i=%v simnetCloseNodeCh -> closeNodeReq", i)
 			s.add2meq(s.newCloseSimnodeMop(closeSimnodeReq), i)
 
+		case newGoroReq := <-s.simnetNewGoroCh:
+			s.add2meq(s.newGoroMop(newGoroReq), i)
+
 		case <-s.halt.ReqStop.Chan:
 			//vv("i=%v <-s.halt.ReqStop.Chan", i)
 			bb := time.Since(s.bigbang)
@@ -4065,6 +4075,9 @@ func (s *Simnet) Close() {
 func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 	for ; ; saw++ {
 		select {
+		case newGoroReq := <-s.simnetNewGoroCh:
+			s.add2meq(s.newGoroMop(newGoroReq), i)
+
 		case batch := <-s.submitBatchCh:
 			s.add2meq(batch, i)
 		case timer := <-s.addTimer:
@@ -4146,9 +4159,6 @@ func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 			//vv("i=%v simnetCloseNodeCh -> closeNodeReq", i)
 			s.add2meq(s.newCloseSimnodeMop(closeSimnodeReq), i)
 
-		case newGoroReq := <-s.simnetNewGoroCh:
-			s.add2meq(s.newGoroMop(newGoroReq), i)
-
 		case <-s.halt.ReqStop.Chan:
 			//vv("i=%v <-s.halt.ReqStop.Chan", i)
 			//bb := time.Since(s.bigbang)
@@ -4162,4 +4172,8 @@ func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 		}
 	}
 	return
+}
+
+func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
+	close(op.newGoroReq.proceed)
 }

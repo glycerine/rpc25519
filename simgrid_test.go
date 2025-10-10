@@ -268,7 +268,8 @@ func (s *simGridNode) Start(grid *simGrid) error {
 	panicOn(err)
 
 	// appears that under simnet, the PeerAPI is not getting the server base address with simnet://127... in it.
-	s.lpb, err = s.srv.PeerAPI.StartLocalPeer(context.Background(), "simgrid", "", nil, "", false)
+	peerName := s.node.name + "_lpb"
+	s.lpb, err = s.srv.PeerAPI.StartLocalPeer(context.Background(), "simgrid", "", nil, peerName, false)
 	panicOn(err)
 	s.node.lpb = s.lpb
 	s.URL = s.lpb.URL()
@@ -374,6 +375,7 @@ func (s *node2) Start(
 
 			// talk to this peer on a separate goro if you wish:
 			go func(ckt *Circuit) (err0 error) {
+				s.cfg.RpcCfg.GetSimnet().NewGoro(s.name)
 
 				ctx := ckt.Context
 				//vv("%v: (ckt '%v') got incoming ckt", s.name, ckt.Name)

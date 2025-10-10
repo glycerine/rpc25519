@@ -21,6 +21,12 @@ func prettyPrintCircuitMap(m map[string]*Circuit) (s string) {
 // background goro to read all PeerID *Messages and sort them
 // to all the circuits live in this peer.
 func (pb *LocalPeer) peerbackPump() {
+	if pb.PeerAPI.isSim {
+		cfg := pb.PeerAPI.u.GetConfig()
+		// pb.NewAddr might be too varying
+		cfg.GetSimnet().NewGoro(pb.PeerServiceName + "_" + pb.BaseServerName)
+	}
+
 	countErrAntiDeadlockMustQueue := 0
 	defer func() {
 		//vv("%v LocalPeer.PeerbackPump all-finished; pb= %p", pb.PeerServiceName, pb) // 2x seen, "simgrid"

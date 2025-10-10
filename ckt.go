@@ -1393,7 +1393,6 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	preferExtant bool,
 
 ) (lpb *LocalPeer, err error) {
-
 	knownLocalPeer, ok := p.localServiceNameMap.Get(peerServiceName)
 	if !ok {
 		return nil, fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
@@ -1443,6 +1442,10 @@ func (p *peerAPI) unlockedStartLocalPeer(
 
 	go func() {
 		//vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
+		if p.isSim {
+			cfg.GetSimnet().NewGoro(peerName)
+		}
+
 		err := knownLocalPeer.peerServiceFunc(lpb, ctx1, newCircuitCh)
 
 		//vv("peerServiceFunc has returned: '%v'; clean up the lbp!", peerServiceName)
