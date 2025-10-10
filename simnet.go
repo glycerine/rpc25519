@@ -668,7 +668,7 @@ func (s *Simnet) fin(op *mop) {
 		s.xtarget[op.sn] = op.target.name
 	}
 
-	rep := op.repeatable(now)
+	rep := fmt.Sprintf("%v_[xfinOrder: %v]", op.repeatable(now), s.nextMopSn)
 	s.xb3hashFin.Write([]byte(rep))
 	s.xfinRepeatable[op.sn] = rep
 	s.xfinHash[op.sn] = asBlake33B(s.xb3hashFin)
