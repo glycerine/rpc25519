@@ -668,7 +668,8 @@ func (s *Simnet) fin(op *mop) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 
-	s.xfinOrder[op.sn] = s.nextMopSn
+	fin := s.nextMopSn
+	s.xfinOrder[op.sn] = fin
 	s.xfintm[op.sn] = now
 
 	w := op.whence() // file:line where created.
@@ -681,7 +682,7 @@ func (s *Simnet) fin(op *mop) {
 		s.xtarget[op.sn] = op.target.name
 	}
 
-	rep := fmt.Sprintf("%v_[xfinOrder: %v]", op.repeatable(now), s.nextMopSn)
+	rep := fmt.Sprintf("%v_[xfinOrder: %v]", op.repeatable(now), fin)
 	s.xb3hashFin.Write([]byte(rep))
 	s.xfinRepeatable[op.sn] = rep
 	s.xfinHash[op.sn] = asBlake33B(s.xb3hashFin)
@@ -740,11 +741,12 @@ func whoWhatWhenWhere(who int, what mopkind, whenTm time.Time, where string) []b
 // to start sending and reading from the network at around
 // the same point in time. We cannot count on the
 // sn serial number order to be reproducible.
-func (s *Simnet) simnetNextMopSn() (sn int64) {
+func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 	sn = s.nextMopSn
 	s.nextMopSn++
+	vv("issue sn: %v  %v  at %v", sn, desc, fileLine(2))
 
 	s.xissuetm = append(s.xissuetm, time.Now())
 	s.xissueOrder = append(s.xissueOrder, -1)
@@ -1207,8 +1209,8 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	}
 
 	//tick := time.Millisecond * 5 // 2x - 3x faster sim (25.4 sec on tube)
-	tick := time.Millisecond // (33 sec on tube)
-	//tick := time.Duration(minTickNanos) // (74 sec on tube)
+	//tick := time.Millisecond // (33 sec on tube)
+	tick := time.Duration(minTickNanos) // (74 sec on tube)
 	if tick < time.Duration(minTickNanos) {
 		panicf("must have tick >= minTickNanos(%v)", time.Duration(minTickNanos))
 	}
@@ -3117,6 +3119,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// sender has "traversed" the network
 	} else {
 		s.curBatchNum++
+		var batch []int64
 		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
 
 		for s.curSliceQ.Len() > 0 {
@@ -3124,6 +3127,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			// get the batch number (and size) into the hash too.
 			xdis := fmt.Sprintf("%v_[batch_%v_with_batchSize_%v]", op.repeatable(now), s.curBatchNum, npop)
 
+			batch = append(batch, op.sn)
 			// must hold xmut.Lock else race vs simnetNextMopSn()
 			s.xmut.Lock()
 			s.xdispatchRepeatable[op.sn] = xdis
@@ -3143,6 +3147,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			//fmt.Printf("on s.xissueLast = %v, hashDis = %v\n", s.xissueLast, asBlake33B(s.xb3hashDis))
 			s.xmut.Unlock()
 
+			vv("in distributeMEQ, batchNum:%v (size %v) batch = '%#v'", s.curBatchNum, npop, batch)
 			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
 
 			op.dispatchTm = now
@@ -3863,7 +3868,7 @@ func (s *Simnet) newClientRegMop(clireg *clientRegistration) (op *mop) {
 	op = &mop{
 		cliReg:    clireg,
 		originCli: true,
-		sn:        s.simnetNextMopSn(),
+		sn:        s.simnetNextMopSn("clientRegistration"),
 		kind:      CLIENT_REG,
 		proceed:   clireg.proceed,
 		who:       clireg.who,
@@ -3877,7 +3882,7 @@ func (s *Simnet) newServerRegMop(srvreg *serverRegistration) (op *mop) {
 	op = &mop{
 		srvReg:    srvreg,
 		originCli: false,
-		sn:        s.simnetNextMopSn(),
+		sn:        s.simnetNextMopSn("serverRegistration"),
 		kind:      SERVER_REG,
 		proceed:   srvreg.proceed,
 		who:       srvreg.who,
@@ -3891,7 +3896,7 @@ func (s *Simnet) newServerRegMop(srvreg *serverRegistration) (op *mop) {
 func (s *Simnet) newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
 	op = &mop{
 		snapReq: snapReq,
-		sn:      s.simnetNextMopSn(),
+		sn:      s.simnetNextMopSn("newSnap"),
 		kind:    SNAPSHOT,
 		proceed: snapReq.proceed,
 		who:     snapReq.who,
@@ -3904,7 +3909,7 @@ func (s *Simnet) newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
 func (s *Simnet) newScenarioMop(scen *scenario) (op *mop) {
 	op = &mop{
 		scen:    scen,
-		sn:      s.simnetNextMopSn(),
+		sn:      s.simnetNextMopSn("newScenario"),
 		kind:    SCENARIO,
 		proceed: scen.proceed,
 		who:     scen.who,
@@ -3916,7 +3921,7 @@ func (s *Simnet) newScenarioMop(scen *scenario) (op *mop) {
 func (s *Simnet) newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
 	op = &mop{
 		alterNode: alt,
-		sn:        s.simnetNextMopSn(),
+		sn:        s.simnetNextMopSn("alterNode"),
 		kind:      ALTER_NODE,
 		proceed:   alt.proceed,
 		who:       alt.who,
@@ -3928,7 +3933,7 @@ func (s *Simnet) newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
 func (s *Simnet) newAlterHostMop(alt *simnodeAlteration) (op *mop) {
 	op = &mop{
 		alterHost: alt,
-		sn:        s.simnetNextMopSn(),
+		sn:        s.simnetNextMopSn("alterHost"),
 		kind:      ALTER_HOST,
 		proceed:   alt.proceed,
 		who:       alt.who,
@@ -3940,7 +3945,7 @@ func (s *Simnet) newAlterHostMop(alt *simnodeAlteration) (op *mop) {
 func (s *Simnet) newCktFaultMop(cktFault *circuitFault) (op *mop) {
 	op = &mop{
 		cktFault: cktFault,
-		sn:       s.simnetNextMopSn(),
+		sn:       s.simnetNextMopSn("circuitFault"),
 		kind:     FAULT_CKT,
 		proceed:  cktFault.proceed,
 		who:      cktFault.who,
@@ -3952,7 +3957,7 @@ func (s *Simnet) newCktFaultMop(cktFault *circuitFault) (op *mop) {
 func (s *Simnet) newHostFaultMop(hostFault *hostFault) (op *mop) {
 	op = &mop{
 		hostFault: hostFault,
-		sn:        s.simnetNextMopSn(),
+		sn:        s.simnetNextMopSn("hostFault"),
 		kind:      FAULT_HOST,
 		proceed:   hostFault.proceed,
 		who:       hostFault.who,
@@ -3964,7 +3969,7 @@ func (s *Simnet) newHostFaultMop(hostFault *hostFault) (op *mop) {
 func (s *Simnet) newRepairCktMop(cktRepair *circuitRepair) (op *mop) {
 	op = &mop{
 		repairCkt: cktRepair,
-		sn:        s.simnetNextMopSn(),
+		sn:        s.simnetNextMopSn("repairCkt"),
 		kind:      REPAIR_CKT,
 		proceed:   cktRepair.proceed,
 		who:       cktRepair.who,
@@ -3976,7 +3981,7 @@ func (s *Simnet) newRepairCktMop(cktRepair *circuitRepair) (op *mop) {
 func (s *Simnet) newRepairHostMop(hostRepair *hostRepair) (op *mop) {
 	op = &mop{
 		repairHost: hostRepair,
-		sn:         s.simnetNextMopSn(),
+		sn:         s.simnetNextMopSn("hostRepair"),
 		kind:       REPAIR_HOST,
 		proceed:    hostRepair.proceed,
 		who:        hostRepair.who,
@@ -3988,12 +3993,13 @@ func (s *Simnet) newRepairHostMop(hostRepair *hostRepair) (op *mop) {
 func (s *Simnet) newCloseSimnodeMop(closeSimnodeReq *closeSimnode) (op *mop) {
 	op = &mop{
 		closeSimnode: closeSimnodeReq,
-		sn:           s.simnetNextMopSn(),
-		kind:         CLOSE_SIMNODE,
-		proceed:      closeSimnodeReq.proceed,
-		who:          closeSimnodeReq.who,
-		reqtm:        closeSimnodeReq.reqtm,
-		where:        closeSimnodeReq.where,
+		//sn:           closeSimnodeReq.sn,
+		sn:      s.simnetNextMopSn("closeSimnode"),
+		kind:    CLOSE_SIMNODE,
+		proceed: closeSimnodeReq.proceed,
+		who:     closeSimnodeReq.who,
+		reqtm:   closeSimnodeReq.reqtm,
+		where:   closeSimnodeReq.where,
 	}
 	return
 }

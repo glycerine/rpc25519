@@ -49,7 +49,7 @@ type newGoroRequest struct {
 func (s *Simnet) newGoroMop(req *newGoroRequest) *mop {
 	return &mop{
 		newGoroReq: req,
-		sn:         s.simnetNextMopSn(),
+		sn:         s.simnetNextMopSn("newGoro"),
 		kind:       NEW_GORO,
 		proceed:    req.proceed,
 		reqtm:      req.reqtm,
@@ -504,7 +504,7 @@ func (s *Simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) (
 func (s *Simnet) newTimerCreateMop(isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
-		sn:        s.simnetNextMopSn(),
+		sn:        s.simnetNextMopSn("timerCreate"),
 		kind:      TIMER,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
@@ -516,7 +516,7 @@ func (s *Simnet) newTimerCreateMop(isCli bool) (op *mop) {
 func (s *Simnet) newTimerDiscardMop(origTimerMop *mop) (op *mop) {
 	op = &mop{
 		originCli:    origTimerMop.originCli,
-		sn:           s.simnetNextMopSn(),
+		sn:           s.simnetNextMopSn("timerDiscard"),
 		kind:         TIMER_DISCARD,
 		proceed:      make(chan struct{}),
 		origTimerMop: origTimerMop,
@@ -529,7 +529,7 @@ func (s *Simnet) newTimerDiscardMop(origTimerMop *mop) (op *mop) {
 func (s *Simnet) newReadMop(isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
-		sn:        s.simnetNextMopSn(),
+		sn:        s.simnetNextMopSn("newREAD"),
 		kind:      READ,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
@@ -544,7 +544,7 @@ func (s *Simnet) newSendMop(msg *Message, isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
 		msg:       msg.CopyForSimNetSend(),
-		sn:        s.simnetNextMopSn(),
+		sn:        s.simnetNextMopSn("newSEND"),
 		kind:      SEND,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
@@ -780,7 +780,7 @@ func (s *Simnet) newCircuitFault(originName, targetName string, dd DropDeafSpec,
 		targetName:          targetName,
 		DropDeafSpec:        dd,
 		deliverDroppedSends: deliverDroppedSends,
-		sn:                  s.simnetNextMopSn(),
+		sn:                  s.simnetNextMopSn("&circuitFault"),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
 		who:                 goID(),
@@ -803,7 +803,7 @@ func (s *Simnet) newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSe
 		hostName:            hostName,
 		DropDeafSpec:        dd,
 		deliverDroppedSends: deliverDroppedSends,
-		sn:                  s.simnetNextMopSn(),
+		sn:                  s.simnetNextMopSn("&hostFault"),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
 		who:                 goID(),
@@ -827,7 +827,7 @@ func (s *Simnet) newCloseSimnode(simnodeName string, reason error) *closeSimnode
 	return &closeSimnode{
 		reason:      reason,
 		simnodeName: simnodeName,
-		sn:          s.simnetNextMopSn(),
+		sn:          s.simnetNextMopSn("&closeSimnode"),
 		proceed:     make(chan struct{}),
 		reqtm:       time.Now(),
 		who:         goID(),
@@ -857,7 +857,7 @@ func (s *Simnet) newCircuitRepair(originName, targetName string, unIsolate, powe
 		targetName:          targetName,
 		unIsolate:           unIsolate,
 		powerOnIfOff:        powerOnIfOff,
-		sn:                  s.simnetNextMopSn(),
+		sn:                  s.simnetNextMopSn("&circuitRepair"),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
 		who:                 goID(),
@@ -884,7 +884,7 @@ func (s *Simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHost
 		powerOnIfOff:        powerOnIfOff,
 		unIsolate:           unIsolate,
 		allHosts:            allHosts,
-		sn:                  s.simnetNextMopSn(),
+		sn:                  s.simnetNextMopSn("&hostRepair"),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
 		who:                 goID(),
@@ -1058,7 +1058,7 @@ func (s *Simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
 func (s *Simnet) SubmitBatch(batch *SimnetBatch) {
 	op := &mop{
 		kind:    BATCH,
-		sn:      s.simnetNextMopSn(),
+		sn:      s.simnetNextMopSn("submitBatch"),
 		batch:   batch,
 		proceed: batch.proceed,
 		reqtm:   time.Now(),
@@ -1211,7 +1211,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		// is real and we can track it down.
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v]\n\n", // [fin hash %v] [fin repeatable %v]\n\n", // ; fin< %v]\n", //  [sn:%v]\n",
+			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v] [fin < %v] [sn:%v]\n\n",
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
@@ -1220,10 +1220,10 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				chompAnyUniqSuffix(snap.Xorigin[sn]),
 				snap.XissueHash[sn],
 				snap.XissueBatch[sn],
-				//snap.XfinHash[sn],
-				//snap.XfinRepeatable[sn],
-				//snap.Xfinorder[sn],
-				//sn,
+				snap.XfinHash[sn],
+				snap.XfinRepeatable[sn],
+				snap.XfinOrder[sn],
+				sn,
 			)
 
 		} else {
