@@ -949,6 +949,9 @@ type UploadReaderFunc func(ctx context.Context, req *Message, lastReply *Message
 // in use is Close()-ed.
 type Config struct {
 
+	// for 707 simgrid_test to trace repeat
+	repeatTrace *SimnetSnapshot
+
 	// ServerBaseID allows simnet to treat all
 	// connections originating from the server
 	// and its auto-clients together for the

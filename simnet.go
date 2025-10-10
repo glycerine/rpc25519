@@ -688,10 +688,38 @@ func (s *Simnet) fin(op *mop) {
 	rep := fmt.Sprintf("%v", op.repeatable(now))
 	s.xb3hashFin.Write([]byte(rep))
 	s.xfinRepeatable[sn] = rep
-	s.xfinHash[sn] = asBlake33B(s.xb3hashFin)
+	curhash := asBlake33B(s.xb3hashFin)
+	s.xfinHash[sn] = curhash
 
 	//fmt.Printf("s.xfinHash[%v] = %v\n", op.sn, s.xfinHash[sn])
 
+	if s.cfg.repeatTrace == nil {
+		return
+	}
+	// do we match the previous trace?
+	prev := s.cfg.repeatTrace
+	// 0 = previous trace
+	// 1 = ours
+	sn1 := sn
+	dis1 := s.xsn2dis[sn1]
+	dis0 := dis1
+	sn0 := prev.Xdis2sn[dis0]
+
+	rep0 := prev.XfinRepeatable[sn0]
+	hash0 := prev.XfinHash[sn0]
+	fin0 := prev.Xfintm[sn0]
+
+	// different elapsed?
+	if !fin0.Equal(now) {
+		panicf("previously we finished at %v, but now = %v", nice9(fin0), nice9(now))
+	}
+	if rep0 != rep {
+		panicf("previously we had rep0 = '%v'; but now rep = '%v'", rep0, rep)
+	}
+	if hash0 != curhash {
+		// a read is failing here 1st!?!
+		panicf("previously our accum hash0 = '%v', but curhash = '%v'", hash0, curhash)
+	}
 }
 
 // repeatable tries to report the dispatch or fin() completing

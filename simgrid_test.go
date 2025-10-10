@@ -516,7 +516,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	// test check below with the call to
 	// panicIfFinalHashDifferent(xorderPath).
 
-	loadtest := func(nNodes, wantSendPerPeer int, sendEvery time.Duration, xorderPath string) (snap *SimnetSnapshot) {
+	loadtest := func(prevSnap *SimnetSnapshot, nNodes, wantSendPerPeer int, sendEvery time.Duration, xorderPath string) (snap *SimnetSnapshot) {
 
 		nPeer := nNodes - 1
 		wantRead := nPeer * wantSendPerPeer
@@ -544,6 +544,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 			//cfg.UseSimNet = faketime
 			cfg.ServerAddr = "127.0.0.1:0"
 			cfg.QuietTestMode = true
+			cfg.repeatTrace = prevSnap
 			gridCfg.RpcCfg = cfg
 			cfg.SimnetGOMAXPROCS = 8
 
@@ -613,8 +614,8 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	sendEvery1 := time.Millisecond
 	xorderPath := homed("~/rpc25519/snap707")
 	removeAllFilesWithPrefix(xorderPath)
-	snap0 := loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
-	snap1 := loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
+	snap0 := loadtest(nil, nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
+	snap1 := loadtest(snap0, nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
 	_, _ = snap0, snap1
 	err := filesDifferent(xorderPath, false)
 	if err != nil {
@@ -630,7 +631,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	const nNode = 5
 	const wantSendPerPeer = 100
 	sendEvery := time.Millisecond
-	loadtest(nNode, wantSendPerPeer, sendEvery, "707 loadtest 2")
+	loadtest(nil, nNode, wantSendPerPeer, sendEvery, "707 loadtest 2")
 
 	//vv("done with second loadtest")
 
