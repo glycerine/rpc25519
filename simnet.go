@@ -672,6 +672,9 @@ func (s *Simnet) fin(op *mop) {
 	s.xb3hashFin.Write([]byte(rep))
 	s.xfinRepeatable[op.sn] = rep
 	s.xfinHash[op.sn] = asBlake33B(s.xb3hashFin)
+
+	fmt.Printf("s.xfinHash[%v] = %v\n", op.sn, s.xfinHash[op.sn])
+
 }
 
 // repeatable tries to report the dispatch or fin() completing
@@ -3164,7 +3167,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			s.xb3hashDis.Write([]byte(xdis))
 			s.xissueHash[op.sn] = asBlake33B(s.xb3hashDis)
 
-			fmt.Printf("on s.xissueLast = %v, hash = %v\n", s.xissueLast, asBlake33B(s.xb3hashDis))
+			//fmt.Printf("on s.xissueLast = %v, hashDis = %v\n", s.xissueLast, asBlake33B(s.xb3hashDis))
 			s.xmut.Unlock()
 
 			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)

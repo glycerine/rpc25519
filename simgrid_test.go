@@ -604,8 +604,8 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 
 	// 15 nodes, 100 frag: 60 seconds testtime for realtime. 70sec faketime
 	// 21 nodes, 1k frag: 105s test-time under simnet/synctest-faketime.
-	const nNode1 = 5
-	const wantSendPerPeer1 = 2
+	const nNode1 = 3
+	const wantSendPerPeer1 = 5
 	sendEvery1 := time.Millisecond
 	xorderPath := homed("~/rpc25519/snap707")
 	removeAllFilesWithPrefix(xorderPath)
@@ -664,8 +664,10 @@ func panicIfFinalHashDifferent(xorderPath string) {
 			for i, line := range lines {
 				if lines0[i] != line {
 					//panicf("line %v has first diff:\n%v\n%v", i+1, lines0[i], line)
+					pos, next := diffpos(lines0[i], line)
+
 					// show sn and tie, even though we ignored in the diff:
-					panicf("line %v has first diff:\n%v\n%v", i+1, full0[i], full[i])
+					panicf("line %v has first diff:\n%v\n%v\n -> at char pos %v (at diff point: '%v')\n", i+1, full0[i], full[i], pos, next)
 				}
 			}
 			panic(fmt.Sprintf("file[0]='%v'\n (hash: '%v')\n and file[%v]='%v'\n (hash: '%v')\n disagree on last hash", matches[0], firstHash, i, matches[i], hash))
@@ -689,3 +691,40 @@ func getLastHash(path string) (hash string, lines, full []string) {
 	}
 	return
 }
+
+func diffpos(as, bs string) (pos int, difftext string) {
+	if as == bs {
+		return -1, ""
+	}
+	asRunes := []rune(as)
+	bsRunes := []rune(bs)
+	var i int
+	var a rune
+	for i, a = range as {
+		if i >= len(bsRunes) {
+			return i, string(asRunes[i:])
+		}
+		if a != bsRunes[i] {
+			return i, string(asRunes[i:])
+		}
+	}
+	//vv("i = %v; for as='%v'; bs='%v'", i, as, bs)
+	return i + 1, string(bsRunes[i:])
+}
+
+/*
+func TestDiffPos(t *testing.T) {
+	if diffpos("ab", "ab") != -1 {
+		panic("expected -1")
+	}
+	if diffpos("ab", "abc") != 2 {
+		panic("expected 2")
+	}
+	if diffpos("abc", "ab") != 2 {
+		panic("expected 2")
+	}
+	if pos := diffpos("ac", "ab"); pos != 1 {
+		panicf("expected 1, got %v", pos)
+	}
+}
+*/
