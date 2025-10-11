@@ -3395,7 +3395,7 @@ func (s *Simnet) scheduler() {
 	}()
 	s.who = goID()
 
-	var nextReport time.Time
+	//var nextReport time.Time
 
 	// main scheduler loop
 	now := time.Now()
@@ -3409,16 +3409,26 @@ iloop:
 	for i := int64(0); ; i++ {
 
 		now := time.Now()
-		if gte(now, nextReport) {
-			nextReport = now.Add(time.Second)
-			//sz := s.meq.Len()
-			//if sz > 0 {
-			//vv("scheduler top with meq len %v", sz)
-			//cli.lc = %v ; srv.lc = %v", clilc, srvlc)
-			//vv("i=%v scheduler top. schedulerReport: \n%v", i, s.schedulerReport())
-			//}
-			//vv("i=%v scheduler top. ndtot=%v", i, s.ndtot)
-		}
+
+		vv("i = %v     tick = %v", i, s.scenario.tick)
+		/*
+			if i%20 == 0 {
+				sz := s.meq.Len()
+				if sz > 0 {
+					vv("scheduler top with meq len %v", sz)
+				}
+			}
+		*/
+		//if gte(now, nextReport) {
+		//	nextReport = now.Add(time.Second)
+		//sz := s.meq.Len()
+		//if sz > 0 {
+		//vv("scheduler top with meq len %v", sz)
+		//cli.lc = %v ; srv.lc = %v", clilc, srvlc)
+		//vv("i=%v scheduler top. schedulerReport: \n%v", i, s.schedulerReport())
+		//}
+		//vv("i=%v scheduler top. ndtot=%v", i, s.ndtot)
+		//}
 
 		// let goroutines get blocked waiting on the select arms below.
 		//if faketime {
@@ -3429,7 +3439,8 @@ iloop:
 		preSelMeqSz := s.meq.Len()
 		_ = preSelMeqSz
 
-		igridtm := s.bigbang.Add(time.Duration(i) * s.scenario.tick)
+		const nano = time.Duration(1)
+		igridtm := s.bigbang.Add(time.Duration(i+1)*s.scenario.tick - nano)
 
 		// what we want to maximize determinism:
 		// let as many goro make progress as can
@@ -3441,24 +3452,43 @@ iloop:
 		// to avoid splitting off a straggler into its own batch
 		// 10 extra was not enought for 11 nodes, 100 messages.
 		extra := 5 // 200 is enough for 21 nodes, 1k messages.
-		for {
-			s.tickLogicalClocks()
+		for j := 0; ; j++ {
 
-			// let goroutines get blocked waiting on the select arms below.
-			select {
-			case <-s.halt.ReqStop.Chan:
-				return
-			case <-time.After(0):
-			}
-			if faketime {
-				synctestWait_LetAllOtherGoroFinish() // barrier
-			}
-
-			// accept as many client operations during
-			// this time slice as we can; no fixed bound.
 			now = time.Now()
 			left := igridtm.Sub(now)
+
+			vv("inner loop j = %v;  left=%v; extra=%v", j, left, extra) // this is spinning, yes.
+			s.tickLogicalClocks()
+
+			// I don't think we want to prematurely barrier. We
+			// want them to interrupt our After(left) as much
+			// as possible below!
+			// let goroutines get blocked waiting on the select arms below.
+			/*
+				select {
+				case <-s.halt.ReqStop.Chan:
+					return
+				case <-time.After(0):
+				}
+				if faketime {
+					synctestWait_LetAllOtherGoroFinish() // barrier
+				}
+			*/
+			// accept as many client operations during
+			// this time slice as we can; no fixed bound.
 			if left == 0 && extra == 0 {
+				vv("left=0 && extra=0, call distributeMEQ")
+
+				// we want to barrier while letting
+				// them get stuck
+				select {
+				case <-s.halt.ReqStop.Chan:
+					return
+				case <-time.After(0):
+				}
+				if faketime {
+					synctestWait_LetAllOtherGoroFinish() // barrier
+				}
 
 				_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
 				if shutdown {
@@ -3470,6 +3500,17 @@ iloop:
 					//i = 0
 					//continue restartI
 				}
+
+				// we are goal -1, advance clock by 1 nanosecond
+				// to nail the start of the next tick. This
+				// means any knock-on effects of the release
+				// will happen in the _next_ time quantum.
+				select {
+				case <-s.halt.ReqStop.Chan:
+					return
+				case <-time.After(1):
+				}
+				vv("calling releaseReady()") // not seen
 				// release in deterministic order
 				s.releaseReady()
 
@@ -3479,14 +3520,29 @@ iloop:
 				if faketime {
 					panicf("should never overrun our igridtm(%v) -- but might happen without synctest... now = %v", nice9(igridtm), nice9(now))
 				}
+				now = time.Now()
+				s.tickLogicalClocks()
+				_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
+				if shutdown {
+					return
+				}
+				if restartNewScenario {
+					vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
+					// what else needs resetting/doing here?
+					//i = 0
+					//continue restartI
+				}
+
 			}
 			if left == 0 {
 				extra--
 			}
 			// INVAR: left > 0 || (left == 0 && extra > 0)
+			vv("top of main scheduler select. igridtm=%v;  left=%v, extra =%v", igridtm, left, extra)
 			select { // scheduler main select
 
 			case <-time.After(left):
+				vv("time.After left = %v fired!", left)
 
 				// do some more rounds, does this
 				// prevent split? does seem to help.
@@ -4671,6 +4727,11 @@ func (s *Simnet) Close() {
 	s.halt.ReqStop.Close()
 }
 
+func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
+	//vv("top handleNewGoro: '%v'", op.newGoroReq.name)
+	s.fin(op)
+}
+
 // call add2meq on as much additional work
 // from blocked client goroutines as we
 // can without advancing time. thus we try
@@ -4681,13 +4742,16 @@ func (s *Simnet) Close() {
 // and execute their requests in that order.
 func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 	for ; ; saw++ {
-		if faketime {
-			synctestWait_LetAllOtherGoroFinish() // barrier
-		}
+		//if faketime {
+		//	synctestWait_LetAllOtherGoroFinish() // barrier
+		//}
 		select {
 		//default:
 		//	return
-		case <-time.After(0):
+		case <-time.After(1):
+			if faketime {
+				synctestWait_LetAllOtherGoroFinish() // barrier
+			}
 			return
 		case newGoroReq := <-s.simnetNewGoroCh:
 			s.add2meq(s.newGoroMop(newGoroReq), i)
@@ -4786,7 +4850,39 @@ func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 	return
 }
 
-func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
-	//vv("top handleNewGoro: '%v'", op.newGoroReq.name)
-	s.fin(op)
+func timeMachine() (timeHasStopped chan bool, restartTime chan time.Duration) {
+
+	timeHasStopped = make(chan bool)
+	restartTime = make(chan time.Duration)
+
+	go func() {
+		var amount time.Duration
+		for {
+			select {
+			case amount = <-restartTime:
+
+			case <-s.halt.ReqStop.Chan:
+				return
+			}
+
+			select {
+			case <-time.After(amount):
+
+			case <-s.halt.ReqStop.Chan:
+				return
+			}
+
+			// when we barrier, time cannot advance
+			// without returning to us first.
+			synctestWait_LetAllOtherGoroFinish()
+
+			select {
+			case timeHasStopped <- true:
+
+			case <-s.halt.ReqStop.Chan:
+				return
+			}
+		}
+	}()
+	return
 }
