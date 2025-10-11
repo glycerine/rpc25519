@@ -3213,6 +3213,7 @@ iloop:
 		// within this time slice.
 		// TODO: figure out respecting/re-arming the timer or not?
 
+		extra := 10
 		for {
 			s.tickLogicalClocks()
 
@@ -3230,7 +3231,8 @@ iloop:
 			// this time slice as we can; no fixed bound.
 			now = time.Now()
 			left := igridtm.Sub(now)
-			if left == 0 {
+			if left == 0 && extra == 0 {
+
 				_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
 				if shutdown {
 					return
@@ -3249,13 +3251,16 @@ iloop:
 			if left < 0 {
 				panicf("should never overrun our igridtm(%v) -- but might happen without synctest... now = %v", nice9(igridtm), nice9(now))
 			}
-			// INVAR: left > 0
+			if left == 0 {
+				extra--
+			}
+			// INVAR: left > 0 || (left == 0 && extra > 0)
 			select { // scheduler main select
 
 			case <-time.After(left):
 
 				// do some more rounds, does this
-				// prevent split?
+				// prevent split? nope.
 				for range 10 {
 					select {
 					case <-s.halt.ReqStop.Chan:
