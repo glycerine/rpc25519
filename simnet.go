@@ -1507,10 +1507,18 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 		net.halt.AddChild(srv.halt)
 		return net
 	}
+	// 5 msec is 2x - 3x faster sim than 1msec
+	// (not dst: 25.4 sec on tube test suite); 49 sec
+	// with DST-able level reproducbility.
+	//tick := time.Millisecond * 5
 
-	//tick := time.Millisecond * 5 // 2x - 3x faster sim (25.4 sec on tube)
-	tick := time.Millisecond // (33 sec on tube)
-	//tick := time.Duration(minTickNanos) // (74 sec on tube)
+	// 1msec tick: (not dst: 33 sec on tube) now
+	// DST-able:151 sec to test tube.
+	tick := time.Millisecond
+
+	// 100 microsecond tick: (not dst: 74 sec on tube test suite);
+	// versus with DST-able levels of reproducibility: > 10 minutes.
+	//tick := time.Duration(minTickNanos) // 100_000 nanoseconds
 	if tick < time.Duration(minTickNanos) {
 		panicf("must have tick >= minTickNanos(%v)", time.Duration(minTickNanos))
 	}
