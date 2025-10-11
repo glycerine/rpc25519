@@ -15,7 +15,7 @@ func Test800_SimNet_all_timers_dur_0_fire_now(t *testing.T) {
 		return
 	}
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 		// "SimNet using synctest depends on all the times set to duration 0/now firing before we quiese to durable blocking. verify this assumption under synctest. yes: note the Go runtime implementation does a select with a default: so it will discard the timer alert rather than block. Update: arg. no, the runtime does a special thing where it does not execute that select until it has a goro ready to accept it, so it always suceeds, I think.
 
 		t0 := time.Now()
@@ -69,7 +69,7 @@ func Test801_synctestonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
 	cv.Convey("super basic synctest + SimNet send/read/timer test of channel based remote procedure call with rpc25519: register a callback on the server, and have the client call it. See a timer fire.", t, func() {
 
-		synctest.Run(func() {
+		synctest.Test(t, func(t *testing.T) {
 
 			cfg := NewConfig()
 			cfg.UseSimNet = true
@@ -132,7 +132,7 @@ func Test801_synctestonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 func Test806__synctestonly_RoundTrip_Using_NetRPC(t *testing.T) {
 
 	// basic SimNet with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 		cfg := NewConfig()
 		//orig cfg.TCPonly_no_TLS = true
 		cfg.UseSimNet = true
@@ -283,7 +283,7 @@ func Test806__synctestonly_RoundTrip_Using_NetRPC(t *testing.T) {
 // synctest version of 040 in cli_test.go
 func Test840_synctestonly_remote_cancel_by_context(t *testing.T) {
 
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 
 		cv.Convey("remote cancellation", t, func() {
 
@@ -398,7 +398,7 @@ func Test840_synctestonly_remote_cancel_by_context(t *testing.T) {
 
 func Test845_synctestonly_simnet_upload(t *testing.T) {
 
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 
 		cv.Convey("upload a large file in parts from client to server", t, func() {
 
@@ -500,7 +500,7 @@ func Test845_synctestonly_simnet_upload(t *testing.T) {
 
 func Test855_synctestonly_simnet_download(t *testing.T) {
 
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 
 		cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
 
@@ -611,7 +611,7 @@ func Test855_synctestonly_simnet_download(t *testing.T) {
 
 func Test865_synctestonly_simnet_bidirectional_download_and_upload(t *testing.T) {
 
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 
 		cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {
 

@@ -31,7 +31,7 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 		// non wasm: diff Alloc:1750 MB HeapSys:1751 MB
 	}()
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 		//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
 		//n := 10 // 4.4 sec synctest
 		n := 3
@@ -523,7 +523,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 
 		// realtime timestamp diffs will cause false
 		// alarms, so only under bubble.
-		onlyBubbled(t, func() {
+		onlyBubbled(t, func(t *testing.T) {
 
 			n := nNodes
 			gridCfg := &simGridConfig{
@@ -611,7 +611,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	// 15 nodes, 100 frag: 60 seconds testtime for realtime. 70sec faketime
 	// 21 nodes, 1k frag: 105s test-time under simnet/synctest-faketime.
 	const nNode1 = 5
-	const wantSendPerPeer1 = 100
+	const wantSendPerPeer1 = 1000
 	sendEvery1 := time.Millisecond
 	xorderPath := homed("~/rpc25519/snap707")
 	removeAllFilesWithPrefix(xorderPath)

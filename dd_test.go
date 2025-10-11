@@ -19,7 +19,7 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 		}
 		// see that probability of deaf read matches
 		// our setting, but running 10K messages through
-		onlyBubbled(t, func() {
+		onlyBubbled(t, func(t *testing.T) {
 			// simnet with probabilistic deaf fault on server or client experiences the set level of send and/or read flakiness
 
 			nmsg := 10
@@ -75,7 +75,7 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 
 func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 		// simnet with probabilistic deaf fault on server or client experiences the set level of send and/or read flakiness
 
 		nmsg := 1000

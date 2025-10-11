@@ -24,7 +24,7 @@ import (
 
 func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
-	onlyBubbled(t, func() { // fast
+	onlyBubbled(t, func(t *testing.T) { // fast
 		//bubbleOrNot(func() { // slow, also :85 assertion incorrect from realtime
 		//cv.Convey("basic SimNet channel based remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
@@ -216,7 +216,7 @@ func Test604_rng_hops(t *testing.T) {
 // simnet version of cli_test 006
 func Test706_simnetonly_RoundTrip_Using_NetRPC(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		// basic SimNet with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.
 		cfg := NewConfig()
@@ -375,7 +375,7 @@ func Test706_simnetonly_RoundTrip_Using_NetRPC(t *testing.T) {
 // simnet version of 040 in cli_test.go
 func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		cv.Convey("simnet remote cancellation", t, func() {
 
@@ -495,7 +495,7 @@ func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 
 func Test745_simnetonly_upload(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 		cv.Convey("upload a large file in parts from client to server", t, func() {
 
 			cfg := NewConfig()
@@ -599,7 +599,7 @@ func Test745_simnetonly_upload(t *testing.T) {
 
 func Test755_simnetonly_simnet_download(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
 
@@ -713,7 +713,7 @@ func Test755_simnetonly_simnet_download(t *testing.T) {
 
 func Test765_simnetonly_bidirectional_download_and_upload(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {
 
@@ -872,7 +872,7 @@ func Test765_simnetonly_bidirectional_download_and_upload(t *testing.T) {
 // basic gosimnet operations Listen/Accept, Dial, NewTimer
 func Test101_gosimnet_basics(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		shutdown := make(chan struct{})
 		defer close(shutdown)
@@ -1071,7 +1071,7 @@ func Test102_time_truncate_works_under_synctest(t *testing.T) {
 	_ = net
 
 	fake := false
-	f := func() {
+	f := func(t *testing.T) {
 
 		//vv("\n\n running in a synctime bubble = %v; tick=%v;\n\n", fake, tick)
 		for i := range 30 {
@@ -1105,18 +1105,18 @@ func Test102_time_truncate_works_under_synctest(t *testing.T) {
 	}
 	// realtime
 	if !faketime {
-		f()
+		f(t)
 	}
 
 	if faketime {
 		fake = true
-		bubbleOrNot(f) // calls synctest.Run(f) when faketime is true.
+		bubbleOrNot(t, f) // calls synctest.Test(f) when faketime is true.
 	}
 }
 
 func Test103_bumpTime(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 		cur := time.Now()
 		s := &Simnet{}
 		for range 100 {
@@ -1143,7 +1143,7 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 	// It is legitimate to check on realtime too, but
 	// only do that if you are prepared to wait minutes
 	// for each test; under bubbleOrNot with realtime.
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 		cv.Convey("simnet client dropped sends should appear in the senders dropped send Q", t, func() {
 
 			simt, cfg := newSimnetTest(t, "test771")
@@ -1220,7 +1220,7 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 
 func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 		cv.Convey("simnet server dropped sends should appear in the servers dropped send Q", t, func() {
 
 			simt, cfg := newSimnetTest(t, "test772")
@@ -1465,7 +1465,7 @@ func (t *simnetTest) alterNode(node *simnode, alt Alteration) (undo func()) {
 func Test781_simnetonly_client_isolated(t *testing.T) {
 
 	// same as 771 but use AlterHost -> ISOLATED
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 		cv.Convey("simnet ISOLATED client dropped sends should appear in the client's dropped send Q", t, func() {
 
 			simt, cfg := newSimnetTest(t, "test781")
@@ -1545,7 +1545,7 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 func Test782_simnetonly_server_isolated(t *testing.T) {
 
 	// same as 781 but for server (isolate with AlterHost -> ISOLATED)
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 		cv.Convey("simnet ISOLATED server dropped sends should appear in the server's dropped send Q", t, func() {
 
 			simt, cfg := newSimnetTest(t, "test782")
@@ -1634,7 +1634,7 @@ func Test790_deterministic_simnet_ring(t *testing.T) {
 	// repeat for larger rings.
 
 	// same as 781 but for server (isolate with AlterHost -> ISOLATED)
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
 		//n := 10 // 4.4 sec synctest
