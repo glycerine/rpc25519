@@ -698,13 +698,13 @@ func newReleasableQueue(owner string) *pq {
 			return 0
 		}
 
-		// avoid dispatchTm: somehow corrupts the tree,
-		// and we don't need it anyway.
-		if av.issueBatch < bv.issueBatch {
-			return -1
-		}
-		if av.issueBatch > bv.issueBatch {
-			return 1
+		if false {
+			if av.issueBatch < bv.issueBatch {
+				return -1
+			}
+			if av.issueBatch > bv.issueBatch {
+				return 1
+			}
 		}
 
 		apri := av.priority()
@@ -768,25 +768,27 @@ func newReleasableQueue(owner string) *pq {
 			return 1
 		}
 
-		if av.senderLC < av.senderLC {
-			return -1
-		}
-		if av.senderLC > av.senderLC {
-			return 1
-		}
+		if false { // these change?
+			if av.senderLC < av.senderLC {
+				return -1
+			}
+			if av.senderLC > av.senderLC {
+				return 1
+			}
 
-		if av.readerLC < av.readerLC {
-			return -1
-		}
-		if av.readerLC > av.readerLC {
-			return 1
-		}
+			if av.readerLC < av.readerLC {
+				return -1
+			}
+			if av.readerLC > av.readerLC {
+				return 1
+			}
 
-		if av.originLC < av.originLC {
-			return -1
-		}
-		if av.originLC > av.originLC {
-			return 1
+			if av.originLC < av.originLC {
+				return -1
+			}
+			if av.originLC > av.originLC {
+				return 1
+			}
 		}
 
 		acli := av.cliOrSrvString()
@@ -1782,7 +1784,7 @@ func (s *pq) pop() *mop {
 	}
 	it := s.Tree.Min()
 	if it.Limit() {
-		panic("n > 0 above, how is this possible?")
+		panic("n > 0 above, how is this possible?") // hitting this for releasableQ
 		return nil
 	}
 	top := it.Item().(*mop)
@@ -3251,8 +3253,8 @@ iloop:
 				// do some more rounds, does this
 				// prevent split? does seem to help.
 				var exit bool
-				var sawMore int
-				for range 10 {
+				sawMore := 1
+				for sawMore != 0 {
 					select {
 					case <-s.halt.ReqStop.Chan:
 						return
@@ -3264,9 +3266,6 @@ iloop:
 					exit, sawMore = s.add2meqUntilSelectDefault(i)
 					if exit {
 						return
-					}
-					if sawMore == 0 {
-						break
 					}
 				}
 				now = time.Now()
