@@ -830,6 +830,13 @@ func (s *Simnet) nextUniqTm(atleast time.Time, who string) time.Time {
 }
 
 func (s *Simnet) fin(op *mop) {
+	// the simnet.go:1480 handleClientRegistration
+	// new goroutine will call us and
+	// give us a data race vs oursevles here
+	// if we don't lock.
+	s.xmut.Lock()
+	defer s.xmut.Unlock()
+
 	s.releasableQ.add(op)
 }
 
@@ -1750,7 +1757,7 @@ func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
 	//if s.isDeafQ && op.kind == READ { // sends go in too.
 	//	panic(fmt.Sprintf("where read added to deafReadQ: '%v'", op))
 	//}
-	added, it = s.Tree.InsertGetIt(op)
+	added, it = s.Tree.InsertGetIt(op) // race write vs write self
 	return
 }
 
