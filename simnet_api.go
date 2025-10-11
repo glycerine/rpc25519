@@ -1194,35 +1194,49 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	if snap.XnextDispatch != snap.XnextMopSn {
 		vv("warning: XnextDispatch = %v; XnextMopSn = %v",
 			snap.XnextDispatch, snap.XnextMopSn)
+
+		if snap.XnextDispatch > snap.XnextMopSn {
+			panic("can never dispatch higher than last issued sn")
+		}
 	} else {
 		vv("good: XnextDispatch = %v is equal XnextMopSn = %v",
 			snap.XnextDispatch, snap.XnextMopSn)
 	}
+	// INVAR: snap.XnextDispatch <= snap.XnextMopSn
 
-	// The xb3hashDis hash order is captured by the
-	// XissueOrder, which maps sn -> issue order
-	dis := newOmap[int64, int]()
-	for sn, order := range snap.XissueOrder {
-		//vv("adding dis.set snap.XissueOrder[sn=%v] = '%v'", sn, order)
-		switch {
-		case order < 0:
-			// -1 means was not hashed and not
-			// issued, so we can ignore
-		case order >= 0:
-			// actually issued and hashed (but may not have finished).
-			dis.set(order, sn)
+	/*
+		// The xb3hashDis hash order is captured by the
+		// XissueOrder, which maps sn -> issue order
+		dis := newOmap[int64, int]()
+		for sn, order := range snap.XissueOrder {
+			//vv("adding dis.set snap.XissueOrder[sn=%v] = '%v'", sn, order)
+			switch {
+			case order < 0:
+				// -1 means was not hashed and not
+				// issued, so we can ignore
+			case order >= 0:
+				// actually issued and hashed (but may not have finished).
+				dis.set(order, sn)
+			}
 		}
-	}
 
-	// avoid sn order as is non-deterministic when
-	// the client goroutines first start creating simnet api calls.
-	//for sn := range snap.Xcountsn
+		// avoid sn order as is non-deterministic when
+		// the client goroutines first start creating simnet api calls.
+		//for sn := range snap.Xcountsn
 
-	// print in issue order, not sn order.
-	for iss, sn := range dis.all() {
-		if snap.XissueOrder[sn] != iss {
-			panicf("assert error, should always hold that (%v)snap.XissueOrder[sn] == iss(%v)", snap.XissueOrder[sn], iss)
+		// print in issue order, not sn order.
+		for iss, sn := range dis.all() {
+			if snap.XissueOrder[sn] != iss {
+				panicf("assert error, should always hold that (%v)snap.XissueOrder[sn] == iss(%v)", snap.XissueOrder[sn], iss)
+			}
+	*/
+	for dispatch := range snap.XnextDispatch - 1 { // ranger over integer
+		sn, ok := snap.Xdis2sn[dispatch]
+		if !ok {
+			panicf("missing dispatch record for %v", dispatch)
+			continue
 		}
+
 		// we leave out the spurious diff producing op.sn
 		// so that if we _do_ see a diff we know it
 		// is real and we can track it down.
@@ -1234,7 +1248,8 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "[issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v]\n\n", //  [sn:%v]\n\n",
+			fmt.Fprintf(fd, "dispatch=%v [issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v]\n\n", //  [sn:%v]\n\n",
+				dispatch,
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn], snap.Xwhence[sn], snap.Xkind[sn],
 				elap,
