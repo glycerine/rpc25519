@@ -1269,7 +1269,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 
 		} else {
 			// hashed/issued, but not finished yet
-			fmt.Fprintf(fd, "dispatch=%v; not_finished [issueOrder: %v] [dispatch: %v] %v\t[whence: %v] [issuetm: %v] [origin %v] [issue hash %v] [batch %v] [sn: %v]\n\n",
+			fmt.Fprintf(fd, "dispatch=%v; __not_finished__ [issueOrder: %v] [rep: %v] [whence: %v] [kind: %v] [issuetm: %v] [origin %v] [issue hash %v] [batch %v] [sn: %v]\n\n",
 				dispatch,
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn],
@@ -1377,7 +1377,7 @@ func snapFilesDifferent(xorderPath string, dopanic bool) (errmsg error) {
 					pos, next := diffpos(lines0[i], line)
 
 					// show sn and tie, even though we ignored in the diff:
-					errmsg = fmt.Errorf("line %v has first diff:\n%v\n%v\n -> at char pos %v (at diff point: '%v')\n", i+1, full0[i], full[i], pos, next)
+					errmsg = fmt.Errorf("line %v has first diff:\n\n%v\n\n%v\n -> at char pos %v (at diff point: '%v')\n", i+1, full0[i], full[i], pos, next)
 					if dopanic {
 						panic(errmsg)
 					}
