@@ -695,7 +695,7 @@ func (s *Simnet) fin(op *mop) {
 	curhash := asBlake33B(s.xb3hashFin)
 	s.xfinHash[sn] = curhash
 
-	fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn])
+	//fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn])
 
 	if s.cfg.repeatTrace == nil {
 		return

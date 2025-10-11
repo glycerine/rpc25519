@@ -1,13 +1,13 @@
 package rpc25519
 
 import (
-	"bytes"
+	//"bytes"
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
+	//"os"
+	//"path/filepath"
 	"runtime"
-	"strings"
+	//"strings"
 	"sync"
 	"time"
 
@@ -639,96 +639,6 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	//loadtest(5, 1, 1, time.Second, "707 loadtest 3")
 
 	//vv("end of 707")
-}
-
-// note that a manual diff on disk like
-// diff snap707.000.snaptxt snap707.001.snaptxt
-// may well show op.sn serial number differences
-// due to client goro logical races which we
-// cannot avoid under the current Go
-// runtime. Thus we exclude the sn from
-// all decision making to create determinism
-// despite of this, and the sn are trimmed
-// off before diffing the lines in the 707 test.
-//
-// The hash excludes the op.sn for this reason.
-func snapFilesDifferent(xorderPath string, dopanic bool) (errmsg error) {
-
-	// snap707.001.snaptxt
-	matches, err := filepath.Glob(xorderPath + "*.snaptxt")
-	panicOn(err)
-
-	vv("matches = '%#v'", matches)
-	var firstHash string
-	var lines0 []string
-	var full0 []string
-	for i, m := range matches {
-		hash, lines, full := getLastHash(m)
-		if i == 0 {
-			firstHash = hash
-			lines0 = lines
-			full0 = full
-			continue
-		}
-		if hash != firstHash {
-			for i, line := range lines {
-				if lines0[i] != line {
-					//panicf("line %v has first diff:\n%v\n%v", i+1, lines0[i], line)
-					pos, next := diffpos(lines0[i], line)
-
-					// show sn and tie, even though we ignored in the diff:
-					errmsg = fmt.Errorf("line %v has first diff:\n%v\n%v\n -> at char pos %v (at diff point: '%v')\n", i+1, full0[i], full[i], pos, next)
-					if dopanic {
-						panic(errmsg)
-					}
-					return
-				}
-			}
-			errmsg = fmt.Errorf("file[0]='%v'\n (hash: '%v')\n and file[%v]='%v'\n (hash: '%v')\n disagree on last hash", matches[0], firstHash, i, matches[i], hash)
-			if dopanic {
-				panic(errmsg)
-			}
-			return
-		}
-	}
-	return
-}
-
-func getLastHash(path string) (hash string, lines, full []string) {
-	by, err := os.ReadFile(path)
-	panicOn(err)
-	pos := bytes.LastIndex(by, []byte("blake3.33B-"))
-	hash = string(by[pos : len(by)-1])
-	lines = strings.Split(string(by), "\n")
-	// trim off the non-deterministics sn serial number at the end.
-	for i, line := range lines {
-		full = append(full, line)
-		pos := strings.LastIndex(line, "[sn:")
-		if pos >= 0 {
-			lines[i] = line[:pos]
-		}
-	}
-	return
-}
-
-func diffpos(as, bs string) (pos int, difftext string) {
-	if as == bs {
-		return -1, ""
-	}
-	asRunes := []rune(as)
-	bsRunes := []rune(bs)
-	var i int
-	var a rune
-	for i, a = range as {
-		if i >= len(bsRunes) {
-			return i, string(asRunes[i:])
-		}
-		if a != bsRunes[i] {
-			return i, string(asRunes[i:])
-		}
-	}
-	//vv("i = %v; for as='%v'; bs='%v'", i, as, bs)
-	return i + 1, string(bsRunes[i:])
 }
 
 func TestDiffPos(t *testing.T) {

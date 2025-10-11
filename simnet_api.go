@@ -1,12 +1,13 @@
 package rpc25519
 
 import (
+	"bytes"
 	"fmt"
 	mathrand2 "math/rand/v2"
 	"os"
 	"strings"
 	//"runtime"
-	"io"
+	//"io"
 	"path/filepath"
 	"time"
 )
@@ -1248,7 +1249,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "dispatch=%v [issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v]\n\n", //  [sn:%v]\n\n",
+			fmt.Fprintf(fd, "dispatch=%v [issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v] [sn:%v]\n\n",
 				dispatch,
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn], snap.Xwhence[sn], snap.Xkind[sn],
@@ -1260,7 +1261,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				snap.XissueBatch[sn],
 				snap.XfinHash[sn],
 				snap.XfinRepeatable[sn],
-				//sn,
+				sn,
 			)
 
 		} else {
@@ -1326,6 +1327,102 @@ func (s *Simnet) CloseSimnode(simnodeName string, reason error) (err error) {
 	}
 	return
 }
-func ReportSnapDiff(a, b *SimnetSnapshot, w io.Writer) {
 
+//func ReportSnapDiff(a, b *SimnetSnapshot, w io.Writer) {
+//
+//}
+
+// test-mostly utilities: (used by simgrid_test.go
+// and called from Simnet.fin() when debugging.
+
+// note that a manual diff on disk like
+// diff snap707.000.snaptxt snap707.001.snaptxt
+// may well show op.sn serial number differences
+// due to client goro logical races which we
+// cannot avoid under the current Go
+// runtime. Thus we exclude the sn from
+// all decision making to create determinism
+// despite of this, and the sn are trimmed
+// off before diffing the lines in the 707 test.
+//
+// The hash excludes the op.sn for this reason.
+func snapFilesDifferent(xorderPath string, dopanic bool) (errmsg error) {
+
+	// snap707.001.snaptxt
+	matches, err := filepath.Glob(xorderPath + "*.snaptxt")
+	panicOn(err)
+
+	vv("matches = '%#v'", matches)
+	var firstHash string
+	var lines0 []string
+	var full0 []string
+	for i, m := range matches {
+		// getLastHash trims off the non-deterministic "[sn:"
+		// and following part in lines (full has it though).
+		hash, lines, full := getLastHash(m)
+		if i == 0 {
+			firstHash = hash
+			lines0 = lines
+			full0 = full
+			continue
+		}
+		if hash != firstHash {
+			for i, line := range lines {
+				if lines0[i] != line {
+					//panicf("line %v has first diff:\n%v\n%v", i+1, lines0[i], line)
+					pos, next := diffpos(lines0[i], line)
+
+					// show sn and tie, even though we ignored in the diff:
+					errmsg = fmt.Errorf("line %v has first diff:\n%v\n%v\n -> at char pos %v (at diff point: '%v')\n", i+1, full0[i], full[i], pos, next)
+					if dopanic {
+						panic(errmsg)
+					}
+					return
+				}
+			}
+			errmsg = fmt.Errorf("file[0]='%v'\n (hash: '%v')\n and file[%v]='%v'\n (hash: '%v')\n disagree on last hash", matches[0], firstHash, i, matches[i], hash)
+			if dopanic {
+				panic(errmsg)
+			}
+			return
+		}
+	}
+	return
+}
+
+func getLastHash(path string) (hash string, lines, full []string) {
+	by, err := os.ReadFile(path)
+	panicOn(err)
+	pos := bytes.LastIndex(by, []byte("blake3.33B-"))
+	hash = string(by[pos : len(by)-1])
+	lines = strings.Split(string(by), "\n")
+	// trim off the non-deterministics sn serial number at the end.
+	for i, line := range lines {
+		full = append(full, line)
+		pos := strings.LastIndex(line, "[sn:")
+		if pos >= 0 {
+			lines[i] = line[:pos]
+		}
+	}
+	return
+}
+
+func diffpos(as, bs string) (pos int, difftext string) {
+	if as == bs {
+		return -1, ""
+	}
+	asRunes := []rune(as)
+	bsRunes := []rune(bs)
+	var i int
+	var a rune
+	for i, a = range as {
+		if i >= len(bsRunes) {
+			return i, string(asRunes[i:])
+		}
+		if a != bsRunes[i] {
+			return i, string(asRunes[i:])
+		}
+	}
+	//vv("i = %v; for as='%v'; bs='%v'", i, as, bs)
+	return i + 1, string(bsRunes[i:])
 }
