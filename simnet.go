@@ -706,8 +706,11 @@ func (s *Simnet) fin(op *mop) {
 	// 1 = ours
 	sn1 := sn
 	dis1 := s.xsn2dis[sn1]
+	batch1 := s.xissueBatch[sn1]
+
 	dis0 := dis1
 	sn0 := prev.Xdis2sn[dis0]
+	batch0 := prev.XissueBatch[sn0]
 
 	rep0 := prev.XfinRepeatable[sn0]
 	hash0 := prev.XfinHash[sn0]
@@ -743,9 +746,9 @@ func (s *Simnet) fin(op *mop) {
 		oldPrevHasher0snRep := prev.XfinRepeatable[oldPrevHasher0sn]
 
 		vv(`
-currrent trace up now is at (dis1 = %v; sn1 = %v)
-                 prev trace (dis0 = %v; sn0 = %v)`,
-			dis1, sn1, dis0, sn0)
+currrent trace up now is at (dis1 = %v; sn1 = %v; batch1 = %v)
+                 prev trace (dis0 = %v; sn0 = %v; batch0 = %v)`,
+			dis1, sn1, batch1, dis0, sn0, batch0)
 		vv("previous trace previous (dis=%v; sn=%v) (equal to cur prev:%v):\n  cur-trace hash:'%v'\n prev-trace hash:'%v'\n curPrevHasher1sn(%v) rep = %v\n oldPrevHasher0sn(%v) rep = %v", dis0prev, sn0prev, hash0prev == hash1prev, hash0prev, hash1prev, curPrevHasher1sn, curPrevHasher1snRep, oldPrevHasher0sn, oldPrevHasher0snRep)
 		panicf("previously our accum hash0 = '%v', but curhash = '%v'", hash0, curhash)
 	}
