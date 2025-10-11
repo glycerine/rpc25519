@@ -3741,6 +3741,8 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 
 	req.XprevHasherSn = s.xprevHasherSn
 	req.XfinPrevHasherSn = append([]int64{}, s.xfinPrevHasherSn...)
+	req.XnextDispatch = s.nextDispatch
+	req.XnextMopSn = s.nextMopSn
 
 	req.Xsn2dis = make(map[int64]int64)
 	for k, v := range s.xsn2dis {

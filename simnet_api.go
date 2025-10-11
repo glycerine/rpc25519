@@ -986,6 +986,9 @@ type SimnetSnapshot struct {
 	Xsn2dis map[int64]int64
 	Xdis2sn map[int64]int64
 
+	XnextDispatch int64
+	XnextMopSn    int64
+
 	// try to locate the skip point, when our
 	// cumulative hash diverges in 2nd run of 707.
 	XprevHasherSn    int64
@@ -1187,6 +1190,14 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	// 	//vv("adding dis.set snap.XdispatchRepeatable[i] = '%v' for i = %v", d, i)
 	// 	dis.set(d, i)
 	// }
+
+	if snap.XnextDispatch != snap.XnextMopSn {
+		vv("warning: XnextDispatch = %v; XnextMopSn = %v",
+			snap.XnextDispatch, snap.XnextMopSn)
+	} else {
+		vv("good: XnextDispatch = %v is equal XnextMopSn = %v",
+			snap.XnextDispatch, snap.XnextMopSn)
+	}
 
 	// The xb3hashDis hash order is captured by the
 	// XissueOrder, which maps sn -> issue order
