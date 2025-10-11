@@ -737,6 +737,7 @@ func newReleasableQueue(owner string) *pq {
 		}
 		// either both client or both server
 
+		// for timers, this is completeTm if available.
 		atm := av.tm()
 		btm := bv.tm()
 		if atm.Before(btm) {
@@ -744,6 +745,20 @@ func newReleasableQueue(owner string) *pq {
 		}
 		if atm.After(btm) {
 			return 1
+		}
+		if av.kind == TIMER && bv.kind == TIMER {
+			if av.timerDur < bv.timerDur {
+				return -1
+			}
+			if av.timerDur > bv.timerDur {
+				return 1
+			}
+			if av.initTm.Before(bv.initTm) {
+				return -1
+			}
+			if av.initTm.After(bv.initTm) {
+				return 1
+			}
 		}
 
 		a0 := av.dispatchTm.IsZero()
@@ -3425,7 +3440,7 @@ iloop:
 		// and 100 messages in simgrid_test 707,
 		// to avoid splitting off a straggler into its own batch
 		// 10 extra was not enought for 11 nodes, 100 messages.
-		extra := 10
+		extra := 200
 		for {
 			s.tickLogicalClocks()
 
