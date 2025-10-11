@@ -44,7 +44,7 @@ type newGoroRequest struct {
 	where   string
 	net     *Simnet
 	reqtm   time.Time
-	proceed chan struct{}
+	proceed chan time.Duration
 	who     int
 }
 
@@ -73,7 +73,7 @@ func (s *Simnet) NewGoro(name string) {
 		where:   fileLine(2),
 		net:     s,
 		reqtm:   time.Now(),
-		proceed: make(chan struct{}),
+		proceed: make(chan time.Duration),
 		who:     goID(),
 	}
 	select {
@@ -82,7 +82,17 @@ func (s *Simnet) NewGoro(name string) {
 		//vv("i=%v <-s.halt.ReqStop.Chan", i)
 	}
 	select {
-	case <-r.proceed:
+	case pause := <-r.proceed:
+		if s.halt.ReqStop.IsClosed() {
+			return
+		}
+		if pause > 0 {
+			select {
+			case <-time.After(pause):
+			case <-s.halt.ReqStop.Chan:
+				return
+			}
+		}
 	case <-s.halt.ReqStop.Chan:
 		//vv("i=%v <-s.halt.ReqStop.Chan", i)
 	}
@@ -103,7 +113,7 @@ type scenario struct {
 	maxHop time.Duration
 
 	reqtm   time.Time
-	proceed chan struct{}
+	proceed chan time.Duration
 	who     int
 }
 
@@ -125,7 +135,7 @@ func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 		minHop:  minHop,
 		maxHop:  maxHop,
 		reqtm:   time.Now(),
-		proceed: make(chan struct{}),
+		proceed: make(chan time.Duration),
 		who:     goID(),
 	}
 	s.rng = mathrand2.New(s.chacha)
@@ -311,8 +321,8 @@ func (s *Simnet) FaultCircuit(origin, target string, dd DropDeafSpec, deliverDro
 		return
 	}
 	select {
-	case <-fault.proceed:
-		time.Sleep(minClientBackpressureDur)
+	case pause := <-fault.proceed:
+		_ = pause
 
 		err = fault.err
 		if target == "" {
@@ -336,8 +346,8 @@ func (s *Simnet) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends
 		return
 	}
 	select {
-	case <-fault.proceed:
-		time.Sleep(minClientBackpressureDur)
+	case pause := <-fault.proceed:
+		_ = pause
 		err = fault.err
 		//vv("server '%v' hostFault from '%v'; dd='%v'; err = '%v'", hostName, dd, err)
 	case <-s.halt.ReqStop.Chan:
@@ -364,8 +374,8 @@ func (s *Simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, 
 		return
 	}
 	select {
-	case <-oneGood.proceed:
-		time.Sleep(minClientBackpressureDur)
+	case pause := <-oneGood.proceed:
+		_ = pause
 		err = oneGood.err
 		//vv("RepairCircuit '%v' proceed. err = '%v'", originName, err)
 	case <-s.halt.ReqStop.Chan:
@@ -390,8 +400,8 @@ func (s *Simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, all
 		return
 	}
 	select {
-	case <-repair.proceed:
-		time.Sleep(minClientBackpressureDur)
+	case pause := <-repair.proceed:
+		_ = pause
 		err = repair.err
 		//vv("RepairHost '%v' proceed. err = '%v'", originName, err)
 	case <-s.halt.ReqStop.Chan:
@@ -435,7 +445,8 @@ func (s *Simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.T
 		return
 	}
 	select {
-	case <-timer.proceed:
+	case pause := <-timer.proceed:
+		_ = pause
 		if s.halt.ReqStop.IsClosed() {
 			timer = nil
 		}
@@ -465,19 +476,19 @@ func (s *Simnet) readMessage(conn uConn) (msg *Message, err error) {
 		return nil, ErrShutdown()
 	}
 	select {
-	case <-read.proceed:
-		// Must apply the smallest amount of
-		// back pressure here on the client side,
-		// or else a non-pausing,
-		// large enough set of readers can
-		// always overwhelm our efforts at
-		// creating determinism.
-		time.Sleep(minClientBackpressureDur)
+	case pause := <-read.proceed:
 		// this could be data racey on shutdown. double
 		// check we are not shutting down.
 		if s.halt.ReqStop.IsClosed() {
 			// avoid .msg race on shutdown, CopyForSimNetSend vs sendLoop
 			return nil, ErrShutdown()
+		}
+		if pause > 0 {
+			select {
+			case <-time.After(pause):
+			case <-s.halt.ReqStop.Chan:
+				return nil, ErrShutdown()
+			}
 		}
 		msg = read.msg
 		err = read.err
@@ -506,13 +517,19 @@ func (s *Simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) (
 		return ErrShutdown()
 	}
 	select {
-	case <-send.proceed:
-		time.Sleep(minClientBackpressureDur)
+	case pause := <-send.proceed:
 		// this could be data racey on shutdown. double
 		// check we are not shutting down.
 		if s.halt.ReqStop.IsClosed() {
 			// avoid .msg race on shutdown, CopyForSimNetSend vs sendLoop
 			return ErrShutdown()
+		}
+		if pause > 0 {
+			select {
+			case <-time.After(pause):
+			case <-s.halt.ReqStop.Chan:
+				return ErrShutdown()
+			}
 		}
 		err = send.err
 	case <-s.halt.ReqStop.Chan:
@@ -526,7 +543,7 @@ func (s *Simnet) newTimerCreateMop(isCli bool) (op *mop) {
 		originCli: isCli,
 		sn:        s.simnetNextMopSn("timerCreate"),
 		kind:      TIMER,
-		proceed:   make(chan struct{}),
+		proceed:   make(chan time.Duration),
 		reqtm:     time.Now(),
 		who:       goID(),
 	}
@@ -538,7 +555,7 @@ func (s *Simnet) newTimerDiscardMop(origTimerMop *mop) (op *mop) {
 		originCli:    origTimerMop.originCli,
 		sn:           s.simnetNextMopSn("timerDiscard"),
 		kind:         TIMER_DISCARD,
-		proceed:      make(chan struct{}),
+		proceed:      make(chan time.Duration),
 		origTimerMop: origTimerMop,
 		reqtm:        time.Now(),
 		who:          goID(),
@@ -551,7 +568,7 @@ func (s *Simnet) newReadMop(isCli bool) (op *mop) {
 		originCli: isCli,
 		sn:        s.simnetNextMopSn("newREAD"),
 		kind:      READ,
-		proceed:   make(chan struct{}),
+		proceed:   make(chan time.Duration),
 		reqtm:     time.Now(),
 		who:       goID(),
 	}
@@ -566,7 +583,7 @@ func (s *Simnet) newSendMop(msg *Message, isCli bool) (op *mop) {
 		msg:       msg.CopyForSimNetSend(),
 		sn:        s.simnetNextMopSn("newSEND"),
 		kind:      SEND,
-		proceed:   make(chan struct{}),
+		proceed:   make(chan time.Duration),
 		reqtm:     time.Now(),
 		who:       goID(),
 	}
@@ -588,8 +605,17 @@ func (s *Simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time
 		return
 	}
 	select {
-	case <-discard.proceed:
-		time.Sleep(minClientBackpressureDur)
+	case pause := <-discard.proceed:
+		if s.halt.ReqStop.IsClosed() {
+			return
+		}
+		if pause > 0 {
+			select {
+			case <-time.After(pause):
+			case <-s.halt.ReqStop.Chan:
+				return
+			}
+		}
 		return discard.wasArmed
 	case <-s.halt.ReqStop.Chan:
 		return
@@ -611,7 +637,7 @@ type clientRegistration struct {
 	serverBaseID string
 
 	// wait on
-	proceed chan struct{}
+	proceed chan time.Duration
 	reqtm   time.Time
 
 	// receive back
@@ -635,7 +661,7 @@ func (s *Simnet) newClientRegistration(
 		serverAddrStr:    serverAddr,
 		serverBaseID:     serverBaseID,
 		reqtm:            time.Now(),
-		proceed:          make(chan struct{}),
+		proceed:          make(chan time.Duration),
 		who:              goID(),
 	}
 }
@@ -647,7 +673,7 @@ type serverRegistration struct {
 	serverBaseID string
 
 	// wait on
-	proceed chan struct{}
+	proceed chan time.Duration
 	reqtm   time.Time
 
 	// receive back
@@ -662,7 +688,7 @@ func (s *Simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) (r *
 		server:       srv,
 		serverBaseID: srv.cfg.serverBaseID,
 		srvNetAddr:   srvNetAddr,
-		proceed:      make(chan struct{}),
+		proceed:      make(chan time.Duration),
 		reqtm:        time.Now(),
 		who:          goID(),
 	}
@@ -681,8 +707,19 @@ func (s *Simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 		return
 	}
 	select {
-	case <-reg.proceed:
-		time.Sleep(minClientBackpressureDur)
+	case pause := <-reg.proceed:
+		if s.halt.ReqStop.IsClosed() {
+			err = ErrShutdown()
+			return
+		}
+		if pause > 0 {
+			select {
+			case <-time.After(pause):
+			case <-s.halt.ReqStop.Chan:
+				return
+			}
+		}
+
 		//vv("server after first registered: '%v'/'%v' sees  reg.tellServerNewConnCh = %p", srv.name, srvNetAddr, reg.tellServerNewConnCh)
 		if reg.tellServerNewConnCh == nil {
 			panic("cannot have nil reg.tellServerNewConnCh back!")
@@ -708,7 +745,7 @@ type simnodeAlteration struct {
 	undo  Alteration // how to reverse the alter
 
 	isHostAlter bool
-	proceed     chan struct{}
+	proceed     chan time.Duration
 	reqtm       time.Time
 	who         int
 
@@ -722,7 +759,7 @@ func (s *Simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHo
 		simnodeName: simnodeName,
 		alter:       alter,
 		isHostAlter: isHostAlter,
-		proceed:     make(chan struct{}),
+		proceed:     make(chan time.Duration),
 		reqtm:       time.Now(),
 		who:         goID(),
 		//where:       fileLine(3),
@@ -745,8 +782,8 @@ func (s *Simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bo
 		return
 	}
 	select {
-	case <-alt.proceed:
-		time.Sleep(minClientBackpressureDur)
+	case _ = <-alt.proceed:
+		// internal infrastructure, no pausing desired.
 		undo = alt.undo
 		err = alt.err
 		//vv("server altered: %v", simnode)
@@ -773,8 +810,8 @@ func (s *Simnet) AlterHost(simnodeName string, alter Alteration) (undo Alteratio
 		return
 	}
 	select {
-	case <-alt.proceed:
-		time.Sleep(minClientBackpressureDur)
+	case _ = <-alt.proceed:
+		// internal infrastructure, no pausing desired.
 		undo = alt.undo
 		err = alt.err
 		//vv("host altered: %v", simnode)
@@ -791,7 +828,7 @@ type circuitFault struct {
 	deliverDroppedSends bool
 
 	sn      int64
-	proceed chan struct{}
+	proceed chan time.Duration
 	reqtm   time.Time
 	who     int
 
@@ -805,7 +842,7 @@ func (s *Simnet) newCircuitFault(originName, targetName string, dd DropDeafSpec,
 		DropDeafSpec:        dd,
 		deliverDroppedSends: deliverDroppedSends,
 		sn:                  s.simnetNextMopSn("&circuitFault"),
-		proceed:             make(chan struct{}),
+		proceed:             make(chan time.Duration),
 		reqtm:               time.Now(),
 		who:                 goID(),
 	}
@@ -816,7 +853,7 @@ type hostFault struct {
 	DropDeafSpec
 	deliverDroppedSends bool
 	sn                  int64
-	proceed             chan struct{}
+	proceed             chan time.Duration
 	reqtm               time.Time
 	err                 error
 	who                 int
@@ -828,7 +865,7 @@ func (s *Simnet) newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSe
 		DropDeafSpec:        dd,
 		deliverDroppedSends: deliverDroppedSends,
 		sn:                  s.simnetNextMopSn("&hostFault"),
-		proceed:             make(chan struct{}),
+		proceed:             make(chan time.Duration),
 		reqtm:               time.Now(),
 		who:                 goID(),
 	}
@@ -840,7 +877,7 @@ type closeSimnode struct {
 	reason                   error
 
 	sn      int64
-	proceed chan struct{}
+	proceed chan time.Duration
 	reqtm   time.Time
 	err     error
 	who     int
@@ -852,7 +889,7 @@ func (s *Simnet) newCloseSimnode(simnodeName string, reason error) *closeSimnode
 		reason:      reason,
 		simnodeName: simnodeName,
 		sn:          s.simnetNextMopSn("&closeSimnode"),
-		proceed:     make(chan struct{}),
+		proceed:     make(chan time.Duration),
 		reqtm:       time.Now(),
 		who:         goID(),
 	}
@@ -867,7 +904,7 @@ type circuitRepair struct {
 	unIsolate           bool
 	powerOnIfOff        bool
 	sn                  int64
-	proceed             chan struct{}
+	proceed             chan time.Duration
 	reqtm               time.Time
 	err                 error
 	who                 int
@@ -882,7 +919,7 @@ func (s *Simnet) newCircuitRepair(originName, targetName string, unIsolate, powe
 		unIsolate:           unIsolate,
 		powerOnIfOff:        powerOnIfOff,
 		sn:                  s.simnetNextMopSn("&circuitRepair"),
-		proceed:             make(chan struct{}),
+		proceed:             make(chan time.Duration),
 		reqtm:               time.Now(),
 		who:                 goID(),
 	}
@@ -895,7 +932,7 @@ type hostRepair struct {
 	allHosts            bool
 	deliverDroppedSends bool
 	sn                  int64
-	proceed             chan struct{}
+	proceed             chan time.Duration
 	reqtm               time.Time
 	err                 error
 	who                 int
@@ -909,7 +946,7 @@ func (s *Simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHost
 		unIsolate:           unIsolate,
 		allHosts:            allHosts,
 		sn:                  s.simnetNextMopSn("&hostRepair"),
-		proceed:             make(chan struct{}),
+		proceed:             make(chan time.Duration),
 		reqtm:               time.Now(),
 		who:                 goID(),
 	}
@@ -1029,7 +1066,7 @@ type SimnetSnapshot struct {
 	LoneCli map[string]*SimnetPeerStatus // not really a peer but meh.
 
 	reqtm   time.Time
-	proceed chan struct{}
+	proceed chan time.Duration
 	who     int
 	where   string
 }
@@ -1037,7 +1074,7 @@ type SimnetSnapshot struct {
 func (s *Simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
 	snap = &SimnetSnapshot{
 		reqtm:   time.Now(),
-		proceed: make(chan struct{}),
+		proceed: make(chan time.Duration),
 		who:     goID(),
 		where:   fileLine(2),
 	}
@@ -1048,7 +1085,8 @@ func (s *Simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
 	}
 	select {
 	case <-snap.proceed:
-		time.Sleep(minClientBackpressureDur)
+		// this is internal diagnostics, not a part of the simulation
+		// that we want to control by pausing.
 	case <-s.halt.ReqStop.Chan:
 	}
 	return
@@ -1072,7 +1110,7 @@ type SimnetBatch struct {
 	batchSubWhen time.Time
 	batchSubAsap bool
 	reqtm        time.Time
-	proceed      chan struct{}
+	proceed      chan time.Duration
 	err          error
 	batchOps     []*mop
 	who          int
@@ -1085,7 +1123,7 @@ func (s *Simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
 		batchSubWhen: subwhen,
 		batchSubAsap: subAsap,
 		reqtm:        time.Now(),
-		proceed:      make(chan struct{}),
+		proceed:      make(chan time.Duration),
 		who:          goID(),
 	}
 }
@@ -1350,8 +1388,8 @@ func (s *Simnet) CloseSimnode(simnodeName string, reason error) (err error) {
 		return
 	}
 	select {
-	case <-cl.proceed:
-		time.Sleep(minClientBackpressureDur)
+	case pause := <-cl.proceed:
+		_ = pause
 		err = cl.err
 	case <-s.halt.ReqStop.Chan:
 		return
