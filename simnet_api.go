@@ -1203,8 +1203,8 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		}
 	} else {
 		// rare:
-		vv("good: XnextDispatch = %v is equal XnextMopSn = %v",
-			snap.XnextDispatch, snap.XnextMopSn)
+		//vv("good: XnextDispatch = %v is equal XnextMopSn = %v",
+		//	snap.XnextDispatch, snap.XnextMopSn)
 	}
 	// INVAR: snap.XnextDispatch <= snap.XnextMopSn
 
@@ -1252,7 +1252,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "dispatch=%v [issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v] [sn:%v]\n\n",
+			fmt.Fprintf(fd, "dispatch=%v [issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v]\n\n", // [sn:%v]\n\n",
 				dispatch,
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn], snap.Xwhence[sn], snap.Xkind[sn],
@@ -1264,12 +1264,12 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				snap.XissueBatch[sn],
 				snap.XfinHash[sn],
 				snap.XfinRepeatable[sn],
-				sn,
+				//sn,
 			)
 
 		} else {
 			// hashed/issued, but not finished yet
-			fmt.Fprintf(fd, "dispatch=%v; __not_finished__ [issueOrder: %v] [rep: %v] [whence: %v] [kind: %v] [issuetm: %v] [origin %v] [issue hash %v] [batch %v] [sn: %v]\n\n",
+			fmt.Fprintf(fd, "dispatch=%v; __not_finished__ [issueOrder: %v] [rep: %v] [whence: %v] [kind: %v] [issuetm: %v] [origin %v] [issue hash %v] [batch %v]\n\n", //  [sn: %v]\n\n",
 				dispatch,
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn],
@@ -1279,7 +1279,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				chompAnyUniqSuffix(snap.Xorigin[sn]),
 				snap.XissueHash[sn],
 				snap.XissueBatch[sn],
-				sn,
+				//sn,
 			)
 		}
 	}

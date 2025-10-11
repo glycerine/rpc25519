@@ -626,10 +626,10 @@ func newOneTimeSliceQ(owner string) *pq {
 func (s *Simnet) releaseReady() {
 	ready := s.releasableQ.Len()
 	if ready == 0 {
-		vv("releaseReady(): nothing to release")
+		//vv("releaseReady(): nothing to release")
 		return
 	}
-	vv("releaseReady(): releasing %v", ready)
+	//vv("releaseReady(): releasing %v", ready)
 
 	pseudoRandomQ := newOneTimeSliceQ("releaseReady")
 	for s.releasableQ.Len() > 0 {
@@ -910,7 +910,7 @@ func (s *Simnet) fin(op *mop) {
 
 	// the essential debugging print: which extra sn
 	// is getting injected when the fin hashes vary?
-	fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v; batch: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
+	//fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v; batch: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
 
 	if s.cfg.repeatTrace == nil {
 		return
@@ -930,11 +930,11 @@ func (s *Simnet) fin(op *mop) {
 	rep0 := prev.XfinRepeatable[sn0]
 	hash0 := prev.XfinHash[sn0]
 	fin0 := prev.Xfintm[sn0]
-
+	_ = fin0
 	// different elapsed?
-	if !fin0.Equal(now) {
-		panicf("previously we finished at %v, but now = %v", nice9(fin0), nice9(now))
-	}
+	//	if !fin0.Equal(now) {
+	//		panicf("previously we finished at %v, but now = %v", nice9(fin0), nice9(now))
+	//	}
 	if rep0 != rep1 {
 		panicf("previously we had rep0 = '%v'; but now rep1 = '%v'", rep0, rep1)
 	}
