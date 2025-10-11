@@ -21,6 +21,8 @@ import (
 	rb "github.com/glycerine/rbtree"
 )
 
+const minClientBackpressureDur = time.Millisecond * 2
+
 // NB: all String() methods are now in simnet_string.go
 
 type GoroControl struct {
@@ -1521,6 +1523,9 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	//tick := time.Duration(minTickNanos) // 100_000 nanoseconds
 	if tick < time.Duration(minTickNanos) {
 		panicf("must have tick >= minTickNanos(%v)", time.Duration(minTickNanos))
+	}
+	if minClientBackpressureDur < tick {
+		panicf("should have tick(%v) <= minClientBackpressureDur(%v)", tick, minClientBackpressureDur)
 	}
 	// minHop := time.Millisecond * 10
 	// maxHop := minHop
@@ -3419,6 +3424,7 @@ iloop:
 		// We need extra rounds, at least 5, with 5 nodes
 		// and 100 messages in simgrid_test 707,
 		// to avoid splitting off a straggler into its own batch
+		// 10 extra was not enought for 11 nodes, 100 messages.
 		extra := 10
 		for {
 			s.tickLogicalClocks()

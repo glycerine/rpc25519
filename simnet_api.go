@@ -312,7 +312,7 @@ func (s *Simnet) FaultCircuit(origin, target string, dd DropDeafSpec, deliverDro
 	}
 	select {
 	case <-fault.proceed:
-		time.Sleep(1)
+		time.Sleep(minClientBackpressureDur)
 
 		err = fault.err
 		if target == "" {
@@ -337,7 +337,7 @@ func (s *Simnet) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends
 	}
 	select {
 	case <-fault.proceed:
-		time.Sleep(1)
+		time.Sleep(minClientBackpressureDur)
 		err = fault.err
 		//vv("server '%v' hostFault from '%v'; dd='%v'; err = '%v'", hostName, dd, err)
 	case <-s.halt.ReqStop.Chan:
@@ -365,7 +365,7 @@ func (s *Simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, 
 	}
 	select {
 	case <-oneGood.proceed:
-		time.Sleep(1)
+		time.Sleep(minClientBackpressureDur)
 		err = oneGood.err
 		//vv("RepairCircuit '%v' proceed. err = '%v'", originName, err)
 	case <-s.halt.ReqStop.Chan:
@@ -391,7 +391,7 @@ func (s *Simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, all
 	}
 	select {
 	case <-repair.proceed:
-		time.Sleep(1)
+		time.Sleep(minClientBackpressureDur)
 		err = repair.err
 		//vv("RepairHost '%v' proceed. err = '%v'", originName, err)
 	case <-s.halt.ReqStop.Chan:
@@ -431,7 +431,6 @@ func (s *Simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.T
 	}
 	select {
 	case <-timer.proceed:
-		time.Sleep(1)
 		if s.halt.ReqStop.IsClosed() {
 			timer = nil
 		}
@@ -468,7 +467,7 @@ func (s *Simnet) readMessage(conn uConn) (msg *Message, err error) {
 		// large enough set of readers can
 		// always overwhelm our efforts at
 		// creating determinism.
-		time.Sleep(1)
+		time.Sleep(minClientBackpressureDur)
 		// this could be data racey on shutdown. double
 		// check we are not shutting down.
 		if s.halt.ReqStop.IsClosed() {
@@ -503,7 +502,7 @@ func (s *Simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) (
 	}
 	select {
 	case <-send.proceed:
-		time.Sleep(1)
+		time.Sleep(minClientBackpressureDur)
 		// this could be data racey on shutdown. double
 		// check we are not shutting down.
 		if s.halt.ReqStop.IsClosed() {
@@ -585,7 +584,7 @@ func (s *Simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time
 	}
 	select {
 	case <-discard.proceed:
-		time.Sleep(1)
+		time.Sleep(minClientBackpressureDur)
 		return discard.wasArmed
 	case <-s.halt.ReqStop.Chan:
 		return
@@ -678,7 +677,7 @@ func (s *Simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 	}
 	select {
 	case <-reg.proceed:
-		time.Sleep(1)
+		time.Sleep(minClientBackpressureDur)
 		//vv("server after first registered: '%v'/'%v' sees  reg.tellServerNewConnCh = %p", srv.name, srvNetAddr, reg.tellServerNewConnCh)
 		if reg.tellServerNewConnCh == nil {
 			panic("cannot have nil reg.tellServerNewConnCh back!")
@@ -742,7 +741,7 @@ func (s *Simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bo
 	}
 	select {
 	case <-alt.proceed:
-		time.Sleep(1)
+		time.Sleep(minClientBackpressureDur)
 		undo = alt.undo
 		err = alt.err
 		//vv("server altered: %v", simnode)
@@ -770,7 +769,7 @@ func (s *Simnet) AlterHost(simnodeName string, alter Alteration) (undo Alteratio
 	}
 	select {
 	case <-alt.proceed:
-		time.Sleep(1)
+		time.Sleep(minClientBackpressureDur)
 		undo = alt.undo
 		err = alt.err
 		//vv("host altered: %v", simnode)
@@ -1044,7 +1043,7 @@ func (s *Simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
 	}
 	select {
 	case <-snap.proceed:
-		time.Sleep(1)
+		time.Sleep(minClientBackpressureDur)
 	case <-s.halt.ReqStop.Chan:
 	}
 	return
@@ -1103,7 +1102,7 @@ func (s *Simnet) SubmitBatch(batch *SimnetBatch) {
 	}
 	//select {
 	//case <-batch.proceed:
-	//  time.Sleep(1)
+	//  time.Sleep(minClientBackpressureDur)
 	//	err = batch.err
 	//case <-s.halt.ReqStop.Chan:
 	//}
@@ -1347,7 +1346,7 @@ func (s *Simnet) CloseSimnode(simnodeName string, reason error) (err error) {
 	}
 	select {
 	case <-cl.proceed:
-		time.Sleep(1)
+		time.Sleep(minClientBackpressureDur)
 		err = cl.err
 	case <-s.halt.ReqStop.Chan:
 		return
