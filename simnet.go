@@ -935,6 +935,13 @@ func (s *Simnet) fin2(op *mop) {
 	// is getting injected when the fin hashes vary?
 	//fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v; batch: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
 
+	// we cannot accurately check online, since
+	// many operations finishing at the same time point
+	// will initially appear in a non-deterministic
+	// order. Hence let 707 rely on fully post-run
+	// analysis (of the snapshots on disk).
+	return
+
 	if s.cfg.repeatTrace == nil {
 		return
 	}
@@ -3246,6 +3253,23 @@ iloop:
 			select { // scheduler main select
 
 			case <-time.After(left):
+
+				// do some more rounds, does this
+				// prevent split?
+				for range 10 {
+					select {
+					case <-s.halt.ReqStop.Chan:
+						return
+					case <-time.After(0):
+					}
+					if faketime {
+						synctestWait_LetAllOtherGoroFinish() // barrier
+					}
+					exit, _ := s.add2meqUntilSelectDefault(i)
+					if exit {
+						return
+					}
+				}
 				now = time.Now()
 				s.tickLogicalClocks()
 				_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
@@ -3468,6 +3492,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	} else {
 		s.curBatchNum++
 		var batch string
+		fmt.Printf("distributeMEQ: s.curBatchNum = %v is size %v    %v\n", s.curBatchNum, npop, nice9(now))
 		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
 
 		for s.curSliceQ.Len() > 0 {
