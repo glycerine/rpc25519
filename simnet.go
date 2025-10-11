@@ -3260,7 +3260,9 @@ iloop:
 			case <-time.After(left):
 
 				// do some more rounds, does this
-				// prevent split? nope.
+				// prevent split? does seem to help.
+				var exit bool
+				var sawMore int
 				for range 10 {
 					select {
 					case <-s.halt.ReqStop.Chan:
@@ -3270,9 +3272,12 @@ iloop:
 					if faketime {
 						synctestWait_LetAllOtherGoroFinish() // barrier
 					}
-					exit, _ := s.add2meqUntilSelectDefault(i)
+					exit, sawMore = s.add2meqUntilSelectDefault(i)
 					if exit {
 						return
+					}
+					if sawMore == 0 {
+						break
 					}
 				}
 				now = time.Now()
@@ -3497,7 +3502,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	} else {
 		s.curBatchNum++
 		var batch string
-		fmt.Printf("distributeMEQ: s.curBatchNum = %v is size %v    %v\n", s.curBatchNum, npop, nice9(now))
+		//fmt.Printf("distributeMEQ: s.curBatchNum = %v is size %v    %v\n", s.curBatchNum, npop, nice9(now))
 		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
 
 		for s.curSliceQ.Len() > 0 {

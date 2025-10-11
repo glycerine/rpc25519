@@ -634,7 +634,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	//loadtest(9, 100, 100, time.Second, "707 loadtest 2")
 	// 5 nodes, 100 msgs = 1.7sec test-time under faketime, 1.1s under realtime.
 	const nNode = 5
-	const wantSendPerPeer = 100
+	const wantSendPerPeer = 1000
 	sendEvery := time.Millisecond
 	loadtest(nil, nNode, wantSendPerPeer, sendEvery, "707 loadtest 2")
 
