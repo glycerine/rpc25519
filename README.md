@@ -1,11 +1,14 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
-* Recent News (2025 Oct 11): v1.30.2 update to
+* Recent News (2025 Oct 11): v1.30.4 update to
 the latest go1.25.0 version of testing/synctest
 
-As a result of the upgrade to the release/stable
+As a result of the upgrade to the released
 version of testing/synctest, Go version 1.25 is now required.
+Since the experimental synctest API was
+deprecated and will be removed in Go 1.26, we
+are now prepared -- and won't break when that happens.
 
 * Recent News (2025 Oct 9): v1.30.0 DST for gosimnet
 
