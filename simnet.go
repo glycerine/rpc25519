@@ -698,22 +698,8 @@ func newReleasableQueue(owner string) *pq {
 			return 0
 		}
 
-		a0 := av.dispatchTm.IsZero()
-		b0 := bv.dispatchTm.IsZero()
-		if a0 && !b0 {
-			return -1
-		}
-		if !a0 && b0 {
-			return 1
-		}
-		if !a0 && !b0 {
-			if av.dispatchTm.Before(bv.dispatchTm) {
-				return -1
-			}
-			if av.dispatchTm.After(bv.dispatchTm) {
-				return 1
-			}
-		}
+		// avoid dispatchTm: somehow corrupts the tree,
+		// and we don't need it anyway.
 		if av.issueBatch < bv.issueBatch {
 			return -1
 		}
@@ -3213,6 +3199,9 @@ iloop:
 		// within this time slice.
 		// TODO: figure out respecting/re-arming the timer or not?
 
+		// We need extra rounds, at least 5, with 5 nodes
+		// and 100 messages in simgrid_test 707,
+		// to avoid splitting off a straggler into its own batch
 		extra := 10
 		for {
 			s.tickLogicalClocks()
