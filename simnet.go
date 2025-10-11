@@ -585,10 +585,10 @@ func newOneTimeSliceQ(owner string) *pq {
 func (s *Simnet) releaseReady() {
 	ready := s.releasableQ.Len()
 	if ready == 0 {
-		vv("releaseReady(): nothing to release")
+		//vv("releaseReady(): nothing to release")
 		return
 	}
-	vv("releaseReady(): releasing %v", ready)
+	//vv("releaseReady(): releasing %v", ready)
 
 	releaseBatch := s.nextReleaseBatch
 	s.nextReleaseBatch++
@@ -3361,7 +3361,7 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	s.meqMut.Lock()
 	defer s.meqMut.Unlock()
 
-	vv("i=%v, add2meq %v", loopi, op)
+	//vv("i=%v, add2meq %v", loopi, op)
 
 	// give deterministic reqtm, not client view.
 	op.reqtm = time.Now()
@@ -3428,20 +3428,25 @@ func (s *Simnet) scheduler() {
 		if faketime {
 			synctestWait_LetAllOtherGoroFinish() // barrier
 		}
+
+		// We have to shutdown promptly or the synctest
+		// deadlock detector will yell at us. Thus we
+		// use of time.After instead of a simple time.Sleep().
 		select {
 		case <-time.After(tick):
+			// slept for 1 tick of the clock.
 		case <-s.halt.ReqStop.Chan:
 			return
 		}
 		now = time.Now()
-		vv("j loop; after Wait. j = %v", j)
+		//vv("j loop; after Wait. j = %v", j)
 
 		_, restartNewScenario, shutdown := s.distributeMEQ(now, j)
 		if shutdown {
 			return
 		}
 		if restartNewScenario {
-			vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
+			//vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
 			tick = s.scenario.tick
 		}
 
@@ -3763,10 +3768,10 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	s.meqMut.Lock()
 
 	//sz := s.meq.Len()
-	vv("i=%v, top distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
-	defer func() {
-		vv("i=%v, end of distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
-	}()
+	//vv("i=%v, top distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
+	//defer func() {
+	//vv("i=%v, end of distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
+	//}()
 	// meq is trying for
 	// more deterministic event ordering. we have
 	// accumulated and held any events from the
@@ -3805,12 +3810,12 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 
 		top := s.meq.peek()
 		if top == nil {
-			vv("top of meq is nil, empty, break early")
+			//vv("top of meq is nil, empty, break early")
 			break
 		}
 		topTm := top.tm()
 		if topTm.After(now) {
-			vv("top of meq tm (%v) is after now(%v), break early", topTm, now)
+			//vv("top of meq tm (%v) is after now(%v), break early", topTm, now)
 			break
 		}
 		op = s.meq.pop()
@@ -3839,7 +3844,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		s.curBatchNum++
 		var batch string
 		//fmt.Printf("distributeMEQ: s.curBatchNum = %v is size %v    %v\n", s.curBatchNum, npop, nice9(now))
-		vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
+		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
 
 		for s.curSliceQ.Len() > 0 {
 			op = s.curSliceQ.pop()
@@ -3983,7 +3988,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	// limit of -1 means no limit on number of dispatched mop.
 
 	//nd := s.dispatchAll(now, 1, i)
-	vv("distributeMEQ calling dispatchAll")
+	//vv("distributeMEQ calling dispatchAll")
 	nd := s.dispatchAll(now, -1, i)
 	_ = nd
 	s.ndtot += nd
@@ -4980,12 +4985,12 @@ func timeMachine() (timeHasStopped chan bool, restartTime chan time.Duration) {
 // on any MEQ acceptance.
 func (s *Simnet) StartMEQacceptor() {
 	go func() {
-		defer func() {
-			vv("StartMEQacceptor defer/exit")
-		}()
+		//defer func() {
+		//	vv("StartMEQacceptor defer/exit")
+		//}()
 		var i int64
 		for ; ; i++ {
-			vv("meq acceptor goro about to select at i = %v", i)
+			//vv("meq acceptor goro about to select at i = %v", i)
 			select {
 			case newGoroReq := <-s.simnetNewGoroCh:
 				s.add2meq(s.newGoroMop(newGoroReq), i)
