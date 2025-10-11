@@ -739,12 +739,24 @@ func (s *Simnet) fin(op *mop) {
 		sn1prev := s.xdis2sn[dis1prev]
 		hash1prev := s.xfinHash[sn1prev]
 
-		curPrevHasher1sn := s.xfinPrevHasherSn[sn0prev]
-		curPrevHasher1snRep := s.xfinRepeatable[curPrevHasher1sn]
+		var curPrevHasher1sn int64
+		var curPrevHasher1snRep string
 
-		oldPrevHasher0sn := prev.XfinPrevHasherSn[sn1prev]
-		oldPrevHasher0snRep := prev.XfinRepeatable[oldPrevHasher0sn]
+		var oldPrevHasher0sn int64
+		var oldPrevHasher0snRep string
 
+		if sn1prev == -1 {
+			vv("sn1prev == -1 -- yikes? sn1 = %v", sn1)
+		} else {
+			curPrevHasher1sn = s.xfinPrevHasherSn[sn1prev]
+			curPrevHasher1snRep = s.xfinRepeatable[curPrevHasher1sn]
+		}
+		if sn0prev == -1 {
+			vv("sn0prev == -1 -- yikes? sn0 = %v", sn0)
+		} else {
+			oldPrevHasher0sn = prev.XfinPrevHasherSn[sn0prev]
+			oldPrevHasher0snRep = prev.XfinRepeatable[oldPrevHasher0sn]
+		}
 		vv(`
 currrent trace up now is at (dis1 = %v; sn1 = %v; batch1 = %v)
                  prev trace (dis0 = %v; sn0 = %v; batch0 = %v)`,
