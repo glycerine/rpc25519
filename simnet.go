@@ -3440,7 +3440,7 @@ iloop:
 		// and 100 messages in simgrid_test 707,
 		// to avoid splitting off a straggler into its own batch
 		// 10 extra was not enought for 11 nodes, 100 messages.
-		extra := 200 // 200 is enough for 21 nodes, 1k messages.
+		extra := 5 // 200 is enough for 21 nodes, 1k messages.
 		for {
 			s.tickLogicalClocks()
 
@@ -3491,8 +3491,10 @@ iloop:
 				// do some more rounds, does this
 				// prevent split? does seem to help.
 				var exit bool
+				prevSaw := 1
 				sawMore := 1
-				for sawMore != 0 {
+				for sawMore != 0 || prevSaw != 0 {
+					prevSaw = sawMore
 					select {
 					case <-s.halt.ReqStop.Chan:
 						return
@@ -4679,7 +4681,14 @@ func (s *Simnet) Close() {
 // and execute their requests in that order.
 func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 	for ; ; saw++ {
+		if faketime {
+			synctestWait_LetAllOtherGoroFinish() // barrier
+		}
 		select {
+		//default:
+		//	return
+		case <-time.After(0):
+			return
 		case newGoroReq := <-s.simnetNewGoroCh:
 			s.add2meq(s.newGoroMop(newGoroReq), i)
 
@@ -4771,8 +4780,6 @@ func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 			//_ = pct
 			//vv("simnet.halt.ReqStop totalSleepDur = %v (%0.2f%%) since bb = %v)", totalSleepDur, pct, bb)
 			shouldExit = true
-			return
-		default:
 			return
 		}
 	}
