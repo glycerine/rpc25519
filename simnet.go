@@ -416,28 +416,6 @@ func newMasterEventQueue(owner string) *pq {
 		if aw > bw {
 			return 1
 		}
-
-		if av.senderLC < av.senderLC {
-			return -1
-		}
-		if av.senderLC > av.senderLC {
-			return 1
-		}
-
-		if av.readerLC < av.readerLC {
-			return -1
-		}
-		if av.readerLC > av.readerLC {
-			return 1
-		}
-
-		if av.originLC < av.originLC {
-			return -1
-		}
-		if av.originLC > av.originLC {
-			return 1
-		}
-
 		// possible addition:
 		acli := av.cliOrSrvString()
 		bcli := bv.cliOrSrvString()
@@ -552,28 +530,6 @@ func newOneTimeSliceQ(owner string) *pq {
 		if aw > bw {
 			return 1
 		}
-
-		if av.senderLC < av.senderLC {
-			return -1
-		}
-		if av.senderLC > av.senderLC {
-			return 1
-		}
-
-		if av.readerLC < av.readerLC {
-			return -1
-		}
-		if av.readerLC > av.readerLC {
-			return 1
-		}
-
-		if av.originLC < av.originLC {
-			return -1
-		}
-		if av.originLC > av.originLC {
-			return 1
-		}
-
 		acli := av.cliOrSrvString()
 		bcli := bv.cliOrSrvString()
 		if acli < bcli {
@@ -698,13 +654,11 @@ func newReleasableQueue(owner string) *pq {
 			return 0
 		}
 
-		if false {
-			if av.issueBatch < bv.issueBatch {
-				return -1
-			}
-			if av.issueBatch > bv.issueBatch {
-				return 1
-			}
+		if av.issueBatch < bv.issueBatch {
+			return -1
+		}
+		if av.issueBatch > bv.issueBatch {
+			return 1
 		}
 
 		apri := av.priority()
@@ -768,28 +722,8 @@ func newReleasableQueue(owner string) *pq {
 			return 1
 		}
 
-		if false { // these change?
-			if av.senderLC < av.senderLC {
-				return -1
-			}
-			if av.senderLC > av.senderLC {
-				return 1
-			}
-
-			if av.readerLC < av.readerLC {
-				return -1
-			}
-			if av.readerLC > av.readerLC {
-				return 1
-			}
-
-			if av.originLC < av.originLC {
-				return -1
-			}
-			if av.originLC > av.originLC {
-				return 1
-			}
-		}
+		// logical clocks change, maybe, avoid.
+		// av.senderLC < av.senderLC
 
 		acli := av.cliOrSrvString()
 		bcli := bv.cliOrSrvString()
@@ -808,6 +742,23 @@ func newReleasableQueue(owner string) *pq {
 		}
 		if atm.After(btm) {
 			return 1
+		}
+
+		a0 := av.dispatchTm.IsZero()
+		b0 := bv.dispatchTm.IsZero()
+		if a0 && !b0 {
+			return -1
+		}
+		if !a0 && b0 {
+			return 1
+		}
+		if !a0 && !b0 {
+			if av.dispatchTm.Before(bv.dispatchTm) {
+				return -1
+			}
+			if av.dispatchTm.After(bv.dispatchTm) {
+				return 1
+			}
 		}
 
 		// sn are non-deterministic. only use as an
@@ -1853,12 +1804,118 @@ func (s *Simnet) newPQarrivalTm(owner string) *pq {
 		if av == bv {
 			return 0 // pointer equality is immediate
 		}
+		if av.sn == bv.sn {
+			return 0 // preserve delete of same sn
+		}
+
 		if av.arrivalTm.Before(bv.arrivalTm) {
 			return -1
 		}
 		if av.arrivalTm.After(bv.arrivalTm) {
 			return 1
 		}
+		apri := av.priority()
+		bpri := bv.priority()
+		if apri < bpri {
+			return -1
+		}
+		if apri > bpri {
+			return 1
+		}
+		// same priority, i.e. both reads
+
+		// some alt from <-s.alterHostCh, newAlterHostMop(alt)) had
+		// mop.origin nil, so try not to seg fault on it.
+		if av.origin == nil && bv.origin != nil {
+			// seen in tube tests! on client register.
+			return -1
+		}
+		if av.origin != nil && bv.origin == nil {
+			return 1
+		}
+		// we want to handle the both origin == nil cases
+		// here with bestName to use the earlyName.
+		aname := chompAnyUniqSuffix(av.bestName())
+		bname := chompAnyUniqSuffix(bv.bestName())
+		if aname < bname {
+			return -1
+		}
+		if aname > bname {
+			return 1
+		}
+
+		// timers might not have target...
+
+		if av.target == nil && bv.target != nil {
+			return -1
+		}
+		if av.target != nil && bv.target == nil {
+			return 1
+		}
+
+		if av.target != nil && bv.target != nil {
+			atname := chompAnyUniqSuffix(av.target.name)
+			btname := chompAnyUniqSuffix(bv.target.name)
+			if atname < btname {
+				return -1
+			}
+			if atname > btname {
+				return 1
+			}
+		}
+		// same origin, same target.
+		aw := av.whence()
+		bw := bv.whence()
+		if aw < bw {
+			return -1
+		}
+		if aw > bw {
+			return 1
+		}
+
+		// logical clocks change, maybe, avoid.
+		// av.senderLC < av.senderLC
+
+		acli := av.cliOrSrvString()
+		bcli := bv.cliOrSrvString()
+		if acli < bcli {
+			return -1
+		}
+		if acli > bcli {
+			return 1
+		}
+		// either both client or both server
+
+		atm := av.tm()
+		btm := bv.tm()
+		if atm.Before(btm) {
+			return -1
+		}
+		if atm.After(btm) {
+			return 1
+		}
+
+		a0 := av.dispatchTm.IsZero()
+		b0 := bv.dispatchTm.IsZero()
+		if a0 && !b0 {
+			return -1
+		}
+		if !a0 && b0 {
+			return 1
+		}
+		if !a0 && !b0 {
+			if av.dispatchTm.Before(bv.dispatchTm) {
+				return -1
+			}
+			if av.dispatchTm.After(bv.dispatchTm) {
+				return 1
+			}
+		}
+
+		// sn are non-deterministic. only use as an
+		// extreme last resort. tube has some srv.go:2272
+		// calls that do look virtually identical...
+
 		if av.sn < bv.sn {
 			return -1
 		}
@@ -1905,8 +1962,8 @@ func newPQinitTm(owner string, isDeafQ bool) *pq {
 			return 1
 		}
 		// INVAR: neither av nor bv is nil
-		if av == bv {
-			return 0 // pointer equality is immediate
+		if av.sn == bv.sn {
+			return 0
 		}
 
 		if av.initTm.Before(bv.initTm) {
@@ -1915,11 +1972,81 @@ func newPQinitTm(owner string, isDeafQ bool) *pq {
 		if av.initTm.After(bv.initTm) {
 			return 1
 		}
-		// INVAR initTm equal, but delivery order should not matter...
-		// we can check that with chaos tests... to break ties here
-		// could just use mop.sn ? try, b/c want determinism/repeatability...
-		// but this is not really deterministic, is it?!!! different
-		// goro can create their sn first...
+		// INVAR initTm equal, but delivery order should not matter.
+		// but go for determinism.
+
+		apri := av.priority()
+		bpri := bv.priority()
+		if apri < bpri {
+			return -1
+		}
+		if apri > bpri {
+			return 1
+		}
+		// same priority, i.e. both reads
+
+		// some alt from <-s.alterHostCh, newAlterHostMop(alt)) had
+		// mop.origin nil, so try not to seg fault on it.
+		if av.origin == nil && bv.origin != nil {
+			// seen in tube tests! on client register.
+			return -1
+		}
+		if av.origin != nil && bv.origin == nil {
+			return 1
+		}
+		// we want to handle the both origin == nil cases
+		// here with bestName to use the earlyName.
+		aname := chompAnyUniqSuffix(av.bestName())
+		bname := chompAnyUniqSuffix(bv.bestName())
+		if aname < bname {
+			return -1
+		}
+		if aname > bname {
+			return 1
+		}
+
+		// timers might not have target...
+
+		if av.target == nil && bv.target != nil {
+			return -1
+		}
+		if av.target != nil && bv.target == nil {
+			return 1
+		}
+
+		if av.target != nil && bv.target != nil {
+			atname := chompAnyUniqSuffix(av.target.name)
+			btname := chompAnyUniqSuffix(bv.target.name)
+			if atname < btname {
+				return -1
+			}
+			if atname > btname {
+				return 1
+			}
+		}
+		// same origin, same target.
+		aw := av.whence()
+		bw := bv.whence()
+		if aw < bw {
+			return -1
+		}
+		if aw > bw {
+			return 1
+		}
+
+		// logical clocks change, maybe, avoid.
+		// av.senderLC < av.senderLC
+
+		acli := av.cliOrSrvString()
+		bcli := bv.cliOrSrvString()
+		if acli < bcli {
+			return -1
+		}
+		if acli > bcli {
+			return 1
+		}
+		// either both client or both server
+
 		if av.sn < bv.sn {
 			return -1
 		}
@@ -1956,8 +2083,8 @@ func newPQcompleteTm(owner string) *pq {
 			return 1
 		}
 		// INVAR: neither av nor bv is nil
-		if av == bv {
-			return 0 // pointer equality is immediate
+		if av.sn == bv.sn {
+			return 0
 		}
 
 		if av.completeTm.Before(bv.completeTm) {
@@ -1966,9 +2093,82 @@ func newPQcompleteTm(owner string) *pq {
 		if av.completeTm.After(bv.completeTm) {
 			return 1
 		}
-		// INVAR when equal, delivery order should not matter?
-		// could just use mop.sn ? yes, b/c want determinism/repeatability.
-		// but this is not really deterministic, is it?!!!
+		// INVAR when equal, delivery order should not matter.
+		// but strive for determinism:
+
+		apri := av.priority()
+		bpri := bv.priority()
+		if apri < bpri {
+			return -1
+		}
+		if apri > bpri {
+			return 1
+		}
+		// same priority, i.e. both reads
+
+		// some alt from <-s.alterHostCh, newAlterHostMop(alt)) had
+		// mop.origin nil, so try not to seg fault on it.
+		if av.origin == nil && bv.origin != nil {
+			// seen in tube tests! on client register.
+			return -1
+		}
+		if av.origin != nil && bv.origin == nil {
+			return 1
+		}
+		// we want to handle the both origin == nil cases
+		// here with bestName to use the earlyName.
+		aname := chompAnyUniqSuffix(av.bestName())
+		bname := chompAnyUniqSuffix(bv.bestName())
+		if aname < bname {
+			return -1
+		}
+		if aname > bname {
+			return 1
+		}
+
+		// timers might not have target...
+
+		if av.target == nil && bv.target != nil {
+			return -1
+		}
+		if av.target != nil && bv.target == nil {
+			return 1
+		}
+
+		if av.target != nil && bv.target != nil {
+			atname := chompAnyUniqSuffix(av.target.name)
+			btname := chompAnyUniqSuffix(bv.target.name)
+			if atname < btname {
+				return -1
+			}
+			if atname > btname {
+				return 1
+			}
+		}
+		// same origin, same target.
+		aw := av.whence()
+		bw := bv.whence()
+		if aw < bw {
+			return -1
+		}
+		if aw > bw {
+			return 1
+		}
+
+		// logical clocks change, maybe, avoid.
+		// av.senderLC < av.senderLC
+
+		acli := av.cliOrSrvString()
+		bcli := bv.cliOrSrvString()
+		if acli < bcli {
+			return -1
+		}
+		if acli > bcli {
+			return 1
+		}
+		// either both client or both server
+
+		// desparate...
 		if av.sn < bv.sn {
 			return -1
 		}
