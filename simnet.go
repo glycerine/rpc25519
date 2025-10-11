@@ -3440,7 +3440,7 @@ iloop:
 		// and 100 messages in simgrid_test 707,
 		// to avoid splitting off a straggler into its own batch
 		// 10 extra was not enought for 11 nodes, 100 messages.
-		extra := 200
+		extra := 200 // 200 is enough for 21 nodes, 1k messages.
 		for {
 			s.tickLogicalClocks()
 
