@@ -3256,6 +3256,17 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			s.xdis2sn[next] = sn
 			batch += fmt.Sprintf("[sn %v][disp %v]:%v, ", sn, next, desc)
 
+			// fill these early for better print out;
+			// fin() does these too... but maybe does not need to?
+			// ------- begin maybe redundant with fin()
+			w := op.whence() // file:line where created.
+			s.xwhence[sn] = w
+			s.xkind[sn] = op.kind
+			if op.origin != nil {
+				s.xorigin[sn] = op.origin.name
+			}
+			// ------- end maybe redundant with fin()
+
 			s.xdispatchRepeatable[sn] = xdis
 			// update xissuetm, since original was by client
 			// in simnetNextMopSn() and not deterministic.
