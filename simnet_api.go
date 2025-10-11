@@ -986,6 +986,11 @@ type SimnetSnapshot struct {
 	Xsn2dis map[int64]int64
 	Xdis2sn map[int64]int64
 
+	// try to locate the skip point, when our
+	// cumulative hash diverges in 2nd run of 707.
+	XprevHasherSn    int64
+	XfinPrevHasherSn []int64
+
 	ScenarioNum    int
 	ScenarioSeed   [32]byte
 	ScenarioTick   time.Duration
@@ -1189,12 +1194,10 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	for sn, order := range snap.XissueOrder {
 		//vv("adding dis.set snap.XissueOrder[sn=%v] = '%v'", sn, order)
 		switch {
-		case order == 0:
-			panicf("what to do with XissueOrder[%v] = %v ??", sn, order)
 		case order < 0:
 			// -1 means was not hashed and not
 			// issued, so we can ignore
-		case order > 0:
+		case order >= 0:
 			// actually issued and hashed (but may not have finished).
 			dis.set(order, sn)
 		}

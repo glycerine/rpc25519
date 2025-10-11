@@ -686,13 +686,16 @@ func (s *Simnet) fin(op *mop) {
 		s.xtarget[sn] = op.target.name
 	}
 
-	rep := fmt.Sprintf("%v", op.repeatable(now))
-	s.xb3hashFin.Write([]byte(rep))
-	s.xfinRepeatable[sn] = rep
+	s.xfinPrevHasherSn[sn] = s.xprevHasherSn
+	s.xprevHasherSn = sn
+
+	rep1 := fmt.Sprintf("%v", op.repeatable(now))
+	s.xb3hashFin.Write([]byte(rep1))
+	s.xfinRepeatable[sn] = rep1
 	curhash := asBlake33B(s.xb3hashFin)
 	s.xfinHash[sn] = curhash
 
-	//fmt.Printf("s.xfinHash[%v] = %v\n", op.sn, s.xfinHash[sn])
+	fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn])
 
 	if s.cfg.repeatTrace == nil {
 		return
@@ -714,8 +717,8 @@ func (s *Simnet) fin(op *mop) {
 	if !fin0.Equal(now) {
 		panicf("previously we finished at %v, but now = %v", nice9(fin0), nice9(now))
 	}
-	if rep0 != rep {
-		panicf("previously we had rep0 = '%v'; but now rep = '%v'", rep0, rep)
+	if rep0 != rep1 {
+		panicf("previously we had rep0 = '%v'; but now rep1 = '%v'", rep0, rep1)
 	}
 	if hash0 != curhash {
 		// a read is failing here 1st!?!
@@ -725,6 +728,21 @@ func (s *Simnet) fin(op *mop) {
 		cursnap.ToFile(xpath)
 		err := snapFilesDifferent(xpath, false) // like 707
 		vv("snapFilesDifferent err = %v", err)
+		dis0prev := dis0 - 1
+		sn0prev := prev.Xdis2sn[dis0prev]
+		hash0prev := prev.XfinHash[sn0prev]
+
+		dis1prev := dis1 - 1
+		sn1prev := s.xdis2sn[dis1prev]
+		hash1prev := s.xfinHash[sn1prev]
+
+		curPrevHasher1sn := s.xfinPrevHasherSn[sn0prev]
+		curPrevHasher1snRep := s.xfinRepeatable[curPrevHasher1sn]
+
+		oldPrevHasher0sn := prev.XfinPrevHasherSn[sn1prev]
+		oldPrevHasher0snRep := prev.XfinRepeatable[oldPrevHasher0sn]
+
+		vv("previous trace previous (dis=%v; sn=%v) (equal to cur prev:%v):\n  cur-trace hash:'%v'\n prev-trace hash:'%v'\n curPrevHasher1sn(%v) rep = %v\n oldPrevHasher0sn(%v) rep = %v", dis0prev, sn0prev, hash0prev == hash1prev, hash0prev, hash1prev, curPrevHasher1sn, curPrevHasher1snRep, oldPrevHasher0sn, oldPrevHasher0snRep)
 		panicf("previously our accum hash0 = '%v', but curhash = '%v'", hash0, curhash)
 	}
 }
@@ -810,6 +828,7 @@ func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 	s.xissueBatch = append(s.xissueBatch, -1)
 	s.xissueHash = append(s.xissueHash, "")
 	s.xdispatchRepeatable = append(s.xdispatchRepeatable, "")
+	s.xfinPrevHasherSn = append(s.xfinPrevHasherSn, -1)
 
 	s.xfintm = append(s.xfintm, time.Time{})
 	s.xfinHash = append(s.xfinHash, "")
@@ -829,6 +848,9 @@ func (s *Simnet) simnetNextBatchSn() int64 {
 
 // simnet simulates a network entirely with channels in memory.
 type Simnet struct {
+	xprevHasherSn    int64
+	xfinPrevHasherSn []int64
+
 	xsn2dis       map[int64]int64
 	xdis2sn       map[int64]int64
 	nextDispatch  int64
@@ -848,7 +870,6 @@ type Simnet struct {
 	xissueOrder []int64
 	xissueBatch []int64
 	xissueHash  []string
-	xissueLast  int64
 
 	xdispatchRepeatable []string
 	xfintm              []time.Time
@@ -3193,6 +3214,12 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			// must hold xmut.Lock else race vs simnetNextMopSn()
 			s.xmut.Lock()
 
+			// assert that we only issue each sn once
+			prev, already := s.xsn2dis[sn]
+			if already {
+				panicf("cannot dispatch sn %v twice! already have (prev: %v) in s.xsn2dis.", sn, prev)
+			}
+
 			desc := s.xsn2descDebug[sn]
 			next := s.nextDispatch
 			s.nextDispatch++
@@ -3205,16 +3232,16 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			// in simnetNextMopSn() and not deterministic.
 			s.xissuetm[sn] = now
 
-			// start xissueOrder at 1, leave 0 unused, to help debug.
+			// start xissueOrder at 0 (just re-use next now.)
 			// -1 means client got in simnetNextMopSn()
 			// but we have not seen yet (so not in hash).
-			s.xissueLast++
-			s.xissueOrder[sn] = s.xissueLast
+
+			s.xissueOrder[sn] = next
 			s.xissueBatch[sn] = s.curBatchNum
 			s.xb3hashDis.Write([]byte(xdis))
 			s.xissueHash[sn] = asBlake33B(s.xb3hashDis)
 
-			//fmt.Printf("on s.xissueLast = %v, hashDis = %v\n", s.xissueLast, asBlake33B(s.xb3hashDis))
+			//fmt.Printf("on cur dispatch = %v; (for sn = %v) hashDis = %v\n", next, sn, asBlake33B(s.xb3hashDis))
 			s.xmut.Unlock()
 
 			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
@@ -3692,6 +3719,9 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 
 	req.XhashFin = asBlake33B(s.xb3hashFin)
 	req.XhashDis = asBlake33B(s.xb3hashDis)
+
+	req.XprevHasherSn = s.xprevHasherSn
+	req.XfinPrevHasherSn = append([]int64{}, s.xfinPrevHasherSn...)
 
 	req.Xsn2dis = make(map[int64]int64)
 	for k, v := range s.xsn2dis {
