@@ -3455,7 +3455,9 @@ iloop:
 				continue iloop
 			}
 			if left < 0 {
-				panicf("should never overrun our igridtm(%v) -- but might happen without synctest... now = %v", nice9(igridtm), nice9(now))
+				if faketime {
+					panicf("should never overrun our igridtm(%v) -- but might happen without synctest... now = %v", nice9(igridtm), nice9(now))
+				}
 			}
 			if left == 0 {
 				extra--

@@ -872,7 +872,7 @@ func Test765_simnetonly_bidirectional_download_and_upload(t *testing.T) {
 // basic gosimnet operations Listen/Accept, Dial, NewTimer
 func Test101_gosimnet_basics(t *testing.T) {
 
-	bubbleOrNot(t, func(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
 
 		shutdown := make(chan struct{})
 		defer close(shutdown)

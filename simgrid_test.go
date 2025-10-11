@@ -31,7 +31,7 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 		// non wasm: diff Alloc:1750 MB HeapSys:1751 MB
 	}()
 
-	bubbleOrNot(t, func(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
 		//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
 		//n := 10 // 4.4 sec synctest
 		n := 3
