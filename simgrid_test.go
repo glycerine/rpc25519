@@ -610,14 +610,17 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 
 	// 15 nodes, 100 frag: 60 seconds testtime for realtime. 70sec faketime
 	// 21 nodes, 1k frag: 105s test-time under simnet/synctest-faketime.
-	const nNode1 = 3
+	const nNode1 = 5
 	const wantSendPerPeer1 = 100
 	sendEvery1 := time.Millisecond
 	xorderPath := homed("~/rpc25519/snap707")
 	removeAllFilesWithPrefix(xorderPath)
 	snap0 := loadtest(nil, nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
-	//snap1 := loadtest(snap0, nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
-	snap1 := loadtest(nil, nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
+
+	// more rigorous checking:
+	snap1 := loadtest(snap0, nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
+	// easier, no online checking:
+	//snap1 := loadtest(nil, nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
 	_, _ = snap0, snap1
 	err := snapFilesDifferent(xorderPath, false)
 	if err != nil {

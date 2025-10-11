@@ -31,11 +31,12 @@ type GoroControl struct {
 
 // Message operation
 type mop struct {
-	issueBatch int64
-	sn         int64
-	who        int    // goro number
-	where      string // generic fileLine (send,read,timer have their own atm)
-	earlyName  string // before origin assigned, let mop.String print
+	releaseBatch int64
+	issueBatch   int64
+	sn           int64
+	who          int    // goro number
+	where        string // generic fileLine (send,read,timer have their own atm)
+	earlyName    string // before origin assigned, let mop.String print
 
 	proceedMop *mop // in meq, should close(proceed) at completeTm
 
@@ -631,12 +632,17 @@ func (s *Simnet) releaseReady() {
 	}
 	//vv("releaseReady(): releasing %v", ready)
 
+	releaseBatch := s.nextReleaseBatch
+	s.nextReleaseBatch++
+
 	pseudoRandomQ := newOneTimeSliceQ("releaseReady")
 	for s.releasableQ.Len() > 0 {
 		op := s.releasableQ.pop()
 		s.setPseudorandom(op)
+		op.releaseBatch = releaseBatch
 		pseudoRandomQ.add(op)
 	}
+
 	for pseudoRandomQ.Len() > 0 {
 		op := pseudoRandomQ.pop()
 		s.fin2(op)
@@ -691,11 +697,22 @@ func newReleasableQueue(owner string) *pq {
 		if asn == bsn {
 			return 0
 		}
-		if av.dispatchTm.Before(bv.dispatchTm) {
+
+		a0 := av.dispatchTm.IsZero()
+		b0 := bv.dispatchTm.IsZero()
+		if a0 && !b0 {
 			return -1
 		}
-		if av.dispatchTm.After(bv.dispatchTm) {
+		if !a0 && b0 {
 			return 1
+		}
+		if !a0 && !b0 {
+			if av.dispatchTm.Before(bv.dispatchTm) {
+				return -1
+			}
+			if av.dispatchTm.After(bv.dispatchTm) {
+				return 1
+			}
 		}
 		if av.issueBatch < bv.issueBatch {
 			return -1
@@ -873,21 +890,23 @@ func (s *Simnet) nextUniqTm(atleast time.Time, who string) time.Time {
 	return s.lastTimerDeadline
 }
 
-// fin records details of a finished mop
-// into our mop tracking slices.
-
 func (s *Simnet) fin(op *mop) {
 	s.releasableQ.add(op)
 }
 
+// fin2 records details of a finished mop
+// into our mop tracking slices.
+// called by releaseReady() just before
+// closing proceed/releasing the operation
+// back to the client.
 func (s *Simnet) fin2(op *mop) {
-	// gets called by api on different goro.
 	now := time.Now()
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 
 	sn := op.sn
 	s.xfintm[sn] = now
+	s.xreleaseBatch[sn] = op.releaseBatch
 
 	orig := s.xsn2descDebug[sn]
 	orig += fmt.Sprintf("[elap:%v]", now.Sub(s.xissuetm[sn]))
@@ -935,10 +954,10 @@ func (s *Simnet) fin2(op *mop) {
 	hash0 := prev.XfinHash[sn0]
 	fin0 := prev.Xfintm[sn0]
 	_ = fin0
-	// different elapsed?
-	//	if !fin0.Equal(now) {
-	//		panicf("previously we finished at %v, but now = %v", nice9(fin0), nice9(now))
-	//	}
+	// different elapsed? can be off by a time slice, meh.
+	//if !fin0.Equal(now) {
+	//	panicf("previously we finished at %v, but now = %v", nice9(fin0), nice9(now))
+	//}
 	if rep0 != rep1 {
 		panicf("previously we had rep0 = '%v'; but now rep1 = '%v'", rep0, rep1)
 	}
@@ -990,7 +1009,7 @@ currrent trace up now is at (dis1 = %v; sn1 = %v; batch1 = %v)
 			dis1, sn1, batch1, dis0, sn0, batch0)
 		vv("previous trace previous (dis=%v; sn=%v) (equal to cur prev:%v):\n  cur-trace hash:'%v'\n prev-trace hash:'%v'\n curPrevHasher1sn(%v) rep = %v\n oldPrevHasher0sn(%v) rep = %v", dis0prev, sn0prev, hash0prev == hash1prev, hash0prev, hash1prev, curPrevHasher1sn, curPrevHasher1snRep, oldPrevHasher0sn, oldPrevHasher0snRep)
 		vv("previously our accum hash0 = '%v', but curhash = '%v'", hash0, curhash)
-		//panic("eager panic, see above")
+		panic("eager panic, see above")
 	}
 }
 
@@ -1076,6 +1095,7 @@ func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 	s.xissueHash = append(s.xissueHash, "")
 	s.xdispatchRepeatable = append(s.xdispatchRepeatable, "")
 	s.xfinPrevHasherSn = append(s.xfinPrevHasherSn, -1)
+	s.xreleaseBatch = append(s.xreleaseBatch, -1)
 
 	s.xfintm = append(s.xfintm, time.Time{})
 	s.xfinHash = append(s.xfinHash, "")
@@ -1095,6 +1115,7 @@ func (s *Simnet) simnetNextBatchSn() int64 {
 
 // simnet simulates a network entirely with channels in memory.
 type Simnet struct {
+	nextReleaseBatch int64
 	releasableQ      *pq
 	xprevHasherSn    int64
 	xfinPrevHasherSn []int64
@@ -1123,6 +1144,7 @@ type Simnet struct {
 	xfintm              []time.Time
 	xfinHash            []string
 	xfinRepeatable      []string
+	xreleaseBatch       []int64
 
 	xorigin []string
 	xtarget []string
@@ -3965,6 +3987,7 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.Xfintm = append([]time.Time{}, s.xfintm...)
 	req.XfinHash = append([]string{}, s.xfinHash...)
 	req.XfinRepeatable = append([]string{}, s.xfinRepeatable...)
+	req.XreleaseBatch = append([]int64{}, s.xreleaseBatch...)
 
 	req.Xorigin = append([]string{}, s.xorigin...)
 	req.Xtarget = append([]string{}, s.xtarget...)

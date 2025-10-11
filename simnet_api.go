@@ -974,6 +974,7 @@ type SimnetSnapshot struct {
 	XissueBatch         []int64     // who were we sorted with?
 	XissueHash          []string    // (cumulative) hash at this point
 	XdispatchRepeatable []string    // when dispatched _ name (more determistic)
+	XreleaseBatch       []int64
 
 	Xfintm         []time.Time // when finished
 	XfinHash       []string    // (cumulative) hash at this point
@@ -1252,7 +1253,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "dispatch=%v [issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v]\n\n", // [sn:%v]\n\n",
+			fmt.Fprintf(fd, "dispatch=%v [issueOrder:%v] [dispatch:%v] %v\t%v [elap:%v] [issue:%v] [fin:%v] [origin %v] [issue hash %v] [batch %v] [fin hash %v] [fin repeatable %v] [releaseBatch: %v]\n\n", // [sn:%v]\n\n",
 				dispatch,
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn], snap.Xwhence[sn], snap.Xkind[sn],
@@ -1264,6 +1265,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				snap.XissueBatch[sn],
 				snap.XfinHash[sn],
 				snap.XfinRepeatable[sn],
+				snap.XreleaseBatch[sn],
 				//sn,
 			)
 
