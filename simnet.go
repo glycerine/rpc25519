@@ -585,10 +585,10 @@ func newOneTimeSliceQ(owner string) *pq {
 func (s *Simnet) releaseReady() {
 	ready := s.releasableQ.Len()
 	if ready == 0 {
-		//vv("releaseReady(): nothing to release")
+		vv("releaseReady(): nothing to release")
 		return
 	}
-	//vv("releaseReady(): releasing %v", ready)
+	vv("releaseReady(): releasing %v", ready)
 
 	releaseBatch := s.nextReleaseBatch
 	s.nextReleaseBatch++
@@ -1160,7 +1160,8 @@ type Simnet struct {
 
 	scenario *scenario
 
-	meq *pq // the master event queue.
+	meq    *pq        // the master event queue.
+	meqMut sync.Mutex // must hold for meq actions
 
 	// one time slice worth of meq events
 	// queue, for distributeMEQ()
@@ -3263,6 +3264,10 @@ func (s *Simnet) qReport() (r string) {
 func (s *Simnet) schedulerReport() (r string) {
 	now := time.Now()
 	r = fmt.Sprintf("lastArmToFire.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmToFire.After(now), s.lastArmToFire.Sub(now), s.lastArmToFire, s.qReport())
+
+	s.meqMut.Lock()
+	defer s.meqMut.Unlock()
+
 	sz := s.meq.Len()
 	if sz == 0 {
 		r += "\n empty meq\n"
@@ -3353,13 +3358,16 @@ func (s *Simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 }
 
 func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
-	//vv("i=%v, add2meq %v", loopi, op)
+	s.meqMut.Lock()
+	defer s.meqMut.Unlock()
+
+	vv("i=%v, add2meq %v", loopi, op)
 
 	// give deterministic reqtm, not client view.
 	op.reqtm = time.Now()
 	s.meq.add(op)
 
-	armed = s.armTimer(time.Now(), loopi)
+	armed = s.armTimer(time.Now(), loopi, false)
 	//vv("i=%v, end of add2meq. meq sz %v; armed = %v -> s.lastArmDur: %v; caller %v; op = %v\n\n meq=%v\n", loopi, s.meq.Len(), armed, s.lastArmDur, fileLine(2), op, s.meq)
 	return
 }
@@ -3405,7 +3413,42 @@ func (s *Simnet) scheduler() {
 
 	//var totalSleepDur time.Duration
 
+	// accept into meq on its own goro,
+	// so synctest.Wait does not interfere.
 	s.StartMEQacceptor()
+
+	tick := s.scenario.tick
+
+	var j int64
+	for ; ; j++ {
+
+		if s.halt.ReqStop.IsClosed() {
+			return
+		}
+		if faketime {
+			synctestWait_LetAllOtherGoroFinish() // barrier
+		}
+		select {
+		case <-time.After(tick):
+		case <-s.halt.ReqStop.Chan:
+			return
+		}
+		now = time.Now()
+		vv("j loop; after Wait. j = %v", j)
+
+		_, restartNewScenario, shutdown := s.distributeMEQ(now, j)
+		if shutdown {
+			return
+		}
+		if restartNewScenario {
+			vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
+			tick = s.scenario.tick
+		}
+
+		//vv("calling releaseReady()")
+		// release in deterministic order
+		s.releaseReady()
+	}
 
 iloop:
 	for i := int64(0); ; i++ {
@@ -3683,7 +3726,7 @@ iloop:
 						//vv("i=%v, sz=%v, just advance time and try to dispatch on next loop", i, sz)
 						_ = npop
 						//if npop == 0 {
-						s.armTimer(now, i)
+						s.armTimer(now, i, true)
 						if s.lastArmToFire.IsZero() {
 							// durToGridPoint does bumpTime for us now.
 							dur, _ := s.durToGridPoint(now, s.scenario.tick)
@@ -3717,11 +3760,13 @@ iloop:
 // just dispatch in a deterministic order everything <= now.
 func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario, shutdown bool) {
 
+	s.meqMut.Lock()
+
 	//sz := s.meq.Len()
-	//vv("i=%v, top distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
-	//defer func() {
-	//vv("i=%v, end of distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
-	//}()
+	vv("i=%v, top distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
+	defer func() {
+		vv("i=%v, end of distributeMEQ: %v", i, s.showQ(s.meq, "meq"))
+	}()
 	// meq is trying for
 	// more deterministic event ordering. we have
 	// accumulated and held any events from the
@@ -3760,9 +3805,12 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 
 		top := s.meq.peek()
 		if top == nil {
+			vv("top of meq is nil, empty, break early")
 			break
 		}
-		if top.tm().After(now) {
+		topTm := top.tm()
+		if topTm.After(now) {
+			vv("top of meq tm (%v) is after now(%v), break early", topTm, now)
 			break
 		}
 		op = s.meq.pop()
@@ -3780,7 +3828,9 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		if !added {
 			panicf("should never have conflict adding to curSliceQ: why could we not add op='%v' to curSliceQ = '%v'", op, s.showQ(s.curSliceQ, "curSliceQ"))
 		}
-	}
+	} // end for j
+	s.meqMut.Unlock()
+
 	if npop == 0 {
 		// still have to dispatch below! might be
 		// time to match sender and receiver after
@@ -3789,7 +3839,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		s.curBatchNum++
 		var batch string
 		//fmt.Printf("distributeMEQ: s.curBatchNum = %v is size %v    %v\n", s.curBatchNum, npop, nice9(now))
-		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
+		vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
 
 		for s.curSliceQ.Len() > 0 {
 			op = s.curSliceQ.pop()
@@ -3933,6 +3983,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	// limit of -1 means no limit on number of dispatched mop.
 
 	//nd := s.dispatchAll(now, 1, i)
+	vv("distributeMEQ calling dispatchAll")
 	nd := s.dispatchAll(now, -1, i)
 	_ = nd
 	s.ndtot += nd
@@ -3947,7 +3998,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		now = time.Now()
 	*/
 
-	armed := s.armTimer(now, i)
+	armed := s.armTimer(now, i, true)
 	_ = armed
 
 	if !armed {
@@ -4082,7 +4133,11 @@ func (s *Simnet) handleTimer(timer *mop) {
 
 }
 
-func (s *Simnet) armTimer(now time.Time, loopi int64) (armed bool) {
+func (s *Simnet) armTimer(now time.Time, loopi int64, needMeqLock bool) (armed bool) {
+	if needMeqLock {
+		s.meqMut.Lock()
+		defer s.meqMut.Unlock()
+	}
 
 	// Ah! We only want the scheduler to sleep if
 	// we have some work to do in the meq.
@@ -4742,7 +4797,7 @@ func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
 // as many in as want in (in this time slice),
 // then sort them into a consistently repeatable order,
 // and execute their requests in that order.
-func (s *Simnet) meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
+func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 	for ; ; saw++ {
 		//if faketime {
 		//	synctestWait_LetAllOtherGoroFinish() // barrier
@@ -4925,8 +4980,12 @@ func timeMachine() (timeHasStopped chan bool, restartTime chan time.Duration) {
 // on any MEQ acceptance.
 func (s *Simnet) StartMEQacceptor() {
 	go func() {
+		defer func() {
+			vv("StartMEQacceptor defer/exit")
+		}()
 		var i int64
 		for ; ; i++ {
+			vv("meq acceptor goro about to select at i = %v", i)
 			select {
 			case newGoroReq := <-s.simnetNewGoroCh:
 				s.add2meq(s.newGoroMop(newGoroReq), i)

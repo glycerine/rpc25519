@@ -158,7 +158,7 @@ func (op *mop) String() string {
 		return "(nil *mop)"
 	}
 	if op.kind == NEW_GORO {
-		return fmt.Sprintf("mop{NEW_GORO op.who:%v op.sn:%v, name:%v}", op.who, op.sn, op.newGoroReq.name)
+		return fmt.Sprintf("mop{NEW_GORO op.who:%v op.sn:%v, name:%v where:%v}", op.who, op.sn, op.newGoroReq.name, op.where)
 	}
 	var msgSerial int64
 	if op.msg != nil {
