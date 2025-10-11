@@ -4286,5 +4286,6 @@ func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 
 func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
 	//vv("top handleNewGoro: '%v'", op.newGoroReq.name)
+	s.fin(op)
 	close(op.newGoroReq.proceed)
 }
