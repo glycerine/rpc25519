@@ -695,7 +695,9 @@ func (s *Simnet) fin(op *mop) {
 	curhash := asBlake33B(s.xb3hashFin)
 	s.xfinHash[sn] = curhash
 
-	//fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn])
+	// the essential debugging print: which extra sn
+	// is getting injected when the fin hashes vary?
+	fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v; batch: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
 
 	if s.cfg.repeatTrace == nil {
 		return

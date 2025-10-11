@@ -1193,13 +1193,16 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	// }
 
 	if snap.XnextDispatch != snap.XnextMopSn {
-		vv("warning: XnextDispatch = %v; XnextMopSn = %v",
-			snap.XnextDispatch, snap.XnextMopSn)
+		// typical:
+		//vv("warning: XnextDispatch = %v; XnextMopSn = %v",
+		//	snap.XnextDispatch, snap.XnextMopSn)
 
+		// hopefully never seen:
 		if snap.XnextDispatch > snap.XnextMopSn {
 			panic("can never dispatch higher than last issued sn")
 		}
 	} else {
+		// rare:
 		vv("good: XnextDispatch = %v is equal XnextMopSn = %v",
 			snap.XnextDispatch, snap.XnextMopSn)
 	}
@@ -1265,17 +1268,18 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 			)
 
 		} else {
-			continue // skip these
 			// hashed/issued, but not finished yet
-			//fmt.Fprintf(fd, "%v %v not_finished\n",
-			//	nice9(snap.Xissuetm[sn]), sn)
-			fmt.Fprintf(fd, "not_finished [issueOrder:%v] [dispatch:%v] %v\t%v [issue:%v] [origin %v]\n",
+			fmt.Fprintf(fd, "dispatch=%v; not_finished [issueOrder: %v] [dispatch: %v] %v\t[whence: %v] [issuetm: %v] [origin %v] [issue hash %v] [batch %v] [sn: %v]\n\n",
+				dispatch,
 				snap.XissueOrder[sn],
 				snap.XdispatchRepeatable[sn],
 				snap.Xwhence[sn],
 				snap.Xkind[sn],
 				nice9(snap.Xissuetm[sn]),
 				chompAnyUniqSuffix(snap.Xorigin[sn]),
+				snap.XissueHash[sn],
+				snap.XissueBatch[sn],
+				sn,
 			)
 		}
 	}
