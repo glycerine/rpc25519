@@ -1549,8 +1549,8 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	}
 
 	//tick := time.Millisecond * 5 // 2x - 3x faster sim (25.4 sec on tube)
-	//tick := time.Millisecond // (33 sec on tube)
-	tick := time.Duration(minTickNanos) // (74 sec on tube)
+	tick := time.Millisecond // (33 sec on tube)
+	//tick := time.Duration(minTickNanos) // (74 sec on tube)
 	if tick < time.Duration(minTickNanos) {
 		panicf("must have tick >= minTickNanos(%v)", time.Duration(minTickNanos))
 	}
