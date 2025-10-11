@@ -1043,7 +1043,7 @@ func (s *SimnetSnapshotter) GetSimnetSnapshot() *SimnetSnapshot {
 // at once. Currently a prototype; not really finished/tested yet.
 type SimnetBatch struct {
 	net          *Simnet
-	batchSn      int64
+	cmdBatchSn   int64
 	batchSz      int64
 	batchSubWhen time.Time
 	batchSubAsap bool
@@ -1057,7 +1057,7 @@ type SimnetBatch struct {
 func (s *Simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
 	return &SimnetBatch{
 		net:          s,
-		batchSn:      s.simnetNextBatchSn(),
+		cmdBatchSn:   s.simnetNextBatchSn(),
 		batchSubWhen: subwhen,
 		batchSubAsap: subAsap,
 		reqtm:        time.Now(),
@@ -1090,8 +1090,8 @@ func (s *Simnet) SubmitBatch(batch *SimnetBatch) {
 }
 
 func (b *SimnetBatch) add(op *mop) {
-	op.batchPart = int64(len(b.batchOps))
-	op.batchSn = b.batchSn
+	op.cmdBatchPart = int64(len(b.batchOps))
+	op.cmdBatchSn = b.cmdBatchSn
 	b.batchOps = append(b.batchOps, op)
 }
 

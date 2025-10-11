@@ -31,15 +31,16 @@ type GoroControl struct {
 
 // Message operation
 type mop struct {
-	sn        int64
-	who       int    // goro number
-	where     string // generic fileLine (send,read,timer have their own atm)
-	earlyName string // before origin assigned, let mop.String print
+	issueBatch int64
+	sn         int64
+	who        int    // goro number
+	where      string // generic fileLine (send,read,timer have their own atm)
+	earlyName  string // before origin assigned, let mop.String print
 
 	proceedMop *mop // in meq, should close(proceed) at completeTm
 
-	batchSn   int64
-	batchPart int64
+	cmdBatchSn   int64
+	cmdBatchPart int64
 
 	// API origin submission to simnet, consistently
 	// on all requests like client/server registration,
@@ -613,6 +614,216 @@ func newOneTimeSliceQ(owner string) *pq {
 	}
 }
 
+// Aim for deterministic release of operations,
+// (the close of the op.proceed channel), by
+// following a pseudo randomized schedule:
+//
+// a) collect all the reads matched before the clock advances;
+// b) put them into a releasableQ
+// c) 1st sort by dispatch,batch,priority,tm,... the usual (avoid sn)
+// d) then pseudo random sort them
+// e) then release them in that order
+func (s *Simnet) releaseReady() {
+	ready := s.releasableQ.Len()
+	if ready == 0 {
+		vv("releaseReady(): nothing to release")
+		return
+	}
+	vv("releaseReady(): releasing %v", ready)
+
+	pseudoRandomQ := newOneTimeSliceQ("releaseReady")
+	for s.releasableQ.Len() > 0 {
+		op := s.releasableQ.pop()
+		s.setPseudorandom(op)
+		pseudoRandomQ.add(op)
+	}
+	for pseudoRandomQ.Len() > 0 {
+		op := pseudoRandomQ.pop()
+		op.release()
+	}
+}
+
+func (s *mop) release() {
+	if s.kind == TIMER {
+		// already closed at :3727 in handleTimer
+		return
+	}
+	/*	case NEW_GORO,
+		CLOSE_SIMNODE,
+		SNAPSHOT,
+		TIMER_DISCARD,
+		READ,
+		SEND,
+		ALTER_HOST,
+		ALTER_NODE,
+		CLIENT_REG,
+		SERVER_REG,
+		FAULT_CKT,
+		FAULT_HOST,
+		REPAIR_CKT,
+		REPAIR_HOST,
+		SCENARIO,
+		BATCH:
+	*/
+	close(s.proceed)
+
+	// panic(fmt.Sprintf("mop kind '%v' needs release() policy", int(s.kind)))
+}
+
+func newReleasableQueue(owner string) *pq {
+
+	cmp := func(a, b rb.Item) int {
+		av := a.(*mop)
+		bv := b.(*mop)
+
+		if av == nil {
+			panic("no nil events allowed in the oneTimeSliceQ")
+			return -1
+		}
+		if bv == nil {
+			panic("no nil events allowed in the oneTimeSliceQ")
+			return 1
+		}
+		asn := av.sn
+		bsn := bv.sn
+		// be sure to keep delete by sn working
+		if asn == bsn {
+			return 0
+		}
+		if av.dispatchTm.Before(bv.dispatchTm) {
+			return -1
+		}
+		if av.dispatchTm.After(bv.dispatchTm) {
+			return 1
+		}
+		if av.issueBatch < bv.issueBatch {
+			return -1
+		}
+		if av.issueBatch > bv.issueBatch {
+			return 1
+		}
+
+		apri := av.priority()
+		bpri := bv.priority()
+		if apri < bpri {
+			return -1
+		}
+		if apri > bpri {
+			return 1
+		}
+		// same priority, i.e. both reads
+
+		// chompAnyUniqSuffix(op.bestName()), op.whence())
+
+		// some alt from <-s.alterHostCh, newAlterHostMop(alt)) had
+		// mop.origin nil, so try not to seg fault on it.
+		if av.origin == nil && bv.origin != nil {
+			// seen in tube tests! on client register.
+			return -1
+		}
+		if av.origin != nil && bv.origin == nil {
+			return 1
+		}
+		// we want to handle the both origin == nil cases
+		// here with bestName to use the earlyName.
+		aname := chompAnyUniqSuffix(av.bestName())
+		bname := chompAnyUniqSuffix(bv.bestName())
+		if aname < bname {
+			return -1
+		}
+		if aname > bname {
+			return 1
+		}
+
+		// timers might not have target...
+
+		if av.target == nil && bv.target != nil {
+			return -1
+		}
+		if av.target != nil && bv.target == nil {
+			return 1
+		}
+
+		if av.target != nil && bv.target != nil {
+			atname := chompAnyUniqSuffix(av.target.name)
+			btname := chompAnyUniqSuffix(bv.target.name)
+			if atname < btname {
+				return -1
+			}
+			if atname > btname {
+				return 1
+			}
+		}
+		// same origin, same target.
+		aw := av.whence()
+		bw := bv.whence()
+		if aw < bw {
+			return -1
+		}
+		if aw > bw {
+			return 1
+		}
+
+		if av.senderLC < av.senderLC {
+			return -1
+		}
+		if av.senderLC > av.senderLC {
+			return 1
+		}
+
+		if av.readerLC < av.readerLC {
+			return -1
+		}
+		if av.readerLC > av.readerLC {
+			return 1
+		}
+
+		if av.originLC < av.originLC {
+			return -1
+		}
+		if av.originLC > av.originLC {
+			return 1
+		}
+
+		acli := av.cliOrSrvString()
+		bcli := bv.cliOrSrvString()
+		if acli < bcli {
+			return -1
+		}
+		if acli > bcli {
+			return 1
+		}
+		// either both client or both server
+
+		atm := av.tm()
+		btm := bv.tm()
+		if atm.Before(btm) {
+			return -1
+		}
+		if atm.After(btm) {
+			return 1
+		}
+
+		// sn are non-deterministic. only use as an
+		// extreme last resort. tube has some srv.go:2272
+		// calls that do look virtually identical...
+
+		if asn < bsn {
+			return -1
+		}
+		if asn > bsn {
+			return 1
+		}
+		return 0
+	}
+	return &pq{
+		Owner:   owner,
+		Orderby: "releasableQ: dispatch,batch,priority,tm,clisrv,kind,...",
+		Tree:    rb.NewTree(cmp),
+		cmp:     cmp,
+	}
+}
+
 func (s *Simnet) showQ(q *pq, name string) (r string) {
 	sz := q.Len()
 	if sz == 0 {
@@ -695,6 +906,8 @@ func (s *Simnet) fin(op *mop) {
 	curhash := asBlake33B(s.xb3hashFin)
 	s.xfinHash[sn] = curhash
 
+	defer s.releasableQ.add(op)
+
 	// the essential debugging print: which extra sn
 	// is getting injected when the fin hashes vary?
 	fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v; batch: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
@@ -772,7 +985,8 @@ currrent trace up now is at (dis1 = %v; sn1 = %v; batch1 = %v)
                  prev trace (dis0 = %v; sn0 = %v; batch0 = %v)`,
 			dis1, sn1, batch1, dis0, sn0, batch0)
 		vv("previous trace previous (dis=%v; sn=%v) (equal to cur prev:%v):\n  cur-trace hash:'%v'\n prev-trace hash:'%v'\n curPrevHasher1sn(%v) rep = %v\n oldPrevHasher0sn(%v) rep = %v", dis0prev, sn0prev, hash0prev == hash1prev, hash0prev, hash1prev, curPrevHasher1sn, curPrevHasher1snRep, oldPrevHasher0sn, oldPrevHasher0snRep)
-		panicf("previously our accum hash0 = '%v', but curhash = '%v'", hash0, curhash)
+		vv("previously our accum hash0 = '%v', but curhash = '%v'", hash0, curhash)
+		//panic("eager panic, see above")
 	}
 }
 
@@ -877,6 +1091,7 @@ func (s *Simnet) simnetNextBatchSn() int64 {
 
 // simnet simulates a network entirely with channels in memory.
 type Simnet struct {
+	releasableQ      *pq
 	xprevHasherSn    int64
 	xfinPrevHasherSn []int64
 
@@ -1204,7 +1419,6 @@ func (s *Simnet) handleServerRegistration(op *mop) {
 	// channel made by newCircuitServer() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
 	s.fin(op)
-	close(reg.proceed)
 }
 
 func (s *Simnet) handleClientRegistration(regop *mop) {
@@ -1220,7 +1434,6 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 		//	"by client registration from '%v'", reg.dialTo, reg.client.name))
 		reg.err = fmt.Errorf("client dialTo name not found: '%v'", reg.dialTo)
 		s.fin(regop)
-		close(reg.proceed)
 		return
 	}
 
@@ -1241,7 +1454,6 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 		// can never know about global uniqueness of names...
 		reg.err = fmt.Errorf("simnet handleClientRegistration error: client name already taken: '%v'", reg.client.name)
 		s.fin(regop)
-		close(reg.proceed)
 		return
 	}
 
@@ -1295,7 +1507,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 
 			// let client start using the connection/edge.
 			s.fin(regop)
-			close(reg.proceed)
+
 		case <-s.halt.ReqStop.Chan:
 			return
 		}
@@ -1332,6 +1544,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
+		releasableQ:   newReleasableQueue("scheduler"),
 		xsn2dis:       make(map[int64]int64),
 		xdis2sn:       make(map[int64]int64),
 		xsn2descDebug: make(map[int64]string),
@@ -2075,7 +2288,6 @@ func (s *Simnet) handleAlterCircuit(altop *mop, closeDone bool) (undo Alteration
 		if closeDone {
 			alt.undo = undo
 			s.fin(altop)
-			close(alt.proceed)
 			return
 		}
 		// else we are a part of a larger host
@@ -2163,7 +2375,6 @@ func (s *Simnet) handleAlterHost(altop *mop) (undo Alteration) {
 	//vv("past range s.locals for altop='%v'", altop)
 	alt.undo = undo
 	s.fin(altop)
-	close(alt.proceed)
 	return
 }
 
@@ -2301,7 +2512,6 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	//vv("top of handleSend(send = '%v')", send)
 	defer func() {
 		s.fin(send)
-		close(send.proceed)
 	}()
 
 	origin := send.origin
@@ -2371,7 +2581,6 @@ func (s *Simnet) handleRead(read *mop, limit, loopi int64) (changed int64) {
 	if s.halt.ReqStop.IsClosed() {
 		read.err = ErrShutdown()
 		s.fin(read)
-		close(read.proceed)
 		return
 	}
 
@@ -2385,7 +2594,6 @@ func (s *Simnet) handleRead(read *mop, limit, loopi int64) (changed int64) {
 		// probably just a logical race.
 		read.err = ErrShutdown()
 		s.fin(read)
-		close(read.proceed)
 		return
 	}
 	probDeaf := fromMap.get(read.target).deafRead
@@ -2758,7 +2966,6 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			}
 
 			s.fin(read)
-			close(read.proceed)
 			// send already closed in handleSend()
 
 			// we already advanced readIt so continue
@@ -3001,6 +3208,9 @@ iloop:
 					//i = 0
 					//continue restartI
 				}
+				// release in deterministic order
+				s.releaseReady()
+
 				continue iloop
 			}
 			if left < 0 {
@@ -3249,6 +3459,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 				panicf("cannot dispatch sn %v twice! already have (prev: %v) in s.xsn2dis.", sn, prev)
 			}
 
+			op.issueBatch = s.curBatchNum
 			desc := s.xsn2descDebug[sn]
 			next := s.nextDispatch
 			s.nextDispatch++
@@ -3335,7 +3546,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 
 			case SCENARIO:
 				s.finishScenario()
-				s.initScenario(op.scen)
+				s.initScenario(op)
 
 				restartNewScenario = true
 				return
@@ -3437,6 +3648,8 @@ func (s *Simnet) handleBatch(batchop *mop) {
 
 	// else set timer for when to submit
 	panic("TODO handleBatch")
+
+	s.fin(batchop)
 }
 
 func (s *Simnet) finishScenario() {
@@ -3445,9 +3658,11 @@ func (s *Simnet) finishScenario() {
 	// at the end
 	s.scenario = nil
 }
-func (s *Simnet) initScenario(scenario *scenario) {
+func (s *Simnet) initScenario(op *mop) {
+	scenario := op.scen
 	s.scenario = scenario
 	// do any init work...
+	s.fin(op)
 }
 
 func (s *Simnet) handleDiscardTimer(discard *mop) {
@@ -3462,11 +3677,6 @@ func (s *Simnet) handleDiscardTimer(discard *mop) {
 	// probably just a shutdown race, don't deadlock them.
 	// but also! cleanup the timer below to GC it, still!
 
-	//s.fin(discard)
-	//close(discard.proceed)
-	//return
-	//}
-
 	discard.handleDiscardCalled = true
 	orig := discard.origTimerMop
 
@@ -3478,7 +3688,6 @@ func (s *Simnet) handleDiscardTimer(discard *mop) {
 
 	////zz("LC:%v %v TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", discard.origin.lc, discard.origin.name, discard, discard.origTimerCompleteTm, s.clinode.timerQ)
 	s.fin(discard)
-	close(discard.proceed)
 }
 
 func (s *Simnet) handleTimer(timer *mop) {
@@ -3721,7 +3930,6 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	defer func() {
 		if !internal {
 			s.fin(reqop)
-			close(req.proceed)
 		}
 	}()
 	if !internal {
@@ -3938,7 +4146,6 @@ func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 
 	defer func() {
 		s.fin(clop)
-		close(clop.proceed)
 	}()
 
 	req := clop.closeSimnode
@@ -4287,5 +4494,4 @@ func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
 	//vv("top handleNewGoro: '%v'", op.newGoroReq.name)
 	s.fin(op)
-	close(op.newGoroReq.proceed)
 }

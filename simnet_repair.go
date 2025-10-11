@@ -21,7 +21,6 @@ func (s *Simnet) injectCircuitFault(faultop *mop, closeProceed bool) (err error)
 		}
 		if closeProceed {
 			s.fin(faultop)
-			close(fault.proceed)
 		}
 	}()
 
@@ -207,7 +206,6 @@ func (s *Simnet) injectHostFault(faultop *mop) (err error) {
 			}
 		}
 		s.fin(faultop)
-		close(fault.proceed)
 	}()
 
 	origin, ok := s.dns[fault.hostName]
@@ -238,7 +236,6 @@ func (s *Simnet) handleHostRepair(repairop *mop) (err error) {
 		}
 		//vv("end of handleHostRepair, closing repair proceed. err = '%v'", err)
 		s.fin(repairop)
-		close(repair.proceed)
 	}()
 
 	const closeProceed_NO = false
@@ -284,7 +281,6 @@ func (s *Simnet) handleCircuitRepair(repairop *mop, closeProceed bool) (err erro
 		}
 		if closeProceed {
 			s.fin(repairop)
-			close(repair.proceed)
 		}
 	}()
 
