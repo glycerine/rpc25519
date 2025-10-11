@@ -639,6 +639,7 @@ func (s *Simnet) releaseReady() {
 	}
 	for pseudoRandomQ.Len() > 0 {
 		op := pseudoRandomQ.pop()
+		s.fin2(op)
 		op.release()
 	}
 }
@@ -874,7 +875,12 @@ func (s *Simnet) nextUniqTm(atleast time.Time, who string) time.Time {
 
 // fin records details of a finished mop
 // into our mop tracking slices.
+
 func (s *Simnet) fin(op *mop) {
+	s.releasableQ.add(op)
+}
+
+func (s *Simnet) fin2(op *mop) {
 	// gets called by api on different goro.
 	now := time.Now()
 	s.xmut.Lock()
@@ -905,8 +911,6 @@ func (s *Simnet) fin(op *mop) {
 	s.xfinRepeatable[sn] = rep1
 	curhash := asBlake33B(s.xb3hashFin)
 	s.xfinHash[sn] = curhash
-
-	defer s.releasableQ.add(op)
 
 	// the essential debugging print: which extra sn
 	// is getting injected when the fin hashes vary?

@@ -503,7 +503,7 @@ func (s *node2) loadDone(me string, addSends, addReads int) bool {
 }
 
 func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
-	return
+	//return
 	// At one point, tube raft grid had sporadic
 	// read loss resulting in a hung client. It
 	// could have been at the tube layer, but to
@@ -610,7 +610,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 
 	// 15 nodes, 100 frag: 60 seconds testtime for realtime. 70sec faketime
 	// 21 nodes, 1k frag: 105s test-time under simnet/synctest-faketime.
-	const nNode1 = 5
+	const nNode1 = 3
 	const wantSendPerPeer1 = 100
 	sendEvery1 := time.Millisecond
 	xorderPath := homed("~/rpc25519/snap707")
