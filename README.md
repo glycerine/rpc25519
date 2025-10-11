@@ -1,7 +1,7 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
-* Recent News (2025 Oct 9): v1.30.0 DST for gosimnet
+* Recent News (2025 Oct 11): v1.30.1 DST for gosimnet
 
 The included network simulator (simnet.go,
 also available separately from 
