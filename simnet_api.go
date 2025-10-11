@@ -415,6 +415,11 @@ func (s *Simnet) AllHealthy(powerOnIfOff bool, deliverDroppedSends bool) (err er
 // so must not touch s.srvnode, s.clinode, etc.
 func (s *Simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.Time, isCli bool) (timer *mop) {
 
+	// insist on a minimum amount of backpressure
+	if dur < minClientBackpressureDur {
+		dur = minClientBackpressureDur
+	}
+
 	//vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", origin.name, dur, begin, begin.Add(dur))
 
 	timer = s.newTimerCreateMop(isCli)
