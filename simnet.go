@@ -588,8 +588,8 @@ func (s *Simnet) releaseReady() {
 	// lock or else external mop sn allocators
 	// calling simnetNextMopSn will data race
 	// with all the stuff fin2 does with x fields.
-	//s.xmut.Lock()
-	//defer s.xmut.Unlock()
+	s.xmut.Lock()
+	defer s.xmut.Unlock()
 
 	ready := s.releasableQ.Len()
 	if ready == 0 {
@@ -601,6 +601,7 @@ func (s *Simnet) releaseReady() {
 	releaseBatch := s.nextReleaseBatch
 	s.nextReleaseBatch++
 
+	begPrng := s.scenario.rng.Uint64()
 	pseudoRandomQ := newOneTimeSliceQ("releaseReady")
 	for s.releasableQ.Len() > 0 {
 		op := s.releasableQ.pop()
@@ -609,8 +610,11 @@ func (s *Simnet) releaseReady() {
 		pseudoRandomQ.add(op)
 	}
 
+	fmt.Printf("\nreleaseBatch = %v was at begPrng = %v ; has %v ops\n", releaseBatch, begPrng, ready)
+	fmt.Printf("fin hash: %v\n", asBlake33B(s.xb3hashFin))
 	for pseudoRandomQ.Len() > 0 {
 		op := pseudoRandomQ.pop()
+		//fmt.Printf("        op: %v\n", op)
 		s.fin2(op)
 		s.release(op)
 	}
@@ -877,12 +881,12 @@ func (s *Simnet) fin(op *mop) {
 // called by releaseReady() just before
 // closing proceed/releasing the operation
 // back to the client.
-// releaseReady(), our only caller now holds
-// xmut when calling us if need be.
+// Must lock xmut b/c all the x fields are also
+// accessed by external routine simnetNextMopSn().
 func (s *Simnet) fin2(op *mop) {
 	now := time.Now()
-	s.xmut.Lock()
-	defer s.xmut.Unlock()
+	//s.xmut.Lock()
+	//defer s.xmut.Unlock()
 
 	sn := op.sn
 	s.xfintm[sn] = now
@@ -913,7 +917,7 @@ func (s *Simnet) fin2(op *mop) {
 
 	// the essential debugging print: which extra sn
 	// is getting injected when the fin hashes vary?
-	//fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v; batch: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
+	fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v; batch: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
 
 	// we cannot accurately check online, since
 	// many operations finishing at the same time point
