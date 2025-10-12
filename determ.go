@@ -32,10 +32,6 @@ type determMeetpoint struct {
 
 	toA   chan progressPoint
 	every int64
-
-	// too many shutdown mechanisms, synctest deadlocks if not coordinated.
-	// So let the 710 load do the shutdown now.
-	//endi  int64
 }
 
 // progressPoint communicates to the
@@ -44,38 +40,33 @@ type determMeetpoint struct {
 type progressPoint struct {
 	i        int64
 	prandMEQ uint64
+	meqBatch int64
+	npop     int
 }
 
 func newDetermCheckMeetpoint(every int64) *determMeetpoint {
 	return &determMeetpoint{
 		toA:   make(chan progressPoint),
 		every: every,
-		//endi:  endi,
 	}
 }
 
-func (s *Simnet) meetpointCheck(meet *determMeetpoint, prandMEQ uint64, i int64) (shutdown bool) {
+func (s *Simnet) meetpointCheck(meet *determMeetpoint, prandMEQ uint64, i int64, meqBatch int64, npop int) (shutdown bool) {
 	name := s.simnetName
 
 	if i%meet.every != 0 {
 		return
 	}
 
-	// too many shutdown mechanisms, synctest deadlocks if not coordinated.
-	// So let the 710 load do the shutdown now.
-	// if i >= meet.endi {
-	// 	vv("i = %v >= meet.endi:%v for simnet '%v' so closing up simnet", i, meet.endi, name)
-	// 	shutdown = true
-	// 	return
-	// }
-
 	point := progressPoint{
 		i:        i,
 		prandMEQ: prandMEQ,
+		meqBatch: meqBatch,
+		npop:     npop,
 	}
 
-	vv("simnetName:%v  i = %v and meet.every: %v, so conducting "+
-		"determMeetpoint check", name, i, meet.every)
+	//vv("simnetName:%v  i = %v and meet.every: %v, so conducting "+
+	//	"determMeetpoint check", name, i, meet.every)
 
 	// suffices to have A check and B just send where it is at.
 	switch name {
@@ -83,11 +74,18 @@ func (s *Simnet) meetpointCheck(meet *determMeetpoint, prandMEQ uint64, i int64)
 		select {
 		case pointB := <-meet.toA:
 			if pointB.i != point.i {
-				panicf("internal logic error: pointB.i(%v) != i(%v)", pointB.i, i)
+				panicf("internal logic error: B.i(%v) != A.i(%v)", pointB.i, i)
+			}
+			if pointB.meqBatch != point.meqBatch {
+				panicf("internal logic error: B.meqBatch(%v) != A.meqBatch(%v)", pointB.meqBatch, meqBatch)
+			}
+			if pointB.npop != point.npop {
+				panicf("internal logic error: B.npop(%v) != A.npop(%v)", pointB.npop, npop)
 			}
 			if pointB.prandMEQ != point.prandMEQ {
 				panicf("divergence detected! at i=%v, A.prandMEQ = %v, but B.prandMEQ = %v", i, point.prandMEQ, pointB.prandMEQ)
 			}
+			vv("good: agreement at i = %v: prandMEQ = %v; meqBatch = %v ; npop = %v", i, prandMEQ, meqBatch, npop)
 
 		case <-s.halt.ReqStop.Chan:
 			shutdown = true

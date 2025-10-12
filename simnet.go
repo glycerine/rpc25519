@@ -2737,8 +2737,11 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	} // end for k
 	s.meqMut.Unlock()
 
+	if npop > 0 {
+		s.curBatchNum++
+	}
 	if s.cfg.meetpoint710 != nil {
-		shutdown = s.meetpointCheck(s.cfg.meetpoint710, prand, i)
+		shutdown = s.meetpointCheck(s.cfg.meetpoint710, prand, i, s.curBatchNum, npop)
 		if shutdown {
 			return
 		}
@@ -2749,7 +2752,6 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// time to match sender and receiver after
 		// sender has "traversed" the network
 	} else {
-		s.curBatchNum++
 		var batch string
 		//fmt.Printf("distributeMEQ: s.curBatchNum = %v is size %v    %v\n", s.curBatchNum, npop, nice9(now))
 		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
