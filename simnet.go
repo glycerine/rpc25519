@@ -635,6 +635,8 @@ func (s *Simnet) release(op *mop) {
 		case op.proceed <- s.scenario.tick:
 		case <-s.halt.ReqStop.Chan:
 			return
+		default:
+			panicf("all proceed channels are buffered now, should never block")
 		}
 		return
 	}
