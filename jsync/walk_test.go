@@ -323,6 +323,11 @@ func Test_ParallelOneWalkForAll(t *testing.T) {
 	home := os.Getenv("HOME")
 	root := filepath.Join(home, "/go/src/github.com/torvalds/linux")
 
+	if !dirExists(root) {
+		vv("skipping walk test on non existant root directory '%v'", root)
+		t.Skip("test dir does not exist: " + root)
+	}
+
 	di := NewDirIter()
 
 	halt := idem.NewHalter()
