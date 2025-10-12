@@ -2638,13 +2638,16 @@ func (s *Simnet) scheduler() {
 		// match-making reads with sends, and firing
 		// timers if it is their time.
 		//
-		// The last part of dispatch is called release,
-		// and release will also sort and release the
-		// completed sends, reads, and timeouts back to the clients in
-		// deterministic order. To simulate additional
-		// asynchronous latency, clients can also be
-		// told to pause after receiving news of their
-		// concluded request.
+		// The last part of dispatch is called release.
+		// Here we sort the responses to the clients. We tell
+		// clients about their completed sends, reads,
+		// and timeouts, and we do so in a deterministic
+		// order. To simulate additional latency, it is
+		// also possible to tell clients to pause for some time
+		// (on their own goroutine, no impact on scheduler)
+		// just prior to receiving news of their request.
+		// This last mechanism is implemented but not in-use
+		// at the moment.
 		npop, restartNewScenario, shutdown, endPrand := s.distributeMEQ(now, i, lastPrand)
 		lastPrand = endPrand
 		_ = npop
