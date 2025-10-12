@@ -581,12 +581,15 @@ func newOneTimeSliceQ(owner string) *pq {
 // b) put them into a releasableQ
 // c) 1st sort by dispatch,batch,priority,tm,... the usual (avoid sn)
 // d) then pseudo random sort them
-// e) then release them in that order
+// e) then release them in that order.
+//
+// called by scheduler goro.
 func (s *Simnet) releaseReady() {
-	// lock or else handle client registration will
-	// call too. // race vs :1794 add in handleClientReg
-	s.xmut.Lock()
-	defer s.xmut.Unlock()
+	// lock or else external mop sn allocators
+	// calling simnetNextMopSn will data race
+	// with all the stuff fin2 does with x fields.
+	//s.xmut.Lock()
+	//defer s.xmut.Unlock()
 
 	ready := s.releasableQ.Len()
 	if ready == 0 {
@@ -622,6 +625,7 @@ func (s *Simnet) release(op *mop) {
 		//case NEW_GORO:
 	default:
 		op.proceed <- s.scenario.tick
+		return
 	}
 	/*	case
 		CLOSE_SIMNODE,
@@ -860,9 +864,10 @@ func (s *Simnet) fin(op *mop) {
 	// the simnet.go:1516 handleClientRegistration
 	// new goroutine will call us and
 	// give us a data race vs oursevles here
-	// if we don't lock.
-	s.xmut.Lock()
-	defer s.xmut.Unlock()
+	// if we don't lock. Update: no longer in
+	// a new goro (new goro is bad for determinism!)
+	//s.xmut.Lock()
+	//defer s.xmut.Unlock()
 
 	s.releasableQ.add(op)
 }
@@ -872,11 +877,12 @@ func (s *Simnet) fin(op *mop) {
 // called by releaseReady() just before
 // closing proceed/releasing the operation
 // back to the client.
+// releaseReady(), our only caller now holds
+// xmut when calling us if need be.
 func (s *Simnet) fin2(op *mop) {
 	now := time.Now()
-	// releaseReady(), our only caller now holds xmut.
-	//s.xmut.Lock()
-	//defer s.xmut.Unlock()
+	s.xmut.Lock()
+	defer s.xmut.Unlock()
 
 	sn := op.sn
 	s.xfintm[sn] = now
@@ -1510,6 +1516,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	// the server about it... try in goro.
 	// Ugh to races... it is buffered 100 now; plus we
 	// have meq accept goro. try without background goroutine.
+	// AND starting a goro makes the scheduler non-deterministic.
 	//go func() {
 	select {
 	case srvnode.tellServerNewConnCh <- s2c:
@@ -1517,6 +1524,9 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 
 		// let client start using the connection/edge.
 		s.fin(regop)
+
+	default:
+		panicf("ugh. no room in srvnode.tellServerNewConnCh channel: cap = %v", cap(srvnode.tellServerNewConnCh))
 
 	case <-s.halt.ReqStop.Chan:
 		return
@@ -2796,11 +2806,13 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 
 	// make sure send happens before receive by doing
 	// this first.
-	send.completeTm = s.bumpTime(now)
+	//send.completeTm = s.bumpTime(now)
+	send.completeTm = now.Add(s.scenario.tick)
 	//vv("hop = %v; send.completeTm = %v  now = %v\n  send='%v'", hop, send.completeTm, now, send)
 
 	// handleSend
-	send.arrivalTm = s.bumpTime(send.unmaskedSendArrivalTm)
+	//send.arrivalTm = s.bumpTime(send.unmaskedSendArrivalTm)
+	send.arrivalTm = send.unmaskedSendArrivalTm.Add(s.scenario.tick)
 
 	//vv("set send.arrivalTm = '%v' for send = '%v'", send.arrivalTm, send)
 
@@ -3856,7 +3868,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	} else {
 		s.curBatchNum++
 		var batch string
-		fmt.Printf("distributeMEQ: s.curBatchNum = %v is size %v    %v\n", s.curBatchNum, npop, nice9(now))
+		//fmt.Printf("distributeMEQ: s.curBatchNum = %v is size %v    %v\n", s.curBatchNum, npop, nice9(now))
 		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
 
 		for s.curSliceQ.Len() > 0 {
