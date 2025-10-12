@@ -188,11 +188,16 @@ func newSimGrid(cfg *simGridConfig, nodes []*simGridNode) *simGrid {
 	}
 }
 
-func (s *simGrid) Start() {
+func (s *simGrid) Start() error {
 	//vv("simGrid.Start on goro %v", GoroNumber())
 	for i, n := range s.Nodes {
 		_ = i
 		err := n.Start(s) // Server.Start()
+		if err != nil {
+			//vv("Server.Start for node '%v' gave error: '%v'", n.name, err)
+			s.Close()
+			return err
+		}
 		panicOn(err)
 		if i == 0 {
 			s.net = s.Cfg.RpcCfg.GetSimnet()
@@ -222,6 +227,7 @@ func (s *simGrid) Start() {
 			//vv("created ckt between n0 '%v' and n1 '%v': '%v'", n0.name, n1.name, ckt.String())
 		}
 	}
+	return nil
 }
 
 func (s *simGrid) Close() {
@@ -229,7 +235,9 @@ func (s *simGrid) Close() {
 		s.net.Close()
 	}
 	for _, n := range s.Nodes {
-		n.Close()
+		if n != nil {
+			n.Close()
+		}
 	}
 }
 
@@ -255,7 +263,10 @@ func (s *simGridNode) Start(grid *simGrid) error {
 
 	//vv("past NewServer()")
 	serverAddr, err := s.srv.Start()
-	panicOn(err)
+	//panicOn(err)
+	if err != nil {
+		return err
+	}
 	//vv("past s.srv.Start(); serverAddr = '%#v'/ '%v'", serverAddr, serverAddr)
 
 	cfg.ClientDialToHostPort = serverAddr.String()
@@ -922,4 +933,167 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 	loadtest(halt, "B", meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
 
 	<-halt.ReqStop.Chan
+}
+
+// 711 is the failure expected version of 710.
+func Test711_simnet_online_determinism_check(t *testing.T) {
+
+	// this is kind of fragile. Required some special
+	// handling at the top of simnet scheduler defer.
+	// but it was worth checking. if it gives us too much trouble,
+	// we could just delete it.
+
+	loadtest := func(parenthalt, childhalt *idem.Halter, simnetName string, meetpoint *determMeetpoint, nNodes, wantSendPerPeer int, sendEvery time.Duration, seed [32]byte, wantSchedulerToRecoverSeen *idem.IdemCloseChan) {
+
+		var snet *Simnet
+		defer func() {
+			if snet != nil {
+				snet.halt.ReqStop.Close()
+			}
+		}()
+
+		nPeer := nNodes - 1
+		wantRead := nPeer * wantSendPerPeer
+
+		// realtime timestamp diffs will cause false
+		// alarms, so only under bubble.
+		onlyBubbled(t, func(t *testing.T) {
+
+			n := nNodes
+			gridCfg := &simGridConfig{
+				ReplicationDegree: n,
+				Timeout:           time.Second * 5,
+			}
+			//histShown := false
+			//defer func() {
+			//	if !histShown {
+			//		vv("in defer, history: %v", gridCfg.hist)
+			//	}
+			//}()
+
+			cfg := NewConfig()
+
+			cfg.wantSchedulerToRecover = "divergence detected"
+			cfg.wantSchedulerToRecoverSeen = wantSchedulerToRecoverSeen
+			cfg.SimnetScenarioSeed0 = seed
+			cfg.simnetName = simnetName
+			cfg.skipExecutionHistory = true
+			cfg.meetpoint710 = meetpoint
+
+			cfg.ServerAutoCreateClientsToDialOtherServers = true
+			cfg.UseSimNet = true
+
+			cfg.ServerAddr = "127.0.0.1:0"
+			cfg.QuietTestMode = true
+			gridCfg.RpcCfg = cfg
+			cfg.SimnetGOMAXPROCS = 8
+
+			var nodes []*simGridNode
+			for i := range n {
+				name := fmt.Sprintf("grid_node_%v", i)
+				nodes = append(nodes, newSimGridNode(name, gridCfg))
+			}
+			c := newSimGrid(gridCfg, nodes)
+			err := c.Start()
+			if err != nil {
+				//vv("simnetName %v sees c.Start() error '%v'", simnetName, err)
+				return
+			}
+			snet = c.net
+			if snet != nil {
+				//vv("good, snet = %p", snet)
+				// arrange for shutdown on abort
+				if parenthalt != nil {
+					parenthalt.AddChild(snet.halt)
+				}
+				if childhalt != nil {
+					snet.halt.AddChild(childhalt)
+				}
+			}
+			//vv("c.net = %p", c.net) // yes, new simnet each time.
+			defer c.Close()
+
+			for i, g := range nodes {
+				_ = i
+				if g == nil || g.node == nil {
+					// test has aborted
+					return
+				}
+				select {
+				case <-g.node.peersNeededSeen.Chan:
+					//vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
+
+					// failing test will just hang above.
+					// we cannot really do case <-time.After(time.Minute) with faketime.
+				}
+			}
+
+			npeer := nNodes - 1
+			var loads []*gridLoadTestTicket
+			proceed := make(chan struct{})
+			for _, g := range nodes {
+				lo := newGridLoadTestTicket(npeer, wantRead, wantSendPerPeer, sendEvery)
+				lo.proceed = proceed
+				loads = append(loads, lo)
+				g.node.gridLoadTestCh <- lo
+				<-lo.ready
+			}
+			close(proceed)
+			for i, g := range nodes {
+				_ = g
+				<-loads[i].done.Chan
+			}
+
+			//time.Sleep(time.Second)
+			//vv("after load all done, history: %v", gridCfg.hist)
+			//histShown = true
+
+			for i := range nodes {
+				gotSent := gridCfg.hist.sentBy(nodes[i].name)
+				if gotSent != wantSendPerPeer*nPeer {
+					t.Fatalf("node %v sent %v but wanted %v", i, gotSent, wantSendPerPeer*nPeer)
+				}
+				gotRead := gridCfg.hist.readBy(nodes[i].name)
+				if gotRead != wantRead {
+					t.Fatalf("node %v read %v but wanted %v", i, gotRead, wantRead)
+				}
+			}
+		}) // end onlyBubbled
+	} // end loadtest func definition
+
+	const nNode1 = 5
+	sendEvery1 := time.Millisecond
+	const wantSendPerPeer1 = 10
+
+	const syncEveryI int64 = 1 // verify every step for now.
+	meetpoint := newDetermCheckMeetpoint(syncEveryI)
+
+	halt := idem.NewHalter()
+	var seedA [32]byte
+	var seedB [32]byte
+	seedB[0] = 1 // different seed, should get almost immediate panic!
+	func() {
+		defer func() {
+			if false {
+				r := recover()
+				if r == nil {
+					panicf("expected divergence with different seeds")
+				} else {
+					alwaysPrintf("good: 711 saw panic: '%v'", r)
+				}
+			}
+		}()
+		wantSchedulerToRecoverSeen := idem.NewIdemCloseChan()
+
+		go loadtest(halt, nil, "B", meetpoint, nNode1, wantSendPerPeer1, sendEvery1, seedB, nil)
+		loadtest(nil, halt, "A", meetpoint, nNode1, wantSendPerPeer1, sendEvery1, seedA, wantSchedulerToRecoverSeen)
+		select {
+		//case <-halt.ReqStop.Chan:
+		case <-time.After(2 * time.Second):
+			panic("no good: should not timeout after 2 sec")
+		case <-wantSchedulerToRecoverSeen.Chan:
+			//alwaysPrintf("good: saw wantSchedulerToRecoverSeen.Chan closed")
+		}
+		//vv("end of 711")
+	}()
 }

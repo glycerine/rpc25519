@@ -1197,7 +1197,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	// var seed [32]byte
 	// scen := NewScenario(tick, minHop, maxHop, seed)
 
-	scen := NewScenarioBaseline(tick)
+	scen := NewScenarioBaseline(tick, cfg.SimnetScenarioSeed0)
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
@@ -2540,6 +2540,19 @@ func (s *Simnet) scheduler() {
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 		if r != nil {
+			if s.cfg.wantSchedulerToRecover != "" {
+				rstr := fmt.Sprintf("%v", r)
+				if strings.Contains(rstr, s.cfg.wantSchedulerToRecover) {
+					//alwaysPrintf("good simnet '%v' (e.g. simgrid_test 711): scheduler recovered and saw '%v'", s.cfg.simnetName, s.cfg.wantSchedulerToRecover)
+					if s.cfg.wantSchedulerToRecoverSeen != nil {
+						s.cfg.wantSchedulerToRecoverSeen.Close()
+						//vv("closed s.cfg.wantSchedulerToRecoverSeen")
+					}
+					// don't panic out of this, will halt test
+					return
+				}
+			}
+
 			alwaysPrintf("simnet scheduler panic-ing: %v", r)
 			//alwaysPrintf("simnet scheduler panic-ing: %v", s.schedulerReport())
 			panic(r)

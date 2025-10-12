@@ -2458,8 +2458,14 @@ func (s *Server) Close() error {
 	// ask any sub components (peer pump loops) to stop;
 	// give them all up to 500 msec.
 	//vv("%v about to s.halt.StopTreeAndWaitTilDone()", s.name)
-	s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
-	//vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name)
+	if s != nil {
+		if s.halt != nil {
+			s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
+			//vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name)
+		}
+	} else {
+		return nil
+	}
 
 	if s.cfg.UseQUIC {
 		s.cfg.shared.mut.Lock()

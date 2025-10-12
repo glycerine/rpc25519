@@ -199,10 +199,10 @@ func (s *scenario) rngTieBreaker() int {
 	}
 }
 
-func NewScenarioBaseline(tick time.Duration) *scenario {
+func NewScenarioBaseline(tick time.Duration, seed [32]byte) *scenario {
 	minHop := time.Millisecond * 10
 	maxHop := minHop
-	var seed [32]byte
+
 	return NewScenario(tick, minHop, maxHop, seed)
 }
 
