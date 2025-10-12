@@ -650,23 +650,23 @@ func (s *Simnet) release(op *mop) {
 		}
 		return
 	}
-	/*	case
-		CLOSE_SIMNODE,
-		SNAPSHOT,
-		TIMER_DISCARD,
-		READ,
-		SEND,
-		ALTER_HOST,
-		ALTER_NODE,
-		CLIENT_REG,
-		SERVER_REG,
-		FAULT_CKT,
-		FAULT_HOST,
-		REPAIR_CKT,
-		REPAIR_HOST,
-		SCENARIO,
-		BATCH:
-	*/
+	// case
+	// CLOSE_SIMNODE,
+	// SNAPSHOT,
+	// TIMER_DISCARD,
+	// READ,
+	// SEND,
+	// ALTER_HOST,
+	// ALTER_NODE,
+	// CLIENT_REG,
+	// SERVER_REG,
+	// FAULT_CKT,
+	// FAULT_HOST,
+	// REPAIR_CKT,
+	// REPAIR_HOST,
+	// SCENARIO,
+	// BATCH:
+
 	close(op.proceed)
 
 	// panic(fmt.Sprintf("mop kind '%v' needs release() policy", int(s.kind)))
@@ -3258,16 +3258,15 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			// and then sorting them by time? so another 2-step process
 			// to let the readers go... or we could have the reading
 			// goroutine itself do its own sleep accoring to is ID?
-			/*
-				read.completeTm = s.bumpTime(now)
-				dur := read.completeTm.Sub(now)
-				if dur > 0 {
-					time.Sleep(dur)
-					if faketime {
-						synctestWait_LetAllOtherGoroFinish() // 2nd barrier
-					}
-				}
-			*/
+			//
+			// read.completeTm = s.bumpTime(now)
+			// dur := read.completeTm.Sub(now)
+			// if dur > 0 {
+			// 	time.Sleep(dur)
+			// 	if faketime {
+			// 		synctestWait_LetAllOtherGoroFinish() // 2nd barrier
+			// 	}
+			// }
 
 			// matchmaking
 			//vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
@@ -3485,11 +3484,24 @@ func (s *Simnet) scheduler() {
 
 	tick := s.scenario.tick
 
-	// this is the "new" scheduler loop. It
-	// is much simpler, and allows goroutines
+	// This is the new scheduler loop.
+	// It allows goroutines
 	// to queue up as much as they can into
-	// the meq while we are sleeping and
+	// the meq via the StartMEQacceptor
+	// goroutine, all while we are sleeping and
 	// waiting at the barrier.
+	//
+	// The only thing that we didn't bring
+	// over from the old scheduler approach is
+	// sleeping until the next armed timer
+	// expires. That might be still viable,
+	// and might be faster, but this is
+	// really simple and passes 709 so we are
+	// keeping it basic for now. Timers
+	// still work, but they might
+	// be delayed a little longer than
+	// initially set for. This is kind
+	// of realistic anyway.
 	var j int64
 	for ; ; j++ {
 
@@ -3511,309 +3523,47 @@ func (s *Simnet) scheduler() {
 		}
 		now = time.Now()
 		//vv("j loop; after Wait. j = %v", j)
+		s.tickLogicalClocks()
 
 		npop, restartNewScenario, shutdown := s.distributeMEQ(now, j)
 		_ = npop
 		if shutdown {
 			return
 		}
+		s.tickLogicalClocks()
+
 		if restartNewScenario {
 			//vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
 			tick = s.scenario.tick
 		}
 
 		//vv("scheduler loop j = %v saw npop = %v, calling releaseReady()", j, npop)
-		// release in deterministic order
-		s.releaseReady()
-	}
 
-	// begin old scheduler loop, not used now.
+		s.releaseReady() // release in deterministic order
 
-iloop:
-	for i := int64(0); ; i++ {
-
-		now := time.Now()
-
-		vv("i = %v     tick = %v", i, s.scenario.tick)
-		/*
-			if i%20 == 0 {
-				sz := s.meq.Len()
-				if sz > 0 {
-					vv("scheduler top with meq len %v", sz)
-				}
-			}
-		*/
-		//if gte(now, nextReport) {
-		//	nextReport = now.Add(time.Second)
-		//sz := s.meq.Len()
-		//if sz > 0 {
-		//vv("scheduler top with meq len %v", sz)
-		//cli.lc = %v ; srv.lc = %v", clilc, srvlc)
-		//vv("i=%v scheduler top. schedulerReport: \n%v", i, s.schedulerReport())
-		//}
-		//vv("i=%v scheduler top. ndtot=%v", i, s.ndtot)
-		//}
-
-		// let goroutines get blocked waiting on the select arms below.
-		//if faketime {
-		//	synctestWait_LetAllOtherGoroFinish() // 1st barrier
-		//}
-		//vv("i=%v, about to select", i)
-		//preSelectTm := now
-		preSelMeqSz := s.meq.Len()
-		_ = preSelMeqSz
-
-		const nano = time.Duration(1)
-		igridtm := s.bigbang.Add(time.Duration(i+1)*s.scenario.tick - nano)
-
-		// what we want to maximize determinism:
-		// let as many goro make progress as can
-		// within this time slice.
-		// TODO: figure out respecting/re-arming the timer or not?
-
-		// We need extra rounds, at least 5, with 5 nodes
-		// and 100 messages in simgrid_test 707,
-		// to avoid splitting off a straggler into its own batch
-		// 10 extra was not enought for 11 nodes, 100 messages.
-		extra := 5 // 200 is enough for 21 nodes, 1k messages.
-		for j := 0; ; j++ {
-
-			now = time.Now()
-			left := igridtm.Sub(now)
-
-			vv("inner loop j = %v;  left=%v; extra=%v", j, left, extra) // this is spinning, yes.
-			s.tickLogicalClocks()
-
-			// I don't think we want to prematurely barrier. We
-			// want them to interrupt our After(left) as much
-			// as possible below!
-			// let goroutines get blocked waiting on the select arms below.
-			/*
-				select {
-				case <-s.halt.ReqStop.Chan:
-					return
-				case <-time.After(0):
-				}
-				if faketime {
-					synctestWait_LetAllOtherGoroFinish() // barrier
-				}
-			*/
-			// accept as many client operations during
-			// this time slice as we can; no fixed bound.
-			if left == 0 && extra == 0 {
-				vv("left=0 && extra=0, call distributeMEQ")
-
-				// we want to barrier while letting
-				// them get stuck
-				select {
-				case <-s.halt.ReqStop.Chan:
-					return
-				case <-time.After(0):
-				}
-				if faketime {
-					synctestWait_LetAllOtherGoroFinish() // barrier
-				}
-
-				_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
-				if shutdown {
-					return
-				}
-				if restartNewScenario {
-					vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
-					// what else needs resetting/doing here?
-					//i = 0
-					//continue restartI
-				}
-
-				// we are goal -1, advance clock by 1 nanosecond
-				// to nail the start of the next tick. This
-				// means any knock-on effects of the release
-				// will happen in the _next_ time quantum.
-				select {
-				case <-s.halt.ReqStop.Chan:
-					return
-				case <-time.After(1):
-				}
-				vv("calling releaseReady()") // not seen
-				// release in deterministic order
-				s.releaseReady()
-
-				continue iloop
-			}
-			if left < 0 {
-				if faketime {
-					panicf("should never overrun our igridtm(%v) -- but might happen without synctest... now = %v", nice9(igridtm), nice9(now))
-				}
-				now = time.Now()
-				s.tickLogicalClocks()
-				_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
-				if shutdown {
-					return
-				}
-				if restartNewScenario {
-					vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
-					// what else needs resetting/doing here?
-					//i = 0
-					//continue restartI
-				}
-
-			}
-			if left == 0 {
-				extra--
-			}
-			// INVAR: left > 0 || (left == 0 && extra > 0)
-			vv("top of main scheduler select. igridtm=%v;  left=%v, extra =%v", igridtm, left, extra)
-			select { // scheduler main select
-
-			case <-time.After(left):
-				vv("time.After left = %v fired!", left)
-
-				// do some more rounds, does this
-				// prevent split? does seem to help.
-				var exit bool
-				prevSaw := 1
-				sawMore := 1
-				for sawMore != 0 || prevSaw != 0 {
-					prevSaw = sawMore
-					select {
-					case <-s.halt.ReqStop.Chan:
-						return
-					case <-time.After(0):
-					}
-					if faketime {
-						synctestWait_LetAllOtherGoroFinish() // barrier
-					}
-					exit, sawMore = s.add2meqUntilSelectDefault(i)
-					if exit {
-						return
-					}
-				}
-				now = time.Now()
-				s.tickLogicalClocks()
-				_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
-				if shutdown {
-					return
-				}
-				if restartNewScenario {
-					vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
-					// what else needs resetting/doing here?
-					//i = 0
-					//continue restartI
-				}
-
-			case batch := <-s.submitBatchCh:
-				s.add2meq(batch, i)
-			case timer := <-s.addTimer:
-				//vv("i=%v, addTimer ->  timer='%v'", i, timer)
-				//s.handleTimer(timer)
-				s.add2meq(timer, i)
-
-			case discard := <-s.discardTimerCh:
-				//vv("i=%v, discardTimer ->  discard='%v'", i, discard)
-				//s.handleDiscardTimer(discard)
-				s.add2meq(discard, i)
-
-			case send := <-s.msgSendCh:
-				//vv("i=%v, msgSendCh ->  send='%v'", i, send)
-				//s.handleSend(send)
-				s.add2meq(send, i)
-
-			case read := <-s.msgReadCh:
-				//vv("i=%v msgReadCh ->  read='%v'", i, read)
-				//s.handleRead(read)
-				s.add2meq(read, i)
-
-			case reg := <-s.cliRegisterCh:
-				// "connect" in network lingo, client reaches out to listening server.
-				//vv("i=%v, cliRegisterCh got reg from '%v' = '%v'", i, reg.client.name, reg)
-				//s.handleClientRegistration(reg)
-				s.add2meq(s.newClientRegMop(reg), i)
-				//vv("back from handleClientRegistration for '%v'", reg.client.name)
-
-			case srvreg := <-s.srvRegisterCh:
-				// "bind/listen" on a socket, server waits for any client to "connect"
-				//vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
-				//s.handleServerRegistration(srvreg)
-				// do not vv here, as it is very racey with the server who
-				// has been given permission to proceed.
-				s.add2meq(s.newServerRegMop(srvreg), i)
-
-			case scenario := <-s.newScenarioCh:
-				//vv("i=%v, newScenarioCh ->  scenario='%v'", i, scenario)
-				s.add2meq(s.newScenarioMop(scenario), i)
-
-			case alt := <-s.alterSimnodeCh:
-				//vv("i=%v alterSimnodeCh ->  alt='%v'", i, alt)
-				//s.handleAlterCircuit(alt, true)
-				s.add2meq(s.newAlterNodeMop(alt), i)
-
-			case alt := <-s.alterHostCh:
-				//vv("i=%v alterHostCh ->  alt='%v'", i, alt)
-				//s.handleAlterHost(op.alt)
-				s.add2meq(s.newAlterHostMop(alt), i)
-
-			case cktFault := <-s.injectCircuitFaultCh:
-				//vv("i=%v injectCircuitFaultCh ->  cktFault='%v'", i, cktFault)
-				//s.injectCircuitFault(cktFault, true)
-				s.add2meq(s.newCktFaultMop(cktFault), i)
-
-			case hostFault := <-s.injectHostFaultCh:
-				//vv("i=%v injectHostFaultCh ->  hostFault='%v'", i, hostFault)
-				//s.injectHostFault(hostFault)
-				s.add2meq(s.newHostFaultMop(hostFault), i)
-
-			case repairCkt := <-s.repairCircuitCh:
-				//vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
-				//s.handleCircuitRepair(repairCkt, true)
-				s.add2meq(s.newRepairCktMop(repairCkt), i)
-
-			case repairHost := <-s.repairHostCh:
-				//vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
-				//s.handleHostRepair(repairHost)
-				s.add2meq(s.newRepairHostMop(repairHost), i)
-
-			case snapReq := <-s.simnetSnapshotRequestCh:
-				//vv("i=%v simnetSnapshotRequestCh -> snapReq", i)
-				// user can confirm/view all current faults/health
-				//s.handleSimnetSnapshotRequest(snapReq, now, i)
-				s.add2meq(s.newSnapReqMop(snapReq), i)
-
-			case closeSimnodeReq := <-s.simnetCloseNodeCh:
-				//vv("i=%v simnetCloseNodeCh -> closeNodeReq", i)
-				s.add2meq(s.newCloseSimnodeMop(closeSimnodeReq), i)
-
-			case newGoroReq := <-s.simnetNewGoroCh:
-				//vv("simnetNewGoroCh -> newGoroReq.name = '%v'", newGoroReq.name)
-				s.add2meq(s.newGoroMop(newGoroReq), i)
-
-			case <-s.halt.ReqStop.Chan:
-				//vv("i=%v <-s.halt.ReqStop.Chan", i)
-				//bb := time.Since(s.bigbang)
-				//pct := 100 * float64(totalSleepDur) / float64(bb)
-				//_ = pct
-				//vv("simnet.halt.ReqStop totalSleepDur = %v (%0.2f%%) since bb = %v)", totalSleepDur, pct, bb)
-				return
-			} // end select
-			if false {
-				if i > 0 && i%2000 == 0 {
-					if s.ndtot > s.ndtotPrev {
-						s.ndtotPrev = s.ndtot
-					} else {
-						vv("stalled? i=%v no new dispatches in last 2000 iterataioins... bottom of scheduler loop. since bb: %v; faketime=%v", i, time.Since(s.bigbang), faketime)
-						alwaysPrintf("schedulerReport %v", s.schedulerReport())
-						panic("stalled?")
-					}
-				}
-			}
-		}
+		// an old check... from the old scheduler loop,
+		// keep just in case we need to check for stalls again.
+		// Will probably need to be reworked a little.
+		// if false {
+		// 	if j > 0 && j%2000 == 0 {
+		// 		if s.ndtot > s.ndtotPrev {
+		// 			s.ndtotPrev = s.ndtot
+		// 		} else {
+		// 			vv("stalled? j=%v no new dispatches in last 2000 iterataioins... bottom of scheduler loop. since bb: %v; faketime=%v", j, time.Since(s.bigbang), faketime)
+		// 			alwaysPrintf("schedulerReport %v", s.schedulerReport())
+		// 			panic("stalled?")
+		// 		}
+		// 	}
+		// }
 	}
 }
 
 // One aspect that was introducing non-determinism
 // was that we were using the reqtm to sort mop in the meq.
-// The reqtm is client side set and thus non-deterministic.
-// And meq was sorted on reqtm to determine how to
-// dispatch the meq(!) Yikes, avoid.
+// The reqtm is allocated from a client goroutine,
+// and thus non-deterministic.
+// Also: meq was sorted on reqtm to determine how to
+// dispatch the meq. Yikes. Avoid that now.
 func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario, shutdown bool) {
 
 	s.meqMut.Lock()
@@ -4048,16 +3798,6 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	nd := s.dispatchAll(now, -1, i)
 	_ = nd
 	s.ndtot += nd
-
-	/*
-		select {
-		case <-time.After(time.Nanosecond):
-		case <-s.halt.ReqStop.Chan:
-			//vv("i=%v <-s.halt.ReqStop.Chan", i)
-			return
-		}
-		now = time.Now()
-	*/
 
 	armed := s.armTimer(now, i, true)
 	_ = armed
@@ -4969,45 +4709,6 @@ func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 	}
 	return
 }
-
-/*
-func timeMachine() (timeHasStopped chan bool, restartTime chan time.Duration) {
-
-	timeHasStopped = make(chan bool)
-	restartTime = make(chan time.Duration)
-
-	go func() {
-		var amount time.Duration
-		for {
-			select {
-			case amount = <-restartTime:
-
-			case <-s.halt.ReqStop.Chan:
-				return
-			}
-
-			select {
-			case <-time.After(amount):
-
-			case <-s.halt.ReqStop.Chan:
-				return
-			}
-
-			// when we barrier, time cannot advance
-			// without returning to us first.
-			synctestWait_LetAllOtherGoroFinish()
-
-			select {
-			case timeHasStopped <- true:
-
-			case <-s.halt.ReqStop.Chan:
-				return
-			}
-		}
-	}()
-	return
-}
-*/
 
 // want to keep the scheduler as active as possible,
 // but: only step in and dispatch and then release
