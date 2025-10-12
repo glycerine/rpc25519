@@ -179,6 +179,14 @@ func (s *Simnet) setPseudorandom(op *mop) {
 	op.pseudorandom = x
 }
 
+func (s *Simnet) setPseudorandomRelease(op *mop) {
+	var x uint64
+	for x == 0 {
+		x = s.scenario.rngReleaseUint64()
+	}
+	op.pseudorandom = x
+}
+
 func (op *mop) bestName() string {
 	if op.kind == NEW_GORO {
 		return op.newGoroReq.name
@@ -602,7 +610,7 @@ func (s *Simnet) releaseReady() {
 	s.nextReleaseBatch++
 
 	//fmt.Printf("\nreleaseReady for releaseBatch = %v\n", releaseBatch)
-	//begPrng := s.scenario.rngUint64()
+	//begPrng := s.scenario.rngReleaseUint64()
 
 	//fmt.Printf("\nreleaseBatch = %v was at begPrng = %v ; has %v ops\n", releaseBatch, begPrng, ready)
 	//fmt.Printf("fin hash: %v\n", asBlake33B(s.xb3hashFin))
@@ -610,7 +618,7 @@ func (s *Simnet) releaseReady() {
 	pseudoRandomQ := newOneTimeSliceQ("releaseReady")
 	for s.releasableQ.Len() > 0 {
 		op := s.releasableQ.pop()
-		s.setPseudorandom(op)
+		s.setPseudorandomRelease(op)
 		op.releaseBatch = releaseBatch
 		pseudoRandomQ.add(op)
 	}
@@ -1100,7 +1108,7 @@ func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 	return
 }
 
-const maxX = 100_000
+const maxX = 1_000_000 // 100K too small for 707 test
 
 func (s *Simnet) preallocateX() {
 	limit := maxX
@@ -3775,27 +3783,6 @@ iloop:
 				//_ = pct
 				//vv("simnet.halt.ReqStop totalSleepDur = %v (%0.2f%%) since bb = %v)", totalSleepDur, pct, bb)
 				return
-
-				/*		default:
-						vv("i=%v, default: nobody else wanted to use our services.", i)
-						now = time.Now()
-						sz := s.meq.Len()
-						var npop int
-						if sz > 0 {
-							npop = s.distributeMEQ(now, i)
-						} // else {
-						//vv("i=%v, sz=%v, just advance time and try to dispatch on next loop", i, sz)
-						_ = npop
-						//if npop == 0 {
-						s.armTimer(now, i, true)
-						if s.lastArmToFire.IsZero() {
-							// durToGridPoint does bumpTime for us now.
-							dur, _ := s.durToGridPoint(now, s.scenario.tick)
-							vv("dur = %v; tick=%v", dur, s.scenario.tick)
-							time.Sleep(dur)
-						}
-						//}
-				*/
 			} // end select
 			if false {
 				if i > 0 && i%2000 == 0 {
@@ -3816,9 +3803,7 @@ iloop:
 // was that we were using the reqtm to sort mop in the meq.
 // The reqtm is client side set and thus non-deterministic.
 // And meq was sorted on reqtm to determine how to
-// dispatch the meq(!) Yikes. We really want to sort
-// on dispatch time, or maybe not sort on time at all,
-// just dispatch in a deterministic order everything <= now.
+// dispatch the meq(!) Yikes, avoid.
 func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario, shutdown bool) {
 
 	s.meqMut.Lock()

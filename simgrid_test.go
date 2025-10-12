@@ -502,8 +502,8 @@ func (s *node2) loadDone(me string, addSends, addReads int) bool {
 	return false
 }
 
-func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
-	return
+func Test707_simnet_grid_does_not_drop_messages(t *testing.T) {
+
 	// At one point, tube raft grid had sporadic
 	// read loss resulting in a hung client. It
 	// could have been at the tube layer, but to
@@ -515,6 +515,154 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	// We later added a determinism/reproducible
 	// test check below with the call to
 	// panicIfFinalHashDifferent(xorderPath).
+	// This later addition has now been moved to
+	// its own 709 test below.
+
+	loadtest := func(prevSnap *SimnetSnapshot, nNodes, wantSendPerPeer int, sendEvery time.Duration, xorderPath string) (snap *SimnetSnapshot) {
+
+		nPeer := nNodes - 1
+		wantRead := nPeer * wantSendPerPeer
+
+		// realtime timestamp diffs will cause false
+		// alarms, so only under bubble.
+		onlyBubbled(t, func(t *testing.T) {
+
+			n := nNodes
+			gridCfg := &simGridConfig{
+				ReplicationDegree: n,
+				Timeout:           time.Second * 5,
+			}
+			//histShown := false
+			//defer func() {
+			//	if !histShown {
+			//		vv("in defer, history: %v", gridCfg.hist)
+			//	}
+			//}()
+
+			cfg := NewConfig()
+			// key setting under test here:
+			cfg.ServerAutoCreateClientsToDialOtherServers = true
+			cfg.UseSimNet = true
+			//cfg.UseSimNet = faketime
+			cfg.ServerAddr = "127.0.0.1:0"
+			cfg.QuietTestMode = true
+			cfg.repeatTrace = prevSnap
+			cfg.repeatTraceViolatedOutpath = xorderPath
+			gridCfg.RpcCfg = cfg
+			cfg.SimnetGOMAXPROCS = 8
+
+			var nodes []*simGridNode
+			for i := range n {
+				name := fmt.Sprintf("grid_node_%v", i)
+				nodes = append(nodes, newSimGridNode(name, gridCfg))
+			}
+			c := newSimGrid(gridCfg, nodes)
+			c.Start()
+			//vv("c.net = %p", c.net) // yes, new simnet each time.
+			defer c.Close()
+
+			for i, g := range nodes {
+				_ = i
+				select {
+				case <-g.node.peersNeededSeen.Chan:
+					//vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
+
+					// failing test will just hang above.
+					// we cannot really do case <-time.After(time.Minute) with faketime.
+				}
+			}
+
+			npeer := nNodes - 1
+			var loads []*gridLoadTestTicket
+			proceed := make(chan struct{})
+			for _, g := range nodes {
+				lo := newGridLoadTestTicket(npeer, wantRead, wantSendPerPeer, sendEvery)
+				lo.proceed = proceed
+				loads = append(loads, lo)
+				g.node.gridLoadTestCh <- lo
+				<-lo.ready
+			}
+			close(proceed)
+			for i, g := range nodes {
+				_ = g
+				<-loads[i].done.Chan
+			}
+
+			//time.Sleep(time.Second)
+			//vv("after load all done, history: %v", gridCfg.hist)
+			//histShown = true
+
+			for i := range nodes {
+				gotSent := gridCfg.hist.sentBy(nodes[i].name)
+				if gotSent != wantSendPerPeer*nPeer {
+					t.Fatalf("node %v sent %v but wanted %v", i, gotSent, wantSendPerPeer*nPeer)
+				}
+				gotRead := gridCfg.hist.readBy(nodes[i].name)
+				if gotRead != wantRead {
+					t.Fatalf("node %v read %v but wanted %v", i, gotRead, wantRead)
+				}
+			}
+
+			//snap = c.net.GetSimnetSnapshot()
+			//vv("snap.Xfinorder len = '%v'; Xhash='%v'", len(snap.Xfinorder), snap.Xhash) // 53343
+			//snap.ToFile(xorderPath)
+		}) // end bubbleOrNot
+		return
+	} // end loadtest func definition
+
+	// 15 nodes, 100 frag: 60 seconds testtime for realtime. 70sec faketime
+	// 21 nodes, 1k frag: 105s test-time under simnet/synctest-faketime.
+	const nNode1 = 7
+	//const wantSendPerPeer1 = 10_000 // 33 sec with 7 nodes
+	const wantSendPerPeer1 = 1000 // 3.4 sec with 7 nodes
+	sendEvery1 := time.Millisecond
+	xorderPath := homed("~/rpc25519/snap707")
+	removeAllFilesWithPrefix(xorderPath)
+	snap0 := loadtest(nil, nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
+	_ = snap0
+
+	//loadtest(2, 1, 1, time.Second, "707 loadtest 1")
+	//vv("done with first")
+
+	//loadtest(9, 100, 100, time.Second, "707 loadtest 2")
+	// 5 nodes, 100 msgs = 1.7sec test-time under faketime, 1.1s under realtime.
+	//const nNode = 7
+	//const wantSendPerPeer = 100_000
+	//sendEvery := time.Millisecond
+	//loadtest(nil, nNode, wantSendPerPeer, sendEvery, "707 loadtest 2")
+
+	//vv("done with second loadtest")
+
+	//loadtest(5, 1, 1, time.Second, "707 loadtest 3")
+
+	//vv("end of 707")
+}
+
+func TestDiffPos(t *testing.T) {
+	if pos, _ := diffpos("ab", "ab"); pos != -1 {
+		panic("expected -1")
+	}
+	if pos, _ := diffpos("ab", "abc"); pos != 2 {
+		panic("expected 2")
+	}
+	if pos, _ := diffpos("abc", "ab"); pos != 2 {
+		panic("expected 2")
+	}
+	if pos, _ := diffpos("ac", "ab"); pos != 1 {
+		panicf("expected 1, got %v", pos)
+	}
+}
+
+func Test709_simnet_deterministic(t *testing.T) {
+	return
+
+	// 709 is based on 707, where
+	// we later added a determinism/reproducible
+	// test check below with the call to
+	// panicIfFinalHashDifferent(xorderPath).
+	//
+	// We don't yet have full determinism, but
+	// we are much closer.
 
 	loadtest := func(prevSnap *SimnetSnapshot, nNodes, wantSendPerPeer int, sendEvery time.Duration, xorderPath string) (snap *SimnetSnapshot) {
 
@@ -613,7 +761,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	const nNode1 = 5
 	const wantSendPerPeer1 = 10
 	sendEvery1 := time.Millisecond
-	xorderPath := homed("~/rpc25519/snap707")
+	xorderPath := homed("~/rpc25519/snap709")
 	removeAllFilesWithPrefix(xorderPath)
 	snap0 := loadtest(nil, nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
 
@@ -628,34 +776,19 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	}
 	return
 
-	//loadtest(2, 1, 1, time.Second, "707 loadtest 1")
+	//loadtest(2, 1, 1, time.Second, "709 loadtest 1")
 	//vv("done with first")
 
-	//loadtest(9, 100, 100, time.Second, "707 loadtest 2")
+	//loadtest(9, 100, 100, time.Second, "709 loadtest 2")
 	// 5 nodes, 100 msgs = 1.7sec test-time under faketime, 1.1s under realtime.
 	//const nNode = 7
 	//const wantSendPerPeer = 100_000
 	//sendEvery := time.Millisecond
-	//loadtest(nil, nNode, wantSendPerPeer, sendEvery, "707 loadtest 2")
+	//loadtest(nil, nNode, wantSendPerPeer, sendEvery, "709 loadtest 2")
 
 	//vv("done with second loadtest")
 
-	//loadtest(5, 1, 1, time.Second, "707 loadtest 3")
+	//loadtest(5, 1, 1, time.Second, "709 loadtest 3")
 
-	//vv("end of 707")
-}
-
-func TestDiffPos(t *testing.T) {
-	if pos, _ := diffpos("ab", "ab"); pos != -1 {
-		panic("expected -1")
-	}
-	if pos, _ := diffpos("ab", "abc"); pos != 2 {
-		panic("expected 2")
-	}
-	if pos, _ := diffpos("abc", "ab"); pos != 2 {
-		panic("expected 2")
-	}
-	if pos, _ := diffpos("ac", "ab"); pos != 1 {
-		panicf("expected 1, got %v", pos)
-	}
+	//vv("end of 709")
 }
