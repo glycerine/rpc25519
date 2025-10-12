@@ -38,6 +38,7 @@ func TestWalkDirsDFSIter(t *testing.T) {
 
 	if !dirExists(root) {
 		vv("skipping walk test on non existant root directory '%v'", root)
+		t.Skip("test dir does not exist: " + root)
 	}
 
 	// We don't have linux all checked out everywhere,
@@ -147,6 +148,7 @@ func TestWalkAllDirsOnlyDirs(t *testing.T) {
 
 	if !dirExists(root) {
 		vv("skipping walk test on non existant root directory '%v'", root)
+		t.Skip("test dir does not exist: " + root)
 	}
 
 	//root := "."
