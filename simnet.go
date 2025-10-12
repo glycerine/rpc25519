@@ -177,14 +177,6 @@ func (s *Simnet) setPseudorandom(op *mop) {
 	op.pseudorandom = x
 }
 
-func (s *Simnet) setPseudorandomRelease(op *mop) {
-	var x uint64
-	for x == 0 {
-		x = s.scenario.rngReleaseUint64()
-	}
-	op.pseudorandom = x
-}
-
 func (op *mop) bestName() string {
 	if op.kind == NEW_GORO {
 		return op.newGoroReq.name
@@ -371,7 +363,9 @@ func (s *Simnet) releaseReady() {
 	pseudoRandomQ := newOneTimeSliceQ("releaseReady")
 	for s.releasableQ.Len() > 0 {
 		op := s.releasableQ.pop()
-		s.setPseudorandomRelease(op)
+
+		s.setPseudorandom(op)
+
 		op.releaseBatch = releaseBatch
 		pseudoRandomQ.add(op)
 	}

@@ -109,13 +109,6 @@ type scenario struct {
 	chacha *mathrand2.ChaCha8
 	rng    *mathrand2.Rand
 
-	// use a separate rng2 for release batches,
-	// to try and stay deterministic for longer
-	// even if the dispatch side misses a client request
-	// compared to an earlier run.
-	chacha2 *mathrand2.ChaCha8
-	rng2    *mathrand2.Rand
-
 	// we enforce ending in 00_000 ns for all tick
 	tick   time.Duration
 	minHop time.Duration
@@ -140,7 +133,6 @@ func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 	s := &scenario{
 		seed:    seed,
 		chacha:  mathrand2.NewChaCha8(seed),
-		chacha2: mathrand2.NewChaCha8(seed),
 		tick:    enforceTickDur(tick),
 		minHop:  minHop,
 		maxHop:  maxHop,
@@ -149,7 +141,6 @@ func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 		who:     goID(),
 	}
 	s.rng = mathrand2.New(s.chacha)
-	s.rng2 = mathrand2.New(s.chacha2)
 	return s
 }
 
@@ -164,11 +155,6 @@ func (s *scenario) rngUint64() (x uint64) {
 	// 		panic("where?")
 	// 	}
 	// }
-	return
-}
-
-func (s *scenario) rngReleaseUint64() (x uint64) {
-	x = s.rng2.Uint64()
 	return
 }
 
