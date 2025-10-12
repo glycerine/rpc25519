@@ -1507,19 +1507,21 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	// I think this might be a chicken and egg problem.
 	// The server cannot register b/c client is here on
 	// the scheduler goro, and client here wants to tell the
-	// the server about it... try in goro
-	go func() {
-		select {
-		case srvnode.tellServerNewConnCh <- s2c:
-			//vv("%v srvnode was notified of new client '%v'; s2c='%v'", srvnode.name, clinode.name, s2c)
+	// the server about it... try in goro.
+	// Ugh to races... it is buffered 100 now; plus we
+	// have meq accept goro. try without background goroutine.
+	//go func() {
+	select {
+	case srvnode.tellServerNewConnCh <- s2c:
+		//vv("%v srvnode was notified of new client '%v'; s2c='%v'", srvnode.name, clinode.name, s2c)
 
-			// let client start using the connection/edge.
-			s.fin(regop)
+		// let client start using the connection/edge.
+		s.fin(regop)
 
-		case <-s.halt.ReqStop.Chan:
-			return
-		}
-	}()
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	//}()
 }
 
 // idempotent, all servers do this, then register through the same path.
@@ -3854,7 +3856,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	} else {
 		s.curBatchNum++
 		var batch string
-		//fmt.Printf("distributeMEQ: s.curBatchNum = %v is size %v    %v\n", s.curBatchNum, npop, nice9(now))
+		fmt.Printf("distributeMEQ: s.curBatchNum = %v is size %v    %v\n", s.curBatchNum, npop, nice9(now))
 		//vv("have npop = %v, curSliceQ = %v", npop, s.showQ(s.curSliceQ, "curSliceQ"))
 
 		for s.curSliceQ.Len() > 0 {
