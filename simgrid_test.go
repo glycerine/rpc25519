@@ -902,6 +902,13 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 		}) // end onlyBubbled
 	} // end loadtest func definition
 
+	// on rog, this extended run or 710 was green. nice.
+	//const nNode1 = 7
+	//sendEvery1 := time.Millisecond
+	//const wantSendPerPeer1 = 1_000_000
+	//const syncEveryI int64 = 1 // verify every step.
+	// elapsed time: 3784.952s (took 63 minutes).
+
 	const nNode1 = 5
 	sendEvery1 := time.Millisecond
 	const wantSendPerPeer1 = 1000
