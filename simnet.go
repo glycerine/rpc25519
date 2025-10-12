@@ -169,12 +169,12 @@ type mop struct {
 }
 
 // set a non-zero op.pseudorandom value.
-func (s *Simnet) setPseudorandom(op *mop) {
-	var x uint64
+func (s *Simnet) setPseudorandom(op *mop) (x uint64) {
 	for x == 0 {
 		x = s.scenario.rngUint64()
 	}
 	op.pseudorandom = x
+	return
 }
 
 func (op *mop) bestName() string {
@@ -727,6 +727,9 @@ func (s *Simnet) simnetNextBatchSn() int64 {
 
 // simnet simulates a network entirely with channels in memory.
 type Simnet struct {
+	// give the simnet a name so simgrid_test 710 comparison
+	// can distinguish its two simnets.
+	simnetName       string
 	nextMopSn        atomic.Int64
 	xmax             int64
 	nextReleaseBatch int64
@@ -1198,6 +1201,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
+		simnetName:  cfg.simnetName,
 		releasableQ: newReleasableQueue("scheduler"),
 		xsn2dis:     make(map[int64]int64),
 		xdis2sn:     make(map[int64]int64),
@@ -2700,7 +2704,9 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	// them timepoints in the future to run, then
 	// the subsequent queued events might get to run first?
 	var op *mop
-	for j := 0; ; j++ {
+	var prand uint64
+
+	for k := 0; ; k++ {
 
 		top := s.meq.peek()
 		if top == nil {
@@ -2722,14 +2728,21 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// that would not violate causality. but we
 		// do check that at the matchmaker.
 		//vv("dispatchMEQ calling setPseudorandom for batch %v, npop %v", s.curBatchNum+1, npop)
-		s.setPseudorandom(op)
+		prand = s.setPseudorandom(op)
 
 		added, _ := s.curSliceQ.add(op)
 		if !added {
 			panicf("should never have conflict adding to curSliceQ: why could we not add op='%v' to curSliceQ = '%v'", op, s.showQ(s.curSliceQ, "curSliceQ"))
 		}
-	} // end for j
+	} // end for k
 	s.meqMut.Unlock()
+
+	if s.cfg.meetpoint710 != nil {
+		shutdown = s.meetpointCheck(s.cfg.meetpoint710, prand, i)
+		if shutdown {
+			return
+		}
+	}
 
 	if npop == 0 {
 		// still have to dispatch below! might be

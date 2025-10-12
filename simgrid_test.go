@@ -9,7 +9,7 @@ import (
 	"runtime"
 	//"strings"
 	"sync"
-	"sync/atomic"
+	//"sync/atomic"
 	"time"
 
 	"github.com/glycerine/idem"
@@ -798,28 +798,6 @@ func Test709_simnet_determinism(t *testing.T) {
 	//vv("end of 709")
 }
 
-type progressPoint struct {
-	i      int64
-	rngval uint64
-}
-
-type determMeetpoint struct {
-	nextIsA atomic.Bool
-	aNext   chan progressPoint
-	bNext   chan progressPoint
-	every   int64
-	endi    int64
-}
-
-func newDetermCheckMeetpoint(every, endi int64) *determMeetpoint {
-	return &determMeetpoint{
-		aNext: make(chan progressPoint, 1),
-		bNext: make(chan progressPoint, 1),
-		every: every,
-		endi:  endi,
-	}
-}
-
 func Test710_simnet_online_determinism_check(t *testing.T) {
 
 	// 710 is an online determinism check that
@@ -831,7 +809,7 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 	// we detect that one has diverged from the other.
 	// This allows us to compare two longer executions.
 
-	loadtest := func(meetpoint *determMeetpoint, nNodes, wantSendPerPeer int, sendEvery time.Duration) {
+	loadtest := func(simnetName string, meetpoint *determMeetpoint, nNodes, wantSendPerPeer int, sendEvery time.Duration) {
 
 		nPeer := nNodes - 1
 		wantRead := nPeer * wantSendPerPeer
@@ -858,6 +836,7 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 
 			cfg.ServerAutoCreateClientsToDialOtherServers = true
 			cfg.UseSimNet = true
+			cfg.simnetName = simnetName
 			//cfg.UseSimNet = faketime
 			cfg.ServerAddr = "127.0.0.1:0"
 			cfg.QuietTestMode = true
@@ -926,7 +905,7 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 	const syncEveryI int64 = 20
 	meetpoint := newDetermCheckMeetpoint(syncEveryI, wantSendPerPeer1*10)
 
-	go loadtest(meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
+	go loadtest("A", meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
 
-	go loadtest(meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
+	go loadtest("B", meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
 }

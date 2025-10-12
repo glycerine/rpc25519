@@ -953,8 +953,9 @@ type Config struct {
 	// We do not store full history in memory,
 	// so we can check very long executions.
 	// So no x (execution history arrays) are allocated.
-	skipExecutionHistory bool
-	meetpoint710         *determMeetpoint
+	skipExecutionHistory bool             // true under 710
+	meetpoint710         *determMeetpoint // not nil under 710
+	simnetName           string           // "A" or "B" in simgrid_test 710.
 
 	// for 707 simgrid_test to trace repeat
 	repeatTrace                *SimnetSnapshot
