@@ -809,7 +809,11 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 	// we detect that one has diverged from the other.
 	// This allows us to compare two longer executions.
 
-	loadtest := func(simnetName string, meetpoint *determMeetpoint, nNodes, wantSendPerPeer int, sendEvery time.Duration) {
+	loadtest := func(testhalt *idem.Halter, simnetName string, meetpoint *determMeetpoint, nNodes, wantSendPerPeer int, sendEvery time.Duration) {
+
+		defer func() {
+			testhalt.ReqStop.Close()
+		}()
 
 		nPeer := nNodes - 1
 		wantRead := nPeer * wantSendPerPeer
@@ -831,13 +835,14 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 			//}()
 
 			cfg := NewConfig()
+
+			cfg.simnetName = simnetName
 			cfg.skipExecutionHistory = true
 			cfg.meetpoint710 = meetpoint
 
 			cfg.ServerAutoCreateClientsToDialOtherServers = true
 			cfg.UseSimNet = true
-			cfg.simnetName = simnetName
-			//cfg.UseSimNet = faketime
+
 			cfg.ServerAddr = "127.0.0.1:0"
 			cfg.QuietTestMode = true
 			gridCfg.RpcCfg = cfg
@@ -894,8 +899,7 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 					t.Fatalf("node %v read %v but wanted %v", i, gotRead, wantRead)
 				}
 			}
-		}) // end bubbleOrNot
-		return
+		}) // end onlyBubbled
 	} // end loadtest func definition
 
 	const nNode1 = 5
@@ -905,7 +909,10 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 	const syncEveryI int64 = 20
 	meetpoint := newDetermCheckMeetpoint(syncEveryI, wantSendPerPeer1*10)
 
-	go loadtest("A", meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
+	halt := idem.NewHalter()
+	go loadtest(halt, "A", meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
 
-	go loadtest("B", meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
+	loadtest(halt, "B", meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
+
+	<-halt.ReqStop.Chan
 }
