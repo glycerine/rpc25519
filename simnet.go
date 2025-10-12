@@ -673,10 +673,6 @@ func (op *mop) cliOrSrvString() (cs string) {
 // to be reproducible; and it is regularly
 // seen to vary alot.
 func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
-	// to get a consistent read for snapshot, dns etc,
-	// we still need to lock xmut even with the atomics below.
-	s.xmut.Lock()
-	defer s.xmut.Unlock()
 
 	sn = s.nextMopSn.Add(1)
 	//vv("issue sn: %v  %v  at %v", sn, desc, fileLine(2))
@@ -684,6 +680,11 @@ func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 	if s.cfg.skipExecutionHistory {
 		return
 	}
+
+	// to get a consistent read for snapshot, dns etc,
+	// we still need to lock xmut even with the atomics below.
+	s.xmut.Lock()
+	defer s.xmut.Unlock()
 
 	s.xsn2descDebug.Store(sn, desc)
 
@@ -2727,59 +2728,62 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			// get the batch number (and size) into the hash too.
 			xdis := fmt.Sprintf("%v_[batch_%v_with_batchSize_%v]", op.repeatable(now), s.curBatchNum, npop)
 
-			sn := op.sn
-			// must hold xmut.Lock else race vs simnetNextMopSn()
-			s.xmut.Lock()
-
-			// assert that we only issue each sn once
-			prev, already := s.xsn2dis[sn]
-			if already {
-				panicf("cannot dispatch sn %v twice! already have (prev: %v) in s.xsn2dis.", sn, prev)
-			}
-
 			op.issueBatch = s.curBatchNum
-			v, ok := s.xsn2descDebug.Load(sn)
-			if !ok {
-				panicf("why no sn = %v entry in xsn2descDebug?", sn)
-			}
-			desc := v.(string)
+			op.dispatchTm = now
 			next := s.nextDispatch
 			s.nextDispatch++
-			s.xsn2dis[sn] = next
-			s.xdis2sn[next] = sn
-			batch += fmt.Sprintf("[sn %v][disp %v]:%v, ", sn, next, desc)
 
-			// fill these early for better print out;
-			// fin() does these too... but maybe does not need to?
-			// ------- begin maybe redundant with fin()
-			w := op.whence() // file:line where created.
-			s.xwhence[sn] = w
-			s.xkind[sn] = op.kind
-			if op.origin != nil {
-				s.xorigin[sn] = op.origin.name
+			if !s.cfg.skipExecutionHistory {
+				sn := op.sn
+
+				// must hold xmut.Lock else race vs simnetNextMopSn()
+				s.xmut.Lock()
+
+				// assert that we only issue each sn once
+				prev, already := s.xsn2dis[sn]
+				if already {
+					panicf("cannot dispatch sn %v twice! already have (prev: %v) in s.xsn2dis.", sn, prev)
+				}
+				v, ok := s.xsn2descDebug.Load(sn)
+				if !ok {
+					panicf("why no sn = %v entry in xsn2descDebug?", sn)
+				}
+				desc := v.(string)
+
+				s.xsn2dis[sn] = next
+				s.xdis2sn[next] = sn
+				batch += fmt.Sprintf("[sn %v][disp %v]:%v, ", sn, next, desc)
+
+				// fill these early for better print out;
+				// fin() does these too... but maybe does not need to?
+				// ------- begin maybe redundant with fin()
+				w := op.whence() // file:line where created.
+				s.xwhence[sn] = w
+				s.xkind[sn] = op.kind
+				if op.origin != nil {
+					s.xorigin[sn] = op.origin.name
+				}
+				// ------- end maybe redundant with fin()
+
+				s.xdispatchRepeatable[sn] = xdis
+				// update xissuetm, since original was by client
+				// in simnetNextMopSn() and not deterministic.
+				s.xissuetm[sn] = now
+
+				// start xissueOrder at 0 (just re-use next now.)
+				// -1 means client got in simnetNextMopSn()
+				// but we have not seen yet (so not in hash).
+
+				s.xissueOrder[sn] = next
+				s.xissueBatch[sn] = s.curBatchNum
+				s.xb3hashDis.Write([]byte(xdis))
+				s.xissueHash[sn] = asBlake33B(s.xb3hashDis)
+
+				//fmt.Printf("on cur dispatch = %v; (for sn = %v) hashDis = %v\n", next, sn, asBlake33B(s.xb3hashDis))
+				s.xmut.Unlock()
 			}
-			// ------- end maybe redundant with fin()
-
-			s.xdispatchRepeatable[sn] = xdis
-			// update xissuetm, since original was by client
-			// in simnetNextMopSn() and not deterministic.
-			s.xissuetm[sn] = now
-
-			// start xissueOrder at 0 (just re-use next now.)
-			// -1 means client got in simnetNextMopSn()
-			// but we have not seen yet (so not in hash).
-
-			s.xissueOrder[sn] = next
-			s.xissueBatch[sn] = s.curBatchNum
-			s.xb3hashDis.Write([]byte(xdis))
-			s.xissueHash[sn] = asBlake33B(s.xb3hashDis)
-
-			//fmt.Printf("on cur dispatch = %v; (for sn = %v) hashDis = %v\n", next, sn, asBlake33B(s.xb3hashDis))
-			s.xmut.Unlock()
 
 			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
-
-			op.dispatchTm = now
 
 			switch op.kind {
 			case NEW_GORO:
