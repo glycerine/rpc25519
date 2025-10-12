@@ -593,10 +593,10 @@ func (s *Simnet) releaseReady() {
 
 	ready := s.releasableQ.Len()
 	if ready == 0 {
-		//vv("releaseReady(): nothing to release")
+		vv("releaseReady(): nothing to release")
 		return
 	}
-	//vv("releaseReady(): releasing %v", ready)
+	vv("releaseReady(): releasing %v", ready)
 
 	releaseBatch := s.nextReleaseBatch
 	s.nextReleaseBatch++
@@ -3475,7 +3475,7 @@ func (s *Simnet) scheduler() {
 		now = time.Now()
 		//vv("j loop; after Wait. j = %v", j)
 
-		_, restartNewScenario, shutdown := s.distributeMEQ(now, j)
+		npop, restartNewScenario, shutdown := s.distributeMEQ(now, j)
 		if shutdown {
 			return
 		}
@@ -3484,7 +3484,7 @@ func (s *Simnet) scheduler() {
 			tick = s.scenario.tick
 		}
 
-		//vv("calling releaseReady()")
+		vv("scheduler loop j = %v saw npop = %v, calling releaseReady()", j, npop)
 		// release in deterministic order
 		s.releaseReady()
 	}

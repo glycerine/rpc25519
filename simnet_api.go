@@ -146,7 +146,7 @@ var hit int
 
 func (s *scenario) rngUint64() (x uint64) {
 	x = s.rng.Uint64()
-	fmt.Printf("rngUint64 = %v   at %v\n", x, fileLine(2))
+	fmt.Printf("rngUint64 = %v   at %v  (up: %v)\n", x, fileLine(2), fileLine(3))
 	// if x == 17388925035899529736 {
 	// 	hit++
 	// 	if hit == 2 {
