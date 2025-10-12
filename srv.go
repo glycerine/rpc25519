@@ -2147,7 +2147,11 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			key:  key,
 			pair: p,
 		}
-		cli.garbageCollectThisRwPairCh <- gcMe
+		select {
+		case cli.garbageCollectThisRwPairCh <- gcMe:
+		case <-s.halt.ReqStop.Chan:
+			return
+		}
 
 		//vv("started auto-client ok. trying again... from:'%v'; to:'%v'", p.from, p.to)
 		err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)

@@ -653,16 +653,16 @@ func TestDiffPos(t *testing.T) {
 	}
 }
 
-func Test709_simnet_deterministic(t *testing.T) {
+// We don't yet have full determinism, but
+// we are much closer; which might still
+// help with testing.
+func Test709_simnet_aims_for_determinism(t *testing.T) {
 	return
 
 	// 709 is based on 707, where
 	// we later added a determinism/reproducible
 	// test check below with the call to
 	// panicIfFinalHashDifferent(xorderPath).
-	//
-	// We don't yet have full determinism, but
-	// we are much closer.
 
 	loadtest := func(prevSnap *SimnetSnapshot, nNodes, wantSendPerPeer int, sendEvery time.Duration, xorderPath string) (snap *SimnetSnapshot) {
 
