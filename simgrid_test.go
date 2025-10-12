@@ -503,7 +503,7 @@ func (s *node2) loadDone(me string, addSends, addReads int) bool {
 }
 
 func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
-	//return
+	return
 	// At one point, tube raft grid had sporadic
 	// read loss resulting in a hung client. It
 	// could have been at the tube layer, but to

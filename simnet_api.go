@@ -73,7 +73,7 @@ func (s *Simnet) NewGoro(name string) {
 		where:   fileLine(2),
 		net:     s,
 		reqtm:   time.Now(),
-		proceed: make(chan time.Duration),
+		proceed: make(chan time.Duration, 1),
 		who:     goID(),
 	}
 	select {
@@ -135,18 +135,18 @@ func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 		minHop:  minHop,
 		maxHop:  maxHop,
 		reqtm:   time.Now(),
-		proceed: make(chan time.Duration),
+		proceed: make(chan time.Duration, 1),
 		who:     goID(),
 	}
 	s.rng = mathrand2.New(s.chacha)
 	return s
 }
 
-var hit int
+//var hit int
 
 func (s *scenario) rngUint64() (x uint64) {
 	x = s.rng.Uint64()
-	fmt.Printf("rngUint64 = %v   at %v  (up: %v)\n", x, fileLine(2), fileLine(3))
+	//fmt.Printf("rngUint64 = %v   at %v  (up: %v)\n", x, fileLine(2), fileLine(3))
 	// if x == 17388925035899529736 {
 	// 	hit++
 	// 	if hit == 2 {
@@ -158,7 +158,7 @@ func (s *scenario) rngUint64() (x uint64) {
 
 func (s *scenario) rngFloat64() (x float64) {
 	x = s.rng.Float64()
-	fmt.Printf("rngFloat64 = %v   at %v\n", x, fileLine(2))
+	//fmt.Printf("rngFloat64 = %v   at %v\n", x, fileLine(2))
 	return
 }
 
@@ -168,7 +168,7 @@ func (s *scenario) rngHop() (hop time.Duration) {
 	}
 	vary := s.maxHop - s.minHop
 
-	vv("rngHop called!")
+	//vv("rngHop called!")
 
 	// get un-biased uniform pseudo random number in [0, vary)
 	r := chachaRandNonNegInt64Range(s.chacha, int64(vary))
@@ -182,7 +182,7 @@ func (s *Simnet) rngTieBreaker() int {
 	return s.scenario.rngTieBreaker()
 }
 func (s *scenario) rngTieBreaker() int {
-	vv("rngTieBreaker called!")
+	//vv("rngTieBreaker called!")
 
 	for {
 		a := s.rngUint64()
@@ -568,7 +568,7 @@ func (s *Simnet) newTimerCreateMop(isCli bool) (op *mop) {
 		originCli: isCli,
 		sn:        s.simnetNextMopSn("timerCreate"),
 		kind:      TIMER,
-		proceed:   make(chan time.Duration),
+		proceed:   make(chan time.Duration, 1),
 		reqtm:     time.Now(),
 		who:       goID(),
 	}
@@ -580,7 +580,7 @@ func (s *Simnet) newTimerDiscardMop(origTimerMop *mop) (op *mop) {
 		originCli:    origTimerMop.originCli,
 		sn:           s.simnetNextMopSn("timerDiscard"),
 		kind:         TIMER_DISCARD,
-		proceed:      make(chan time.Duration),
+		proceed:      make(chan time.Duration, 1),
 		origTimerMop: origTimerMop,
 		reqtm:        time.Now(),
 		who:          goID(),
@@ -593,7 +593,7 @@ func (s *Simnet) newReadMop(isCli bool) (op *mop) {
 		originCli: isCli,
 		sn:        s.simnetNextMopSn("newREAD"),
 		kind:      READ,
-		proceed:   make(chan time.Duration),
+		proceed:   make(chan time.Duration, 1),
 		reqtm:     time.Now(),
 		who:       goID(),
 	}
@@ -608,7 +608,7 @@ func (s *Simnet) newSendMop(msg *Message, isCli bool) (op *mop) {
 		msg:       msg.CopyForSimNetSend(),
 		sn:        s.simnetNextMopSn("newSEND"),
 		kind:      SEND,
-		proceed:   make(chan time.Duration),
+		proceed:   make(chan time.Duration, 1),
 		reqtm:     time.Now(),
 		who:       goID(),
 	}
@@ -686,7 +686,7 @@ func (s *Simnet) newClientRegistration(
 		serverAddrStr:    serverAddr,
 		serverBaseID:     serverBaseID,
 		reqtm:            time.Now(),
-		proceed:          make(chan time.Duration),
+		proceed:          make(chan time.Duration, 1),
 		who:              goID(),
 	}
 }
@@ -713,7 +713,7 @@ func (s *Simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) (r *
 		server:       srv,
 		serverBaseID: srv.cfg.serverBaseID,
 		srvNetAddr:   srvNetAddr,
-		proceed:      make(chan time.Duration),
+		proceed:      make(chan time.Duration, 1),
 		reqtm:        time.Now(),
 		who:          goID(),
 	}
@@ -784,7 +784,7 @@ func (s *Simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHo
 		simnodeName: simnodeName,
 		alter:       alter,
 		isHostAlter: isHostAlter,
-		proceed:     make(chan time.Duration),
+		proceed:     make(chan time.Duration, 1),
 		reqtm:       time.Now(),
 		who:         goID(),
 		//where:       fileLine(3),
@@ -867,7 +867,7 @@ func (s *Simnet) newCircuitFault(originName, targetName string, dd DropDeafSpec,
 		DropDeafSpec:        dd,
 		deliverDroppedSends: deliverDroppedSends,
 		sn:                  s.simnetNextMopSn("&circuitFault"),
-		proceed:             make(chan time.Duration),
+		proceed:             make(chan time.Duration, 1),
 		reqtm:               time.Now(),
 		who:                 goID(),
 	}
@@ -890,7 +890,7 @@ func (s *Simnet) newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSe
 		DropDeafSpec:        dd,
 		deliverDroppedSends: deliverDroppedSends,
 		sn:                  s.simnetNextMopSn("&hostFault"),
-		proceed:             make(chan time.Duration),
+		proceed:             make(chan time.Duration, 1),
 		reqtm:               time.Now(),
 		who:                 goID(),
 	}
@@ -914,7 +914,7 @@ func (s *Simnet) newCloseSimnode(simnodeName string, reason error) *closeSimnode
 		reason:      reason,
 		simnodeName: simnodeName,
 		sn:          s.simnetNextMopSn("&closeSimnode"),
-		proceed:     make(chan time.Duration),
+		proceed:     make(chan time.Duration, 1),
 		reqtm:       time.Now(),
 		who:         goID(),
 	}
@@ -944,7 +944,7 @@ func (s *Simnet) newCircuitRepair(originName, targetName string, unIsolate, powe
 		unIsolate:           unIsolate,
 		powerOnIfOff:        powerOnIfOff,
 		sn:                  s.simnetNextMopSn("&circuitRepair"),
-		proceed:             make(chan time.Duration),
+		proceed:             make(chan time.Duration, 1),
 		reqtm:               time.Now(),
 		who:                 goID(),
 	}
@@ -971,7 +971,7 @@ func (s *Simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHost
 		unIsolate:           unIsolate,
 		allHosts:            allHosts,
 		sn:                  s.simnetNextMopSn("&hostRepair"),
-		proceed:             make(chan time.Duration),
+		proceed:             make(chan time.Duration, 1),
 		reqtm:               time.Now(),
 		who:                 goID(),
 	}
@@ -1099,7 +1099,7 @@ type SimnetSnapshot struct {
 func (s *Simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
 	snap = &SimnetSnapshot{
 		reqtm:   time.Now(),
-		proceed: make(chan time.Duration),
+		proceed: make(chan time.Duration, 1),
 		who:     goID(),
 		where:   fileLine(2),
 	}
@@ -1148,7 +1148,7 @@ func (s *Simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
 		batchSubWhen: subwhen,
 		batchSubAsap: subAsap,
 		reqtm:        time.Now(),
-		proceed:      make(chan time.Duration),
+		proceed:      make(chan time.Duration, 1),
 		who:          goID(),
 	}
 }

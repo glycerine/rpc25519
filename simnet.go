@@ -593,19 +593,19 @@ func (s *Simnet) releaseReady() {
 
 	ready := s.releasableQ.Len()
 	if ready == 0 {
-		vv("releaseReady(): nothing to release")
+		//vv("releaseReady(): nothing to release")
 		return
 	}
-	vv("releaseReady(): releasing %v", ready)
+	//vv("releaseReady(): releasing %v", ready)
 
 	releaseBatch := s.nextReleaseBatch
 	s.nextReleaseBatch++
 
-	fmt.Printf("\nreleaseReady for releaseBatch = %v\n", releaseBatch)
-	begPrng := s.scenario.rngUint64()
+	//fmt.Printf("\nreleaseReady for releaseBatch = %v\n", releaseBatch)
+	//begPrng := s.scenario.rngUint64()
 
-	fmt.Printf("\nreleaseBatch = %v was at begPrng = %v ; has %v ops\n", releaseBatch, begPrng, ready)
-	fmt.Printf("fin hash: %v\n", asBlake33B(s.xb3hashFin))
+	//fmt.Printf("\nreleaseBatch = %v was at begPrng = %v ; has %v ops\n", releaseBatch, begPrng, ready)
+	//fmt.Printf("fin hash: %v\n", asBlake33B(s.xb3hashFin))
 
 	pseudoRandomQ := newOneTimeSliceQ("releaseReady")
 	for s.releasableQ.Len() > 0 {
@@ -631,7 +631,11 @@ func (s *Simnet) release(op *mop) {
 		return
 		//case NEW_GORO:
 	default:
-		op.proceed <- s.scenario.tick
+		select {
+		case op.proceed <- s.scenario.tick:
+		case <-s.halt.ReqStop.Chan:
+			return
+		}
 		return
 	}
 	/*	case
@@ -895,9 +899,10 @@ func (s *Simnet) fin2(op *mop) {
 	s.xfintm[sn] = now
 	s.xreleaseBatch[sn] = op.releaseBatch
 
-	orig := s.xsn2descDebug[sn]
+	v, _ := s.xsn2descDebug.Load(sn)
+	orig := v.(string)
 	orig += fmt.Sprintf("[elap:%v]", now.Sub(s.xissuetm[sn]))
-	s.xsn2descDebug[sn] = orig
+	s.xsn2descDebug.Store(sn, orig)
 
 	w := op.whence() // file:line where created.
 	s.xwhence[sn] = w
@@ -922,7 +927,7 @@ func (s *Simnet) fin2(op *mop) {
 	// is getting injected when the fin hashes vary?
 	//fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v; batch: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
 	// sn messes up diffs:
-	fmt.Printf("s.xfinHash[sn:xx] = %v (disp: %v; batch: %v)\n", s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
+	//fmt.Printf("s.xfinHash[sn:xx] = %v (disp: %v; batch: %v)\n", s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
 
 	// we cannot accurately check online, since
 	// many operations finishing at the same time point
@@ -964,7 +969,7 @@ func (s *Simnet) fin2(op *mop) {
 		xpath := s.cfg.repeatTraceViolatedOutpath
 		cursnap.ToFile(xpath)
 		err := snapFilesDifferent(xpath, false) // like 707
-		vv("snapFilesDifferent err = %v", err)
+		alwaysPrintf("snapFilesDifferent err = %v", err)
 		dis0prev := dis0 - 1
 		sn0prev := prev.Xdis2sn[dis0prev]
 		hash0prev := prev.XfinHash[sn0prev]
@@ -980,31 +985,31 @@ func (s *Simnet) fin2(op *mop) {
 		var oldPrevHasher0snRep string
 
 		if sn1prev == -1 {
-			vv("sn1prev == -1 -- yikes? sn1 = %v", sn1)
+			alwaysPrintf("sn1prev == -1 -- yikes? sn1 = %v", sn1)
 		} else {
 			curPrevHasher1sn = s.xfinPrevHasherSn[sn1prev]
 			if curPrevHasher1sn == -1 {
-				vv("yikes? curPrevHasher1sn == -1; sn1prev =%v; sn1 = %v", sn1prev, sn1)
+				alwaysPrintf("yikes? curPrevHasher1sn == -1; sn1prev =%v; sn1 = %v", sn1prev, sn1)
 			} else {
 				curPrevHasher1snRep = s.xfinRepeatable[curPrevHasher1sn]
 			}
 		}
 		if sn0prev == -1 {
-			vv("sn0prev == -1 -- yikes? sn0 = %v", sn0)
+			alwaysPrintf("sn0prev == -1 -- yikes? sn0 = %v", sn0)
 		} else {
 			oldPrevHasher0sn = prev.XfinPrevHasherSn[sn0prev]
 			if oldPrevHasher0sn == -1 {
-				vv("yikes? oldPrevHasher0sn == -1; sn0prev = %v; sn0 = %v", sn0prev, sn0)
+				alwaysPrintf("yikes? oldPrevHasher0sn == -1; sn0prev = %v; sn0 = %v", sn0prev, sn0)
 			} else {
 				oldPrevHasher0snRep = prev.XfinRepeatable[oldPrevHasher0sn]
 			}
 		}
-		vv(`
+		alwaysPrintf(`
 currrent trace up now is at (dis1 = %v; sn1 = %v; batch1 = %v)
                  prev trace (dis0 = %v; sn0 = %v; batch0 = %v)`,
 			dis1, sn1, batch1, dis0, sn0, batch0)
-		vv("previous trace previous (dis=%v; sn=%v) (equal to cur prev:%v):\n  cur-trace hash:'%v'\n prev-trace hash:'%v'\n curPrevHasher1sn(%v) rep = %v\n oldPrevHasher0sn(%v) rep = %v", dis0prev, sn0prev, hash0prev == hash1prev, hash0prev, hash1prev, curPrevHasher1sn, curPrevHasher1snRep, oldPrevHasher0sn, oldPrevHasher0snRep)
-		vv("previously our accum hash0 = '%v', but curhash = '%v'", hash0, curhash)
+		alwaysPrintf("previous trace previous (dis=%v; sn=%v) (equal to cur prev:%v):\n  cur-trace hash:'%v'\n prev-trace hash:'%v'\n curPrevHasher1sn(%v) rep = %v\n oldPrevHasher0sn(%v) rep = %v", dis0prev, sn0prev, hash0prev == hash1prev, hash0prev, hash1prev, curPrevHasher1sn, curPrevHasher1snRep, oldPrevHasher0sn, oldPrevHasher0snRep)
+		alwaysPrintf("previously our accum hash0 = '%v', but curhash = '%v'", hash0, curhash)
 		panic("eager panic, see above")
 	}
 }
@@ -1078,31 +1083,43 @@ func whoWhatWhenWhere(who int, what mopkind, whenTm time.Time, where string) []b
 // the same point in time. We cannot count on the
 // sn serial number order to be reproducible.
 func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
+	// to get a consistent read, we still need to lock xmut
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
-	sn = s.nextMopSn
-	s.nextMopSn++
+
+	sn = s.nextMopSn.Add(1)
 	//vv("issue sn: %v  %v  at %v", sn, desc, fileLine(2))
-	s.xsn2descDebug[sn] = desc
+	s.xsn2descDebug.Store(sn, desc)
 
-	s.xissuetm = append(s.xissuetm, time.Now())
-	s.xissueOrder = append(s.xissueOrder, -1)
-	s.xissueBatch = append(s.xissueBatch, -1)
-	s.xissueHash = append(s.xissueHash, "")
-	s.xdispatchRepeatable = append(s.xdispatchRepeatable, "")
-	s.xfinPrevHasherSn = append(s.xfinPrevHasherSn, -1)
-	s.xreleaseBatch = append(s.xreleaseBatch, -1)
-
-	s.xfintm = append(s.xfintm, time.Time{})
-	s.xfinHash = append(s.xfinHash, "")
-	s.xfinRepeatable = append(s.xfinRepeatable, "")
-	s.xwhence = append(s.xwhence, "")
-	s.xkind = append(s.xkind, -1)
-
-	s.xorigin = append(s.xorigin, "")
-	s.xtarget = append(s.xtarget, "")
+	if sn >= maxX {
+		panicf("out of sn, must increase maxX! sn=%v; maxX = %v", sn, maxX)
+	}
 
 	return
+}
+
+const maxX = 100_000
+
+func (s *Simnet) preallocateX() {
+	limit := maxX
+
+	s.xissuetm = make([]time.Time, limit)
+	s.xissueOrder = make([]int64, limit)
+	s.xissueBatch = make([]int64, limit)
+	s.xissueHash = make([]string, limit)
+	s.xdispatchRepeatable = make([]string, limit)
+	s.xfinPrevHasherSn = make([]int64, limit)
+	s.xreleaseBatch = make([]int64, limit)
+
+	s.xfintm = make([]time.Time, limit)
+	s.xfinHash = make([]string, limit)
+	s.xfinRepeatable = make([]string, limit)
+	s.xwhence = make([]string, limit)
+	s.xkind = make([]mopkind, limit)
+
+	s.xorigin = make([]string, limit)
+	s.xtarget = make([]string, limit)
+
 }
 
 func (s *Simnet) simnetNextBatchSn() int64 {
@@ -1111,6 +1128,8 @@ func (s *Simnet) simnetNextBatchSn() int64 {
 
 // simnet simulates a network entirely with channels in memory.
 type Simnet struct {
+	nextMopSn        atomic.Int64
+	xmax             int64
 	nextReleaseBatch int64
 	releasableQ      *pq
 	xprevHasherSn    int64
@@ -1119,12 +1138,11 @@ type Simnet struct {
 	xsn2dis       map[int64]int64
 	xdis2sn       map[int64]int64
 	nextDispatch  int64
-	xsn2descDebug map[int64]string
+	xsn2descDebug sync.Map
 	mintick       time.Duration
 	ndtotPrev     int64
 	ndtot         int64 // num dispatched total.
 
-	nextMopSn         int64
 	simnetLastBatchSn int64
 
 	// fin records execution/finishing order
@@ -1584,11 +1602,11 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
-		releasableQ:   newReleasableQueue("scheduler"),
-		xsn2dis:       make(map[int64]int64),
-		xdis2sn:       make(map[int64]int64),
-		xsn2descDebug: make(map[int64]string),
-		mintick:       time.Duration(minTickNanos),
+		releasableQ: newReleasableQueue("scheduler"),
+		xsn2dis:     make(map[int64]int64),
+		xdis2sn:     make(map[int64]int64),
+		//xsn2descDebug: make(map[int64]string),
+		mintick: time.Duration(minTickNanos),
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
 		xb3hashFin:      blake3.New(64, nil),
 		xb3hashDis:      blake3.New(64, nil),
@@ -1644,6 +1662,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	s.nextTimer.Stop()
 	s.halt = idem.NewHalterNamed(fmt.Sprintf("simnet %p", s))
 	s.halt.AddChild(srv.halt)
+	s.preallocateX()
 
 	if s.cfg.SimnetGOMAXPROCS > 0 {
 		runtime.GOMAXPROCS(s.cfg.SimnetGOMAXPROCS)
@@ -3476,6 +3495,7 @@ func (s *Simnet) scheduler() {
 		//vv("j loop; after Wait. j = %v", j)
 
 		npop, restartNewScenario, shutdown := s.distributeMEQ(now, j)
+		_ = npop
 		if shutdown {
 			return
 		}
@@ -3484,7 +3504,7 @@ func (s *Simnet) scheduler() {
 			tick = s.scenario.tick
 		}
 
-		vv("scheduler loop j = %v saw npop = %v, calling releaseReady()", j, npop)
+		//vv("scheduler loop j = %v saw npop = %v, calling releaseReady()", j, npop)
 		// release in deterministic order
 		s.releaseReady()
 	}
@@ -3861,7 +3881,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// s.scen.rng.Uint64() ... if we are sure
 		// that would not violate causality. but we
 		// do check that at the matchmaker.
-		vv("dispatchMEQ calling setPseudorandom for batch %v, npop %v", s.curBatchNum+1, npop)
+		//vv("dispatchMEQ calling setPseudorandom for batch %v, npop %v", s.curBatchNum+1, npop)
 		s.setPseudorandom(op)
 
 		added, _ := s.curSliceQ.add(op)
@@ -3897,7 +3917,11 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 			}
 
 			op.issueBatch = s.curBatchNum
-			desc := s.xsn2descDebug[sn]
+			v, ok := s.xsn2descDebug.Load(sn)
+			if !ok {
+				panicf("why no sn = %v entry in xsn2descDebug?", sn)
+			}
+			desc := v.(string)
 			next := s.nextDispatch
 			s.nextDispatch++
 			s.xsn2dis[sn] = next
@@ -4392,29 +4416,31 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 		req.DNS[k] = v.name
 	}
 
-	req.Xcountsn = s.nextMopSn
-	req.Xwhence = append([]string{}, s.xwhence...)
-	req.Xkind = append([]mopkind{}, s.xkind...)
-	req.Xissuetm = append([]time.Time{}, s.xissuetm...)
-	req.XissueOrder = append([]int64{}, s.xissueOrder...)
-	req.XissueBatch = append([]int64{}, s.xissueBatch...)
-	req.XissueHash = append([]string{}, s.xissueHash...)
-	req.XdispatchRepeatable = append([]string{}, s.xdispatchRepeatable...)
-	req.Xfintm = append([]time.Time{}, s.xfintm...)
-	req.XfinHash = append([]string{}, s.xfinHash...)
-	req.XfinRepeatable = append([]string{}, s.xfinRepeatable...)
-	req.XreleaseBatch = append([]int64{}, s.xreleaseBatch...)
+	n := s.nextMopSn.Load()
+	req.XnextMopSn = n
+	req.Xcountsn = n
 
-	req.Xorigin = append([]string{}, s.xorigin...)
-	req.Xtarget = append([]string{}, s.xtarget...)
+	req.Xwhence = append([]string{}, s.xwhence[:n]...)
+	req.Xkind = append([]mopkind{}, s.xkind[:n]...)
+	req.Xissuetm = append([]time.Time{}, s.xissuetm[:n]...)
+	req.XissueOrder = append([]int64{}, s.xissueOrder[:n]...)
+	req.XissueBatch = append([]int64{}, s.xissueBatch[:n]...)
+	req.XissueHash = append([]string{}, s.xissueHash[:n]...)
+	req.XdispatchRepeatable = append([]string{}, s.xdispatchRepeatable[:n]...)
+	req.Xfintm = append([]time.Time{}, s.xfintm[:n]...)
+	req.XfinHash = append([]string{}, s.xfinHash[:n]...)
+	req.XfinRepeatable = append([]string{}, s.xfinRepeatable[:n]...)
+	req.XreleaseBatch = append([]int64{}, s.xreleaseBatch[:n]...)
+
+	req.Xorigin = append([]string{}, s.xorigin[:n]...)
+	req.Xtarget = append([]string{}, s.xtarget[:n]...)
 
 	req.XhashFin = asBlake33B(s.xb3hashFin)
 	req.XhashDis = asBlake33B(s.xb3hashDis)
 
 	req.XprevHasherSn = s.xprevHasherSn
-	req.XfinPrevHasherSn = append([]int64{}, s.xfinPrevHasherSn...)
+	req.XfinPrevHasherSn = append([]int64{}, s.xfinPrevHasherSn[:n]...)
 	req.XnextDispatch = s.nextDispatch
-	req.XnextMopSn = s.nextMopSn
 
 	req.Xsn2dis = make(map[int64]int64)
 	for k, v := range s.xsn2dis {
