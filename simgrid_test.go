@@ -903,11 +903,11 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 	} // end loadtest func definition
 
 	const nNode1 = 5
-	const wantSendPerPeer1 = 100
 	sendEvery1 := time.Millisecond
+	const wantSendPerPeer1 = 100
 
 	const syncEveryI int64 = 20
-	meetpoint := newDetermCheckMeetpoint(syncEveryI, wantSendPerPeer1*10)
+	meetpoint := newDetermCheckMeetpoint(syncEveryI)
 
 	halt := idem.NewHalter()
 	go loadtest(halt, "A", meetpoint, nNode1, wantSendPerPeer1, sendEvery1)

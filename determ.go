@@ -32,7 +32,10 @@ type determMeetpoint struct {
 
 	toA   chan progressPoint
 	every int64
-	endi  int64
+
+	// too many shutdown mechanisms, synctest deadlocks if not coordinated.
+	// So let the 710 load do the shutdown now.
+	//endi  int64
 }
 
 // progressPoint communicates to the
@@ -43,11 +46,11 @@ type progressPoint struct {
 	prandMEQ uint64
 }
 
-func newDetermCheckMeetpoint(every, endi int64) *determMeetpoint {
+func newDetermCheckMeetpoint(every int64) *determMeetpoint {
 	return &determMeetpoint{
 		toA:   make(chan progressPoint),
 		every: every,
-		endi:  endi,
+		//endi:  endi,
 	}
 }
 
@@ -58,11 +61,13 @@ func (s *Simnet) meetpointCheck(meet *determMeetpoint, prandMEQ uint64, i int64)
 		return
 	}
 
-	if i >= meet.endi {
-		vv("i = %v >= meet.endi:%v for simnet '%v' so closing up simnet", i, meet.endi, name)
-		shutdown = true
-		return
-	}
+	// too many shutdown mechanisms, synctest deadlocks if not coordinated.
+	// So let the 710 load do the shutdown now.
+	// if i >= meet.endi {
+	// 	vv("i = %v >= meet.endi:%v for simnet '%v' so closing up simnet", i, meet.endi, name)
+	// 	shutdown = true
+	// 	return
+	// }
 
 	point := progressPoint{
 		i:        i,
