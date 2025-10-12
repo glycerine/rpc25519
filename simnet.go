@@ -583,6 +583,11 @@ func newOneTimeSliceQ(owner string) *pq {
 // d) then pseudo random sort them
 // e) then release them in that order
 func (s *Simnet) releaseReady() {
+	// lock or else handle client registration will
+	// call too. // race vs :1794 add in handleClientReg
+	s.xmut.Lock()
+	defer s.xmut.Unlock()
+
 	ready := s.releasableQ.Len()
 	if ready == 0 {
 		//vv("releaseReady(): nothing to release")
@@ -604,16 +609,21 @@ func (s *Simnet) releaseReady() {
 	for pseudoRandomQ.Len() > 0 {
 		op := pseudoRandomQ.pop()
 		s.fin2(op)
-		op.release()
+		s.release(op)
 	}
 }
 
-func (s *mop) release() {
-	if s.kind == TIMER {
+func (s *Simnet) release(op *mop) {
+
+	switch op.kind {
+	case TIMER:
 		// already closed at :3727 in handleTimer
 		return
+		//case NEW_GORO:
+	default:
+		op.proceed <- s.scenario.tick
 	}
-	/*	case NEW_GORO,
+	/*	case
 		CLOSE_SIMNODE,
 		SNAPSHOT,
 		TIMER_DISCARD,
@@ -630,7 +640,7 @@ func (s *mop) release() {
 		SCENARIO,
 		BATCH:
 	*/
-	close(s.proceed)
+	close(op.proceed)
 
 	// panic(fmt.Sprintf("mop kind '%v' needs release() policy", int(s.kind)))
 }
@@ -847,7 +857,7 @@ func (s *Simnet) nextUniqTm(atleast time.Time, who string) time.Time {
 }
 
 func (s *Simnet) fin(op *mop) {
-	// the simnet.go:1480 handleClientRegistration
+	// the simnet.go:1516 handleClientRegistration
 	// new goroutine will call us and
 	// give us a data race vs oursevles here
 	// if we don't lock.
@@ -864,8 +874,9 @@ func (s *Simnet) fin(op *mop) {
 // back to the client.
 func (s *Simnet) fin2(op *mop) {
 	now := time.Now()
-	s.xmut.Lock()
-	defer s.xmut.Unlock()
+	// releaseReady(), our only caller now holds xmut.
+	//s.xmut.Lock()
+	//defer s.xmut.Unlock()
 
 	sn := op.sn
 	s.xfintm[sn] = now
