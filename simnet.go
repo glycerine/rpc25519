@@ -197,6 +197,8 @@ func (op *mop) bestName() string {
 	return op.earlyName
 }
 
+// whence reports where in the source code this client
+// call originates: the file:line number.
 func (op *mop) whence() string {
 	switch op.kind {
 	case NEW_GORO:
@@ -1093,7 +1095,8 @@ func whoWhatWhenWhere(who int, what mopkind, whenTm time.Time, where string) []b
 // the same point in time. We cannot count on the
 // sn serial number order to be reproducible.
 func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
-	// to get a consistent read, we still need to lock xmut
+	// to get a consistent read for snapshot, dns etc,
+	// we still need to lock xmut even with the atomics below.
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 
@@ -1108,7 +1111,7 @@ func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 	return
 }
 
-const maxX = 1_000_000 // 100K too small for 707 test
+const maxX = 1_000_000 // 100K too small for 707/709 test
 
 func (s *Simnet) preallocateX() {
 	limit := maxX
@@ -3482,14 +3485,16 @@ func (s *Simnet) scheduler() {
 
 	tick := s.scenario.tick
 
+	// this is the "new" scheduler loop. It
+	// is much simpler, and allows goroutines
+	// to queue up as much as they can into
+	// the meq while we are sleeping and
+	// waiting at the barrier.
 	var j int64
 	for ; ; j++ {
 
 		if s.halt.ReqStop.IsClosed() {
 			return
-		}
-		if faketime {
-			synctestWait_LetAllOtherGoroFinish() // barrier
 		}
 
 		// We have to shutdown promptly or the synctest
@@ -3500,6 +3505,9 @@ func (s *Simnet) scheduler() {
 			// slept for 1 tick of the clock.
 		case <-s.halt.ReqStop.Chan:
 			return
+		}
+		if faketime {
+			synctestWait_LetAllOtherGoroFinish() // barrier
 		}
 		now = time.Now()
 		//vv("j loop; after Wait. j = %v", j)
@@ -3518,6 +3526,8 @@ func (s *Simnet) scheduler() {
 		// release in deterministic order
 		s.releaseReady()
 	}
+
+	// begin old scheduler loop, not used now.
 
 iloop:
 	for i := int64(0); ; i++ {

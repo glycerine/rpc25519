@@ -657,7 +657,7 @@ func TestDiffPos(t *testing.T) {
 // we are much closer; which might still
 // help with testing.
 func Test709_simnet_aims_for_determinism(t *testing.T) {
-	return
+	//return
 
 	// 709 is based on 707, where
 	// we later added a determinism/reproducible
