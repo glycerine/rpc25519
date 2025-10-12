@@ -904,9 +904,9 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 
 	const nNode1 = 5
 	sendEvery1 := time.Millisecond
-	const wantSendPerPeer1 = 100
+	const wantSendPerPeer1 = 1000
 
-	const syncEveryI int64 = 20
+	const syncEveryI int64 = 1 // verify every step for now.
 	meetpoint := newDetermCheckMeetpoint(syncEveryI)
 
 	halt := idem.NewHalter()

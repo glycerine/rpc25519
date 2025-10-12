@@ -38,10 +38,11 @@ type determMeetpoint struct {
 // other simnet what iloop and prand
 // we have seen during MEQ batching.
 type progressPoint struct {
-	i        int64
-	prandMEQ uint64
-	meqBatch int64
-	npop     int
+	i                      int64
+	prandMEQ               uint64
+	meqBatch               int64
+	npop                   int
+	topOfBatchNextDispatch int64 // s.nextDispatch before dispatching any of this batch
 }
 
 func newDetermCheckMeetpoint(every int64) *determMeetpoint {
@@ -51,7 +52,7 @@ func newDetermCheckMeetpoint(every int64) *determMeetpoint {
 	}
 }
 
-func (s *Simnet) meetpointCheck(meet *determMeetpoint, prandMEQ uint64, i int64, meqBatch int64, npop int) (shutdown bool) {
+func (s *Simnet) meetpointCheck(meet *determMeetpoint, prandMEQ uint64, i int64, meqBatch int64, npop int, topOfBatchNextDispatch int64) (shutdown bool) {
 	name := s.simnetName
 
 	if i%meet.every != 0 {
@@ -59,10 +60,11 @@ func (s *Simnet) meetpointCheck(meet *determMeetpoint, prandMEQ uint64, i int64,
 	}
 
 	point := progressPoint{
-		i:        i,
-		prandMEQ: prandMEQ,
-		meqBatch: meqBatch,
-		npop:     npop,
+		i:                      i,
+		prandMEQ:               prandMEQ,
+		meqBatch:               meqBatch,
+		npop:                   npop,
+		topOfBatchNextDispatch: topOfBatchNextDispatch,
 	}
 
 	//vv("simnetName:%v  i = %v and meet.every: %v, so conducting "+
@@ -73,19 +75,23 @@ func (s *Simnet) meetpointCheck(meet *determMeetpoint, prandMEQ uint64, i int64,
 	case "A":
 		select {
 		case pointB := <-meet.toA:
-			if pointB.i != point.i {
+			if pointB.i != i {
 				panicf("internal logic error: B.i(%v) != A.i(%v)", pointB.i, i)
 			}
-			if pointB.meqBatch != point.meqBatch {
+			if pointB.meqBatch != meqBatch {
 				panicf("internal logic error: B.meqBatch(%v) != A.meqBatch(%v)", pointB.meqBatch, meqBatch)
 			}
-			if pointB.npop != point.npop {
+			if pointB.npop != npop {
 				panicf("internal logic error: B.npop(%v) != A.npop(%v)", pointB.npop, npop)
 			}
-			if pointB.prandMEQ != point.prandMEQ {
+			if pointB.prandMEQ != prandMEQ {
 				panicf("divergence detected! at i=%v, A.prandMEQ = %v, but B.prandMEQ = %v", i, point.prandMEQ, pointB.prandMEQ)
 			}
-			vv("good: agreement at i = %v: prandMEQ = %v; meqBatch = %v ; npop = %v", i, prandMEQ, meqBatch, npop)
+			if pointB.topOfBatchNextDispatch != topOfBatchNextDispatch {
+				panicf("divergence detected! at i=%v, A.topOfBatchNextDispatch = %v, but B.topOfBatchNextDispatch = %v", i, topOfBatchNextDispatch, pointB.topOfBatchNextDispatch)
+
+			}
+			//vv("good: agreement at i = %v: prandMEQ = %v; meqBatch = %v ; npop = %v; topOfBatchNextDispatch = %v", i, prandMEQ, meqBatch, npop, topOfBatchNextDispatch)
 
 		case <-s.halt.ReqStop.Chan:
 			shutdown = true

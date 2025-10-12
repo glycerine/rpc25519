@@ -2582,6 +2582,16 @@ func (s *Simnet) scheduler() {
 	// initially set for. This is kind
 	// of realistic anyway.
 	var i int64
+
+	// lastPrand stores the last pseudo random
+	// number from the scenario.rng. Since we persist it
+	// the meq 710 meetpoint check
+	// also ends up checking the release process too (yay).
+	// This is because if the number of rng calls divergences
+	// during release, it will be detected once
+	// we come back to the next meq check.
+	var lastPrand uint64
+
 	for ; ; i++ {
 
 		if s.halt.ReqStop.IsClosed() {
@@ -2622,7 +2632,8 @@ func (s *Simnet) scheduler() {
 		// asynchronous latency, clients can also be
 		// told to pause after receiving news of their
 		// concluded request.
-		npop, restartNewScenario, shutdown := s.distributeMEQ(now, i)
+		npop, restartNewScenario, shutdown, endPrand := s.distributeMEQ(now, i, lastPrand)
+		lastPrand = endPrand
 		_ = npop
 		if shutdown {
 			return
@@ -2661,7 +2672,11 @@ func (s *Simnet) scheduler() {
 // and thus non-deterministic.
 // Also: meq was sorted on reqtm to determine how to
 // dispatch the meq. Yikes. Avoid that now.
-func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario, shutdown bool) {
+func (s *Simnet) distributeMEQ(now time.Time, i int64, beginPrand uint64) (npop int, restartNewScenario, shutdown bool, prand uint64) {
+
+	// keep last prand between calls, so we
+	// don't disturb the rng by reading it again.
+	prand = beginPrand
 
 	s.meqMut.Lock()
 
@@ -2704,7 +2719,6 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	// them timepoints in the future to run, then
 	// the subsequent queued events might get to run first?
 	var op *mop
-	var prand uint64
 
 	for k := 0; ; k++ {
 
@@ -2741,16 +2755,17 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		s.curBatchNum++
 	}
 	if s.cfg.meetpoint710 != nil {
-		shutdown = s.meetpointCheck(s.cfg.meetpoint710, prand, i, s.curBatchNum, npop)
+		shutdown = s.meetpointCheck(s.cfg.meetpoint710, prand, i, s.curBatchNum, npop, s.nextDispatch)
 		if shutdown {
 			return
 		}
 	}
 
 	if npop == 0 {
-		// still have to dispatch below! might be
+		// still have to dispatchAll() below! might be
 		// time to match sender and receiver after
-		// sender has "traversed" the network
+		// sender has "traversed" the network.
+		// Do not return pre-maturely here.
 	} else {
 		var batch string
 		//fmt.Printf("distributeMEQ: s.curBatchNum = %v is size %v    %v\n", s.curBatchNum, npop, nice9(now))
