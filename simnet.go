@@ -174,7 +174,7 @@ type mop struct {
 func (s *Simnet) setPseudorandom(op *mop) {
 	var x uint64
 	for x == 0 {
-		x = s.scenario.rng.Uint64()
+		x = s.scenario.rngUint64()
 	}
 	op.pseudorandom = x
 }
@@ -601,7 +601,12 @@ func (s *Simnet) releaseReady() {
 	releaseBatch := s.nextReleaseBatch
 	s.nextReleaseBatch++
 
-	begPrng := s.scenario.rng.Uint64()
+	fmt.Printf("\nreleaseReady for releaseBatch = %v\n", releaseBatch)
+	begPrng := s.scenario.rngUint64()
+
+	fmt.Printf("\nreleaseBatch = %v was at begPrng = %v ; has %v ops\n", releaseBatch, begPrng, ready)
+	fmt.Printf("fin hash: %v\n", asBlake33B(s.xb3hashFin))
+
 	pseudoRandomQ := newOneTimeSliceQ("releaseReady")
 	for s.releasableQ.Len() > 0 {
 		op := s.releasableQ.pop()
@@ -610,8 +615,6 @@ func (s *Simnet) releaseReady() {
 		pseudoRandomQ.add(op)
 	}
 
-	fmt.Printf("\nreleaseBatch = %v was at begPrng = %v ; has %v ops\n", releaseBatch, begPrng, ready)
-	fmt.Printf("fin hash: %v\n", asBlake33B(s.xb3hashFin))
 	for pseudoRandomQ.Len() > 0 {
 		op := pseudoRandomQ.pop()
 		//fmt.Printf("        op: %v\n", op)
@@ -917,7 +920,9 @@ func (s *Simnet) fin2(op *mop) {
 
 	// the essential debugging print: which extra sn
 	// is getting injected when the fin hashes vary?
-	fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v; batch: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
+	//fmt.Printf("s.xfinHash[sn:%v] = %v (disp: %v; batch: %v)\n", op.sn, s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
+	// sn messes up diffs:
+	fmt.Printf("s.xfinHash[sn:xx] = %v (disp: %v; batch: %v)\n", s.xfinHash[sn], s.xsn2dis[op.sn], s.xissueBatch[op.sn])
 
 	// we cannot accurately check online, since
 	// many operations finishing at the same time point
@@ -2697,7 +2702,7 @@ func (s *Simnet) localDeafRead(read, send *mop) (isDeaf bool) {
 	if prob == 0 {
 		//vv("localDeafRead top: prob = 0, not deaf for sure: read='%v'; send='%v'", read, send)
 	} else {
-		random01 := s.scenario.rng.Float64() // in [0, 1)
+		random01 := s.scenario.rngFloat64() // in [0, 1)
 
 		//vv("localDeafRead top: random01 = %v < prob(%v) = %v ; read='%v'; send='%v'", random01, prob, random01 < prob, read, send) // not seen 1002
 		isDeaf = random01 < prob
@@ -2718,7 +2723,7 @@ func (s *Simnet) deaf(prob float64) bool {
 	if prob >= 1 {
 		return true
 	}
-	random01 := s.scenario.rng.Float64() // in [0, 1)
+	random01 := s.scenario.rngFloat64() // in [0, 1)
 	return random01 < prob
 }
 
@@ -2729,7 +2734,7 @@ func (s *Simnet) dropped(prob float64) bool {
 	if prob >= 1 {
 		return true
 	}
-	random01 := s.scenario.rng.Float64() // in [0, 1)
+	random01 := s.scenario.rngFloat64() // in [0, 1)
 	return random01 < prob
 }
 
@@ -3856,6 +3861,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		// s.scen.rng.Uint64() ... if we are sure
 		// that would not violate causality. but we
 		// do check that at the matchmaker.
+		vv("dispatchMEQ calling setPseudorandom for batch %v, npop %v", s.curBatchNum+1, npop)
 		s.setPseudorandom(op)
 
 		added, _ := s.curSliceQ.add(op)

@@ -53,7 +53,7 @@ const rfc3339NanoTz0 = "2006-01-02 15:04:05.000000000Z07:00"
 
 var myPid = os.Getpid()
 var showPid bool = false
-var showGoID bool = true
+var showGoID bool = false
 
 func nice(tm time.Time) string {
 	return tm.Format(rfc3339MsecTz0)

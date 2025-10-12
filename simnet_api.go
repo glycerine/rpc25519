@@ -141,11 +141,34 @@ func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 	s.rng = mathrand2.New(s.chacha)
 	return s
 }
+
+var hit int
+
+func (s *scenario) rngUint64() (x uint64) {
+	x = s.rng.Uint64()
+	fmt.Printf("rngUint64 = %v   at %v\n", x, fileLine(2))
+	// if x == 17388925035899529736 {
+	// 	hit++
+	// 	if hit == 2 {
+	// 		panic("where?")
+	// 	}
+	// }
+	return
+}
+
+func (s *scenario) rngFloat64() (x float64) {
+	x = s.rng.Float64()
+	fmt.Printf("rngFloat64 = %v   at %v\n", x, fileLine(2))
+	return
+}
+
 func (s *scenario) rngHop() (hop time.Duration) {
 	if s.maxHop <= s.minHop {
 		return s.minHop
 	}
 	vary := s.maxHop - s.minHop
+
+	vv("rngHop called!")
 
 	// get un-biased uniform pseudo random number in [0, vary)
 	r := chachaRandNonNegInt64Range(s.chacha, int64(vary))
@@ -159,9 +182,11 @@ func (s *Simnet) rngTieBreaker() int {
 	return s.scenario.rngTieBreaker()
 }
 func (s *scenario) rngTieBreaker() int {
+	vv("rngTieBreaker called!")
+
 	for {
-		a := s.rng.Uint64()
-		b := s.rng.Uint64()
+		a := s.rngUint64()
+		b := s.rngUint64()
 		if a < b {
 			return -1
 		}
