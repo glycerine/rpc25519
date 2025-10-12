@@ -9,6 +9,7 @@ import (
 	"runtime"
 	//"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/glycerine/idem"
@@ -795,4 +796,143 @@ func Test709_simnet_determinism(t *testing.T) {
 	//loadtest(5, 1, 1, time.Second, "709 loadtest 3")
 
 	//vv("end of 709")
+}
+
+type progressPoint struct {
+	i      int64
+	rngval uint64
+}
+
+type determMeetpoint struct {
+	nextIsA atomic.Bool
+	aNext   chan progressPoint
+	bNext   chan progressPoint
+	every   int64
+	endi    int64
+}
+
+func newDetermCheckMeetpoint(every, endi int64) *determMeetpoint {
+	return &determMeetpoint{
+		aNext: make(chan progressPoint, 1),
+		bNext: make(chan progressPoint, 1),
+		every: every,
+		endi:  endi,
+	}
+}
+
+func Test710_simnet_online_determinism_check(t *testing.T) {
+
+	// 710 is an online determinism check that
+	// does not require storing all history
+	// in memory or a file to be compared later, but
+	// rather allows longer history to be
+	// explored by comparing two independent executions
+	// online "as they run". We stop immediately if
+	// we detect that one has diverged from the other.
+	// This allows us to compare two longer executions.
+
+	loadtest := func(meetpoint *determMeetpoint, nNodes, wantSendPerPeer int, sendEvery time.Duration) {
+
+		nPeer := nNodes - 1
+		wantRead := nPeer * wantSendPerPeer
+
+		// realtime timestamp diffs will cause false
+		// alarms, so only under bubble.
+		onlyBubbled(t, func(t *testing.T) {
+
+			n := nNodes
+			gridCfg := &simGridConfig{
+				ReplicationDegree: n,
+				Timeout:           time.Second * 5,
+			}
+			//histShown := false
+			//defer func() {
+			//	if !histShown {
+			//		vv("in defer, history: %v", gridCfg.hist)
+			//	}
+			//}()
+
+			cfg := NewConfig()
+			cfg.skipExecutionHistory = true
+			cfg.meetpoint710 = meetpoint
+
+			cfg.ServerAutoCreateClientsToDialOtherServers = true
+			cfg.UseSimNet = true
+			//cfg.UseSimNet = faketime
+			cfg.ServerAddr = "127.0.0.1:0"
+			cfg.QuietTestMode = true
+			gridCfg.RpcCfg = cfg
+			cfg.SimnetGOMAXPROCS = 8
+
+			var nodes []*simGridNode
+			for i := range n {
+				name := fmt.Sprintf("grid_node_%v", i)
+				nodes = append(nodes, newSimGridNode(name, gridCfg))
+			}
+			c := newSimGrid(gridCfg, nodes)
+			c.Start()
+			//vv("c.net = %p", c.net) // yes, new simnet each time.
+			defer c.Close()
+
+			for i, g := range nodes {
+				_ = i
+				select {
+				case <-g.node.peersNeededSeen.Chan:
+					//vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
+
+					// failing test will just hang above.
+					// we cannot really do case <-time.After(time.Minute) with faketime.
+				}
+			}
+
+			npeer := nNodes - 1
+			var loads []*gridLoadTestTicket
+			proceed := make(chan struct{})
+			for _, g := range nodes {
+				lo := newGridLoadTestTicket(npeer, wantRead, wantSendPerPeer, sendEvery)
+				lo.proceed = proceed
+				loads = append(loads, lo)
+				g.node.gridLoadTestCh <- lo
+				<-lo.ready
+			}
+			close(proceed)
+			for i, g := range nodes {
+				_ = g
+				<-loads[i].done.Chan
+			}
+
+			//time.Sleep(time.Second)
+			//vv("after load all done, history: %v", gridCfg.hist)
+			//histShown = true
+
+			for i := range nodes {
+				gotSent := gridCfg.hist.sentBy(nodes[i].name)
+				if gotSent != wantSendPerPeer*nPeer {
+					t.Fatalf("node %v sent %v but wanted %v", i, gotSent, wantSendPerPeer*nPeer)
+				}
+				gotRead := gridCfg.hist.readBy(nodes[i].name)
+				if gotRead != wantRead {
+					t.Fatalf("node %v read %v but wanted %v", i, gotRead, wantRead)
+				}
+			}
+		}) // end bubbleOrNot
+		return
+	} // end loadtest func definition
+
+	// 707 just load test timings.
+	// 15 nodes, 100 frag: 60 seconds testtime for realtime. 70sec faketime
+	// 21 nodes, 1k frag: 105s test-time under simnet/synctest-faketime.
+
+	// recent timings synctest:
+	// 1.21 sec    5 nodes, 100 messages. green.
+	// 44 sec with 5 nodes, 10k messages. green.
+	// 87 sec with 7 nodes, 10k messages. green.
+	const nNode1 = 5
+	const wantSendPerPeer1 = 100
+	sendEvery1 := time.Millisecond
+
+	const syncEveryI int64 = 20
+	meetpoint := newDetermCheckMeetpoint(syncEveryI, wantSendPerPeer1*10)
+	go loadtest(meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
+	go loadtest(meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
 }

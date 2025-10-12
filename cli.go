@@ -949,6 +949,13 @@ type UploadReaderFunc func(ctx context.Context, req *Message, lastReply *Message
 // in use is Close()-ed.
 type Config struct {
 
+	// for 710 extended online determinism check:
+	// We do not store full history in memory,
+	// so we can check very long executions.
+	// So no x (execution history arrays) are allocated.
+	skipExecutionHistory bool
+	meetpoint710         *determMeetpoint
+
 	// for 707 simgrid_test to trace repeat
 	repeatTrace                *SimnetSnapshot
 	repeatTraceViolatedOutpath string

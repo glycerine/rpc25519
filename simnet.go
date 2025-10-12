@@ -373,7 +373,10 @@ func (s *Simnet) releaseReady() {
 	for pseudoRandomQ.Len() > 0 {
 		op := pseudoRandomQ.pop()
 		//fmt.Printf("        op: %v\n", op)
-		s.fin2(op)
+
+		if !s.cfg.skipExecutionHistory {
+			s.fin2(op)
+		}
 		s.release(op)
 	}
 }
@@ -677,6 +680,11 @@ func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 
 	sn = s.nextMopSn.Add(1)
 	//vv("issue sn: %v  %v  at %v", sn, desc, fileLine(2))
+
+	if s.cfg.skipExecutionHistory {
+		return
+	}
+
 	s.xsn2descDebug.Store(sn, desc)
 
 	if sn >= maxX {
@@ -1249,7 +1257,10 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	s.nextTimer.Stop()
 	s.halt = idem.NewHalterNamed(fmt.Sprintf("simnet %p", s))
 	s.halt.AddChild(srv.halt)
-	s.preallocateX()
+
+	if !cfg.skipExecutionHistory {
+		s.preallocateX()
+	}
 
 	if s.cfg.SimnetGOMAXPROCS > 0 {
 		runtime.GOMAXPROCS(s.cfg.SimnetGOMAXPROCS)
