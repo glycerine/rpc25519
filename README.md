@@ -1,6 +1,11 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* (2025 Oct 12) v1.31.12 simple pRNG seed setting
+
+The `Config.SetScenarioSeed()` API is available to
+set the test scenario's pseudo random number generator seed.
+
 * Recent News (2025 Oct 11): v1.30.4 and v1.31.0 update to
 the latest go1.25.0 version of testing/synctest
 
@@ -37,6 +42,12 @@ testing scenario.
 
 Test 707 in simgrid_test.go, for example, verifies 
 that a cluster load test is reproducible.
+
+The seed for the scenario's pseudo random number generator
+defaults to 0. It can be set with this API:
+~~~
+Config.SetScenarioSeed(43) // seed can be any uint64
+~~~
 
 * Recent News (2025 Sept 18): v1.29.2 includes Tube, our RAFT implementation.
 
