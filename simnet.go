@@ -1173,11 +1173,11 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	// 5 msec is 2x - 3x faster sim than 1msec
 	// (not dst: 25.4 sec on tube test suite); 49 sec
 	// with DST-able level reproducbility.
-	tick := time.Millisecond * 5
+	//tick := time.Millisecond * 5 // 48 sec on tube DST-able current.
 
 	// 1 msec tick: (not dst: 33 sec on tube) now
-	// DST-able:151 sec to test tube.
-	//tick := time.Millisecond
+	// DST-able:54 sec to test tube.
+	tick := time.Millisecond
 
 	// 100 microsecond tick: (not dst: 74 sec on tube test suite);
 	// versus with DST-able levels of reproducibility: > 10 minutes.
