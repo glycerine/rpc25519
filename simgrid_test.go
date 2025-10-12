@@ -653,16 +653,14 @@ func TestDiffPos(t *testing.T) {
 	}
 }
 
-// We don't yet have full determinism, but
-// we are much closer; which might still
-// help with testing.
-func Test709_simnet_aims_for_determinism(t *testing.T) {
+func Test709_simnet_determinism(t *testing.T) {
 	//return
 
 	// 709 is based on 707, where
 	// we later added a determinism/reproducible
 	// test check below with the call to
 	// panicIfFinalHashDifferent(xorderPath).
+	// This drove the determinism work.
 
 	loadtest := func(prevSnap *SimnetSnapshot, nNodes, wantSendPerPeer int, sendEvery time.Duration, xorderPath string) (snap *SimnetSnapshot) {
 
@@ -756,10 +754,16 @@ func Test709_simnet_aims_for_determinism(t *testing.T) {
 		return
 	} // end loadtest func definition
 
+	// 707 just load test timings.
 	// 15 nodes, 100 frag: 60 seconds testtime for realtime. 70sec faketime
 	// 21 nodes, 1k frag: 105s test-time under simnet/synctest-faketime.
+
+	// recent timings synctest:
+	// 1.21 sec    5 nodes, 100 messages. green.
+	// 44 sec with 5 nodes, 10k messages. green.
+	// 87 sec with 7 nodes, 10k messages. green.
 	const nNode1 = 5
-	const wantSendPerPeer1 = 10
+	const wantSendPerPeer1 = 100
 	sendEvery1 := time.Millisecond
 	xorderPath := homed("~/rpc25519/snap709")
 	removeAllFilesWithPrefix(xorderPath)
