@@ -1,7 +1,7 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
-* Recent News (2025 Oct 11): v1.30.4 update to
+* Recent News (2025 Oct 11): v1.30.4 and v1.31.0 update to
 the latest go1.25.0 version of testing/synctest
 
 As a result of the upgrade to the released
