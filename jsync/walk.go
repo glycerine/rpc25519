@@ -536,6 +536,10 @@ func (di *DirIter) ParallelOneWalkForAll(halt *idem.Halter, root string) (resCh 
 
 		pwalk.Walk(root, func(path string, fi os.FileInfo, hasSubdirs bool, err error) error {
 
+			// fi is an interface, and so it might be nil.
+			if IsNil(fi) {
+				return fmt.Errorf("error? nil os.FileInfo for path '%v'", path)
+			}
 			if fi.Mode()&fs.ModeSymlink != 0 {
 				//vv("have symlink '%v'", resolveMe)
 				// atm do not follow symlinks, but return them.
