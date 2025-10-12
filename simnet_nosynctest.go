@@ -3,14 +3,16 @@
 package rpc25519
 
 import (
-	//"fmt"
+	"fmt"
 	"testing"
 )
 
 const faketime bool = false
 
+var _ = fmt.Printf
+
 func init() {
-	fmt.Printf("faketime = %v\n", faketime)
+	//fmt.Printf("faketime = %v\n", faketime)
 }
 
 func synctestWait_LetAllOtherGoroFinish() {}
