@@ -3200,3 +3200,16 @@ type autoCliInRwPair struct {
 func (cli *Client) garbageCollectThisRwPairOnShutdown(s *Server, key string, p *rwPair) {
 
 }
+
+func (c *Config) SetScenarioSeed(seed uint64) {
+	var b [32]byte
+	b[0] = byte(seed >> 56)
+	b[1] = byte(seed >> 48)
+	b[2] = byte(seed >> 40)
+	b[3] = byte(seed >> 32)
+	b[4] = byte(seed >> 24)
+	b[5] = byte(seed >> 16)
+	b[6] = byte(seed >> 8)
+	b[7] = byte(seed)
+	c.SimnetScenarioSeed0 = b
+}
