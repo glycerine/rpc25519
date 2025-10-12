@@ -35,8 +35,8 @@ func (s *pq) deepclone() (c *pq) {
 		// cmp is shared by simnet and out to user goro
 		// without locking; it is a pure function
 		// though, so this should be fine--also this saves us
-		// from having to know exactly which of thee
-		// three possible PQ ordering functions we have.
+		// from having to know exactly which of the
+		// many possible PQ ordering functions we have.
 		cmp: s.cmp,
 	}
 	for it := s.Tree.Min(); !it.Limit(); it = it.Next() {

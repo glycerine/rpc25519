@@ -21,8 +21,6 @@ import (
 	//rb "github.com/glycerine/rbtree"
 )
 
-const minClientBackpressureDur = time.Millisecond * 2
-
 // NB: all String() methods are now in simnet_string.go
 
 type GoroControl struct {
@@ -386,6 +384,26 @@ func (s *Simnet) releaseReady() {
 	}
 }
 
+// release is the last step in executing
+// a network operation. It allows the blocked
+// external client to resume execution.
+//
+// We force clients to pause for an extra,
+// configurable, amount of time once they
+// have received the release indication
+// via their proceed channels. Currently
+// this is a tick, but it could be varied
+// as a part of a fuzz/DST testing scenario
+// to simulate servers running at very
+// different speeds.
+//
+// Also it could be
+// used to put each server on its own
+// unique timestamped time, if we ever
+// return to that idea. At the moment
+// we abandoned it because of the non-
+// determinism inherent in goroutine ID
+// numbers.
 func (s *Simnet) release(op *mop) {
 
 	switch op.kind {
@@ -463,14 +481,18 @@ func (s *Simnet) fin(op *mop) {
 }
 
 // fin2 records details of a finished mop
-// into our mop tracking slices.
+// into our mop tracking x slices.
 // called by releaseReady() just before
 // closing proceed/releasing the operation
 // back to the client.
-// Must lock xmut b/c all the x fields are also
-// accessed by external routine simnetNextMopSn().
 func (s *Simnet) fin2(op *mop) {
 	now := time.Now()
+
+	// Must lock xmut b/c all the x fields are also
+	// accessed by external routine simnetNextMopSn().
+	// but...
+	// releaseReady() now holds xmut for us.
+	// We will deadlock if we try to lock it again.
 	//s.xmut.Lock()
 	//defer s.xmut.Unlock()
 
@@ -639,13 +661,20 @@ func (op *mop) cliOrSrvString() (cs string) {
 	return
 }
 
-// remember: issuing sn is inherently race-y since
-// external client goroutines which model
-// clients and servers -- especially at startup --
-// are all trying to start sending and reading from
-// the simnet network at the same point in time.
+// simnetNextMopSn is called by external
+// client code as a part of the pre-amble
+// simnet API functions that call into
+// the internal simnet meq addition goroutine.
+//
+// remember: issuing sn (serial numbers) is
+// an inherently race-prone operation, since
+// external client goroutines -- which model
+// clients and servers are all trying to
+// start sending and reading from
+// the simnet network at start up time.
 // We cannot count on the sn serial number order
-// to be reproducible; it regularly varies.
+// to be reproducible; and it is regularly
+// seen to vary alot.
 func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 	// to get a consistent read for snapshot, dns etc,
 	// we still need to lock xmut even with the atomics below.
@@ -733,15 +762,15 @@ type Simnet struct {
 	// when we break ties in the meq for
 	// same time-stamp operations, we
 	// want to get as deterministic order
-	// as possible. We use the sort of
+	// as possible. We make use of the sorted order of
 	// the (simnet fake DNS) names in the
 	// system. meq does same:
 	// tm, priority of operation, origin.name
 	// sender.name, ...
 	// e.g. on the second run of the load test
-	// in simgrid_test 707.
+	// in simgrid_test 709.
 
-	xmut       sync.Mutex
+	xmut       sync.Mutex     // protects the x arrays and:
 	xb3hashFin *blake3.Hasher // ordered by fin() call time
 	xb3hashDis *blake3.Hasher // ordered by dispatch time
 
@@ -1144,11 +1173,11 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	// 5 msec is 2x - 3x faster sim than 1msec
 	// (not dst: 25.4 sec on tube test suite); 49 sec
 	// with DST-able level reproducbility.
-	//tick := time.Millisecond * 5
+	tick := time.Millisecond * 5
 
-	// 1msec tick: (not dst: 33 sec on tube) now
+	// 1 msec tick: (not dst: 33 sec on tube) now
 	// DST-able:151 sec to test tube.
-	tick := time.Millisecond
+	//tick := time.Millisecond
 
 	// 100 microsecond tick: (not dst: 74 sec on tube test suite);
 	// versus with DST-able levels of reproducibility: > 10 minutes.
@@ -1156,9 +1185,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	if tick < time.Duration(minTickNanos) {
 		panicf("must have tick >= minTickNanos(%v)", time.Duration(minTickNanos))
 	}
-	if minClientBackpressureDur < tick {
-		panicf("should have tick(%v) <= minClientBackpressureDur(%v)", tick, minClientBackpressureDur)
-	}
+
 	// minHop := time.Millisecond * 10
 	// maxHop := minHop
 	// var seed [32]byte
