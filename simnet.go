@@ -2782,6 +2782,9 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 				//fmt.Printf("on cur dispatch = %v; (for sn = %v) hashDis = %v\n", next, sn, asBlake33B(s.xb3hashDis))
 				s.xmut.Unlock()
 			}
+			if s.cfg.meetpoint710 != nil {
+
+			}
 
 			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
 

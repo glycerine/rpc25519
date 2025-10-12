@@ -919,20 +919,14 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 		return
 	} // end loadtest func definition
 
-	// 707 just load test timings.
-	// 15 nodes, 100 frag: 60 seconds testtime for realtime. 70sec faketime
-	// 21 nodes, 1k frag: 105s test-time under simnet/synctest-faketime.
-
-	// recent timings synctest:
-	// 1.21 sec    5 nodes, 100 messages. green.
-	// 44 sec with 5 nodes, 10k messages. green.
-	// 87 sec with 7 nodes, 10k messages. green.
 	const nNode1 = 5
 	const wantSendPerPeer1 = 100
 	sendEvery1 := time.Millisecond
 
 	const syncEveryI int64 = 20
 	meetpoint := newDetermCheckMeetpoint(syncEveryI, wantSendPerPeer1*10)
+
 	go loadtest(meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
+
 	go loadtest(meetpoint, nNode1, wantSendPerPeer1, sendEvery1)
 }
