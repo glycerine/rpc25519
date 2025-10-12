@@ -4,7 +4,8 @@ import (
 // "sync/atomic"
 )
 
-// in its own file so simnet can
+// support for test 710 in simgrid_test.go.
+// Now in its own file so simnet can
 // compile in regular non-test mode.
 
 // determMeetpoint allows us to do online comparison
