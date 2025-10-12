@@ -13,8 +13,10 @@ import (
 
 const faketime bool = true
 
+var _ = fmt.Printf
+
 func init() {
-	fmt.Printf("faketime = %v\n", faketime)
+	//fmt.Printf("faketime = %v\n", faketime)
 }
 
 func bubbleOrNot(t *testing.T, f func(t *testing.T)) {
