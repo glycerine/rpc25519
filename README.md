@@ -210,14 +210,17 @@ Lastly, astute readers may ask,
 deterministic. That is wonderful, but...
 my own Go client code that uses the network is not,
 because the Go runtime randomizes selects
-and map iteration order. Does that mean
+and map iteration order. Non-WASM Go always uses
+multiple threads, subject to the non-deterministic
+whims of OS thread scheduling. Does that mean
 my test is not always reproducible?
 
 Indeed, that is still the case. 
 
 As wonderful as Go is, its lack of runtime 
-reproducibility remains a major issue. It makes 
-one sincerely question its suitability for
+reproducibility remains a major issue. 
+
+It makes one sincerely question its suitability for
 serious work -- when one needs to be able make
 strong guarantees. 
 
