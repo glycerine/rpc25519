@@ -12,3 +12,7 @@ func openBolt(dbPath string) (db *bolt.DB, err error) {
 	db, err = bolt.Open(dbPath, 0600, o)
 	return
 }
+
+func closeBolt(db *bolt.DB) error {
+	return db.Close()
+}
