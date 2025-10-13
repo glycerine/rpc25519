@@ -4,8 +4,8 @@ rpc25519: ed25519 based RPC for Go/golang
 * (2025 Oct 13) More on Deterministic Simulation Testing (DST)
 
 I wrote up the new simnet architecture in 
-a post to golang-nuts, which I reproduce with
-some additions, elaborations, and corrections here.
+a post to golang-nuts, which I include below with
+some additions, elaborations, and corrections.
 
 Below I describe the approach I discovered to
 acheive determinism in simnet.
