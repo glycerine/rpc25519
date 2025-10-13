@@ -28,6 +28,10 @@ deterministic network simulation in Go.
 
 ## To get full deterministic simulation testing (DST) in Go: use another goroutine.
 
+![image](https://github.com/user-attachments/assets/d671bf05-5688-4f46-b685-63beb29826ab)
+
+gosimnet's headline image: simulacrum of the Go gopher happily toying with traffic.
+
 2025 October 13
 
 https://groups.google.com/g/golang-nuts/c/DMKRpaHRcQA
