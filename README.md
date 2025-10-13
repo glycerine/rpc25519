@@ -26,7 +26,7 @@ long to figure out that it was the
 simplest architecture to achieve a 
 deterministic network simulation in Go.
 
-# To get full deterministic simulation testing (DST) in Go: use another goroutine.
+## To get full deterministic simulation testing (DST) in Go: use another goroutine.
 
 2025 October 13
 
