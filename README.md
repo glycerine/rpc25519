@@ -179,7 +179,9 @@ a red (failed) test is only a single bit of information(!)
 
 "There is something wrong!" is all you know.
 
-But what is wrong? How can I recreate it? It is almost impossible to log
+But what is wrong? How can I recreate it? 
+
+As Dave Scherer says, it is almost impossible to log
 enough information to meaningfully debug that 
 red test. (Although see the rr debugger
 which actually does fully log the process execution).
