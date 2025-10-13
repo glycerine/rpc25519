@@ -213,7 +213,7 @@ because the Go runtime randomizes selects
 and map iteration order. Non-WASM Go always uses
 multiple threads, subject to the non-deterministic
 whims of OS thread scheduling. Does that mean
-my test is not always reproducible?
+my test is not always reproducible?"
 
 Indeed, that is still the case. 
 
