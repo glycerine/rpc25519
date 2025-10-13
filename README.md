@@ -1,6 +1,176 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* (2025 Oct 13) More on Deterministic Simulation Testing (DST)
+
+I wrote up the new simnet architecture in 
+a post to golang-nuts, which I reproduce with
+some additions, elaborations, and corrections here.
+
+Below I describe the approach I discovered to
+acheive determinism in simnet.
+
+The title is meant to emphasize the 
+paradoxical, counter-intuitive aspect of 
+the solution. 
+
+Typically adding another goroutine (or thread) 
+will increase your non-determinism! 
+
+Here instead it was the critical missing
+piece to acheive it.
+
+The fact that it runs against 
+our intuitition was why it took me so 
+long to figure out that it was the 
+simplest architecture to achieve a 
+deterministic network simulation in Go.
+
+# To get full deterministic simulation testing (DST) in Go: use another goroutine.
+
+2025 October 13
+
+https://groups.google.com/g/golang-nuts/c/DMKRpaHRcQA
+
+~~~
+It sounds like a paradox.
+
+Did adding another goroutine really make my
+testing/synctest based network simulation 
+fully deterministic, suitable for DST?
+
+Yep. 
+
+On the fifth rewrite, I finally discovered
+the fundamental way to leverage the testing/synctest
+package and get a fully deterministic network 
+simulation.
+
+The trick, now implemented and available in
+the latest release of my network package and 
+its simulation engine
+
+https://github.com/glycerine/rpc25519 and
+https://github.com/glycerine/gosimnet
+
+is to use one additional goroutine to 
+accept and queue all channel operations 
+"in the background".
+
+Don't try to interleave synctest.Wait 
+with select and channel operations on 
+the same goroutine. 
+
+Its too much of a mess. More importantly, 
+it didn't work.
+
+It was incredibly hard to get determinism 
+out of it. I tried four different ways 
+that did not work. They would look like 
+they were going to work, but then under 
+load testing I would get straggling 
+requests that missed their previous batch. 
+This created non-determinism, also known
+as non-reproducible simulation. 
+
+That's not good. We want the determinism 
+of DST so that any bug we find in our 
+distributed system is instantly reproducible. 
+If DST is a new idea, this is a great 
+motivating conversation[1].
+
+Instead of mixing client requests over 
+channels with sleep/synctest.Wait logic 
+directly, what you want to do is: buffer 
+all client goroutine channel requests 
+into a master event queue (MEQ) on a 
+separate goroutine that runs completely 
+independently of the main scheduler 
+goroutine (the one that will sleep and 
+call synctest.Wait).
+
+Let that background accumulator goroutine 
+be the one with your big for/select 
+loop to service client requests. 
+
+Those requests that used to go directly
+to the scheduler goroutine now all get 
+queued, and then handled in one batch 
+once the scheduling time quantum ends.
+
+The scheduler simply sleeps for its time 
+quantum, invokes the barrier synctest.Wait(), 
+locks and reads out the accumulated 
+events from the MEQ, and then unlocks 
+the MEQ so the background goroutine 
+will have access when the scheduler 
+restarts the clock (with their next sleep). 
+
+Astute readers may well ask why a lock
+for the MEQ is even needed, since the
+sleep + barrier guarantees that the
+scheduler goroutine has "stopped time"
+and is the sole live goroutine, guaranteed
+to be running all alone? The prosaic
+answer is that if you only ran under
+synctest, then indeed, you would not 
+need to lock.
+
+However I also test without synctest,
+and the lock avoids having the race
+detector yell at us.
+
+The scheduler sorts the accumulated 
+batch of events using deterministic sorting
+criteria, dispatches them (matching 
+sends and reads and firing timers
+in the network), and then deterministically 
+orders any newly available replies
+before releasing them back to the 
+client goroutines. 
+
+Once we have determinism, we can 
+then reproducibly randomize the
+dispatch and release order according
+to our pseudo random generator to 
+get state space coverage.
+
+And voila: deterministic simulation 
+testing (DST) of network operations in Go.
+
+Enjoy.
+
+Jason
+~~~
+[1] https://www.youtube.com/watch?v=C1nZzQqcPZw&t=936s
+
+"FoundationDB: from idea to Apple acquisition"
+
+In this conversation, Dave Scherer, CTO of 
+FoundationDB and Antithesis, really motivates 
+why they invented DST. 
+
+In short, it is crazy difficult to test distributed 
+systems well in any other way.
+
+To elaborate:
+
+As they allude to, the bugs "are not in your code". 
+
+They are in the interaction of your code 
+with the environment. 
+
+If fact you may be missing code 
+needed to address some environment issue, but
+a code review will never get to consider it,
+because you don't get to read the code that
+has not been written yet to address 
+the problem that you didn't realize existed.
+
+In other words, it's the "unknown unknowns"
+-- issues we didn't even know we had -- that 
+DST can discover for us.
+
 * (2025 Oct 12) v1.31.12 simple pRNG seed setting
 
 The `Config.SetScenarioSeed()` API is available to
