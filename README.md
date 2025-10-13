@@ -21,7 +21,7 @@ Here instead it was the critical missing
 piece to acheive it.
 
 The fact that it runs against 
-our intuitition was why it took me so 
+intuitition was why it took me so 
 long to figure out that it was the 
 simplest architecture to achieve a 
 deterministic network simulation in Go.
