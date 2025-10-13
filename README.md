@@ -161,8 +161,33 @@ To elaborate:
 
 As they allude to, the bugs "are not in your code". 
 
+As they say, distributed systems bugs are incredibly
+hard to simulate. 
+
+As they say, (traditionally, without DST) distributed 
+systems bugs are hard to reproduce. This is not just 
+any regular level of "hard to reproduce", either. 
+This is a whole level of hurt: these bugs are
+crazy hard to reproduce. As in: it will take you 
+a couple of years to do it manually, if you get lucky
+at all.
+
+With traditional non-determistic fault-tolerance tests,
+a red (failed) test is only a single bit of information(!)
+
+"There is something wrong!" is all you know.
+
+But what is wrong? How can I recreate it? It is almost impossible to log
+enough information to meaningfully debug that 
+red test. (Although see the rr debugger
+which actually does fully log the process execution).
+
+So, where are the bugs, if not in your code?
+
 They are in the interaction of your code 
-with the environment. 
+with the environment: network partitions, other servers
+that crash, or just go really slowly, re-ordered
+or repeated network messages, clocks that drift, etc.
 
 In fact you may be missing code 
 needed to address some environment issue.
