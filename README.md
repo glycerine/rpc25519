@@ -204,6 +204,25 @@ In other words, it's the "unknown unknowns"
 -- issues we didn't even know we had -- that 
 DST can discover and help us address.
 
+Lastly, astute readers may ask,
+
+"Okay great. The network simulator is 
+deterministic. That is wonderful, but...
+my own Go client code that uses the network is not,
+because the Go runtime randomizes selects
+and map iteration order. Does that mean
+my test is not always reproducible?
+
+Indeed, that is still the case. 
+
+As wonderful as Go is, its lack of runtime 
+reproducibility remains a major issue. It makes 
+one sincerely question its suitability for
+serious work -- when one needs to be able make
+strong guarantees. 
+
+TigerBeetle was written in Zig for such reasons. 
+
 * (2025 Oct 12) v1.31.12 simple pRNG seed setting
 
 The `Config.SetScenarioSeed()` API is available to
