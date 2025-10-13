@@ -160,16 +160,16 @@ As they allude to, the bugs "are not in your code".
 They are in the interaction of your code 
 with the environment. 
 
-If fact you may be missing code 
-needed to address some environment issue, but
-a code review will never get to consider it,
+In fact you may be missing code 
+needed to address some environment issue.
+A code review may never get to consider it,
 because you don't get to read the code that
 has not been written yet to address 
 the problem that you didn't realize existed.
 
 In other words, it's the "unknown unknowns"
 -- issues we didn't even know we had -- that 
-DST can discover for us.
+DST can discover and help us address.
 
 * (2025 Oct 12) v1.31.12 simple pRNG seed setting
 
