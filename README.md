@@ -214,8 +214,19 @@ that time slice according to the psuedo
 random number generator in use for that 
 testing scenario. 
 
-Test 707 in simgrid_test.go, for example, verifies 
-that a cluster load test is reproducible.
+Tests 709 and 711 in simgrid_test.go, for example, verifies 
+that a cluster load test is reproducible. 709 writes
+to disk, and so is suitable for up to around 10K messages
+with on 7 servers. 711 does online verification
+after each dispatch and avoids writing to disk. We
+ran it for a million messages and confirmed that
+two parallel simulations executed the same
+operations in the same order. This run, with
+7 servers and 1_000_000 messages took 63 minutes
+on a 5 year old linux/amd64 test box.
+
+Update: See above at 2025 Oct 13 for a more detailed writeup
+of the architecture changes to support DST.
 
 The seed for the scenario's pseudo random number generator
 defaults to 0. It can be set with this API:
