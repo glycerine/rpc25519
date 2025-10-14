@@ -261,6 +261,46 @@ way to know when to cut off a batch and
 submit it (in real time). Moreover we typically don't
 want to delay realtime processing.
 
+The bright side of this situation is that
+your code in test and your code in production
+are still the same. Thus if you find that a test under
+gosimnet is not reproducible, it is a clear signal
+that your code (or your use of the non-determinisitc 
+Go runtime) needs more determinism to 
+allow it to be reliably tested. 
+
+The non-deterministic OS + runtime _might_ end 
+up making that impossible... but I'm betting 
+that in many cases you'll be able to address such
+issues and simultaneously improve your code by opting for
+a more deterministic design. That's our hope at
+any rate. If it doesn't work out, we'll have to
+look at more drastic measures like changing
+languages or compiling onto another runtime. 
+
+I'm thinking of Pony's very nice high-performance 
+runtime here -- its definitely faster than
+Go and even C/C++ because it can avoid all locking
+by leaning on its strong type system.
+
+Plus the Pony refcap system is guaranteed to
+find _all_ the races at compile time--this
+would be a massive boon. The Go 
+race detector can have false negatives, while
+the Pony type checker cannot. Pony's actor 
+model is mind expanding (in a good way) 
+and its refcap system takes some learning, 
+but its not too bad. I picked it up in 
+a couple of days. In exchange you get a
+guarantee of deadlock freedom, data race 
+freedom, and actual zero-overhead C FFI.
+
+By avoiding the C calling convention 
+internally, the LLVM backend produces more
+efficient function calls than C can, and
+as above, you never stall your CPU on locks
+because there are no locks in Pony.
+
 * (2025 Oct 12) v1.31.12 simple pRNG seed setting
 
 The `Config.SetScenarioSeed()` API is available to
