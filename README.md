@@ -291,12 +291,19 @@ the Pony type checker cannot. Pony's actor
 model is mind expanding (in a good way) 
 and its refcap system takes some learning, 
 but its not too bad. I picked it up in 
-a couple of days. In exchange you get a
-guarantee of deadlock freedom, data race 
-freedom, and actual zero-overhead C FFI.
+a couple of days. In exchange you get strong
+guarantees: deadlock freedom and data race 
+freedom. Also you get actual zero-overhead C FFI,
+cooperative scheduling, code is never interrupted
+by garbage collection, and much easier handling of 
+cyclic data compared to Rust. Pony's pinned 
+single-thread per core model is screaming fast.
+Message sending is always zero copy due to 
+the type system, and like Go it uses a work 
+stealing scheduler.
 
 By avoiding the C calling convention 
-internally, the LLVM backend produces more
+internally, Pony's LLVM backend produces more
 efficient function calls than C can, and
 as above, you never stall your CPU on locks
 because there are no locks in Pony.
