@@ -95,9 +95,9 @@ separate goroutine that runs completely
 independently of the main scheduler 
 goroutine (the one that will sleep and 
 call synctest.Wait).
-
+~~~
 See https://github.com/glycerine/rpc25519/blob/95888ff9f0c76d08ff0298776b3562c22edd7c3e/simnet.go#L3892
-
+~~~
 Let that background accumulator goroutine 
 be the one with your big for/select 
 loop to service client requests. 
@@ -114,9 +114,9 @@ events from the MEQ, and then unlocks
 the MEQ so the background goroutine 
 will have access when the scheduler 
 restarts the clock (with their next sleep). 
-
+~~~
 See https://github.com/glycerine/rpc25519/blob/95888ff9f0c76d08ff0298776b3562c22edd7c3e/simnet.go#L2608
-
+~~~
 Astute readers may well ask why a lock
 for the MEQ is even needed, since the
 sleep + barrier guarantees that the
