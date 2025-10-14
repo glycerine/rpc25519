@@ -248,7 +248,8 @@ map randomization trashes your L1 caches
 and your CPU's prefetching heuristics.
 
 To avoid the impact of select randomization,
-one could try to take pass a universal message 
+one could try to use fewer channels, and
+type them less tightly. i.e. Deploy universal message 
 type rather than channel specific types,
 and switch later on the actual type of the message to minimize
 the number of case arms in each select.
