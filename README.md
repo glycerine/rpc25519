@@ -265,11 +265,12 @@ The bright side of this situation is that
 your code in test and your code in production
 are still the same. Thus if you find that a test under
 gosimnet is not reproducible, it is a clear signal
-that your code (or your use of the non-determinisitc 
-Go runtime) needs more determinism to 
+that your code (or your use of the non-deterministic 
+Go runtime) needs to be made more deterministic to 
 allow it to be reliably tested. 
 
-The non-deterministic OS + runtime _might_ end 
+Now of course the non-deterministic nature
+of OS thread scheduling + Go runtime _might_ end 
 up making that impossible... but I'm betting 
 that in many cases you'll be able to address such
 issues and simultaneously improve your code by opting for
@@ -291,10 +292,12 @@ the Pony type checker cannot. Pony's actor
 model is mind expanding (in a good way) 
 and its refcap system takes some learning, 
 but its not too bad. I picked it up in 
-a couple of days. In exchange you get strong
+a couple of days. 
+
+In exchange you get strong
 guarantees: deadlock freedom and data race 
 freedom. Also you get actual zero-overhead C FFI,
-cooperative scheduling, code is never interrupted
+cooperative actor scheduling, your code is never interrupted
 by garbage collection, and much easier handling of 
 cyclic data compared to Rust. Pony's pinned 
 single-thread per core model is screaming fast.
@@ -302,10 +305,12 @@ Message sending is always zero copy due to
 the type system, and like Go it uses a work 
 stealing scheduler.
 
-By over allocating registers before codegen 
+By over allocating registers before codegen,
+not having to lock due to the type system,
 and doing whole program optimization, Pony's 
 LLVM backend produces more efficient code 
-than C can. As above, you never stall your CPU on locks
+than C can ever hope to. Its worth repeating, you 
+never stall your CPU on locks with Pony,
 because there are no locks in Pony. Really
 the only thing you have to watch for is memory
 pressure, but that is highly observable
