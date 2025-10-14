@@ -1444,9 +1444,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			_ = err // don't panic on halting.
 			if err != nil {
 				alwaysPrintf("%v non nil error '%v' on s.requestRemoteInspectCh -> SendOneWay to '%v'", s.me(), err, itkt.ckt.RemotePeerID)
-				// is just a ckt dying, no big deal.
-				return rpc.ErrHaltRequested
-				//continue
+				//return rpc.ErrHaltRequested
+				continue
 			}
 			//vv("%v good: sent inspection request to itkt.ckt.RemotePeerName='%v'", s.me(), itkt.ckt.RemotePeerName)
 
@@ -7582,15 +7581,27 @@ func (s *TubeNode) sendAppendEntriesEmptyHeartbeat(peerID, peerName, peerService
 		// seems bad/unlikely to succeed. try forcing reconnect
 		// to get a new ckt to the actual server?
 		// =  non nil error 'error: client local: ''/name='auto-cli-from-srv_node_0-to-127.0.0.1:51636___GaVTgBAUooRNmFObf-rW' failed to connect to server: 'dial tcp 127.0.0.1:51636: connect: connection refused'' on heartbeat to 'kdZXXCTlZWrbuLB4GOmTGO6jatuZ'
-		const connRefused = "connect: connection refused"
-		if strings.Contains(err.Error(), connRefused) {
-			alwaysPrintf("%v saw '%v', forcing recompute of ckt", s.me(), connRefused)
-			s.deleteFromCktAll(cktP)
-			s.adjustCktReplicaForNewMembership()
-		}
 	}
 
 } // end sendAppendEntriesEmptyHeartbeat
+
+func (s *TubeNode) wasConnRefused(err error, ckt *rpc.Circuit) bool {
+	if err == nil {
+		return false
+	}
+	const connRefused = "connect: connection refused"
+	if strings.Contains(err.Error(), connRefused) {
+		alwaysPrintf("%v saw '%v', forcing recompute of ckt", s.me(), connRefused)
+
+		cktP, ok := s.cktall[ckt.RemotePeerID]
+		if ok && cktP != nil {
+			s.deleteFromCktAll(cktP)
+			s.adjustCktReplicaForNewMembership()
+		}
+		return true
+	}
+	return false
+}
 
 type Entries []*RaftLogEntry
 
@@ -11313,9 +11324,10 @@ func (s *TubeNode) peerListRequestHandler(frag *rpc.Fragment, ckt *rpc.Circuit) 
 	frag1.SetUserArg("leaderName", insp.CurrentLeaderName)
 	frag1.SetUserArg("leaderURL", insp.CurrentLeaderURL)
 
+	var cktP *cktPlus
 	if ckt == nil {
 		// in peerListRequestHandler here, client could be calling.
-		cktP, ok := s.cktall[frag.FromPeerID]
+		cktP, ok = s.cktall[frag.FromPeerID]
 		if !ok {
 			//vv("%v don't know how to contact '%v'", s.me(), frag.FromPeerID)
 			panic("what??")
@@ -11324,12 +11336,13 @@ func (s *TubeNode) peerListRequestHandler(frag *rpc.Fragment, ckt *rpc.Circuit) 
 	}
 	//vv("%v about to send frag1 = '%v' back on ckt = '%v'", s.name, frag1, ckt)
 	err = s.SendOneWay(ckt, frag1, -1, 0)
-	panicOn(err)
-	_ = err // don't panic on halting.
+
+	_ = err // don't panic on halting or inability to send.
 	if err != nil {
 		alwaysPrintf("%v non nil error '%v' on PeerListReply to '%v'", s.me(), err, ckt.RemotePeerID)
-		panic("problem?")
-		return ErrShutDown
+		// might be:
+		// failed to connect to server: 'dial tcp 100.109.45.81:61580: connect: connection refused'
+		//return ErrShutDown
 	}
 	//vv("%v replied with PeerListReply to '%v'", s.name, ckt.RemoteCircuitURL())
 	return nil
@@ -14101,6 +14114,12 @@ func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur 
 	var anew bool
 	anew, err = ckt.SendOneWay(frag, errWriteDur, keepFragIfPositive)
 	_ = anew
+	if err != nil {
+		alwaysPrintf("%v SendOneWay: non nil error on '%v': '%v'", s.me(), frag.FragSubject, err)
+		if s.wasConnRefused(err, ckt) {
+			return
+		}
+	}
 	return
 }
 
