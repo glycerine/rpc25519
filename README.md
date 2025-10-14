@@ -37,6 +37,9 @@ gosimnet's headline image: simulacrum of the Go gopher happily toying with traff
 https://groups.google.com/g/golang-nuts/c/DMKRpaHRcQA
 
 ~~~
+Title: To get full deterministic simulation 
+testing (DST) in Go: use another goroutine.
+
 It sounds like a paradox.
 
 Did adding another goroutine really make my
@@ -225,6 +228,10 @@ serious work -- when one needs to be able make
 strong guarantees. 
 
 TigerBeetle was written in Zig for such reasons. 
+
+The best we can do at the moment is maximize
+the deterministic nature of our Go code. Use the
+dmap and omap (herein) in place of map, for example.
 
 * (2025 Oct 12) v1.31.12 simple pRNG seed setting
 
