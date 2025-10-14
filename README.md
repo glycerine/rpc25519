@@ -235,7 +235,11 @@ TigerBeetle was written in Zig for such reasons.
 
 The best we can do at the moment is maximize
 the deterministic nature of our Go code. Use the
-dmap and omap (herein) in place of map, for example.
+dmap and omap (herein) in place of map, for example,
+to get deterministic iteration order. They are
+an order of magnitude faster anyway. Go
+map randomization trashes your L1 caches 
+and your CPU's prefetching heuristics.
 
 * (2025 Oct 12) v1.31.12 simple pRNG seed setting
 
