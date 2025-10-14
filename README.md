@@ -302,11 +302,14 @@ Message sending is always zero copy due to
 the type system, and like Go it uses a work 
 stealing scheduler.
 
-By avoiding the C calling convention 
-internally, Pony's LLVM backend produces more
-efficient function calls than C can, and
-as above, you never stall your CPU on locks
-because there are no locks in Pony.
+By over allocating registers before codegen 
+and doing whole program optimization, Pony's 
+LLVM backend produces more efficient code 
+than C can. As above, you never stall your CPU on locks
+because there are no locks in Pony. Really
+the only thing you have to watch for is memory
+pressure, but that is highly observable
+compared to finding deadlocks and data races.
 
 * (2025 Oct 12) v1.31.12 simple pRNG seed setting
 
