@@ -2572,7 +2572,7 @@ func (s *Simnet) scheduler() {
 
 	// accept into meq on its own goro,
 	// so synctest.Wait does not interfere.
-	s.StartMEQacceptor()
+	s.startMEQacceptor()
 
 	tick := s.scenario.tick
 
@@ -3737,150 +3737,6 @@ func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
 	s.fin(op)
 }
 
-/*
-// call add2meq on as much additional work
-// from blocked client goroutines as we
-// can without advancing time. thus we try
-// to increase the determinism of may
-// clients contending for the simnet: let
-// as many in as want in (in this time slice),
-// then sort them into a consistently repeatable order,
-// and execute their requests in that order.
-func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
-	for ; ; saw++ {
-		//if faketime {
-		//	synctestWait_LetAllOtherGoroFinish() // barrier
-		//}
-		select {
-		//default:
-		//	return
-		case <-time.After(1):
-			if faketime {
-				synctestWait_LetAllOtherGoroFinish() // barrier
-			}
-			return
-		case newGoroReq := <-s.simnetNewGoroCh:
-			s.add2meq(s.newGoroMop(newGoroReq), i)
-
-		case batch := <-s.submitBatchCh:
-			s.add2meq(batch, i)
-		case timer := <-s.addTimer:
-			//vv("i=%v, addTimer ->  timer='%v'", i, timer)
-			//s.handleTimer(timer)
-			s.add2meq(timer, i)
-
-		case discard := <-s.discardTimerCh:
-			//vv("i=%v, discardTimer ->  discard='%v'", i, discard)
-			//s.handleDiscardTimer(discard)
-			s.add2meq(discard, i)
-
-		case send := <-s.msgSendCh:
-			//vv("i=%v, msgSendCh ->  send='%v'", i, send)
-			//s.handleSend(send)
-			s.add2meq(send, i)
-
-		case read := <-s.msgReadCh:
-			//vv("i=%v msgReadCh ->  read='%v'", i, read)
-			//s.handleRead(read)
-			s.add2meq(read, i)
-
-		case reg := <-s.cliRegisterCh:
-			// "connect" in network lingo, client reaches out to listening server.
-			//vv("i=%v, cliRegisterCh got reg from '%v' = '%v'", i, reg.client.name, reg)
-			//s.handleClientRegistration(reg)
-			s.add2meq(s.newClientRegMop(reg), i)
-			//vv("back from handleClientRegistration for '%v'", reg.client.name)
-
-		case srvreg := <-s.srvRegisterCh:
-			// "bind/listen" on a socket, server waits for any client to "connect"
-			//vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
-			//s.handleServerRegistration(srvreg)
-			// do not vv here, as it is very racey with the server who
-			// has been given permission to proceed.
-			s.add2meq(s.newServerRegMop(srvreg), i)
-
-		case scenario := <-s.newScenarioCh:
-			//vv("i=%v, newScenarioCh ->  scenario='%v'", i, scenario)
-			s.add2meq(s.newScenarioMop(scenario), i)
-
-		case alt := <-s.alterSimnodeCh:
-			//vv("i=%v alterSimnodeCh ->  alt='%v'", i, alt)
-			//s.handleAlterCircuit(alt, true)
-			s.add2meq(s.newAlterNodeMop(alt), i)
-
-		case alt := <-s.alterHostCh:
-			//vv("i=%v alterHostCh ->  alt='%v'", i, alt)
-			//s.handleAlterHost(op.alt)
-			s.add2meq(s.newAlterHostMop(alt), i)
-
-		case cktFault := <-s.injectCircuitFaultCh:
-			//vv("i=%v injectCircuitFaultCh ->  cktFault='%v'", i, cktFault)
-			//s.injectCircuitFault(cktFault, true)
-			s.add2meq(s.newCktFaultMop(cktFault), i)
-
-		case hostFault := <-s.injectHostFaultCh:
-			//vv("i=%v injectHostFaultCh ->  hostFault='%v'", i, hostFault)
-			//s.injectHostFault(hostFault)
-			s.add2meq(s.newHostFaultMop(hostFault), i)
-
-		case repairCkt := <-s.repairCircuitCh:
-			//vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
-			//s.handleCircuitRepair(repairCkt, true)
-			s.add2meq(s.newRepairCktMop(repairCkt), i)
-
-		case repairHost := <-s.repairHostCh:
-			//vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
-			//s.handleHostRepair(repairHost)
-			s.add2meq(s.newRepairHostMop(repairHost), i)
-
-		case snapReq := <-s.simnetSnapshotRequestCh:
-			//vv("i=%v simnetSnapshotRequestCh -> snapReq", i)
-			// user can confirm/view all current faults/health
-			//s.handleSimnetSnapshotRequest(snapReq, now, i)
-			s.add2meq(s.newSnapReqMop(snapReq), i)
-
-		case closeSimnodeReq := <-s.simnetCloseNodeCh:
-			//vv("i=%v simnetCloseNodeCh -> closeNodeReq", i)
-			s.add2meq(s.newCloseSimnodeMop(closeSimnodeReq), i)
-
-		case <-s.halt.ReqStop.Chan:
-			//vv("i=%v <-s.halt.ReqStop.Chan", i)
-			//bb := time.Since(s.bigbang)
-			//pct := 100 * float64(totalSleepDur) / float64(bb)
-			//_ = pct
-			//vv("simnet.halt.ReqStop totalSleepDur = %v (%0.2f%%) since bb = %v)", totalSleepDur, pct, bb)
-			shouldExit = true
-			return
-		}
-	}
-	return
-}
-*/
-
-// want to keep the scheduler as active as possible,
-// but: only step in and dispatch and then release
-// right at the time tick boundary.
-//
-// scheduler wants to ask: should I meq this event,
-// or should I make it wait until the next time quantum?
-//
-// scheduler wants to know: when should I
-// process all my meq that I have to this point?
-// How can I make this as deterministic and
-// repeatable as possible?
-//
-// We want to process when we know that all
-// goroutines are durably blocked on
-// somewhere else that is NOT _us_ ourselves the scheduler!
-// -> either sleeping or some internal logic...
-//    like waiting for a network read or send to finish.
-//    or for their own timer. what else?
-//  reads, sends, timers, is that it?
-//
-// scheduler wants to know: when should I
-// release all of the ready events I have
-// as a result of the meq processing?
-
 // always accept events into the MEQ, to avoid
 // having stragglers that are split apart from
 // their pack by arbitrary time slicing. This
@@ -3889,7 +3745,7 @@ func (s *Simnet) add2meqUntilSelectDefault(i int64) (shouldExit bool, saw int) {
 // that synctest.Wait returns only when the
 // client goro are self-blocked and not blocked
 // on any MEQ acceptance.
-func (s *Simnet) StartMEQacceptor() {
+func (s *Simnet) startMEQacceptor() {
 	go func() {
 		//defer func() {
 		//	vv("StartMEQacceptor defer/exit")
