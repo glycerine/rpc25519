@@ -249,7 +249,7 @@ and your CPU's prefetching heuristics.
 
 To avoid the impact of select randomization,
 one could try to use fewer channels, and
-type them less tightly. i.e. Deploy universal message 
+type them less tightly. i.e. deploy a universal message 
 type rather than channel specific types,
 and switch later on the actual type of the message to minimize
 the number of case arms in each select.
