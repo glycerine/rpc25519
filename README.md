@@ -178,8 +178,10 @@ This is a whole new level of pain: these bugs are
 _crazy_ hard to reproduce. As in: it will take you 
 a couple of years to do it manually, if you get lucky.
 
+~~~
   "Do you feel lucky, punk?"
      -- Clint Eastwood in Dirty Harry, 1971
+~~~
 
 With traditional non-determistic fault-tolerance tests,
 a red (failed) test is only a single bit of information(!)
