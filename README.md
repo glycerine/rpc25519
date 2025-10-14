@@ -233,7 +233,11 @@ It makes one sincerely question its suitability for
 serious work -- when one needs to be able make
 strong guarantees. 
 
-TigerBeetle was written in Zig for such reasons. 
+TigerBeetle was written in Zig for such reasons.
+Like FoundationDB and Pony, TigerBeetle uses a single
+thread per core design. This avoids the
+non-determinism associated with OS thread
+scheduling.
 
 The best we can do at the moment is maximize
 the deterministic nature of our Go code. Use the
@@ -242,6 +246,19 @@ to get deterministic iteration order. They are
 an order of magnitude faster anyway. Go
 map randomization trashes your L1 caches 
 and your CPU's prefetching heuristics.
+
+To avoid the impact of select randomization,
+one could try to take pass a universal message 
+type rather than channel specific types,
+and switch later on the actual type of the message to minimize
+the number of case arms in each select.
+
+Using the MEQ batch-and-sort pattern described
+above in client code could also be useful.
+The difficulty with that is that there is no 
+way to know when to cut off a batch and 
+submit it (in real time). Moreover we typically don't
+want to delay realtime processing.
 
 * (2025 Oct 12) v1.31.12 simple pRNG seed setting
 
