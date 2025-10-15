@@ -922,9 +922,14 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 
 	const nNode1 = 5
 	sendEvery1 := time.Millisecond
-	const wantSendPerPeer1 = 1000
+	//const wantSendPerPeer1 = 10_000 // 30 sec with 7 nodes.
+	const wantSendPerPeer1 = 1000 // 30 sec with 5 nodes.
 
-	const syncEveryI int64 = 1 // verify every step for now.
+	//const syncEveryI int64 = 1 // verify every step for now.
+	// losely checking might be more stringent? because
+	// we don't force synchonization after each step.
+	// (Observing they are in sync also synchronizes them).
+	const syncEveryI int64 = wantSendPerPeer1 - 1
 	meetpoint := newDetermCheckMeetpoint(syncEveryI)
 
 	halt := idem.NewHalter()
