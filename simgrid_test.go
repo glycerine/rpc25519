@@ -941,7 +941,10 @@ func Test711_simnet_online_determinism_check(t *testing.T) {
 	// this is kind of fragile. Required some special
 	// handling at the top of simnet scheduler defer.
 	// but it was worth checking. if it gives us too much trouble,
-	// we could just delete it.
+	// we could just delete it. It is nice to know
+	// that our 710 test would actually
+	// detect non-determinism were it present/were it
+	// to be introduced accidentally in the future.
 
 	loadtest := func(parenthalt, childhalt *idem.Halter, simnetName string, meetpoint *determMeetpoint, nNodes, wantSendPerPeer int, sendEvery time.Duration, seed [32]byte, wantSchedulerToRecoverSeen *idem.IdemCloseChan) {
 
