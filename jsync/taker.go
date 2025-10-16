@@ -335,7 +335,10 @@ takerForSelectLoop:
 					alwaysPrintf("dry: would remove '%v', since OpRsync_TellTakerToDelete", syncReq.TakerPath)
 				} else {
 					err := os.Remove(syncReq.TakerPath)
-					panicOn(err)
+					_ = err
+					// comment because we saw
+					// remove .cipd/tmp/dl_2404606135/KTklIwp6rUEK: no such file or directory
+					//panicOn(err)
 				}
 				s.ackBackFINToGiver(ckt, frag)
 				frag = nil

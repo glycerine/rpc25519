@@ -311,10 +311,14 @@ and doing whole program optimization, Pony's
 LLVM backend produces more efficient code 
 than C can ever hope to. Its worth repeating, you 
 never stall your CPU on locks with Pony,
-because there are no locks in Pony. Really
+because there are no locks in Pony. Safety wise,
 the only thing you have to watch for is memory
 pressure, but that is highly observable
 compared to finding deadlocks and data races.
+
+Liveness concerns like progress, fairness, 
+and starvation could still be problematic in Pony,
+of course.
 
 * (2025 Oct 12) v1.31.12 simple pRNG seed setting
 
