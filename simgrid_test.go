@@ -943,6 +943,12 @@ func Test710_simnet_online_determinism_check(t *testing.T) {
 // 711 is the failure expected version of 710.
 func Test711_simnet_online_determinism_check(t *testing.T) {
 
+	if raceDetectorOn {
+		// avoid false positive race reports on the
+		// t.Skip write inside onlyBubbled() below.
+		return
+	}
+
 	// this is kind of fragile. Required some special
 	// handling at the top of simnet scheduler defer.
 	// but it was worth checking. if it gives us too much trouble,
