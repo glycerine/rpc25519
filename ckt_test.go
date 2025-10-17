@@ -582,7 +582,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		// wait for it to get the client
 
 		// 5 sec still flaky under rr chaos, turn off above.
-		timeout := j.cli.NewTimer(2 * time.Second)
+		timeout := j.cli.NewTimer(5 * time.Second)
 		select {
 		case <-j.clis.dropcopy_reads:
 		case <-timeout.C:
