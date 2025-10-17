@@ -22,6 +22,9 @@ func bubbleOrNot(t *testing.T, f func(t *testing.T)) {
 }
 
 func onlyBubbled(t *testing.T, f func(t *testing.T)) {
+	if raceDetectorOn {
+		return // the print below is racey inside the testing package.
+	}
 	t.Skip("onlyBubbled: skipping test")
 }
 
