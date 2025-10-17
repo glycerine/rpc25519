@@ -359,10 +359,10 @@ that time slice according to the psuedo
 random number generator in use for that 
 testing scenario. 
 
-For example, Tests 709 and 711 in simgrid_test.go verify
+For example, Tests 709 and 710 in simgrid_test.go verify
 that a cluster load test is reproducible. 709 writes
 to disk, and so is suitable for up to around 10K messages
-with on 7 servers. 711 does online verification
+with on 7 servers. 710 does online verification
 after each dispatch and avoids writing to disk. We
 ran it for a million messages and confirmed that
 two parallel simulations executed the same
