@@ -207,7 +207,7 @@ that I'm not going into here, but they
 are not that onerous to meet in normal
 operation), and will do
 so if it can maintain safety. It
-does this automatically, but this optimizatoin
+does this automatically, but this optimization
 requires PreVoting to be used on
 all cluster nodes. If the leader has
 heard from a quorum recently, it knows
