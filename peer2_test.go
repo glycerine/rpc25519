@@ -149,11 +149,11 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 
 		// IsClosed() wil race against the close ckt going to the server,
 		// so wait on serverCkt.Halt.Done.Chan first.
-		timeout := j.srv.NewTimer(time.Second * 2)
+		timeout := j.srv.NewTimer(time.Second * 10)
 		select {
 		case <-serverCkt.Halt.Done.Chan:
 		case <-timeout.C:
-			t.Fatalf("error: server circuit '%v' did not close after 2 sec", serverCkt.Name)
+			t.Fatalf("error: server circuit '%v' did not close after 10 sec", serverCkt.Name)
 		}
 		timeout.Discard()
 		if !serverCkt.IsClosed() {

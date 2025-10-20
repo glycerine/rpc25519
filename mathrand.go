@@ -74,7 +74,7 @@ func (rng *prng) pseudoRandBool() (b bool) {
 	return
 }
 
-// return r in [0, nChoices] and avoid the inherent
+// return r in [0, nChoices) and avoid the inherent
 // bias in modulo. nChoices must be > 1 or what
 // is the point? --we will panic (the answer would always be 0).
 //

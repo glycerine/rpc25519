@@ -59,7 +59,7 @@ func cryptoRandBool() (b bool) {
 	return
 }
 
-// return r in [0, nChoices] and avoid the inherent
+// return r in [0, nChoices) and avoid the inherent
 // bias in modulo that starves the numbers in
 // the region between the divisor and originally
 // generated maximum number.
