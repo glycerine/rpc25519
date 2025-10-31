@@ -61,12 +61,20 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 		for scenario := 0; scenario < maxScenario; scenario++ {
 
 			seedString := fmt.Sprintf("%v", scenario)
+			// if we were starting a new live Go process from
+			// scratch we would want to do this:
 			os.Setenv("GO_DSIM_SEED", seedString)
 
 			seed, seedBytes := parseSeedString(seedString)
 			if int(seed) != scenario {
 				panicf("got %v, wanted same scenario number back %v", int(seed), scenario)
 			}
+			// Since we are not staring a new process,
+			// can we still control the
+			// runtime's initialization with the seed; i.e.
+			// we are already running here!
+			runtime.ResetDsimSeed(seedBytes)
+
 			rng := newPRNG(seedBytes)
 			_ = rng
 
