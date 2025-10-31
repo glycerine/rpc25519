@@ -46,7 +46,7 @@ Did adding another goroutine really make my
 testing/synctest based network simulation 
 fully deterministic, suitable for DST?
 
-Yep. 
+Surprisingly: yes. It did indeed.
 
 On the fifth rewrite, I finally discovered
 the fundamental way to leverage the testing/synctest
