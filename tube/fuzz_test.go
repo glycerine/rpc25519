@@ -270,41 +270,41 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 }
 
 func Test199_dsim_parsing(t *testing.T) {
-	if false {
-		seed, seedBytes := parseSeedString("0")
-		if seed != 0 {
-			panicf("expected seed of 0, got %v", seed)
-		}
-		for i, by := range seedBytes {
-			if by != 0 {
-				panicf("expected seedBytes of 0 at i = %v, got '%v'", i, string(by))
-			}
-		}
 
-		seed, seedBytes = parseSeedString("1")
-		if seed != 1 {
-			panicf("expected seed of 1, got %v", seed)
-		}
-		vv("on 1: seedBytes = '%#v'", seedBytes)
-		for i, by := range seedBytes {
-			if i == 0 {
-				if by != 1 {
-					panicf("expected seedBytes of 1 at i = %v, got '%v'", i, by)
-				}
-				continue
-			}
-			if by != 0 {
-				panicf("expected seedBytes of 0 at i = %v, got '%v'", i, by)
-			}
+	seed, seedBytes := parseSeedString("0")
+	if seed != 0 {
+		panicf("expected seed of 0, got %v", seed)
+	}
+	for i, by := range seedBytes {
+		if by != 0 {
+			panicf("expected seedBytes of 0 at i = %v, got '%v'", i, string(by))
 		}
 	}
-	vv("start max seed: 1<<64-1")
-	seed, seedBytes := parseSeedString("18_446_744_073_709_551_615")
+
+	seed, seedBytes = parseSeedString("1")
+	if seed != 1 {
+		panicf("expected seed of 1, got %v", seed)
+	}
+	//vv("on 1: seedBytes = '%#v'", seedBytes)
+	for i, by := range seedBytes {
+		if i == 0 {
+			if by != 1 {
+				panicf("expected seedBytes of 1 at i = %v, got '%v'", i, by)
+			}
+			continue
+		}
+		if by != 0 {
+			panicf("expected seedBytes of 0 at i = %v, got '%v'", i, by)
+		}
+	}
+
+	//vv("start max seed: 1<<64-1")
+	seed, seedBytes = parseSeedString("18_446_744_073_709_551_615")
 	if seed != 18_446_744_073_709_551_615 {
 		panicf("expected seed of 18_446_744_073_709_551_615, got %v", seed)
 	}
-	vv("good, got seed = %v as expected", seed)
-	vv("on max: seedBytes = '%#v'", seedBytes)
+	//vv("good, got seed = %v as expected", seed)
+	//vv("on max: seedBytes = '%#v'", seedBytes)
 	for i, by := range seedBytes {
 		if by != 255 {
 			panicf("expected seedBytes of 255 at i = %v, got '%v'", i, by)
@@ -337,7 +337,7 @@ func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]b
 	simulationModeSeed = n
 	for i := range 8 {
 		// little endian fill
-		vv("from %v, fill at i = %v with %v", n, i, byte(n>>(i*8)))
+		//vv("from %v, fill at i = %v with %v", n, i, byte(n>>(i*8)))
 		seedBytes[i] = byte(n >> (i * 8))
 	}
 	//println("simulationModeSeed from GO_DSIM_SEED=", simulationModeSeed)
