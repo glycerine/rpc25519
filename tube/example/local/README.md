@@ -116,7 +116,7 @@ commands or elect a leader among themselves.
 ~~~
 $ tubeadd node_0
 
-tubeadd.go:225 2025-09-19T01:52:47.389176000+00:00 tupadd is doing AddPeerIDToCluster using leaderURL='tcp://127.0.0.1:7000'
+tubeadd.go:225 2025-09-19T01:52:47.389176000+00:00 tubeadd is doing AddPeerIDToCluster using leaderURL='tcp://127.0.0.1:7000'
 membership after adding 'node_0': ( leader)
 
 $ tubels
@@ -134,7 +134,7 @@ membership immediately.
 ~~~
 $ tubeadd node_1
 
-tubeadd.go:225 2025-09-19T01:54:30.121842000+00:00 tupadd is doing AddPeerIDToCluster using leaderURL='tcp://127.0.0.1:7000/tube-replica/rtL0vvlHTZsZdIzUwE1iwalBlZpL'
+tubeadd.go:225 2025-09-19T01:54:30.121842000+00:00 tubeadd is doing AddPeerIDToCluster using leaderURL='tcp://127.0.0.1:7000/tube-replica/rtL0vvlHTZsZdIzUwE1iwalBlZpL'
 
 membership after adding 'node_1': (node_0 leader)
   node_0:   tcp://127.0.0.1:7000/tube-replica/rtL0vvlHTZsZdIzUwE1iwalBlZpL
@@ -147,7 +147,7 @@ $
 ~~~
 $ tubeadd node_2
 
-tubeadd.go:225 2025-09-19T01:56:42.282367000+00:00 tupadd is doing AddPeerIDToCluster using leaderURL='tcp://127.0.0.1:7000/tube-replica/rtL0vvlHTZsZdIzUwE1iwalBlZpL'
+tubeadd.go:225 2025-09-19T01:56:42.282367000+00:00 tubeadd is doing AddPeerIDToCluster using leaderURL='tcp://127.0.0.1:7000/tube-replica/rtL0vvlHTZsZdIzUwE1iwalBlZpL'
 
 membership after adding 'node_2': (node_0 leader)
   node_0:   tcp://127.0.0.1:7000/tube-replica/rtL0vvlHTZsZdIzUwE1iwalBlZpL
@@ -213,7 +213,7 @@ verify that a new node is elected leader.
 
 Notice that the leader does not update instantaneously.
 The election timeout has to happen and then node_1 and
-node_2 realize that they have not be hearing
+node_2 realize that they have not been hearing
 heartbeats, and so they start an election. After
 a few seconds, run tubels. You should see either
 node_1 or node_2 has won leadership.
