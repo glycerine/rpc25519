@@ -60,9 +60,14 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 		maxScenario := 1
 		for scenario := 0; scenario < maxScenario; scenario++ {
 
-			os.Setenv("GO_DSIM_SEED", fmt.Sprintf("%v", scenario))
-			var seed [32]byte
-			rng := newPRNG(seed)
+			seedString := fmt.Sprintf("%v", scenario)
+			os.Setenv("GO_DSIM_SEED", seedString)
+
+			seed, seedBytes := parseSeedString(seedString)
+			if int(seed) != scenario {
+				panicf("got %v, wanted same scenario number back %v", int(seed), scenario)
+			}
+			rng := newPRNG(seedBytes)
 			_ = rng
 
 			numNodes := 3
@@ -269,7 +274,9 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 
 }
 
-func Test199_dsim_parsing(t *testing.T) {
+func Test199_dsim_seed_string_parsing(t *testing.T) {
+	// GO_DSIM_SEED env variable is parsed
+	// with the same logic as parseSeedString() code.
 
 	seed, seedBytes := parseSeedString("0")
 	if seed != 0 {
