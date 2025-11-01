@@ -132,6 +132,15 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 
 	runtime.GOMAXPROCS(1)
 
+	// automatically available after 1.25
+	// GOEXPERIMENT=synctest
+	//
+	// GODEBUG=asyncpreemptoff=1
+	// how can we turn off sysmon at runtime?
+	//
+	// set with runtime.ResetDsimSeed(seed) below
+	// GO_DSIM_SEED = 1
+
 	defer func() {
 		vv("test 099 wrapping up.")
 	}()
