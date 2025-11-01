@@ -3,15 +3,15 @@ package tube
 import (
 	//"context"
 	"fmt"
-	"os"
+	//"os"
 	"runtime"
 	"strconv"
 	"sync"
-	"sync/atomic"
+	//"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/glycerine/idem"
+	//"github.com/glycerine/idem"
 
 	porc "github.com/anishathalye/porcupine"
 	rpc "github.com/glycerine/rpc25519"
@@ -20,7 +20,8 @@ import (
 type fuzzFault int
 
 const (
-	fuzz_PAUSE fuzzFault = iota
+	fuzz_NOOP fuzzFault = iota
+	fuzz_PAUSE
 	fuzz_CRASH
 	fuzz_PARTITON
 	fuzz_CLOCK_SKEW
@@ -65,11 +66,11 @@ func (s *fuzzMutator) Write(key string, writeMe int) {
 		//Return:   endtmWrite.UnixNano(), // response timestamp
 	}
 
-	v = []byte(fmt.Sprintf("%v", writeMe))
+	v := []byte(fmt.Sprintf("%v", writeMe))
 	vv("about to write at writeMe=%v: '%v'", writeMe, string(v))
 
 	// WRITE
-	tktW, err := nodes[0].Write(bkg, "", key, v, 0, nil)
+	tktW, err := s.clus.Nodes[0].Write(bkg, "", Key(key), v, 0, nil)
 
 	switch err {
 	case ErrShutDown, rpc.ErrShutdown2,
@@ -92,7 +93,7 @@ func (s *fuzzMutator) Read(key string, jnode int) {
 
 	begtmRead := time.Now()
 
-	tkt, err := s.clus.Nodes[jnode].Read(bkg, "", key, 0, nil)
+	tkt, err := s.clus.Nodes[jnode].Read(bkg, "", Key(key), 0, nil)
 	//vv("i=%v, jnode=%v, back from Read", i, jnode)
 
 	switch err {
@@ -162,6 +163,8 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 
 		onlyBubbled(t, func() {
 
+			steps := 20
+			_ = steps
 			numNodes := 3
 
 			forceLeader := 0
@@ -177,11 +180,13 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 				rnd:  rnd,
 				clus: c,
 			}
+			_ = mutator
+			_ = nemesis
 		})
 
 		linz := porc.CheckOperations(registerModel, ops)
 		if !linz {
-			writeToDiskNonLinz(t, oview)
+			writeToDiskNonLinz(t, ops)
 			t.Fatalf("error: expected operations to be linearizable! ops='%v'", opsSlice(ops))
 		}
 
@@ -265,3 +270,131 @@ func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]b
 	//println("simulationModeSeed from GO_DSIM_SEED=", simulationModeSeed)
 	return
 }
+
+// it is the final two goroutines that both race with the
+// main goroutine regarding whether the channel is full
+// or not. The channel send needs to establish
+// a happens-after relationship for the assignment before it.
+func Test299_ResetDsimSeed(t *testing.T) {
+	// try to provoke races
+	vv("begin 299")
+	N := uint64(100)
+	a := make([]int, N)
+	b := make(chan uint64, N)
+	for i := uint64(0); i < N; i++ {
+		go func(j uint64) {
+			for range 1_000 {
+				//runtime.ResetDsimSeed(j) // occassionally helps.
+				a[j]++
+			}
+			// did not help: runtime.Gosched()
+			b <- j // must happen-before our <| full receive.
+		}(i)
+	}
+	<|b // must happen-after b <- j
+	vv("a = '%#v'", a)
+	//vv("len b = %v", len(b))
+}
+
+// try to establish postitive control with wait groups.
+func Test399_ResetDsimSeed(t *testing.T) {
+	// try to provoke races
+	vv("begin 399")
+	N := uint64(100)
+	a := make([]int, N)
+	var wg sync.WaitGroup
+	wg.Add(int(N))
+	for i := uint64(0); i < N; i++ {
+		go func(j uint64) {
+			for range 1_000 {
+				a[j]++
+			}
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+	vv("a = '%#v'", a)
+}
+
+/*
+a) need to make "vet" recognize <|
+
+b) need to fix race detector so the above is not a race
+
+-*- mode: compilation; default-directory: "~/rpc25519/tube/" -*-
+Compilation started at Fri Oct 31 16:55:31
+
+go test -v -run 299 -race -vet=off
+=== RUN   Test299_ResetDsimSeed
+
+fuzz_test.go:276 [goID 49] 2025-10-31T16:55:32.643417000+00:00 begin 299
+
+fuzz_test.go:290 [goID 49] 2025-10-31T16:55:35.437472000+00:00 ==================
+WARNING: DATA RACE
+Read at 0x00c000600000 by goroutine 20:
+  reflect.typedmemmove()
+      /usr/local/go/src/runtime/mbarrier.go:213 +0x0
+  reflect.packEface()
+      /usr/local/go/src/reflect/value.go:136 +0xab
+  reflect.valueInterface()
+      /usr/local/go/src/reflect/value.go:1495 +0x169
+  reflect.Value.Interface()
+      /usr/local/go/src/reflect/value.go:1473 +0xb4
+  fmt.(*pp).printValue()
+      /usr/local/go/src/fmt/print.go:769 +0xc5
+  fmt.(*pp).printValue()
+      /usr/local/go/src/fmt/print.go:901 +0x2664
+  fmt.(*pp).printArg()
+      /usr/local/go/src/fmt/print.go:759 +0xb78
+  fmt.(*pp).doPrintf()
+      /usr/local/go/src/fmt/print.go:1074 +0x5bc
+  fmt.Fprintf()
+      /usr/local/go/src/fmt/print.go:224 +0x78
+  github.com/glycerine/rpc25519/tube.printf()
+      /Users/jaten/rpc25519/tube/vprint.go:143 +0x4c4
+  github.com/glycerine/rpc25519/tube.tsPrintf()
+      /Users/jaten/rpc25519/tube/vprint.go:127 +0x44f
+  github.com/glycerine/rpc25519/tube.vv()
+      /Users/jaten/rpc25519/tube/vprint  github.com/glycerine/rpc25519/tube.Test299_ResetDsimSeed()
+      /Users/jaten/rpc25519/tube/fuzz_test.go:290 +0x1cd
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:1934 +0x21c
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:1997 +0x44
+
+Previous write at 0x00c000600000 by goroutine 21:
+  github.com/glycerine/rpc25519/tube.Test299_ResetDsimSeed.func1()
+      /Users/jaten/rpc25519/tube/fuzz_test.go:284 +0x71
+  github.com/glycerine/rpc25519/tube.Test299_ResetDsimSeed.gowrap1()
+      /Users/jaten/rpc25519/tube/fuzz_test.go:287 +0x41
+
+Goroutine 20 (running) created at:
+  testing.(*T).Run()
+      /usr/local/go/src/testing/testing.go:1997 +0x9d2
+  testing.runTests.func1()
+      /usr/local/go/src/testing/testing.go:2477 +0x85
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:1934 +0x21c
+  testing.runTests()
+      /usr/local/go/src/testing/testing.go:2475 +0x96c
+  testing.(*M).Run()
+      /usr/local/go/src/testing/testing.go:2337 +0xed4
+  main.main()
+      _testmain
+Goroutine 21 (finished) created at:
+  github.com/glycerine/rpc25519/tube.Test299_ResetDsimSeed()
+      /Users/jaten/rpc25519/tube/fuzz_test.go:281 +0x9c
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:1934 +0x21c
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:1997 +0x44
+==================
+a = '[]int{1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000}'
+    testing.go:1617: race detected during execution of test
+--- FAIL: Test299_ResetDsimSeed (2.91s)
+FAIL
+exit status 1
+FAIL	github.com/glycerine/rpc25519/tube	3.018s
+
+Compilation exited abnormally with code 1 at Fri Oct 31 16:55:35
+*/
