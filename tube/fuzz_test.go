@@ -279,3 +279,43 @@ func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]b
 	//println("simulationModeSeed from GO_DSIM_SEED=", simulationModeSeed)
 	return
 }
+
+// GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 go test -v -run 299 -count=1
+func Test299_ResetDsimSeed(t *testing.T) {
+	// try to provoke races
+	vv("begin 299")
+	runtime.ResetDsimSeed(1)
+
+	N := uint64(100)
+
+	ma := make(map[int]int)
+	for k := range 10 {
+		ma[k] = k
+	}
+	sam := make([][]int, 3)
+
+	for i := range 3 {
+		runtime.ResetDsimSeed(uint64(i))
+		for k := range ma {
+			sam[i] = append(sam[i], k)
+		}
+		vv("sam[%v] = '%#v'", i, sam[i])
+	}
+
+	for i := uint64(0); i < N; i++ {
+
+		for j := range 10 { // 1_000 {
+			seed := j % 3
+			runtime.ResetDsimSeed(uint64(seed))
+
+			ii := 0
+			for k := range ma {
+				if k != sam[seed][ii] {
+					panicf("disagree on seed=%v;  i = %v; ii=%v; k=%v but sam[i] = %v (at j=%v)", seed, i, ii, k, sam[seed][ii], j)
+				}
+				ii++
+			}
+
+		}
+	}
+}
