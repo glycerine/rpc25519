@@ -27,10 +27,13 @@ const (
 	fuzz_CLOCK_SKEW
 	fuzz_MEMBER_ADD
 	fuzz_MEMBER_REMOVE
+	fuzz_MEMBER_RESTART
 	fuzz_SWIZZLE_CLOG
 	fuzz_ONE_WAY_FAULT
 	fuzz_ONE_WAY_FAULT_PROBABALISTIC
 	fuzz_ADD_CLIENT
+	fuzz_PAUSE_CLIENT
+	fuzz_RESTART_CLIENT
 	fuzz_TERMINATE_CLIENT
 	fuzz_MISORDERED_MESSAGE
 	fuzz_DUPLICATED_MESSAGE
@@ -124,8 +127,38 @@ func (s *fuzzMutator) Read(key string, jnode int) {
 
 // nemesis injects faults, makes trouble for mutator.
 type fuzzNemesis struct {
-	rnd  func(nChoices int64) (r int64)
-	clus *TubeCluster
+	rng     *prng
+	rnd     func(nChoices int64) (r int64)
+	clus    *TubeCluster
+	clients *[]TubeNode
+}
+
+func (s *fuzzNemesis) makeTrouble() {
+
+	beat := time.Second
+	for {
+		r := fuzzFault(s.rnd(int64(fuzz_LAST)))
+		switch r {
+		case fuzz_NOOP:
+			time.Sleep(beat)
+		case fuzz_PAUSE:
+		case fuzz_CRASH:
+		case fuzz_PARTITON:
+		case fuzz_CLOCK_SKEW:
+		case fuzz_MEMBER_ADD:
+		case fuzz_MEMBER_REMOVE:
+		case fuzz_MEMBER_RESTART:
+		case fuzz_SWIZZLE_CLOG:
+		case fuzz_ONE_WAY_FAULT:
+		case fuzz_ONE_WAY_FAULT_PROBABALISTIC:
+		case fuzz_ADD_CLIENT:
+		case fuzz_PAUSE_CLIENT:
+		case fuzz_RESTART_CLIENT:
+		case fuzz_TERMINATE_CLIENT:
+		case fuzz_MISORDERED_MESSAGE:
+		case fuzz_DUPLICATED_MESSAGE:
+		}
+	}
 }
 
 func Test099_fuzz_testing_linz(t *testing.T) {
@@ -186,6 +219,7 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 				clus: c,
 			}
 			nemesis := &fuzzNemesis{
+				rng:  rng,
 				rnd:  rnd,
 				clus: c,
 			}
