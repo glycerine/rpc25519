@@ -17,7 +17,7 @@ var _ = fmt.Sprintf
 // etc/local prod testing, but now in an actual test.
 func Test055_kill_pause_reboot_node_0(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		minClusterSz := 3
 		maxClusterSz := 3

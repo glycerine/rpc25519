@@ -175,7 +175,7 @@ func Test050_split_vote_resolution(t *testing.T) {
 	// sort, kind of like the bully algorithm.
 	// https://gemini.google.com/app/d1d3782cf4fdc096
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		// latest time to elect in all these, after
 		// adding s.clusterSize() based spreading to

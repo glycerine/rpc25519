@@ -54,7 +54,7 @@ func Test051_partition_and_rejoin(t *testing.T) {
 
 	// we can only manipulate the simnet, not
 	// the real network sockets.
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		minClusterSz := 3
 		maxClusterSz := 4
@@ -304,7 +304,7 @@ func Test052_partition_leader_away_and_rejoin(t *testing.T) {
 
 	// we can only manipulate the simnet, not
 	// the real network sockets.
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		minClusterSz := 3
 		maxClusterSz := 4

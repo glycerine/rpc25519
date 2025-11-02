@@ -16,7 +16,7 @@ var _ = fmt.Sprintf
 // based on 057 restart_test.
 func Test063_start_one_node_cluster(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		minClusterSz := 1
 		maxClusterSz := 1
@@ -154,7 +154,7 @@ func Test063_start_one_node_cluster(t *testing.T) {
 
 func Test064_one_node_in_two_node_cluster(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		minClusterSz := 2
 		maxClusterSz := 2

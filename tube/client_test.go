@@ -17,7 +17,7 @@ import (
 // and introduce expected errors in 708,...
 func Test707_client_linz_semantics(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		numNodes := 3
 		forceLeader := 0
@@ -113,7 +113,7 @@ func Test707_client_linz_semantics(t *testing.T) {
 // gives same reply / preserves linearizability.
 func Test708_client_linz_SessionSerial_gap_caught(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		numNodes := 3
 
@@ -249,7 +249,7 @@ func Test709_client_linz_SessionSerial_old_or_decreasing_SN_caught(t *testing.T)
 	// as a problem (like same client somehow using an old number again).
 	for subtractMe := 1; subtractMe < 4; subtractMe++ {
 
-		bubbleOrNot(func() {
+		bubbleOrNot(t, func(t *testing.T) {
 
 			numNodes := 3
 

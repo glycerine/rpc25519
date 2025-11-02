@@ -15,7 +15,7 @@ var _ = fmt.Sprintf
 // cross talk into the wrong simnet queues.
 func Test056_no_crosstalk_dropdeaf_to_other_queues(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		minClusterSz := 3
 		maxClusterSz := 3

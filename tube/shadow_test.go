@@ -19,7 +19,7 @@ var _ = fmt.Sprintf
 // and then should get all wal logging.
 func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		ctx := context.Background()
 		minClusterSz := 3

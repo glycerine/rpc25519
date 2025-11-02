@@ -20,10 +20,10 @@ func synctestWait_LetAllOtherGoroFinish() {
 	synctest.Wait()
 }
 
-func bubbleOrNot(f func()) {
-	synctest.Run(f)
+func bubbleOrNot(t *testing.T, f func(t *testing.T)) {
+	synctest.Test(t, f)
 }
 
-func onlyBubbled(t *testing.T, f func()) {
-	synctest.Run(f)
+func onlyBubbled(t *testing.T, f func(t *testing.T)) {
+	synctest.Test(t, f)
 }

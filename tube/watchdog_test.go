@@ -18,7 +18,7 @@ func Test058_watchdog(t *testing.T) {
 
 	t.Skip("still a work in progress") // TODO finish up this test.
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		minClusterSz := 2
 		maxClusterSz := 2

@@ -33,7 +33,7 @@ import (
 // change tests.
 func Test400_cluster_add_remove_nodes(t *testing.T) {
 	//return
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		n := 3
 		cfg := NewTubeConfigTest(n, t.Name(), faketime)
@@ -50,7 +50,7 @@ func Test401_add_node(t *testing.T) {
 
 	// we can only manipulate the simnet, not
 	// the real network sockets.
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		minClusterSz := 3
 		maxClusterSz := 4
@@ -301,7 +301,7 @@ func Test401_add_node(t *testing.T) {
 
 func Test402_build_up_a_cluster_from_one_node(t *testing.T) {
 	//return
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		baseNodeCount := 1
 
@@ -408,8 +408,8 @@ func Test403_reduce_a_cluster_down_to_one_node(t *testing.T) {
 	//return // other 40 are green
 	// first build up, just like 402. But then also reduce down
 	// the cluster, shrinking it down to one node.
-	//onlyBubbled(t, func() {
-	bubbleOrNot(func() {
+	//onlyBubbled(t, func(t *testing.T) {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		baseNodeCount := 1
 

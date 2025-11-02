@@ -19,7 +19,7 @@ var _ = fmt.Sprintf
 // based on 055 reboot_test as starting point.
 func Test059_new_node_joins_after_compaction(t *testing.T) {
 	//return
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		ctx := context.Background()
 		minClusterSz := 3
@@ -243,7 +243,7 @@ func Test059_new_node_joins_after_compaction(t *testing.T) {
 // we already have it as a part of the compacted state.
 func Test061_handleAppendEntries_is_snapshot_aware(t *testing.T) {
 	//return
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		//ctx := context.Background()
 		minClusterSz := 3

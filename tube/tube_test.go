@@ -331,7 +331,7 @@ const globalUseSimnet = true
 
 func Test001_no_replicas_write_new_value(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		n := 1
 		cfg := NewTubeConfigTest(n, t.Name(), globalUseSimnet)
@@ -397,69 +397,72 @@ func Test001_no_replicas_write_new_value(t *testing.T) {
 }
 
 func Benchmark_101_no_replicas_write_new_value(b *testing.B) {
-	bubbleOrNot(func() {
 
-		n := 1
-		cfg := NewTubeConfigTest(n, b.Name(), globalUseSimnet)
+	// used to be bubbleOrNot(func(), and benchmarks don't have T,
+	// only B; so we cannot just do:
+	//bubbleOrNot(t, func(t *testing.T) {
 
-		c := NewCluster(b.Name(), cfg)
-		nodes := c.Nodes
+	n := 1
+	cfg := NewTubeConfigTest(n, b.Name(), globalUseSimnet)
 
-		c.Start()
-		defer c.Close()
+	c := NewCluster(b.Name(), cfg)
+	nodes := c.Nodes
 
-		// TODO add back in once writes are working.
-		if true {
-			// read empty should give back nothing
-			tkt, err := nodes[0].Read(bkg, "", "a", 0, nil)
-			v1 := tkt.Val
-			if err != ErrKeyNotFound {
-				b.Fatalf("expected ErrKeyNotFound, got '%v'", err)
-			}
-			if v1 != nil {
-				b.Fatalf("expected nil value from empty store, got '%v'", string(v1))
-			}
-		}
+	c.Start()
+	defer c.Close()
 
-		var v []byte
-		i := 0
-		for b.Loop() {
-			i++
-			//i := 1
-			//v := []byte("123")
-			v = []byte(fmt.Sprintf("%v", i))
-			//vv("about to write '%v'", string(v))
-			tkt, err := nodes[0].Write(bkg, "", "a", v, 0, nil)
-			_ = tkt
-			panicOn(err)
-		}
-		vv("end of b.Loop i = %v", i)
-		// there should be no waiting tickets left now.
-		pect := nodes[0].Inspect()
-		nWait := len(pect.WaitingAtLeader)
-		if got, want := nWait, 0; got != want {
-			b.Fatalf("should be nothing waiting; we see '%#v'", pect.WaitingAtLeader)
-		}
-		vv("good: nothing WaitingAtLeader; nWait = %v", nWait)
-
-		//}
-		// TODO add back in once writes are working.
-		// if false {
+	// TODO add back in once writes are working.
+	if true {
+		// read empty should give back nothing
 		tkt, err := nodes[0].Read(bkg, "", "a", 0, nil)
-		v2 := tkt.Val
-		panicOn(err)
-
-		if !bytes.Equal(v, v2) {
-			b.Fatalf("write a:'%v' to node0, read back from node0 '%v'", string(v), string(v2))
+		v1 := tkt.Val
+		if err != ErrKeyNotFound {
+			b.Fatalf("expected ErrKeyNotFound, got '%v'", err)
 		}
-	})
+		if v1 != nil {
+			b.Fatalf("expected nil value from empty store, got '%v'", string(v1))
+		}
+	}
+
+	var v []byte
+	i := 0
+	for b.Loop() {
+		i++
+		//i := 1
+		//v := []byte("123")
+		v = []byte(fmt.Sprintf("%v", i))
+		//vv("about to write '%v'", string(v))
+		tkt, err := nodes[0].Write(bkg, "", "a", v, 0, nil)
+		_ = tkt
+		panicOn(err)
+	}
+	vv("end of b.Loop i = %v", i)
+	// there should be no waiting tickets left now.
+	pect := nodes[0].Inspect()
+	nWait := len(pect.WaitingAtLeader)
+	if got, want := nWait, 0; got != want {
+		b.Fatalf("should be nothing waiting; we see '%#v'", pect.WaitingAtLeader)
+	}
+	vv("good: nothing WaitingAtLeader; nWait = %v", nWait)
+
+	//}
+	// TODO add back in once writes are working.
+	// if false {
+	tkt, err := nodes[0].Read(bkg, "", "a", 0, nil)
+	v2 := tkt.Val
+	panicOn(err)
+
+	if !bytes.Equal(v, v2) {
+		b.Fatalf("write a:'%v' to node0, read back from node0 '%v'", string(v), string(v2))
+	}
+	//})
 }
 
 // moved to write_test.go for the moment
 /*
 func Test002_tube_write_new_value(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		n := 2
 		//n := 3
@@ -526,7 +529,7 @@ func Test002_tube_write_new_value(t *testing.T) {
 
 func Test003_tube_3_node_write_then_read(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		defer func() {
 			vv("test 003 wrapping up.")
@@ -599,7 +602,7 @@ func Test003_tube_3_node_write_then_read(t *testing.T) {
 }
 
 func Test010_tube_write_new_value_two_replicas(t *testing.T) {
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		numNodes := 3 // number of nodes (primary + 2 replicas)
 
@@ -649,8 +652,8 @@ func Test015_tube_non_parallel_linz(t *testing.T) {
 	// leader and thus violate the assertions herein
 	// that the leader has not changed.
 	// So keep to bubble-only for now.
-	//bubbleOrNot(func() {
-	onlyBubbled(t, func() {
+	//bubbleOrNot(t, func(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
 
 		defer func() {
 			vv("test 015 wrapping up.")
@@ -721,7 +724,7 @@ func Test015_tube_non_parallel_linz(t *testing.T) {
 // N=1000 in 866.312148ms => 1154.3183393060303 writes/sec cluster size n=9
 func Test017_write_throughput(t *testing.T) {
 	return
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		defer func() {
 			vv("test 017 wrapping up.")

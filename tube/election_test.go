@@ -32,7 +32,7 @@ import (
 
 func Test020_election_on_sim_net(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 		const newStyle = true
 		numNodes := 2
 		if newStyle {
@@ -119,7 +119,7 @@ func Test020_election_on_sim_net(t *testing.T) {
 
 func Test040_election_then_first_noop(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 		numNodes := 2
 		t0 := time.Now()
 		// old style works no more? we need to designate leader with an initial config committed in their log. all other peers will hang with no config in their logs.
@@ -180,7 +180,7 @@ func Test021_election_first_reqVote_becomes_leader(t *testing.T) {
 
 	// on the first election, the first candidate to
 	// get their requestVotes to a quorum should become leader.
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 		numNodes := 3
 		cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
 		c := NewCluster(t.Name(), cfg)
@@ -295,7 +295,7 @@ func Test022_election_timeouts_very_close_together(t *testing.T) {
 	// for each other, for sure. The next randomized
 	// election timeout should resolve and elect a leader
 	// in the next term.
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 		numNodes := 3
 		cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
 		c := NewCluster(t.Name(), cfg)
@@ -428,7 +428,7 @@ func Test022_election_timeouts_very_close_together(t *testing.T) {
 
 func Test023_two_nodes_can_elect_leader(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		n := 2
 
@@ -488,7 +488,7 @@ func Test024_one_node_cannot_elect_leader(t *testing.T) {
 	//	t.Skip("takes 12 seconds without faketime, even at N=3")
 	//}
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		// it turns out that n = 2 but only one node
 		// started is a strong test

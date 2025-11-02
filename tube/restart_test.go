@@ -22,7 +22,7 @@ var _ = fmt.Sprintf
 // TIME_WAIT / FIN_WAIT.
 func Test057_restart_monitoring_and_maybe_dedup(t *testing.T) {
 
-	onlyBubbled(t, func() {
+	onlyBubbled(t, func(t *testing.T) {
 
 		minClusterSz := 3
 		maxClusterSz := 3

@@ -15,7 +15,7 @@ import (
 // can get a grid up, for all the other tests to work.
 func Test030_does_cluster_come_up_under_simnet(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		n := 3 // 0.4 sec
 		//n := 2 // 0.4 sec
@@ -87,7 +87,7 @@ func (c *TubeCluster) waitForConnectedGrid() (replicaCktCount int) {
 // to AppendEntries to them.
 func Test031_client_ckt_is_not_replica_ckt(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		n := 4
 		cfgC := NewTubeConfigTest(n, t.Name(), faketime)

@@ -46,7 +46,7 @@ import (
 // check it off-line.
 func Test016_tube_parallel_linz(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		defer func() {
 			vv("test 016 wrapping up.")

@@ -10,7 +10,7 @@ import (
 
 func Test002_tube_write_new_value(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		numNodes := 2 // must still be able to elect a leader.
 		//n := 3
