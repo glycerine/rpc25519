@@ -84,11 +84,15 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 				//vv("%v self insp says empty leaderName so setting selfSurelyNotLeader=true", node.name)
 			}
 		} else {
+			fmt.Printf("%v %v TubeNode.HelperFindLeader(): attempting to contact '%v' at %v ... ", fileLine(1), ts(), remoteName, url)
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
 			_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
 			canc5()
 			if err == nil && insp != nil {
 				contacted = append(contacted, insp)
+				fmt.Printf("good.\n\n")
+			} else {
+				fmt.Printf("bad. err = '%v'\n\n", err)
 			}
 			if leaderName == remoteName {
 				//vv("did GetPeerListFrom for name = '%v'; got leaderName='%v'", name, leaderName)
