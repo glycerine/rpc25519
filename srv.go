@@ -2095,6 +2095,23 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		ccfg.ClientDialToHostPort = dest
 		ccfg.BaseServerName = s.name
 		ccfg.BaseServerAddr = s.LocalNetAddr().String()
+
+		if errWriteDur > 0 {
+			ccfg.ConnectTimeout = errWriteDur
+		} else {
+			if ctx != nil {
+				deadline, ok := ctx.Deadline()
+				if ok {
+					now := time.Now()
+					window := deadline.Sub(now)
+					if window <= 0 {
+						err = ErrTimeout
+						return
+					}
+					ccfg.ConnectTimeout = window
+				}
+			}
+		}
 		//vv("auto cli setting ccfg.BaseServerAddr = '%v'", ccfg.BaseServerAddr)
 		//vv("auto cliName = '%v'", cliName)
 		// uses same serverBaseID so simnet can group same host simnodes.
