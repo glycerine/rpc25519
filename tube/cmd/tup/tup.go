@@ -49,6 +49,7 @@ func main() {
 
 	if cmdCfg.Verbose {
 		verboseVerbose = true
+		tube.VerboseVerbose.Store(true)
 	}
 	if cmdCfg.Help {
 		fmt.Fprintf(os.Stderr, "tup help:\n")
