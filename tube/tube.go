@@ -15624,7 +15624,9 @@ This is a deliberate design choice. A system that safely stops is infinitely bet
 ---
 ## The Scenario for Lost Liveness
 
-Liveness is lost if the cluster partitions in such a way that no single partition contains a majority of nodes with mutually consistent logs.
+Liveness is lost if the cluster partitions
+in such a way that no single partition
+contains a majority of nodes with mutually consistent logs.
 
 For example, in a five-node cluster `{A, B, C, D, E}`:
 1.  A failure occurs during a membership change.
@@ -15637,7 +15639,9 @@ In this state, no leader can be elected. `{A, B}` can't get a majority. `{C, D}`
 ---
 ## Restoring Liveness: The Role of the Operator
 
-This "stuck" state is not permanent, but it requires **human intervention**. This is the operational contract of a PAR-hardened system.
+This "stuck" state is not permanent, but it requires
+**human intervention**. This is the operational
+contract of a PAR-hardened system.
 
 When the cluster halts, monitoring and alerts (triggered by the failing PAR checks) would notify an operator. The operator would then:
 1.  **Investigate** the state of the cluster's logs.
@@ -15689,7 +15693,7 @@ func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 // possible TODO: use Ticket system instead? We don't,
 // for now, because this is intended as a rarely
 // needed wedge-recovery operation for when quorum has been
-// lost, and so it forgeos the usually nicities.
+// lost, and so it forgoes the usually nicities.
 // We certainly don't want to wait for consensus
 // in such cases, as it will never happen due
 // to the fact that we have already lost quorum.
