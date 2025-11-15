@@ -66,7 +66,12 @@ type mop struct {
 	originLC int64
 
 	//	timerC              chan time.Time
-	timerC              weak.Pointer[chan time.Time]
+
+	// use the go 1.24 weak pointers to dispose of timers.
+	// See also simnet.go:2109 where tC := timer.timerC.Value() checks
+	// if the channel has already been collected before using it.
+	timerC weak.Pointer[chan time.Time]
+
 	timerCstrong        chan time.Time
 	timerDur            time.Duration
 	timerFileLine       string // where was this timer from
@@ -89,13 +94,6 @@ type mop struct {
 	internalPendingTimer bool
 	// so we can cleanup the timers from dropped sends.
 	internalPendingTimerForSend *mop
-
-	// Possible TODO: use the go 1.24 weak pointers to dispose of timers?
-	// We would have to periodically try to clean up our timer mop(s)
-	// that have fired by checking if the weak.Pointer.Value() == nil,
-	// meaning the GC has disposed of it--which tells us that the
-	// client code no longer has the timer and we the simnet can
-	// also dispose of it.
 
 	// when was the operation initiated?
 	// timer started, read begin waiting, send hits the socket.
