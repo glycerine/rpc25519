@@ -632,11 +632,12 @@ func (s *Simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time
 			return
 		}
 		if pause > 0 {
-			select {
-			case <-time.After(pause):
-			case <-s.halt.ReqStop.Chan:
-				return
-			}
+			// since createNewTimer ignores pause, maybe we should too.
+			//	select {
+			//	case <-time.After(pause):
+			//	case <-s.halt.ReqStop.Chan:
+			//		return
+			//	}
 		}
 		return discard.wasArmed
 	case <-s.halt.ReqStop.Chan:

@@ -2643,11 +2643,19 @@ func (s *Simnet) scheduler() {
 		// clients about their completed sends, reads,
 		// and timeouts, and we do so in a deterministic
 		// order. To simulate additional latency, it is
-		// also possible to tell clients to pause for some time
+		// also possible to tell clients to pause for some time,
+		// currently a scenario.tick
 		// (on their own goroutine, no impact on scheduler)
 		// just prior to receiving news of their request.
-		// This last mechanism is implemented but not in-use
-		// at the moment.
+		// This last mechanism is not in-use for timers,
+		// at the moment, and in partial use for
+		// other calls. NewGoro calls do wait, as do
+		// readMessage, sendMessage, and
+		// registerServer calls. The others are asked
+		// to wait a tick, but ignore the requested pause time
+		// at the moment (in simnet_api.go): FaultCircuit, FaultHost,
+		// RepairCircuit, RepairHost, AllHealthy, discardTimer,
+		// createNewTimer, newClientRegistration, and CloseSimnode.
 		npop, restartNewScenario, shutdown, endPrand := s.distributeMEQ(now, i, lastPrand)
 		lastPrand = endPrand
 		_ = npop
