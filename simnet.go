@@ -368,6 +368,7 @@ func (s *Simnet) releaseReady() {
 		pseudoRandomQ.add(op)
 	}
 
+	addme := 1
 	for pseudoRandomQ.Len() > 0 {
 		op := pseudoRandomQ.pop()
 		//fmt.Printf("        op: %v\n", op)
@@ -375,7 +376,8 @@ func (s *Simnet) releaseReady() {
 		if !s.cfg.skipExecutionHistory {
 			s.fin2(op)
 		}
-		s.release(op)
+		s.release(op, addme)
+		addme++
 	}
 }
 
@@ -399,7 +401,7 @@ func (s *Simnet) releaseReady() {
 // we abandoned it because of the non-
 // determinism inherent in goroutine ID
 // numbers.
-func (s *Simnet) release(op *mop) {
+func (s *Simnet) release(op *mop, addme int) {
 
 	switch op.kind {
 	case TIMER:
@@ -408,7 +410,7 @@ func (s *Simnet) release(op *mop) {
 		//case NEW_GORO:
 	default:
 		select {
-		case op.proceed <- s.scenario.tick:
+		case op.proceed <- s.scenario.tick + time.Duration(addme):
 		case <-s.halt.ReqStop.Chan:
 			return
 		default:

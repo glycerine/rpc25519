@@ -40,12 +40,13 @@ import (
 //=========================================
 
 type newGoroRequest struct {
-	name    string
-	where   string
-	net     *Simnet
-	reqtm   time.Time
-	proceed chan time.Duration
-	who     int
+	name       string
+	where      string
+	net        *Simnet
+	reqtm      time.Time
+	proceed    chan time.Duration
+	who        int
+	goroSerial int64
 }
 
 func (s *Simnet) newGoroMop(req *newGoroRequest) *mop {
