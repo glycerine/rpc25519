@@ -4,7 +4,9 @@ import (
 	//"context"
 	"fmt"
 	//"os"
+	"math"
 	"runtime"
+	"runtime/debug"
 	"runtime/trace"
 	"strconv"
 	"sync"
@@ -19,6 +21,8 @@ import (
 )
 
 var _ = trace.Stop
+var _ = debug.SetMemoryLimit
+var _ = math.MaxInt64
 
 type fuzzFault int
 
@@ -317,10 +321,14 @@ func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]b
 	return
 }
 
-/*
 // GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 go test -v -run 299 -count=1
 func Test299_ResetDsimSeed(t *testing.T) {
-	return
+	//return
+
+	// tried turning off garbage collection -- we still get non-determinism under
+	// GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 GOEXPERIMENT=synctest go test -v -run 299_ResetDsim
+	//debug.SetMemoryLimit(math.MaxInt64)
+	//debug.SetGCPercent(-1)
 
 	onlyBubbled(t, func(t *testing.T) {
 		// try to provoke races
@@ -365,4 +373,3 @@ func Test299_ResetDsimSeed(t *testing.T) {
 		}
 	})
 }
-*/
