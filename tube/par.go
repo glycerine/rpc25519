@@ -37,9 +37,11 @@ type ParRecord struct {
 type parLog struct {
 	nodisk bool
 
-	path string
-	fd   *os.File
-	n    int64
+	path        string
+	fd          *os.File
+	parentDirFd *os.File
+
+	n int64
 
 	e []*ParRecord
 }
@@ -61,6 +63,12 @@ func newParLog(path string, nodisk bool) (s *parLog, err error) {
 		}
 
 		fd, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
+		panicOn(err)
+		if err != nil {
+			return nil, err
+		}
+		// same as in wal.go:182, per tigerbeetle, we want to sync before reading.
+		err = fd.Sync()
 		panicOn(err)
 		if err != nil {
 			return nil, err

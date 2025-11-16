@@ -1,11 +1,11 @@
 package tube
 
-/*
 import (
 	//"context"
 	"fmt"
 	//"os"
 	"runtime"
+	"runtime/trace"
 	"strconv"
 	"sync"
 	//"sync/atomic"
@@ -17,6 +17,8 @@ import (
 	porc "github.com/anishathalye/porcupine"
 	rpc "github.com/glycerine/rpc25519"
 )
+
+var _ = trace.Stop
 
 type fuzzFault int
 
@@ -315,6 +317,7 @@ func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]b
 	return
 }
 
+/*
 // GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 go test -v -run 299 -count=1
 func Test299_ResetDsimSeed(t *testing.T) {
 	return
@@ -322,6 +325,10 @@ func Test299_ResetDsimSeed(t *testing.T) {
 	onlyBubbled(t, func(t *testing.T) {
 		// try to provoke races
 		vv("begin 299")
+
+		//trace.Start()
+		//defer trace.Stop()
+
 		runtime.ResetDsimSeed(1)
 
 		N := uint64(100)

@@ -16,10 +16,12 @@ import (
 )
 
 type raftWriteAheadLog struct {
-	path string
-	fd   *os.File
-	w    *msgp.Writer
-	r    *msgp.Reader
+	path        string
+	fd          *os.File
+	parentDirFd *os.File
+
+	w *msgp.Writer
+	r *msgp.Reader
 
 	raftLog []*RaftLogEntry
 
@@ -162,10 +164,24 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 	if cfg.NoDisk {
 		return cfg.newRaftWriteAheadLogMemoryOnlyTestingOnly()
 	}
+	var parentDirFd *os.File
 	if !readOnly {
 		// make dir if necessary
 		dir := filepath.Dir(path)
 		panicOn(os.MkdirAll(dir, 0700))
+
+		// To understand why parentDirFd is needed, and
+		// why we must also fsync the parent directory,
+		// we quote the fsync(2) - Linux man page:
+		//
+		// "Calling fsync() does not necessarily ensure that
+		// the entry in the directory containing the file has
+		// also reached disk. For that an explicit fsync() on
+		// a file descriptor for the directory is also needed."
+		// -- https://linux.die.net/man/2/fsync
+		var err error
+		parentDirFd, err = os.Open(dir)
+		panicOn(err)
 	}
 
 	var sz int64
@@ -178,6 +194,23 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 	if err != nil {
 		return nil, err
 	}
+
+	// From github.com/tigerbeetle/tigerbeetle/src/io/linux.zig:1640
+	// in version 0.16.61 of tigerbeetle:
+	// "The best fsync strategy is always to fsync before
+	// reading because this prevents us from
+	// making decisions on data that was never durably
+	// written by a previously crashed process.
+	// We therefore always fsync when we open the
+	// path, also to wait for any pending O_DSYNC.
+	// Thanks to Alex Miller from FoundationDB for
+	// diving into our source and pointing this out."
+	err = fd.Sync()
+	panicOn(err)
+	if err != nil {
+		return nil, err
+	}
+
 	var parlog *parLog
 	if !readOnly {
 		parlog, err = newParLog(path+".parlog", cfg.NoDisk)
@@ -188,6 +221,7 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 	s = &raftWriteAheadLog{
 		path:            path,
 		fd:              fd,
+		parentDirFd:     parentDirFd,
 		w:               msgp.NewWriter(fd),
 		r:               msgp.NewReader(fd),
 		logIndex:        newTermsRLE(),
@@ -293,6 +327,12 @@ func (s *raftWriteAheadLog) close() (err error) {
 func (s *raftWriteAheadLog) sync() error {
 	err := s.fd.Sync()
 	panicOn(err)
+
+	// need to sync parent directory for durability too.
+	if s.parentDirFd != nil {
+		err = s.parentDirFd.Sync()
+		panicOn(err)
+	}
 	return nil
 }
 
