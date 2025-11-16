@@ -410,7 +410,8 @@ func (s *Simnet) release(op *mop, addme int) {
 		//case NEW_GORO:
 	default:
 		select {
-		case op.proceed <- s.scenario.tick + time.Duration(addme):
+		case op.proceed <- time.Duration(addme):
+		//case op.proceed <- s.scenario.tick + time.Duration(addme):
 		case <-s.halt.ReqStop.Chan:
 			return
 		default:
