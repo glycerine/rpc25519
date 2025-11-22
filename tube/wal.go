@@ -179,8 +179,13 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 		// also reached disk. For that an explicit fsync() on
 		// a file descriptor for the directory is also needed."
 		// -- https://linux.die.net/man/2/fsync
+
+		// don't get fooled by last dir symlinks.
+		dir2, err2 := getActualParentDirForFsync(path)
+		panicOn(err2)
+
 		var err error
-		parentDirFd, err = os.Open(dir)
+		parentDirFd, err = os.Open(dir2)
 		panicOn(err)
 	}
 

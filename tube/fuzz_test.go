@@ -321,14 +321,18 @@ func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]b
 	return
 }
 
+/*
 // GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 go test -v -run 299 -count=1
 func Test299_ResetDsimSeed(t *testing.T) {
-	//return
+	return
 
 	// tried turning off garbage collection -- we still get non-determinism under
-	// GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 GOEXPERIMENT=synctest go test -v -run 299_ResetDsim
-	//debug.SetMemoryLimit(math.MaxInt64)
-	//debug.SetGCPercent(-1)
+	// GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 GOEXPERIMENT=synctest go test -v -run 299_ResetDsim -trace=trace.out
+	// GODEBUG=asyncpreemptoff=1,gctrace=1 GO_DSIM_SEED=1 GOEXPERIMENT=synctest go test -v -run 299_ResetDsim -trace=trace.out
+	//
+	debug.SetMemoryLimit(math.MaxInt64)
+	debug.SetGCPercent(-1)
+	vv("turned off garbage collection. now.")
 
 	onlyBubbled(t, func(t *testing.T) {
 		// try to provoke races
@@ -355,21 +359,33 @@ func Test299_ResetDsimSeed(t *testing.T) {
 			vv("sam[%v] = '%#v'", i, sam[i])
 		}
 
+		ctx, task := trace.NewTask(bkg, "i_loop")
+		defer task.End()
+
 		for i := uint64(0); i < N; i++ {
 
 			for j := range 10 { // 1_000 {
 				seed := j % 3
-				runtime.ResetDsimSeed(uint64(seed))
 
-				ii := 0
-				for k := range ma {
-					if k != sam[seed][ii] {
-						panicf("disagree on seed=%v;  i = %v; ii=%v; k=%v but sam[i] = %v (at j=%v)", seed, i, ii, k, sam[seed][ii], j)
+				trace.Log(ctx, "i_j_iter", fmt.Sprintf("have i=%v; j=%v", i, j))
+
+				trace.WithRegion(ctx, "one_map_iter", func() {
+
+					runtime.ResetDsimSeed(uint64(seed))
+
+					ii := 0
+					for k := range ma {
+						if k != sam[seed][ii] {
+							// get timestamp since synctest controls clock.
+							vv("disagree on seed=%v;  i = %v; ii=%v; k=%v but.. sam[i] = %v (at j=%v)", seed, i, ii, k, sam[seed][ii], j)
+							panicf("disagree on seed=%v;  i = %v; ii=%v; k=%v but sam[i] = %v (at j=%v)", seed, i, ii, k, sam[seed][ii], j)
+						}
+						ii++
 					}
-					ii++
-				}
+				})
 
 			}
 		}
 	})
 }
+*/
