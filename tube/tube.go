@@ -10803,6 +10803,10 @@ func justEpoch(term int64) int32 {
 func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderURL string, firstFrag *rpc.Fragment, insideCaller bool) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, err error) {
 	//vv("%v top getCircuitToLeader('%v')", s.me(), leaderURL)
 
+	if strings.Contains(leaderURL, "100.114.32.72") {
+		vv("top getCircuitToLeader() stack = '%v'", stack())
+	}
+
 	// do we already have a ckt to requested leaderURL? if so, use it.
 
 	netAddr, serviceName, leaderPeerID, _, err1 := rpc.ParsePeerURL(leaderURL)
