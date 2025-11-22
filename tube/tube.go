@@ -11814,7 +11814,7 @@ func (a *MemberConfig) Diff(b *MemberConfig) (diff map[string]bool) {
 // If we are leader we simply call s.changeMembership(tkt);
 // if not we forward the request to the leader.
 func (s *TubeNode) handleLocalModifyMembership(tkt *Ticket) (onlyPossibleAddr string, sentOnNewCkt bool, ckt *rpc.Circuit, err error) {
-	//vv("%v: top handleLocalModifyMembership(tkt='%v')", s.me(), tkt.Short())
+	vv("%v: top handleLocalModifyMembership(tkt='%v')", s.me(), tkt.Short())
 	//defer func() {
 	//vv("%v: end of handleLocalModifyMembership(tkt='%v')", s.me(), tkt.Short())
 	//}()
@@ -11934,28 +11934,28 @@ func (s *TubeNode) handleLocalModifyMembership(tkt *Ticket) (onlyPossibleAddr st
 			// INVAR: cktP connects to leader
 		}
 	}
-	//vv("%v middle of handleLocalModifyMembership with tkt='%v'", s.me(), tkt.Short())
+	vv("%v middle of handleLocalModifyMembership with tkt='%v'", s.me(), tkt.Short())
 	if s.redirectToLeader(tkt) {
-		//vv("%v handleLocalModifyMembership redirected to leader", s.me())
+		vv("%v handleLocalModifyMembership redirected to leader", s.me())
 		if tkt.Err != nil {
 			return
 		}
 
-		//vv("%v: handleLocalModifyMembership redirected to leader, adding to WaitingAtFollow, tkt='%v'", s.me(), tkt)
-		//vv("%v am not leader but '%v'", s.name, s.role)
+		vv("%v: handleLocalModifyMembership redirected to leader, adding to WaitingAtFollow, tkt='%v'", s.me(), tkt)
+		vv("%v am not leader but '%v'", s.name, s.role)
 		s.WaitingAtFollow.set(tkt.TicketID, tkt)
 		tkt.Stage += ":handleLocalModifyMembership_WaitingAtFollow"
 		return
 	}
 	// INVAR: we are leader.
-	//vv("%v I am leader with request to change membership: tkt='%v'", s.me(), tkt.Short())
+	vv("%v I am leader with request to change membership: tkt='%v'", s.me(), tkt.Short())
 	s.changeMembership(tkt)
 
 	// when finished, let regular replication do this, not us!
 	// so comment out: tkt.Done.Close().
 	// otherwise 403 membership_test prematurely returns and goes red.
 
-	//vv("end of handleLocalModifyMembership(); err = '%v'", err)
+	vv("end of handleLocalModifyMembership(); err = '%v'", err)
 	return onlyPossibleAddr, sentOnNewCkt, ckt, nil // non-nil error shuts down the peer.
 }
 
