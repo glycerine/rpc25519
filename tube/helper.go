@@ -186,7 +186,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	}
 
 	for xname, url := range xtra {
-		vv("on xtra name='%v', url='%v'", name, url)
+		vv("on xtra xname='%v', url='%v'", xname, url)
 		if xname == node.name {
 			continue // skip self
 		}
