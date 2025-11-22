@@ -172,10 +172,14 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 					xtra[iname] = url
 				}
 			} else {
-				// avoid adding other clients/ourselves
-				_, serviceName, _, _, err1 := rpc.ParsePeerURL(url)
-				if err1 == nil && serviceName == TUBE_REPLICA {
+				if url == "pending" {
 					xtra[iname] = url
+				} else {
+					// avoid adding other clients/ourselves
+					_, serviceName, _, _, err1 := rpc.ParsePeerURL(url)
+					if err1 == nil && serviceName == TUBE_REPLICA {
+						xtra[iname] = url
+					}
 				}
 			}
 		}
