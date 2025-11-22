@@ -140,7 +140,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			if leaderName == node.name && selfSurelyNotLeader {
 				continue // extra protection
 			}
-			vv("%v: candidate leader = '%v', url = '%v' ; insp = '%v'", node.name, leaderName, leaderURL, insp)
+			//vv("%v: candidate leader = '%v', url = '%v' ; insp = '%v'", node.name, leaderName, leaderURL, insp)
 			insps = append(insps, insp)
 			lastInsp = insp
 			lastLeaderName = leaderName
@@ -157,7 +157,17 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	// put together a transitive set of known/connected nodes...
 	xtra := make(map[string]string)
 	for _, ins := range insps {
-		both := mapUnion(ins.Known, ins.CktAllByName)
+		// CktallByName does not look all that useful, but
+		// ins.Peers and RemoteBaseServerAddr does.
+		//both := mapUnion(ins.Known, ins.CktAllByName)
+		both := mapUnion(ins.Known, map[string]string{})
+
+		for _, info := range ins.Peers {
+			if info.RemoteBaseServerAddr != "" {
+				both[info.PeerName] = info.RemoteBaseServerAddr
+			}
+		}
+
 		for iname, url := range both {
 			if iname == node.name {
 				continue // skip self, already done above.
@@ -187,7 +197,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	}
 
 	for xname, url := range xtra {
-		vv("on xtra xname='%v', url='%v'", xname, url)
+		//vv("on xtra xname='%v', url='%v'", xname, url)
 		if xname == node.name {
 			continue // skip self
 		}
@@ -275,7 +285,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			lastLeaderURL = FixAddrPrefix(addr)
 		}
 	}
-	vv("HelperFindLeader() normal return, err0 = '%v'", err0)
+	//vv("HelperFindLeader() normal return, err0 = '%v'", err0)
 	return
 }
 
