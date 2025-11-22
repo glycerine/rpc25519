@@ -223,8 +223,8 @@ if it comes to that.
 	pp("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	targetPeerID := "" // empty string allowed now
-	var errWriteDur time.Duration
-	//errWriteDur := time.Second * 20
+	//var errWriteDur time.Duration
+	errWriteDur := time.Second * 10
 	peerServiceName := tube.TUBE_REPLICA
 	baseServerHostPort := ""
 	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx, force, cmdCfg.NonVotingShadowFollower, target, targetPeerID, peerServiceName, baseServerHostPort, leaderURL, errWriteDur)
