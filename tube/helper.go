@@ -95,6 +95,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 				contacted = append(contacted, insp)
 				if verbose {
 					fmt.Printf("good.\n\n")
+					fmt.Printf("insp = '%v'\n", insp)
 				}
 			} else {
 				if verbose {
@@ -139,7 +140,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			if leaderName == node.name && selfSurelyNotLeader {
 				continue // extra protection
 			}
-			//vv("%v: candidate leader = '%v', url = '%v", node.name, leaderName, leaderURL)
+			vv("%v: candidate leader = '%v', url = '%v' ; insp = '%v'", node.name, leaderName, leaderURL, insp)
 			insps = append(insps, insp)
 			lastInsp = insp
 			lastLeaderName = leaderName
