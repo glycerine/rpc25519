@@ -39,7 +39,7 @@ type set struct {
 // Note that the servers try to save these
 // dynamically added nodes to state.Known to
 // remember them even after a reboot.
-func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool, contacted []*Inspection, err error) {
+func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool, contacted []*Inspection, err0 error) {
 
 	if node.name != cfg.MyName {
 		panicf("must have consistent node.name(%v) == cfg.MyName(%v)", node.name, cfg.MyName)
@@ -198,6 +198,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 		//url = FixAddrPrefix(url)
 		var insp *Inspection
 		var leaderURL, leaderName string
+		var err error
 
 		ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
 		_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, xname)
@@ -233,7 +234,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 					errs += fmt.Sprintf("  '%v' sees leader '%v'\n", n, lead)
 				}
 			}
-			err = fmt.Errorf("%v", errs)
+			err0 = fmt.Errorf("%v", errs)
 			return
 		}
 	}
@@ -258,7 +259,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 		// INVAR: len(leaders) == 0
 		if contactName == "" {
 			if cfg.InitialLeaderName == "" {
-				err = fmt.Errorf("error: no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node.")
+				err0 = fmt.Errorf("error: no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node.")
 				//os.Exit(1)
 				return
 			} else {
@@ -274,6 +275,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			lastLeaderURL = FixAddrPrefix(addr)
 		}
 	}
+	vv("HelperFindLeader() normal return, err0 = '%v'", err0)
 	return
 }
 

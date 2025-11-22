@@ -4361,6 +4361,12 @@ func (s *Inspection) String() (r string) {
 		cktall += fmt.Sprintf(`CktAll "%v": -> "%v"
 `, rpc.AliasDecode(id), url)
 	}
+	var cktAllByName string
+	for name, cktp := range s.CktAllByName {
+		cktAllByName += fmt.Sprintf(`CktAllByName "%v": -> "%v"
+`, name, cktp)
+	}
+
 	var known string
 	for name, url := range s.Known {
 		known += fmt.Sprintf(`Known "%v": -> "%v"
@@ -4377,13 +4383,15 @@ func (s *Inspection) String() (r string) {
 %v
    ---------- CktReplica: --------
 %v
+   ---------- CktAllByName: ------
+%v
    ---------- Known: --------
 %v
 
 `, s.ResponderName,
 		s.CurrentLeaderName,
 		s.CurrentLeaderID,
-		cktall, peers, cktreplica, known)
+		cktall, peers, cktreplica, cktAllByName, known)
 
 	r += fmt.Sprintf("   --- WaitingAtLeader: %v\n\n", s.WaitingAtLeader)
 	r += fmt.Sprintf("   --- WaitingAtFollow: %v\n\n", s.WaitingAtFollow)
