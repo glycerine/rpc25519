@@ -726,6 +726,14 @@ func (s *Simnet) simnetNextBatchSn() int64 {
 	return atomic.AddInt64(&s.simnetLastBatchSn, 1)
 }
 
+func (s *Simnet) nextGoroSimSeqno() int64 {
+	return s.simnetNextGoroSimSeqno.Add(1)
+}
+
+func (s *Simnet) zeroOutGoroSimSeqno() {
+	s.simnetNextGoroSimSeqno.Store(0)
+}
+
 // simnet simulates a network entirely with channels in memory.
 type Simnet struct {
 	// give the simnet a name so simgrid_test 710 comparison
@@ -747,6 +755,8 @@ type Simnet struct {
 	ndtot         int64 // num dispatched total.
 
 	simnetLastBatchSn int64
+
+	simnetNextGoroSimSeqno atomic.Int64
 
 	// fin records execution/finishing order
 	// for mop sn into xorder.
@@ -3014,6 +3024,7 @@ func (s *Simnet) finishScenario() {
 func (s *Simnet) initScenario(op *mop) {
 	scenario := op.scen
 	s.scenario = scenario
+	s.zeroOutGoroSimSeqno()
 	// do any init work...
 	s.fin(op)
 }

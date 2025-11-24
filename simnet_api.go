@@ -40,13 +40,14 @@ import (
 //=========================================
 
 type newGoroRequest struct {
-	name       string
-	where      string
-	net        *Simnet
-	reqtm      time.Time
-	proceed    chan time.Duration
-	who        int
-	goroSerial int64
+	name    string
+	where   string
+	net     *Simnet
+	reqtm   time.Time
+	proceed chan time.Duration
+	who     int
+	//goroSerial   int64
+	goroSimSeqno int64
 }
 
 func (s *Simnet) newGoroMop(req *newGoroRequest) *mop {
@@ -70,12 +71,13 @@ func (s *Simnet) NewGoro(name string) {
 	}
 	//vv("NewGoro called name = '%v' at %v", name, fileLine(2))
 	r := &newGoroRequest{
-		name:    name,
-		where:   fileLine(2),
-		net:     s,
-		reqtm:   time.Now(),
-		proceed: make(chan time.Duration, 1),
-		who:     goID(),
+		name:         name,
+		where:        fileLine(2),
+		goroSimSeqno: s.nextGoroSimSeqno(),
+		net:          s,
+		reqtm:        time.Now(),
+		proceed:      make(chan time.Duration, 1),
+		who:          goID(),
 	}
 	select {
 	case s.simnetNewGoroCh <- r:
