@@ -727,11 +727,11 @@ func (s *Simnet) simnetNextBatchSn() int64 {
 }
 
 func (s *Simnet) nextGoroSimSeqno() int64 {
-	return s.simnetNextGoroSimSeqno.Add(1)
+	return s.simnetLastGoroSimSeqno.Add(1)
 }
 
 func (s *Simnet) zeroOutGoroSimSeqno() {
-	s.simnetNextGoroSimSeqno.Store(0)
+	s.simnetLastGoroSimSeqno.Store(0)
 }
 
 // simnet simulates a network entirely with channels in memory.
@@ -756,7 +756,9 @@ type Simnet struct {
 
 	simnetLastBatchSn int64
 
-	simnetNextGoroSimSeqno atomic.Int64
+	// number each goroutine started in a scenario.
+	// resets to zero when a new scenario starts.
+	simnetLastGoroSimSeqno atomic.Int64
 
 	// fin records execution/finishing order
 	// for mop sn into xorder.
