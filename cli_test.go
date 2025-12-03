@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	cv "github.com/glycerine/goconvey/convey"
 	myblake3 "github.com/glycerine/rpc25519/hash"
 )
 
@@ -192,231 +191,231 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		return
 	}
 
-	cv.Convey("basic TCP with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
+	//cv.Convey("basic TCP with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
 
-		cfg := NewConfig()
-		cfg.TCPonly_no_TLS = true
-		//cfg.ServerSendKeepAlive = time.Second * 10
+	cfg := NewConfig()
+	cfg.TCPonly_no_TLS = true
+	//cfg.ServerSendKeepAlive = time.Second * 10
 
-		path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
-		panicOn(setupPSK(path))
-		cfg.PreSharedKeyPath = path
-		//cfg.ReadTimeout = 2 * time.Second
-		//cfg.WriteTimeout = 2 * time.Second
+	path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
+	panicOn(setupPSK(path))
+	cfg.PreSharedKeyPath = path
+	//cfg.ReadTimeout = 2 * time.Second
+	//cfg.WriteTimeout = 2 * time.Second
 
-		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test001", cfg)
+	cfg.ServerAddr = "127.0.0.1:0"
+	srv := NewServer("srv_test001", cfg)
 
-		serverAddr, err := srv.Start()
-		panicOn(err)
-		defer srv.Close()
+	serverAddr, err := srv.Start()
+	panicOn(err)
+	defer srv.Close()
 
-		//vv("server Start() returned serverAddr = '%v'", serverAddr)
+	//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		// net/rpc API on server
-		srv.Register(new(Arith))
-		srv.Register(new(Embed))
-		srv.RegisterName("net.rpc.Arith", new(Arith))
-		srv.Register(&BuiltinTypes{})
+	// net/rpc API on server
+	srv.Register(new(Arith))
+	srv.Register(new(Embed))
+	srv.RegisterName("net.rpc.Arith", new(Arith))
+	srv.Register(&BuiltinTypes{})
 
-		cfg.ClientDialToHostPort = serverAddr.String()
-		client, err := NewClient("test006", cfg)
-		panicOn(err)
-		err = client.Start()
-		panicOn(err)
-		defer client.Close()
+	cfg.ClientDialToHostPort = serverAddr.String()
+	client, err := NewClient("test006", cfg)
+	panicOn(err)
+	err = client.Start()
+	panicOn(err)
+	defer client.Close()
 
-		// net/rpc API on client, ported from attic/net_server_test.go
-		var args *Args
-		_ = args
-		var reply *Reply
+	// net/rpc API on client, ported from attic/net_server_test.go
+	var args *Args
+	_ = args
+	var reply *Reply
 
-		// Synchronous calls
-		args = &Args{7, 8}
+	// Synchronous calls
+	args = &Args{7, 8}
+	reply = new(Reply)
+	err = client.Call("Arith.Add", args, reply, nil)
+	if err != nil {
+		t.Errorf("Add: expected no error but got string %q", err.Error())
+	}
+	if reply.C != args.A+args.B {
+		t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+	}
+	//vv("good 006, got back reply '%#v'", reply)
+
+	// Methods exported from unexported embedded structs
+	args = &Args{7, 0}
+	reply = new(Reply)
+	err = client.Call("Embed.Exported", args, reply, nil)
+	if err != nil {
+		t.Errorf("Add: expected no error but got string %q", err.Error())
+	}
+	if reply.C != args.A+args.B {
+		t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+	}
+
+	// Nonexistent method
+	args = &Args{7, 0}
+	reply = new(Reply)
+	err = client.Call("Arith.BadOperation", args, reply, nil)
+	// expect an error
+	if err == nil {
+		t.Error("BadOperation: expected error")
+	} else if !strings.HasPrefix(err.Error(), "rpc: can't find method ") {
+		t.Errorf("BadOperation: expected can't find method error; got %q", err)
+	}
+	//vv("good 006: past nonexistent method")
+
+	// Unknown service
+	args = &Args{7, 8}
+	reply = new(Reply)
+	err = client.Call("Arith.Unknown", args, reply, nil)
+	if err == nil {
+		t.Error("expected error calling unknown service")
+	} else if !strings.Contains(err.Error(), "method") {
+		t.Error("expected error about method; got", err)
+	}
+	//vv("good 006: past unknown service")
+
+	// Out of order.
+	args = &Args{7, 8}
+	mulReply := new(Reply)
+	mulCall := client.Go("Arith.Mul", args, mulReply, nil, nil)
+	addReply := new(Reply)
+	addCall := client.Go("Arith.Add", args, addReply, nil, nil)
+
+	addCall = <-addCall.Done
+	if addCall.Error != nil {
+		t.Errorf("Add: expected no error but got string %q", addCall.Error.Error())
+	}
+	if addReply.C != args.A+args.B {
+		t.Errorf("Add: expected %d got %d", addReply.C, args.A+args.B)
+	}
+
+	mulCall = <-mulCall.Done
+	if mulCall.Error != nil {
+		t.Errorf("Mul: expected no error but got string %q", mulCall.Error.Error())
+	}
+	if mulReply.C != args.A*args.B {
+		t.Errorf("Mul: expected %d got %d", mulReply.C, args.A*args.B)
+	}
+	//vv("good 006: past out of order")
+
+	// Error test
+	args = &Args{7, 0}
+	reply = new(Reply)
+	err = client.Call("Arith.Div", args, reply, nil)
+	// expect an error: zero divide
+	if err == nil {
+		t.Error("Div: expected error")
+	} else if err.Error() != "divide by zero" {
+		t.Error("Div: expected divide by zero error; got", err)
+	}
+	//vv("good 006: past error test")
+
+	args = &Args{7, 8}
+	reply = new(Reply)
+	err = client.Call("Arith.Mul", args, reply, nil)
+	if err != nil {
+		t.Errorf("Mul: expected no error but got string %q", err.Error())
+	}
+	if reply.C != args.A*args.B {
+		t.Errorf("Mul: expected %d got %d", reply.C, args.A*args.B)
+	}
+	//vv("good 006: past Arith.Mul test")
+
+	// ServiceName contain "." character
+	args = &Args{7, 8}
+	reply = new(Reply)
+	err = client.Call("net.rpc.Arith.Add", args, reply, nil)
+	if err != nil {
+		t.Errorf("Add: expected no error but got string %q", err.Error())
+	}
+	if reply.C != args.A+args.B {
+		t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+	}
+	//vv("good 006: past ServiceName with dot . test")
+
+	/*
+		// actually we read what we can into it. Since greenpack is
+		// designed to be evolvable; in other words,
+		// to ignore unknown and missing fields, this is not a legit test
+		// when using greenpack.
+
+		// Bad type.
 		reply = new(Reply)
-		err = client.Call("Arith.Add", args, reply, nil)
-		if err != nil {
-			t.Errorf("Add: expected no error but got string %q", err.Error())
-		}
-		if reply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
-		}
-		//vv("good 006, got back reply '%#v'", reply)
-
-		// Methods exported from unexported embedded structs
-		args = &Args{7, 0}
-		reply = new(Reply)
-		err = client.Call("Embed.Exported", args, reply, nil)
-		if err != nil {
-			t.Errorf("Add: expected no error but got string %q", err.Error())
-		}
-		if reply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
-		}
-
-		// Nonexistent method
-		args = &Args{7, 0}
-		reply = new(Reply)
-		err = client.Call("Arith.BadOperation", args, reply, nil)
-		// expect an error
+		err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
 		if err == nil {
-			t.Error("BadOperation: expected error")
-		} else if !strings.HasPrefix(err.Error(), "rpc: can't find method ") {
-			t.Errorf("BadOperation: expected can't find method error; got %q", err)
+			//vv("err was nil but should not have been!")
+			t.Error("expected error calling Arith.Add with wrong arg type")
+		} else if !strings.Contains(err.Error(), "type") {
+			t.Error("expected error about type; got", err)
 		}
-		//vv("good 006: past nonexistent method")
+		//vv("good 006: past bad type")
 
-		// Unknown service
-		args = &Args{7, 8}
+		// Non-struct argument: won't work with greenpack
+
+		const Val = 12345
+		str := fmt.Sprint(Val)
 		reply = new(Reply)
-		err = client.Call("Arith.Unknown", args, reply, nil)
-		if err == nil {
-			t.Error("expected error calling unknown service")
-		} else if !strings.Contains(err.Error(), "method") {
-			t.Error("expected error about method; got", err)
-		}
-		//vv("good 006: past unknown service")
-
-		// Out of order.
-		args = &Args{7, 8}
-		mulReply := new(Reply)
-		mulCall := client.Go("Arith.Mul", args, mulReply, nil, nil)
-		addReply := new(Reply)
-		addCall := client.Go("Arith.Add", args, addReply, nil, nil)
-
-		addCall = <-addCall.Done
-		if addCall.Error != nil {
-			t.Errorf("Add: expected no error but got string %q", addCall.Error.Error())
-		}
-		if addReply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", addReply.C, args.A+args.B)
-		}
-
-		mulCall = <-mulCall.Done
-		if mulCall.Error != nil {
-			t.Errorf("Mul: expected no error but got string %q", mulCall.Error.Error())
-		}
-		if mulReply.C != args.A*args.B {
-			t.Errorf("Mul: expected %d got %d", mulReply.C, args.A*args.B)
-		}
-		//vv("good 006: past out of order")
-
-		// Error test
-		args = &Args{7, 0}
-		reply = new(Reply)
-		err = client.Call("Arith.Div", args, reply, nil)
-		// expect an error: zero divide
-		if err == nil {
-			t.Error("Div: expected error")
-		} else if err.Error() != "divide by zero" {
-			t.Error("Div: expected divide by zero error; got", err)
-		}
-		//vv("good 006: past error test")
-
-		args = &Args{7, 8}
-		reply = new(Reply)
-		err = client.Call("Arith.Mul", args, reply, nil)
+		err = client.Call("Arith.Scan", &str, reply)
 		if err != nil {
-			t.Errorf("Mul: expected no error but got string %q", err.Error())
+			t.Errorf("Scan: expected no error but got string %q", err.Error())
+		} else if reply.C != Val {
+			t.Errorf("Scan: expected %d got %d", Val, reply.C)
 		}
-		if reply.C != args.A*args.B {
-			t.Errorf("Mul: expected %d got %d", reply.C, args.A*args.B)
-		}
-		//vv("good 006: past Arith.Mul test")
 
-		// ServiceName contain "." character
-		args = &Args{7, 8}
-		reply = new(Reply)
-		err = client.Call("net.rpc.Arith.Add", args, reply, nil)
+		// Non-struct reply: won't work under greenpack
+
+		args = &Args{27, 35}
+		str = ""
+		err = client.Call("Arith.String", args, &str)
 		if err != nil {
-			t.Errorf("Add: expected no error but got string %q", err.Error())
+			t.Errorf("String: expected no error but got string %q", err.Error())
 		}
-		if reply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+		expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
+		if str != expect {
+			t.Errorf("String: expected %s got %s", expect, str)
 		}
-		//vv("good 006: past ServiceName with dot . test")
 
-		/*
-			// actually we read what we can into it. Since greenpack is
-			// designed to be evolvable; in other words,
-			// to ignore unknown and missing fields, this is not a legit test
-			// when using greenpack.
+		// BuiltinTypes
 
-			// Bad type.
-			reply = new(Reply)
-			err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
-			if err == nil {
-				//vv("err was nil but should not have been!")
-				t.Error("expected error calling Arith.Add with wrong arg type")
-			} else if !strings.Contains(err.Error(), "type") {
-				t.Error("expected error about type; got", err)
-			}
-			//vv("good 006: past bad type")
+		// Map
+		args = &Args{7, 8}
+		replyMap := map[int]int{}
+		err = client.Call("BuiltinTypes.Map", args, &replyMap)
+		if err != nil {
+			t.Errorf("Map: expected no error but got string %q", err.Error())
+		}
+		if replyMap[args.A] != args.B {
+			t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
+		}
 
-			// Non-struct argument: won't work with greenpack
+		// Slice
+		args = &Args{7, 8}
+		replySlice := []int{}
+		err = client.Call("BuiltinTypes.Slice", args, &replySlice)
+		if err != nil {
+			t.Errorf("Slice: expected no error but got string %q", err.Error())
+		}
+		if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
+			t.Errorf("Slice: expected %v got %v", e, replySlice)
+		}
 
-			const Val = 12345
-			str := fmt.Sprint(Val)
-			reply = new(Reply)
-			err = client.Call("Arith.Scan", &str, reply)
-			if err != nil {
-				t.Errorf("Scan: expected no error but got string %q", err.Error())
-			} else if reply.C != Val {
-				t.Errorf("Scan: expected %d got %d", Val, reply.C)
-			}
+		// Array
+		args = &Args{7, 8}
+		replyArray := [2]int{}
+		err = client.Call("BuiltinTypes.Array", args, &replyArray)
+		if err != nil {
+			t.Errorf("Array: expected no error but got string %q", err.Error())
+		}
+		if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
+			t.Errorf("Array: expected %v got %v", e, replyArray)
+		}
+	*/
 
-			// Non-struct reply: won't work under greenpack
-
-			args = &Args{27, 35}
-			str = ""
-			err = client.Call("Arith.String", args, &str)
-			if err != nil {
-				t.Errorf("String: expected no error but got string %q", err.Error())
-			}
-			expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
-			if str != expect {
-				t.Errorf("String: expected %s got %s", expect, str)
-			}
-
-			// BuiltinTypes
-
-			// Map
-			args = &Args{7, 8}
-			replyMap := map[int]int{}
-			err = client.Call("BuiltinTypes.Map", args, &replyMap)
-			if err != nil {
-				t.Errorf("Map: expected no error but got string %q", err.Error())
-			}
-			if replyMap[args.A] != args.B {
-				t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
-			}
-
-			// Slice
-			args = &Args{7, 8}
-			replySlice := []int{}
-			err = client.Call("BuiltinTypes.Slice", args, &replySlice)
-			if err != nil {
-				t.Errorf("Slice: expected no error but got string %q", err.Error())
-			}
-			if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
-				t.Errorf("Slice: expected %v got %v", e, replySlice)
-			}
-
-			// Array
-			args = &Args{7, 8}
-			replyArray := [2]int{}
-			err = client.Call("BuiltinTypes.Array", args, &replyArray)
-			if err != nil {
-				t.Errorf("Array: expected no error but got string %q", err.Error())
-			}
-			if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
-				t.Errorf("Array: expected %v got %v", e, replyArray)
-			}
-		*/
-
-		//cv.So(true, cv.ShouldBeTrue)
-		//vv("good: end of 006 test")
-	})
+	//assert(true, cv.ShouldBeTrue)
+	//vv("good: end of 006 test")
+	//})
 	//})
 }
 
@@ -429,205 +428,205 @@ func Test009_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		return
 	}
 
-	cv.Convey("TLS over TCP with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
+	//cv.Convey("TLS over TCP with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
 
-		cfg := NewConfig()
-		cfg.TCPonly_no_TLS = false
+	cfg := NewConfig()
+	cfg.TCPonly_no_TLS = false
 
-		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test009", cfg)
+	cfg.ServerAddr = "127.0.0.1:0"
+	srv := NewServer("srv_test009", cfg)
 
-		serverAddr, err := srv.Start()
-		panicOn(err)
-		defer srv.Close()
+	serverAddr, err := srv.Start()
+	panicOn(err)
+	defer srv.Close()
 
-		//vv("server Start() returned serverAddr = '%v'", serverAddr)
+	//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		// net/rpc API on server
-		srv.Register(new(Arith))
-		srv.Register(new(Embed))
-		srv.RegisterName("net.rpc.Arith", new(Arith))
-		srv.Register(&BuiltinTypes{})
+	// net/rpc API on server
+	srv.Register(new(Arith))
+	srv.Register(new(Embed))
+	srv.RegisterName("net.rpc.Arith", new(Arith))
+	srv.Register(&BuiltinTypes{})
 
-		cfg.ClientDialToHostPort = serverAddr.String()
-		client, err := NewClient("test009", cfg)
-		panicOn(err)
-		err = client.Start()
-		panicOn(err)
+	cfg.ClientDialToHostPort = serverAddr.String()
+	client, err := NewClient("test009", cfg)
+	panicOn(err)
+	err = client.Start()
+	panicOn(err)
 
-		defer client.Close()
+	defer client.Close()
 
-		// net/rpc API on client, ported from net_server_test.go
-		//var args *Args
-		//var reply *Reply
+	// net/rpc API on client, ported from net_server_test.go
+	//var args *Args
+	//var reply *Reply
 
-		// Synchronous calls
-		args := &Args{7, 8}
-		reply := new(Reply)
-		err = client.Call("Arith.Add", args, reply, nil)
-		if err != nil {
-			t.Errorf("Add: expected no error but got string %q", err.Error())
-		}
-		if reply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
-		}
+	// Synchronous calls
+	args := &Args{7, 8}
+	reply := new(Reply)
+	err = client.Call("Arith.Add", args, reply, nil)
+	if err != nil {
+		t.Errorf("Add: expected no error but got string %q", err.Error())
+	}
+	if reply.C != args.A+args.B {
+		t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+	}
 
-		// Methods exported from unexported embedded structs
-		args = &Args{7, 0}
+	// Methods exported from unexported embedded structs
+	args = &Args{7, 0}
+	reply = new(Reply)
+	err = client.Call("Embed.Exported", args, reply, nil)
+	if err != nil {
+		t.Errorf("Add: expected no error but got string %q", err.Error())
+	}
+	if reply.C != args.A+args.B {
+		t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+	}
+
+	// Nonexistent method
+	args = &Args{7, 0}
+	reply = new(Reply)
+	err = client.Call("Arith.BadOperation", args, reply, nil)
+	// expect an error
+	if err == nil {
+		t.Error("BadOperation: expected error")
+	} else if !strings.HasPrefix(err.Error(), "rpc: can't find method ") {
+		t.Errorf("BadOperation: expected can't find method error; got %q", err)
+	}
+
+	// Unknown service
+	args = &Args{7, 8}
+	reply = new(Reply)
+	err = client.Call("Arith.Unknown", args, reply, nil)
+	if err == nil {
+		t.Error("expected error calling unknown service")
+	} else if !strings.Contains(err.Error(), "method") {
+		t.Error("expected error about method; got", err)
+	}
+
+	// Out of order.
+	args = &Args{7, 8}
+	mulReply := new(Reply)
+	mulCall := client.Go("Arith.Mul", args, mulReply, nil, nil)
+	addReply := new(Reply)
+	addCall := client.Go("Arith.Add", args, addReply, nil, nil)
+
+	addCall = <-addCall.Done
+	if addCall.Error != nil {
+		t.Errorf("Add: expected no error but got string %q", addCall.Error.Error())
+	}
+	if addReply.C != args.A+args.B {
+		t.Errorf("Add: expected %d got %d", addReply.C, args.A+args.B)
+	}
+
+	mulCall = <-mulCall.Done
+	if mulCall.Error != nil {
+		t.Errorf("Mul: expected no error but got string %q", mulCall.Error.Error())
+	}
+	if mulReply.C != args.A*args.B {
+		t.Errorf("Mul: expected %d got %d", mulReply.C, args.A*args.B)
+	}
+
+	// Error test
+	args = &Args{7, 0}
+	reply = new(Reply)
+	err = client.Call("Arith.Div", args, reply, nil)
+	// expect an error: zero divide
+	if err == nil {
+		t.Error("Div: expected error")
+	} else if err.Error() != "divide by zero" {
+		t.Error("Div: expected divide by zero error; got", err)
+	}
+
+	args = &Args{7, 8}
+	reply = new(Reply)
+	err = client.Call("Arith.Mul", args, reply, nil)
+	if err != nil {
+		t.Errorf("Mul: expected no error but got string %q", err.Error())
+	}
+	if reply.C != args.A*args.B {
+		t.Errorf("Mul: expected %d got %d", reply.C, args.A*args.B)
+	}
+
+	// ServiceName contain "." character
+	args = &Args{7, 8}
+	reply = new(Reply)
+	err = client.Call("net.rpc.Arith.Add", args, reply, nil)
+	if err != nil {
+		t.Errorf("Add: expected no error but got string %q", err.Error())
+	}
+	if reply.C != args.A+args.B {
+		t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+	}
+
+	/*
+		// Bad type.
 		reply = new(Reply)
-		err = client.Call("Embed.Exported", args, reply, nil)
-		if err != nil {
-			t.Errorf("Add: expected no error but got string %q", err.Error())
-		}
-		if reply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
-		}
-
-		// Nonexistent method
-		args = &Args{7, 0}
-		reply = new(Reply)
-		err = client.Call("Arith.BadOperation", args, reply, nil)
-		// expect an error
+		err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
 		if err == nil {
-			t.Error("BadOperation: expected error")
-		} else if !strings.HasPrefix(err.Error(), "rpc: can't find method ") {
-			t.Errorf("BadOperation: expected can't find method error; got %q", err)
+			t.Error("expected error calling Arith.Add with wrong arg type")
+		} else if !strings.Contains(err.Error(), "type") {
+			t.Error("expected error about type; got", err)
 		}
 
-		// Unknown service
-		args = &Args{7, 8}
+		// Non-struct argument
+		const Val = 12345
+		str := fmt.Sprint(Val)
 		reply = new(Reply)
-		err = client.Call("Arith.Unknown", args, reply, nil)
-		if err == nil {
-			t.Error("expected error calling unknown service")
-		} else if !strings.Contains(err.Error(), "method") {
-			t.Error("expected error about method; got", err)
-		}
-
-		// Out of order.
-		args = &Args{7, 8}
-		mulReply := new(Reply)
-		mulCall := client.Go("Arith.Mul", args, mulReply, nil, nil)
-		addReply := new(Reply)
-		addCall := client.Go("Arith.Add", args, addReply, nil, nil)
-
-		addCall = <-addCall.Done
-		if addCall.Error != nil {
-			t.Errorf("Add: expected no error but got string %q", addCall.Error.Error())
-		}
-		if addReply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", addReply.C, args.A+args.B)
-		}
-
-		mulCall = <-mulCall.Done
-		if mulCall.Error != nil {
-			t.Errorf("Mul: expected no error but got string %q", mulCall.Error.Error())
-		}
-		if mulReply.C != args.A*args.B {
-			t.Errorf("Mul: expected %d got %d", mulReply.C, args.A*args.B)
-		}
-
-		// Error test
-		args = &Args{7, 0}
-		reply = new(Reply)
-		err = client.Call("Arith.Div", args, reply, nil)
-		// expect an error: zero divide
-		if err == nil {
-			t.Error("Div: expected error")
-		} else if err.Error() != "divide by zero" {
-			t.Error("Div: expected divide by zero error; got", err)
-		}
-
-		args = &Args{7, 8}
-		reply = new(Reply)
-		err = client.Call("Arith.Mul", args, reply, nil)
+		err = client.Call("Arith.Scan", &str, reply)
 		if err != nil {
-			t.Errorf("Mul: expected no error but got string %q", err.Error())
-		}
-		if reply.C != args.A*args.B {
-			t.Errorf("Mul: expected %d got %d", reply.C, args.A*args.B)
+			t.Errorf("Scan: expected no error but got string %q", err.Error())
+		} else if reply.C != Val {
+			t.Errorf("Scan: expected %d got %d", Val, reply.C)
 		}
 
-		// ServiceName contain "." character
-		args = &Args{7, 8}
-		reply = new(Reply)
-		err = client.Call("net.rpc.Arith.Add", args, reply, nil)
+		// Non-struct reply
+		args = &Args{27, 35}
+		str = ""
+		err = client.Call("Arith.String", args, &str)
 		if err != nil {
-			t.Errorf("Add: expected no error but got string %q", err.Error())
+			t.Errorf("String: expected no error but got string %q", err.Error())
 		}
-		if reply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+		expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
+		if str != expect {
+			t.Errorf("String: expected %s got %s", expect, str)
 		}
 
-		/*
-			// Bad type.
-			reply = new(Reply)
-			err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
-			if err == nil {
-				t.Error("expected error calling Arith.Add with wrong arg type")
-			} else if !strings.Contains(err.Error(), "type") {
-				t.Error("expected error about type; got", err)
-			}
+		// BuiltinTypes
 
-			// Non-struct argument
-			const Val = 12345
-			str := fmt.Sprint(Val)
-			reply = new(Reply)
-			err = client.Call("Arith.Scan", &str, reply)
-			if err != nil {
-				t.Errorf("Scan: expected no error but got string %q", err.Error())
-			} else if reply.C != Val {
-				t.Errorf("Scan: expected %d got %d", Val, reply.C)
-			}
+		// Map
+		args = &Args{7, 8}
+		replyMap := map[int]int{}
+		err = client.Call("BuiltinTypes.Map", args, &replyMap)
+		if err != nil {
+			t.Errorf("Map: expected no error but got string %q", err.Error())
+		}
+		if replyMap[args.A] != args.B {
+			t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
+		}
 
-			// Non-struct reply
-			args = &Args{27, 35}
-			str = ""
-			err = client.Call("Arith.String", args, &str)
-			if err != nil {
-				t.Errorf("String: expected no error but got string %q", err.Error())
-			}
-			expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
-			if str != expect {
-				t.Errorf("String: expected %s got %s", expect, str)
-			}
+		// Slice
+		args = &Args{7, 8}
+		replySlice := []int{}
+		err = client.Call("BuiltinTypes.Slice", args, &replySlice)
+		if err != nil {
+			t.Errorf("Slice: expected no error but got string %q", err.Error())
+		}
+		if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
+			t.Errorf("Slice: expected %v got %v", e, replySlice)
+		}
 
-			// BuiltinTypes
-
-			// Map
-			args = &Args{7, 8}
-			replyMap := map[int]int{}
-			err = client.Call("BuiltinTypes.Map", args, &replyMap)
-			if err != nil {
-				t.Errorf("Map: expected no error but got string %q", err.Error())
-			}
-			if replyMap[args.A] != args.B {
-				t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
-			}
-
-			// Slice
-			args = &Args{7, 8}
-			replySlice := []int{}
-			err = client.Call("BuiltinTypes.Slice", args, &replySlice)
-			if err != nil {
-				t.Errorf("Slice: expected no error but got string %q", err.Error())
-			}
-			if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
-				t.Errorf("Slice: expected %v got %v", e, replySlice)
-			}
-
-			// Array
-			args = &Args{7, 8}
-			replyArray := [2]int{}
-			err = client.Call("BuiltinTypes.Array", args, &replyArray)
-			if err != nil {
-				t.Errorf("Array: expected no error but got string %q", err.Error())
-			}
-			if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
-				t.Errorf("Array: expected %v got %v", e, replyArray)
-			}
-		*/
-	})
+		// Array
+		args = &Args{7, 8}
+		replyArray := [2]int{}
+		err = client.Call("BuiltinTypes.Array", args, &replyArray)
+		if err != nil {
+			t.Errorf("Array: expected no error but got string %q", err.Error())
+		}
+		if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
+			t.Errorf("Array: expected %v got %v", e, replyArray)
+		}
+	*/
+	//})
 }
 
 // and with QUIC
@@ -641,223 +640,223 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		return
 	}
 
-	cv.Convey("QUIC with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
+	//cv.Convey("QUIC with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
 
-		cfg := NewConfig()
-		cfg.UseQUIC = true
+	cfg := NewConfig()
+	cfg.UseQUIC = true
 
-		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test008", cfg)
+	cfg.ServerAddr = "127.0.0.1:0"
+	srv := NewServer("srv_test008", cfg)
 
-		serverAddr, err := srv.Start()
-		panicOn(err)
-		defer srv.Close()
+	serverAddr, err := srv.Start()
+	panicOn(err)
+	defer srv.Close()
 
-		//vv("server Start() returned serverAddr = '%v'", serverAddr)
+	//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		// net/rpc API on server
-		srv.Register(new(Arith))
-		srv.Register(new(Embed))
-		srv.RegisterName("net.rpc.Arith", new(Arith))
-		bit := &BuiltinTypes{}
-		srv.Register(bit)
+	// net/rpc API on server
+	srv.Register(new(Arith))
+	srv.Register(new(Embed))
+	srv.RegisterName("net.rpc.Arith", new(Arith))
+	bit := &BuiltinTypes{}
+	srv.Register(bit)
 
-		cfg.ClientDialToHostPort = serverAddr.String()
+	cfg.ClientDialToHostPort = serverAddr.String()
 
-		// The QUIC client will share the port with the QUIC server typically;
-		// port sharing is on by default. So don't bother
-		// setting the ClientHostPort. It is just a
-		// suggestion anyway.
-		//cfg.ClientHostPort = fmt.Sprintf("%v:%v", host, port+1)
+	// The QUIC client will share the port with the QUIC server typically;
+	// port sharing is on by default. So don't bother
+	// setting the ClientHostPort. It is just a
+	// suggestion anyway.
+	//cfg.ClientHostPort = fmt.Sprintf("%v:%v", host, port+1)
 
-		client, err := NewClient("test008", cfg)
-		panicOn(err)
-		err = client.Start()
-		panicOn(err)
+	client, err := NewClient("test008", cfg)
+	panicOn(err)
+	err = client.Start()
+	panicOn(err)
 
-		defer client.Close()
+	defer client.Close()
 
-		//vv("client local = '%v'", client.LocalAddr())
+	//vv("client local = '%v'", client.LocalAddr())
 
-		// net/rpc API on client, ported from net_server_test.go
-		//var args *Args
-		//var reply *Reply
+	// net/rpc API on client, ported from net_server_test.go
+	//var args *Args
+	//var reply *Reply
 
-		// Synchronous calls
-		args := &Args{7, 8}
-		reply := new(Reply)
-		err = client.Call("Arith.Add", args, reply, nil)
-		if err != nil {
-			t.Errorf("Add: expected no error but got string %q", err.Error())
-		}
-		if reply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
-		}
+	// Synchronous calls
+	args := &Args{7, 8}
+	reply := new(Reply)
+	err = client.Call("Arith.Add", args, reply, nil)
+	if err != nil {
+		t.Errorf("Add: expected no error but got string %q", err.Error())
+	}
+	if reply.C != args.A+args.B {
+		t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+	}
 
-		// Methods exported from unexported embedded structs
-		args = &Args{7, 0}
+	// Methods exported from unexported embedded structs
+	args = &Args{7, 0}
+	reply = new(Reply)
+	err = client.Call("Embed.Exported", args, reply, nil)
+	if err != nil {
+		t.Errorf("Add: expected no error but got string %q", err.Error())
+	}
+	if reply.C != args.A+args.B {
+		t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+	}
+
+	// Nonexistent method
+	args = &Args{7, 0}
+	reply = new(Reply)
+	err = client.Call("Arith.BadOperation", args, reply, nil)
+	// expect an error
+	if err == nil {
+		t.Error("BadOperation: expected error")
+	} else if !strings.HasPrefix(err.Error(), "rpc: can't find method ") {
+		t.Errorf("BadOperation: expected can't find method error; got %q", err)
+	}
+
+	// Unknown service
+	args = &Args{7, 8}
+	reply = new(Reply)
+	err = client.Call("Arith.Unknown", args, reply, nil)
+	if err == nil {
+		t.Error("expected error calling unknown service")
+	} else if !strings.Contains(err.Error(), "method") {
+		t.Error("expected error about method; got", err)
+	}
+
+	// Out of order.
+	args = &Args{7, 8}
+	mulReply := new(Reply)
+	mulCall := client.Go("Arith.Mul", args, mulReply, nil, nil)
+	addReply := new(Reply)
+	addCall := client.Go("Arith.Add", args, addReply, nil, nil)
+
+	addCall = <-addCall.Done
+	if addCall.Error != nil {
+		t.Errorf("Add: expected no error but got string %q", addCall.Error.Error())
+	}
+	if addReply.C != args.A+args.B {
+		t.Errorf("Add: expected %d got %d", addReply.C, args.A+args.B)
+	}
+
+	mulCall = <-mulCall.Done
+	if mulCall.Error != nil {
+		t.Errorf("Mul: expected no error but got string %q", mulCall.Error.Error())
+	}
+	if mulReply.C != args.A*args.B {
+		t.Errorf("Mul: expected %d got %d", mulReply.C, args.A*args.B)
+	}
+
+	// Error test
+	args = &Args{7, 0}
+	reply = new(Reply)
+	err = client.Call("Arith.Div", args, reply, nil)
+	// expect an error: zero divide
+	if err == nil {
+		t.Error("Div: expected error")
+	} else if err.Error() != "divide by zero" {
+		t.Error("Div: expected divide by zero error; got", err)
+	}
+
+	args = &Args{7, 8}
+	reply = new(Reply)
+	err = client.Call("Arith.Mul", args, reply, nil)
+	if err != nil {
+		t.Errorf("Mul: expected no error but got string %q", err.Error())
+	}
+	if reply.C != args.A*args.B {
+		t.Errorf("Mul: expected %d got %d", reply.C, args.A*args.B)
+	}
+
+	// ServiceName contain "." character
+	args = &Args{7, 8}
+	reply = new(Reply)
+	err = client.Call("net.rpc.Arith.Add", args, reply, nil)
+	if err != nil {
+		t.Errorf("Add: expected no error but got string %q", err.Error())
+	}
+	if reply.C != args.A+args.B {
+		t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+	}
+
+	/*
+		// Bad type.
 		reply = new(Reply)
-		err = client.Call("Embed.Exported", args, reply, nil)
-		if err != nil {
-			t.Errorf("Add: expected no error but got string %q", err.Error())
-		}
-		if reply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
-		}
-
-		// Nonexistent method
-		args = &Args{7, 0}
-		reply = new(Reply)
-		err = client.Call("Arith.BadOperation", args, reply, nil)
-		// expect an error
+		err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
 		if err == nil {
-			t.Error("BadOperation: expected error")
-		} else if !strings.HasPrefix(err.Error(), "rpc: can't find method ") {
-			t.Errorf("BadOperation: expected can't find method error; got %q", err)
+			t.Error("expected error calling Arith.Add with wrong arg type")
+		} else if !strings.Contains(err.Error(), "type") {
+			t.Error("expected error about type; got", err)
 		}
 
-		// Unknown service
-		args = &Args{7, 8}
+		// Non-struct argument
+		const Val = 12345
+		str := fmt.Sprint(Val)
 		reply = new(Reply)
-		err = client.Call("Arith.Unknown", args, reply, nil)
-		if err == nil {
-			t.Error("expected error calling unknown service")
-		} else if !strings.Contains(err.Error(), "method") {
-			t.Error("expected error about method; got", err)
-		}
-
-		// Out of order.
-		args = &Args{7, 8}
-		mulReply := new(Reply)
-		mulCall := client.Go("Arith.Mul", args, mulReply, nil, nil)
-		addReply := new(Reply)
-		addCall := client.Go("Arith.Add", args, addReply, nil, nil)
-
-		addCall = <-addCall.Done
-		if addCall.Error != nil {
-			t.Errorf("Add: expected no error but got string %q", addCall.Error.Error())
-		}
-		if addReply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", addReply.C, args.A+args.B)
-		}
-
-		mulCall = <-mulCall.Done
-		if mulCall.Error != nil {
-			t.Errorf("Mul: expected no error but got string %q", mulCall.Error.Error())
-		}
-		if mulReply.C != args.A*args.B {
-			t.Errorf("Mul: expected %d got %d", mulReply.C, args.A*args.B)
-		}
-
-		// Error test
-		args = &Args{7, 0}
-		reply = new(Reply)
-		err = client.Call("Arith.Div", args, reply, nil)
-		// expect an error: zero divide
-		if err == nil {
-			t.Error("Div: expected error")
-		} else if err.Error() != "divide by zero" {
-			t.Error("Div: expected divide by zero error; got", err)
-		}
-
-		args = &Args{7, 8}
-		reply = new(Reply)
-		err = client.Call("Arith.Mul", args, reply, nil)
+		err = client.Call("Arith.Scan", &str, reply)
 		if err != nil {
-			t.Errorf("Mul: expected no error but got string %q", err.Error())
-		}
-		if reply.C != args.A*args.B {
-			t.Errorf("Mul: expected %d got %d", reply.C, args.A*args.B)
+			t.Errorf("Scan: expected no error but got string %q", err.Error())
+		} else if reply.C != Val {
+			t.Errorf("Scan: expected %d got %d", Val, reply.C)
 		}
 
-		// ServiceName contain "." character
-		args = &Args{7, 8}
-		reply = new(Reply)
-		err = client.Call("net.rpc.Arith.Add", args, reply, nil)
+		// Non-struct reply
+		args = &Args{27, 35}
+		str = ""
+		err = client.Call("Arith.String", args, &str)
 		if err != nil {
-			t.Errorf("Add: expected no error but got string %q", err.Error())
+			t.Errorf("String: expected no error but got string %q", err.Error())
 		}
-		if reply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+		expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
+		if str != expect {
+			t.Errorf("String: expected %s got %s", expect, str)
 		}
 
-		/*
-			// Bad type.
-			reply = new(Reply)
-			err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
-			if err == nil {
-				t.Error("expected error calling Arith.Add with wrong arg type")
-			} else if !strings.Contains(err.Error(), "type") {
-				t.Error("expected error about type; got", err)
-			}
+		// BuiltinTypes
 
-			// Non-struct argument
-			const Val = 12345
-			str := fmt.Sprint(Val)
-			reply = new(Reply)
-			err = client.Call("Arith.Scan", &str, reply)
-			if err != nil {
-				t.Errorf("Scan: expected no error but got string %q", err.Error())
-			} else if reply.C != Val {
-				t.Errorf("Scan: expected %d got %d", Val, reply.C)
-			}
+		// Map
+		args = &Args{7, 8}
+		replyMap := map[int]int{}
+		err = client.Call("BuiltinTypes.Map", args, &replyMap)
+		if err != nil {
+			t.Errorf("Map: expected no error but got string %q", err.Error())
+		}
+		if replyMap[args.A] != args.B {
+			t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
+		}
 
-			// Non-struct reply
-			args = &Args{27, 35}
-			str = ""
-			err = client.Call("Arith.String", args, &str)
-			if err != nil {
-				t.Errorf("String: expected no error but got string %q", err.Error())
-			}
-			expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
-			if str != expect {
-				t.Errorf("String: expected %s got %s", expect, str)
-			}
+		// Slice
+		args = &Args{7, 8}
+		replySlice := []int{}
+		err = client.Call("BuiltinTypes.Slice", args, &replySlice)
+		if err != nil {
+			t.Errorf("Slice: expected no error but got string %q", err.Error())
+		}
+		if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
+			t.Errorf("Slice: expected %v got %v", e, replySlice)
+		}
 
-			// BuiltinTypes
+		// Array
+		args = &Args{7, 8}
+		replyArray := [2]int{}
+		err = client.Call("BuiltinTypes.Array", args, &replyArray)
+		if err != nil {
+			t.Errorf("Array: expected no error but got string %q", err.Error())
+		}
+		if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
+			t.Errorf("Array: expected %v got %v", e, replyArray)
+		}
 
-			// Map
-			args = &Args{7, 8}
-			replyMap := map[int]int{}
-			err = client.Call("BuiltinTypes.Map", args, &replyMap)
-			if err != nil {
-				t.Errorf("Map: expected no error but got string %q", err.Error())
-			}
-			if replyMap[args.A] != args.B {
-				t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
-			}
-
-			// Slice
-			args = &Args{7, 8}
-			replySlice := []int{}
-			err = client.Call("BuiltinTypes.Slice", args, &replySlice)
-			if err != nil {
-				t.Errorf("Slice: expected no error but got string %q", err.Error())
-			}
-			if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
-				t.Errorf("Slice: expected %v got %v", e, replySlice)
-			}
-
-			// Array
-			args = &Args{7, 8}
-			replyArray := [2]int{}
-			err = client.Call("BuiltinTypes.Array", args, &replyArray)
-			if err != nil {
-				t.Errorf("Array: expected no error but got string %q", err.Error())
-			}
-			if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
-				t.Errorf("Array: expected %v got %v", e, replyArray)
-			}
-
-			err = client.Call("BuiltinTypes.WantsContext", args, &replyArray)
-			if err != nil {
-				t.Errorf("Array: expected no error but got string %q", err.Error())
-			}
-			if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
-				t.Errorf("Array: expected %v got %v", e, replyArray)
-			}
-		*/
-	})
+		err = client.Call("BuiltinTypes.WantsContext", args, &replyArray)
+		if err != nil {
+			t.Errorf("Array: expected no error but got string %q", err.Error())
+		}
+		if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
+			t.Errorf("Array: expected %v got %v", e, replyArray)
+		}
+	*/
+	//})
 }
 
 func (t *Hello) Say(args *BenchmarkMessage, reply *BenchmarkMessage) (err error) {
@@ -932,113 +931,113 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		return
 	}
 
-	cv.Convey("remote cancellation", t, func() {
+	//cv.Convey("remote cancellation", t, func() {
 
-		cfg := NewConfig()
-		cfg.TCPonly_no_TLS = false
-		//cfg.ServerSendKeepAlive = time.Second * 10 // does not stop hang on synctest
+	cfg := NewConfig()
+	cfg.TCPonly_no_TLS = false
+	//cfg.ServerSendKeepAlive = time.Second * 10 // does not stop hang on synctest
 
-		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test040", cfg)
+	cfg.ServerAddr = "127.0.0.1:0"
+	srv := NewServer("srv_test040", cfg)
 
-		serverAddr, err := srv.Start()
-		panicOn(err)
-		defer srv.Close()
+	serverAddr, err := srv.Start()
+	panicOn(err)
+	defer srv.Close()
 
-		vv("server Start() returned serverAddr = '%v'", serverAddr)
+	vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		// net/rpc API on server
-		mustCancelMe := NewMustBeCancelled()
-		srv.Register(mustCancelMe)
+	// net/rpc API on server
+	mustCancelMe := NewMustBeCancelled()
+	srv.Register(mustCancelMe)
 
-		// and register early for 041 below
-		serviceName041 := "test041_hang_until_cancel"
-		srv.Register2Func(serviceName041, mustCancelMe.MessageAPI_HangUntilCancel)
+	// and register early for 041 below
+	serviceName041 := "test041_hang_until_cancel"
+	srv.Register2Func(serviceName041, mustCancelMe.MessageAPI_HangUntilCancel)
 
-		cfg.ClientDialToHostPort = serverAddr.String()
-		client, err := NewClient("test040", cfg)
-		panicOn(err)
-		err = client.Start()
-		panicOn(err)
+	cfg.ClientDialToHostPort = serverAddr.String()
+	client, err := NewClient("test040", cfg)
+	panicOn(err)
+	err = client.Start()
+	panicOn(err)
 
-		defer client.Close()
+	defer client.Close()
 
-		// using the net/rpc API
-		args := &Args{7, 8}
-		reply := new(Reply)
+	// using the net/rpc API
+	args := &Args{7, 8}
+	reply := new(Reply)
 
-		var cliErr40 error
-		cliErrIsSet40 := make(chan bool)
-		ctx40, cancelFunc40 := context.WithCancel(context.Background())
-		go func() {
-			vv("client.Call() goro top about to call over net/rpc: MustBeCancelled.WillHangUntilCancel()")
+	var cliErr40 error
+	cliErrIsSet40 := make(chan bool)
+	ctx40, cancelFunc40 := context.WithCancel(context.Background())
+	go func() {
+		vv("client.Call() goro top about to call over net/rpc: MustBeCancelled.WillHangUntilCancel()")
 
-			cliErr40 = client.Call("MustBeCancelled.WillHangUntilCancel", args, reply, ctx40)
-			vv("client.Call() returned with cliErr = '%v'", cliErr40)
-			close(cliErrIsSet40)
-		}()
+		cliErr40 = client.Call("MustBeCancelled.WillHangUntilCancel", args, reply, ctx40)
+		vv("client.Call() returned with cliErr = '%v'", cliErr40)
+		close(cliErrIsSet40)
+	}()
 
-		// let the call get blocked.
-		vv("cli_test 040: about to block on test040callStarted")
-		<-mustCancelMe.callStarted // synctest blocked here
-		vv("cli_test 040: we got past test040callStarted")
+	// let the call get blocked.
+	vv("cli_test 040: about to block on test040callStarted")
+	<-mustCancelMe.callStarted // synctest blocked here
+	vv("cli_test 040: we got past test040callStarted")
 
-		// cancel it: transmit cancel request to server.
-		cancelFunc40()
-		vv("past cancelFunc()")
+	// cancel it: transmit cancel request to server.
+	cancelFunc40()
+	vv("past cancelFunc()")
 
-		<-cliErrIsSet40
-		vv("past cliErrIsSet channel; cliErr40 = '%v'", cliErr40)
+	<-cliErrIsSet40
+	vv("past cliErrIsSet channel; cliErr40 = '%v'", cliErr40)
 
-		if cliErr40 != ErrCancelReqSent {
-			t.Errorf("Test040: expected ErrCancelReqSent but got %v", cliErr40)
-		}
+	if cliErr40 != ErrCancelReqSent {
+		t.Errorf("Test040: expected ErrCancelReqSent but got %v", cliErr40)
+	}
 
-		// confirm that server side function is unblocked too
-		vv("about to verify that server side context was cancelled.")
-		<-mustCancelMe.callFinished
-		vv("server side saw the cancellation request: confirmed.")
+	// confirm that server side function is unblocked too
+	vv("about to verify that server side context was cancelled.")
+	<-mustCancelMe.callFinished
+	vv("server side saw the cancellation request: confirmed.")
 
-		// use Message []byte oriented API: test 041
+	// use Message []byte oriented API: test 041
 
-		var cliErr41 error
-		cliErrIsSet41 := make(chan bool)
-		ctx41, cancelFunc41 := context.WithCancel(context.Background())
-		req := NewMessage()
-		req.HDR.Typ = CallRPC
-		req.HDR.ToServiceName = serviceName041
-		var reply41 *Message
+	var cliErr41 error
+	cliErrIsSet41 := make(chan bool)
+	ctx41, cancelFunc41 := context.WithCancel(context.Background())
+	req := NewMessage()
+	req.HDR.Typ = CallRPC
+	req.HDR.ToServiceName = serviceName041
+	var reply41 *Message
 
-		go func() {
-			reply41, cliErr41 = client.SendAndGetReply(req, ctx41.Done(), 0)
-			vv("client.Call() returned with cliErr = '%v'", cliErr41)
-			close(cliErrIsSet41)
-		}()
+	go func() {
+		reply41, cliErr41 = client.SendAndGetReply(req, ctx41.Done(), 0)
+		vv("client.Call() returned with cliErr = '%v'", cliErr41)
+		close(cliErrIsSet41)
+	}()
 
-		// let the call get blocked on the server (only works under test, of course).
-		<-mustCancelMe.callStarted
-		vv("cli_test 041: we got past test041callStarted")
+	// let the call get blocked on the server (only works under test, of course).
+	<-mustCancelMe.callStarted
+	vv("cli_test 041: we got past test041callStarted")
 
-		// cancel it: transmit cancel request to server.
-		cancelFunc41()
-		vv("past cancelFunc()")
+	// cancel it: transmit cancel request to server.
+	cancelFunc41()
+	vv("past cancelFunc()")
 
-		<-cliErrIsSet41
-		vv("past cliErrIsSet channel; cliErr = '%v'", cliErr41)
+	<-cliErrIsSet41
+	vv("past cliErrIsSet channel; cliErr = '%v'", cliErr41)
 
-		if cliErr41 != ErrCancelReqSent {
-			t.Errorf("Test041: expected ErrCancelReqSent but got %v", cliErr41)
-		}
+	if cliErr41 != ErrCancelReqSent {
+		t.Errorf("Test041: expected ErrCancelReqSent but got %v", cliErr41)
+	}
 
-		if reply41 != nil {
-			t.Errorf("Test041: expected reply41 to be nil, but got %v", reply41)
-		}
+	if reply41 != nil {
+		t.Errorf("Test041: expected reply41 to be nil, but got %v", reply41)
+	}
 
-		// confirm that server side function is unblocked too
-		vv("about to verify that server side context was cancelled.")
-		<-mustCancelMe.callFinished
+	// confirm that server side function is unblocked too
+	vv("about to verify that server side context was cancelled.")
+	<-mustCancelMe.callFinished
 
-	})
+	//})
 }
 
 func Test045_upload(t *testing.T) {
@@ -1047,100 +1046,111 @@ func Test045_upload(t *testing.T) {
 		t.Skip("skip under synctest, net calls will never settle")
 	}
 
-	cv.Convey("upload a large file in parts from client to server", t, func() {
+	//cv.Convey("upload a large file in parts from client to server", t, func() {
 
-		cfg := NewConfig()
-		cfg.TCPonly_no_TLS = false
+	cfg := NewConfig()
+	cfg.TCPonly_no_TLS = false
 
-		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test045", cfg)
+	cfg.ServerAddr = "127.0.0.1:0"
+	srv := NewServer("srv_test045", cfg)
 
-		serverAddr, err := srv.Start()
-		panicOn(err)
-		defer srv.Close()
+	serverAddr, err := srv.Start()
+	panicOn(err)
+	defer srv.Close()
 
-		//vv("server Start() returned serverAddr = '%v'", serverAddr)
+	//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		// name must be "__fileUploader" for cli.go Uploader to work.
-		uploaderName := "__fileUploader"
-		streamer := NewServerSideUploadState()
-		srv.RegisterUploadReaderFunc(uploaderName, streamer.ReceiveFileInParts)
+	// name must be "__fileUploader" for cli.go Uploader to work.
+	uploaderName := "__fileUploader"
+	streamer := NewServerSideUploadState()
+	srv.RegisterUploadReaderFunc(uploaderName, streamer.ReceiveFileInParts)
 
-		cfg.ClientDialToHostPort = serverAddr.String()
-		client, err := NewClient("test045", cfg)
-		panicOn(err)
-		err = client.Start()
-		panicOn(err)
+	cfg.ClientDialToHostPort = serverAddr.String()
+	client, err := NewClient("test045", cfg)
+	panicOn(err)
+	err = client.Start()
+	panicOn(err)
 
-		defer client.Close()
+	defer client.Close()
 
-		// to read the final reply from the server,
-		// use strm.ReadCh rather than client.GetReadIncomingCh(),
-		// since strm.ReadCh is filtered for our CallID.
+	// to read the final reply from the server,
+	// use strm.ReadCh rather than client.GetReadIncomingCh(),
+	// since strm.ReadCh is filtered for our CallID.
 
-		ctx45, cancelFunc45 := context.WithCancel(context.Background())
-		defer cancelFunc45()
+	ctx45, cancelFunc45 := context.WithCancel(context.Background())
+	defer cancelFunc45()
 
-		// be care not to re-use memory! the client
-		// will not make a copy of the message
-		// while waiting to send it, so you
-		// must allocate new memory to send the next message
-		// (and _not_ overwrite the first!)
-		req := NewMessage()
-		filename := "streams.all.together.txt"
-		os.Remove(filename + ".servergot")
-		req.HDR.ToServiceName = uploaderName
-		req.HDR.Args = map[string]string{"readFile": filename}
-		req.JobSerz = []byte("a=c(0")
+	// be care not to re-use memory! the client
+	// will not make a copy of the message
+	// while waiting to send it, so you
+	// must allocate new memory to send the next message
+	// (and _not_ overwrite the first!)
+	req := NewMessage()
+	filename := "streams.all.together.txt"
+	os.Remove(filename + ".servergot")
+	req.HDR.ToServiceName = uploaderName
+	req.HDR.Args = map[string]string{"readFile": filename}
+	req.JobSerz = []byte("a=c(0")
 
-		// start the call
-		strm, err := client.UploadBegin(ctx45, uploaderName, req, 0)
-		panicOn(err)
+	// start the call
+	strm, err := client.UploadBegin(ctx45, uploaderName, req, 0)
+	panicOn(err)
 
-		originalStreamCallID := strm.CallID()
-		//vv("strm started, with CallID = '%v'", originalStreamCallID)
-		// then send N more parts
+	originalStreamCallID := strm.CallID()
+	//vv("strm started, with CallID = '%v'", originalStreamCallID)
+	// then send N more parts
 
-		var last bool
-		N := 20
-		for i := 1; i <= N; i++ {
-			// good, allocating memory for new messages.
-			streamMsg := NewMessage()
-			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
-			if i == N {
-				last = true
-				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
-			}
-			streamMsg.HDR.Args["blake3"] = blake3OfBytesString(streamMsg.JobSerz)
-			err = strm.UploadMore(ctx45, streamMsg, last, 0)
-			panicOn(err)
-			//vv("client sent part %v, len %v : '%v'", i, len(streamMsg.JobSerz), string(streamMsg.JobSerz))
+	var last bool
+	N := 20
+	for i := 1; i <= N; i++ {
+		// good, allocating memory for new messages.
+		streamMsg := NewMessage()
+		streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
+		if i == N {
+			last = true
+			streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 		}
-		//vv("all N=%v parts sent", N)
+		streamMsg.HDR.Args["blake3"] = blake3OfBytesString(streamMsg.JobSerz)
+		err = strm.UploadMore(ctx45, streamMsg, last, 0)
+		panicOn(err)
+		//vv("client sent part %v, len %v : '%v'", i, len(streamMsg.JobSerz), string(streamMsg.JobSerz))
+	}
+	//vv("all N=%v parts sent", N)
 
-		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
+	//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 
-		timeout := client.NewTimer(time.Minute)
-		select {
-		case m := <-strm.ReadCh:
-			report := string(m.JobSerz)
-			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
-			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
-			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
-			cv.So(fileExists(filename+".servergot"), cv.ShouldBeTrue)
+	timeout := client.NewTimer(time.Minute)
+	select {
+	case m := <-strm.ReadCh:
+		report := string(m.JobSerz)
+		//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 
-		case <-timeout.C:
-			t.Fatalf("should have gotten a reply from the server finishing the stream.")
+		if !strings.Contains(report, "bytesWrit") {
+			panic("expected report to have bytesWrit")
 		}
-		timeout.Discard()
-		if fileExists(filename) && N == 20 {
-			// verify the contents of the assembled file
-			fileBytes, err := os.ReadFile(filename)
-			panicOn(err)
-			cv.So(string(fileBytes), cv.ShouldEqual, "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
+		if m.HDR.CallID != originalStreamCallID {
+			panicf("expected m.HDR.CallID('%v') to equal originalStreamCallID('%v')", m.HDR.CallID, originalStreamCallID)
+		}
+		if !fileExists(filename + ".servergot") {
+			panicf("expected file to exist: '%v', but it does not", filename+".servergot")
 		}
 
-	})
+	case <-timeout.C:
+		t.Fatalf("should have gotten a reply from the server finishing the stream.")
+	}
+	timeout.Discard()
+	if fileExists(filename) && N == 20 {
+		// verify the contents of the assembled file
+		fileBytes, err := os.ReadFile(filename)
+		panicOn(err)
+		obs := string(fileBytes)
+		exp := "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)"
+		if obs != exp {
+			panicf("observed '%v'; expected '%v'", obs, exp)
+		}
+	}
+
+	//})
 }
 
 func Test055_download(t *testing.T) {
@@ -1150,97 +1160,70 @@ func Test055_download(t *testing.T) {
 		return
 	}
 
-	cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
+	//cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
 
-		cfg := NewConfig()
-		cfg.TCPonly_no_TLS = false
+	cfg := NewConfig()
+	cfg.TCPonly_no_TLS = false
 
-		// start server
-		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test055", cfg)
+	// start server
+	cfg.ServerAddr = "127.0.0.1:0"
+	srv := NewServer("srv_test055", cfg)
 
-		serverAddr, err := srv.Start()
-		panicOn(err)
-		defer srv.Close()
+	serverAddr, err := srv.Start()
+	panicOn(err)
+	defer srv.Close()
 
-		// register streamer func with server
-		downloaderName := "downloaderName"
-		ssss := &ServerSendsDownloadStateTest{}
-		srv.RegisterServerSendsDownloadFunc(downloaderName, ssss.ServerSendsDownloadTest)
+	// register streamer func with server
+	downloaderName := "downloaderName"
+	ssss := &ServerSendsDownloadStateTest{}
+	srv.RegisterServerSendsDownloadFunc(downloaderName, ssss.ServerSendsDownloadTest)
 
-		// start client
-		cfg.ClientDialToHostPort = serverAddr.String()
-		client, err := NewClient("test055", cfg)
-		panicOn(err)
-		err = client.Start()
-		panicOn(err)
-		defer client.Close()
+	// start client
+	cfg.ClientDialToHostPort = serverAddr.String()
+	client, err := NewClient("test055", cfg)
+	panicOn(err)
+	err = client.Start()
+	panicOn(err)
+	defer client.Close()
 
-		// ask server to send us the stream
+	// ask server to send us the stream
 
-		// use deadline so we can confirm it is transmitted back from server to client
-		// in the stream.
-		deadline := time.Now().Add(time.Hour)
-		ctx55, cancelFunc55 := context.WithDeadline(context.Background(), deadline)
-		defer cancelFunc55()
+	// use deadline so we can confirm it is transmitted back from server to client
+	// in the stream.
+	deadline := time.Now().Add(time.Hour)
+	ctx55, cancelFunc55 := context.WithDeadline(context.Background(), deadline)
+	defer cancelFunc55()
 
-		// start the call
-		downloader, err := client.RequestDownload(ctx55, downloaderName, "test055_not_real_download")
-		panicOn(err)
+	// start the call
+	downloader, err := client.RequestDownload(ctx55, downloaderName, "test055_not_real_download")
+	panicOn(err)
 
-		//vv("downloader requested, with CallID = '%v'", downloader.CallID)
-		// then send N more parts
+	//vv("downloader requested, with CallID = '%v'", downloader.CallID)
+	// then send N more parts
 
-		done := false
-		for i := 0; !done; i++ {
-			timeout := client.NewTimer(time.Second * 10)
-			select {
-			case m := <-downloader.ReadDownloadsCh:
-				//report := string(m.JobSerz)
-				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
-
-				if !m.HDR.Deadline.Equal(deadline) {
-					t.Fatalf("deadline not preserved")
-				}
-
-				if m.HDR.Typ == CallDownloadEnd {
-					//vv("good: we see CallDownloadEnd from server.")
-					done = true
-				}
-
-				if i == 0 {
-					cv.So(m.HDR.Typ == CallDownloadBegin, cv.ShouldBeTrue)
-				} else if i == 19 {
-					cv.So(m.HDR.Typ == CallDownloadEnd, cv.ShouldBeTrue)
-				} else {
-					cv.So(m.HDR.Typ == CallDownloadMore, cv.ShouldBeTrue)
-				}
-
-				if m.HDR.Seqno != downloader.Seqno() {
-					t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
-						"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
-				}
-
-			case <-timeout.C:
-				t.Fatalf("should have gotten a reply from the server finishing the stream.")
-			}
-			timeout.Discard()
-		} // end for i
-
-		// do we get the lastReply too then?
-
+	done := false
+	for i := 0; !done; i++ {
 		timeout := client.NewTimer(time.Second * 10)
 		select {
 		case m := <-downloader.ReadDownloadsCh:
 			//report := string(m.JobSerz)
-			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
-
-			if m.HDR.Subject != "This is end. My only friend, the end. - Jim Morrison, The Doors." {
-				t.Fatalf("where did The Doors quote disappear to?")
-			}
+			//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
 
 			if !m.HDR.Deadline.Equal(deadline) {
 				t.Fatalf("deadline not preserved")
+			}
+
+			if m.HDR.Typ == CallDownloadEnd {
+				//vv("good: we see CallDownloadEnd from server.")
+				done = true
+			}
+
+			if i == 0 {
+				assert(m.HDR.Typ == CallDownloadBegin)
+			} else if i == 19 {
+				assert(m.HDR.Typ == CallDownloadEnd)
+			} else {
+				assert(m.HDR.Typ == CallDownloadMore)
 			}
 
 			if m.HDR.Seqno != downloader.Seqno() {
@@ -1249,10 +1232,37 @@ func Test055_download(t *testing.T) {
 			}
 
 		case <-timeout.C:
-			t.Fatalf("should have gotten a lastReply from the server finishing the call.")
+			t.Fatalf("should have gotten a reply from the server finishing the stream.")
 		}
 		timeout.Discard()
-	})
+	} // end for i
+
+	// do we get the lastReply too then?
+
+	timeout := client.NewTimer(time.Second * 10)
+	select {
+	case m := <-downloader.ReadDownloadsCh:
+		//report := string(m.JobSerz)
+		//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+
+		if m.HDR.Subject != "This is end. My only friend, the end. - Jim Morrison, The Doors." {
+			t.Fatalf("where did The Doors quote disappear to?")
+		}
+
+		if !m.HDR.Deadline.Equal(deadline) {
+			t.Fatalf("deadline not preserved")
+		}
+
+		if m.HDR.Seqno != downloader.Seqno() {
+			t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
+				"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
+		}
+
+	case <-timeout.C:
+		t.Fatalf("should have gotten a lastReply from the server finishing the call.")
+	}
+	timeout.Discard()
+	//})
 }
 
 func Test065_bidirectional_download_and_upload(t *testing.T) {
@@ -1262,187 +1272,191 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 		return
 	}
 
-	cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {
+	//cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {
 
-		cfg := NewConfig()
-		cfg.TCPonly_no_TLS = false
+	cfg := NewConfig()
+	cfg.TCPonly_no_TLS = false
 
-		// start server
-		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test065", cfg)
+	// start server
+	cfg.ServerAddr = "127.0.0.1:0"
+	srv := NewServer("srv_test065", cfg)
 
-		serverAddr, err := srv.Start()
-		panicOn(err)
-		defer srv.Close()
+	serverAddr, err := srv.Start()
+	panicOn(err)
+	defer srv.Close()
 
-		// register streamer func with server
-		streamerName := "bi-streamer Name"
-		bi := &ServeBistreamState{}
-		srv.RegisterBistreamFunc(streamerName, bi.ServeBistream)
+	// register streamer func with server
+	streamerName := "bi-streamer Name"
+	bi := &ServeBistreamState{}
+	srv.RegisterBistreamFunc(streamerName, bi.ServeBistream)
 
-		// start client
-		cfg.ClientDialToHostPort = serverAddr.String()
-		client, err := NewClient("test065", cfg)
-		panicOn(err)
-		err = client.Start()
-		panicOn(err)
-		defer client.Close()
+	// start client
+	cfg.ClientDialToHostPort = serverAddr.String()
+	client, err := NewClient("test065", cfg)
+	panicOn(err)
+	err = client.Start()
+	panicOn(err)
+	defer client.Close()
 
-		// ask server to send us the bistream
+	// ask server to send us the bistream
 
-		// use deadline so we can confirm it is transmitted back from server to client
-		// in the stream.
-		deadline := time.Now().Add(time.Hour)
-		ctx65, cancelFunc65 := context.WithDeadline(context.Background(), deadline)
-		defer cancelFunc65()
+	// use deadline so we can confirm it is transmitted back from server to client
+	// in the stream.
+	deadline := time.Now().Add(time.Hour)
+	ctx65, cancelFunc65 := context.WithDeadline(context.Background(), deadline)
+	defer cancelFunc65()
 
-		// start the bistream
+	// start the bistream
 
-		req := NewMessage()
-		filename := "bi.all.srv.read.streams.txt"
-		os.Remove(filename)
-		req.JobSerz = []byte("receiveFile:" + filename + "\na=c(0")
+	req := NewMessage()
+	filename := "bi.all.srv.read.streams.txt"
+	os.Remove(filename)
+	req.JobSerz = []byte("receiveFile:" + filename + "\na=c(0")
 
-		bistream, err := client.RequestBistreaming(ctx65, streamerName, req)
-		panicOn(err)
+	bistream, err := client.RequestBistreaming(ctx65, streamerName, req)
+	panicOn(err)
 
-		//vv("bistream requested, with CallID = '%v'", bistream.CallID())
-		// then send N more parts
+	//vv("bistream requested, with CallID = '%v'", bistream.CallID())
+	// then send N more parts
 
-		//vv("begin download part")
+	//vv("begin download part")
 
-		done := false
-		for i := 0; !done; i++ {
+	done := false
+	for i := 0; !done; i++ {
 
-			timeout := client.NewTimer(time.Second * 10)
-			select {
-			case m := <-bistream.ReadDownloadsCh:
-				//report := string(m.JobSerz)
-				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
-
-				if !m.HDR.Deadline.Equal(deadline) {
-					t.Fatalf("deadline not preserved")
-				}
-
-				if m.HDR.Typ == CallDownloadEnd {
-					//vv("good: we see CallDownloadEnd from server.")
-					done = true
-				}
-
-				if i == 0 {
-					cv.So(m.HDR.Typ == CallDownloadBegin, cv.ShouldBeTrue)
-				} else if i == 19 {
-					cv.So(m.HDR.Typ == CallDownloadEnd, cv.ShouldBeTrue)
-				} else {
-					cv.So(m.HDR.Typ == CallDownloadMore, cv.ShouldBeTrue)
-				}
-
-				if m.HDR.Seqno != bistream.Seqno() {
-					t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
-						"bistream.Seqno = %v", m.HDR.Seqno, bistream.Seqno())
-				}
-
-			case <-timeout.C:
-				t.Fatalf("should have gotten a reply from the server finishing the stream.")
-			}
-			timeout.Discard()
-		} // end for i
-
-		//vv("done with download. begin upload part")
-
-		// ============================================
-		// ============================================
-		//
-		// next: test that the same server func can receive a stream.
-		//
-		// We now check that the client can upload (send a stream to the server).
-		// While typically these are interleaved in real world usage,
-		// here we start with simple and sequential use.
-		// ============================================
-		// ============================================
-
-		// start upload to the server.
-
-		// read the final reply from the server.
-
-		originalStreamCallID := bistream.CallID()
-		//vv("065 upload starting, with CallID = '%v'", originalStreamCallID)
-		// then send N more parts
-
-		var last bool
-		N := 20
-		for i := 1; i <= N; i++ {
-			streamMsg := NewMessage()
-			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
-			streamMsg.HDR.Subject = blake3OfBytesString(streamMsg.JobSerz)
-			if i == N {
-				last = true
-				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
-			}
-			err = bistream.UploadMore(ctx65, streamMsg, last, 0)
-			panicOn(err)
-			//vv("uploaded part %v", i)
-		}
-		//vv("all N=%v parts uploaded", N)
-
-		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
-
-		timeout := client.NewTimer(time.Minute)
+		timeout := client.NewTimer(time.Second * 10)
 		select {
 		case m := <-bistream.ReadDownloadsCh:
-			report := string(m.JobSerz)
-			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
-			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
-			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
-			cv.So(fileExists(filename), cv.ShouldBeTrue)
+			//report := string(m.JobSerz)
+			//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
+
+			if !m.HDR.Deadline.Equal(deadline) {
+				t.Fatalf("deadline not preserved")
+			}
+
+			if m.HDR.Typ == CallDownloadEnd {
+				//vv("good: we see CallDownloadEnd from server.")
+				done = true
+			}
+
+			if i == 0 {
+				assert(m.HDR.Typ == CallDownloadBegin)
+			} else if i == 19 {
+				assert(m.HDR.Typ == CallDownloadEnd)
+			} else {
+				assert(m.HDR.Typ == CallDownloadMore)
+			}
+
+			if m.HDR.Seqno != bistream.Seqno() {
+				t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
+					"bistream.Seqno = %v", m.HDR.Seqno, bistream.Seqno())
+			}
 
 		case <-timeout.C:
 			t.Fatalf("should have gotten a reply from the server finishing the stream.")
 		}
 		timeout.Discard()
+	} // end for i
 
-		if fileExists(filename) && N == 20 {
-			// verify the contents of the assembled file
-			fileBytes, err := os.ReadFile(filename)
-			panicOn(err)
-			cv.So(string(fileBytes), cv.ShouldEqual, "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
+	//vv("done with download. begin upload part")
+
+	// ============================================
+	// ============================================
+	//
+	// next: test that the same server func can receive a stream.
+	//
+	// We now check that the client can upload (send a stream to the server).
+	// While typically these are interleaved in real world usage,
+	// here we start with simple and sequential use.
+	// ============================================
+	// ============================================
+
+	// start upload to the server.
+
+	// read the final reply from the server.
+
+	originalStreamCallID := bistream.CallID()
+	//vv("065 upload starting, with CallID = '%v'", originalStreamCallID)
+	// then send N more parts
+
+	var last bool
+	N := 20
+	for i := 1; i <= N; i++ {
+		streamMsg := NewMessage()
+		streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
+		streamMsg.HDR.Subject = blake3OfBytesString(streamMsg.JobSerz)
+		if i == N {
+			last = true
+			streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 		}
+		err = bistream.UploadMore(ctx65, streamMsg, last, 0)
+		panicOn(err)
+		//vv("uploaded part %v", i)
+	}
+	//vv("all N=%v parts uploaded", N)
 
-	})
+	//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
+
+	timeout := client.NewTimer(time.Minute)
+	select {
+	case m := <-bistream.ReadDownloadsCh:
+		report := string(m.JobSerz)
+		//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+		assert(strings.Contains(report, "bytesWrit"))
+		assert(m.HDR.CallID == originalStreamCallID)
+		assert(fileExists(filename))
+
+	case <-timeout.C:
+		t.Fatalf("should have gotten a reply from the server finishing the stream.")
+	}
+	timeout.Discard()
+
+	if fileExists(filename) && N == 20 {
+		// verify the contents of the assembled file
+		fileBytes, err := os.ReadFile(filename)
+		panicOn(err)
+		obs := string(fileBytes)
+		exp := "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)"
+		if obs != exp {
+			panicf("observed '%v'; expected '%v'", obs, exp)
+		}
+	}
+
+	//})
 }
 
 func Test100_BlakeHashesAgree(t *testing.T) {
 
-	cv.Convey("blake3 hash strings should be consistent across all utility func", t, func() {
+	//cv.Convey("blake3 hash strings should be consistent across all utility func", t, func() {
 
-		h := myblake3.NewBlake3()
-		data := []byte("hello world!")
+	h := myblake3.NewBlake3()
+	data := []byte("hello world!")
 
-		a := blake3OfBytesString(data)
-		b := h.Hash32(data)
-		c := myblake3.Blake3OfBytesString(data)
-		//vv(`blake3OfBytesString("hello world!") = '%v'`, a)
-		//vv(`myblake3.Hash32("hello world!")     = '%v'`, b)
-		if a != b {
-			panic("a != b, hashes are different!")
-		}
-		if c != b {
-			panic("c != b, hashes are different!")
-		}
+	a := blake3OfBytesString(data)
+	b := h.Hash32(data)
+	c := myblake3.Blake3OfBytesString(data)
+	//vv(`blake3OfBytesString("hello world!") = '%v'`, a)
+	//vv(`myblake3.Hash32("hello world!")     = '%v'`, b)
+	if a != b {
+		panic("a != b, hashes are different!")
+	}
+	if c != b {
+		panic("c != b, hashes are different!")
+	}
 
-		h.Reset()
-		h.Write(data)
-		d := h.SumString()
-		if d != b {
-			panic("d != b, hashes are different!")
-		}
+	h.Reset()
+	h.Write(data)
+	d := h.SumString()
+	if d != b {
+		panic("d != b, hashes are different!")
+	}
 
-		h.Reset()
-		h.Write(data[:3])
-		h.Write(data[3:])
-		e := h.SumString()
-		if e != b {
-			panic("e != b, hashes are different!")
-		}
-	})
+	h.Reset()
+	h.Write(data[:3])
+	h.Write(data[3:])
+	e := h.SumString()
+	if e != b {
+		panic("e != b, hashes are different!")
+	}
+	//})
 }

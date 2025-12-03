@@ -18,8 +18,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	cv "github.com/glycerine/goconvey/convey"
 )
 
 func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
@@ -377,117 +375,116 @@ func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 
 	onlyBubbled(t, func(t *testing.T) {
 
-		cv.Convey("simnet remote cancellation", t, func() {
+		//cv.Convey("simnet remote cancellation", t, func() {
 
-			cfg := NewConfig()
-			//cfg.TCPonly_no_TLS = false
-			cfg.UseSimNet = true
-			//cfg.ServerSendKeepAlive = time.Second * 10
+		cfg := NewConfig()
+		//cfg.TCPonly_no_TLS = false
+		cfg.UseSimNet = true
+		//cfg.ServerSendKeepAlive = time.Second * 10
 
-			cfg.ServerAddr = "127.0.0.1:0"
-			srv := NewServer("srv_test740", cfg)
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test740", cfg)
 
-			serverAddr, err := srv.Start()
-			panicOn(err)
-			defer srv.Close()
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
 
-			simnet := srv.cfg.GetSimnet()
-			defer simnet.Close()
+		simnet := srv.cfg.GetSimnet()
+		defer simnet.Close()
 
-			//vv("server Start() returned serverAddr = '%v'", serverAddr)
+		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-			// net/rpc API on server
-			mustCancelMe := NewMustBeCancelled()
-			srv.Register(mustCancelMe)
+		// net/rpc API on server
+		mustCancelMe := NewMustBeCancelled()
+		srv.Register(mustCancelMe)
 
-			// and register early for 741 below
-			serviceName741 := "test741_hang_until_cancel"
-			srv.Register2Func(serviceName741, mustCancelMe.MessageAPI_HangUntilCancel)
+		// and register early for 741 below
+		serviceName741 := "test741_hang_until_cancel"
+		srv.Register2Func(serviceName741, mustCancelMe.MessageAPI_HangUntilCancel)
 
-			cfg.ClientDialToHostPort = serverAddr.String()
-			client, err := NewClient("cli_test740", cfg)
-			panicOn(err)
-			err = client.Start()
-			panicOn(err)
+		cfg.ClientDialToHostPort = serverAddr.String()
+		client, err := NewClient("cli_test740", cfg)
+		panicOn(err)
+		err = client.Start()
+		panicOn(err)
 
-			defer client.Close()
+		defer client.Close()
 
-			// using the net/rpc API
-			args := &Args{7, 8}
-			reply := new(Reply)
+		// using the net/rpc API
+		args := &Args{7, 8}
+		reply := new(Reply)
 
-			var cliErr740 error
-			cliErrIsSet740 := make(chan bool)
-			ctx740, cancelFunc740 := context.WithCancel(context.Background())
-			go func() {
-				//vv("client.Call() goro top about to call over net/rpc: MustBeCancelled.WillHangUntilCancel()")
+		var cliErr740 error
+		cliErrIsSet740 := make(chan bool)
+		ctx740, cancelFunc740 := context.WithCancel(context.Background())
+		go func() {
+			//vv("client.Call() goro top about to call over net/rpc: MustBeCancelled.WillHangUntilCancel()")
 
-				cliErr740 = client.Call("MustBeCancelled.WillHangUntilCancel", args, reply, ctx740)
-				//vv("client.Call() returned with cliErr = '%v'", cliErr740)
-				close(cliErrIsSet740)
-			}()
+			cliErr740 = client.Call("MustBeCancelled.WillHangUntilCancel", args, reply, ctx740)
+			//vv("client.Call() returned with cliErr = '%v'", cliErr740)
+			close(cliErrIsSet740)
+		}()
 
-			// let the call get blocked.
-			//vv("cli_test 740: about to block on test740callStarted")
-			<-mustCancelMe.callStarted
-			//vv("cli_test 740: we got past test740callStarted")
+		// let the call get blocked.
+		//vv("cli_test 740: about to block on test740callStarted")
+		<-mustCancelMe.callStarted
+		//vv("cli_test 740: we got past test740callStarted")
 
-			// cancel it: transmit cancel request to server.
-			cancelFunc740()
-			//vv("past cancelFunc()")
+		// cancel it: transmit cancel request to server.
+		cancelFunc740()
+		//vv("past cancelFunc()")
 
-			<-cliErrIsSet740
-			//vv("past cliErrIsSet channel; cliErr740 = '%v'", cliErr740)
+		<-cliErrIsSet740
+		//vv("past cliErrIsSet channel; cliErr740 = '%v'", cliErr740)
 
-			if cliErr740 != ErrCancelReqSent {
-				t.Errorf("Test740: expected ErrCancelReqSent but got %v", cliErr740)
-			}
+		if cliErr740 != ErrCancelReqSent {
+			t.Errorf("Test740: expected ErrCancelReqSent but got %v", cliErr740)
+		}
 
-			// confirm that server side function is unblocked too
-			//vv("about to verify that server side context was cancelled.")
-			<-mustCancelMe.callFinished
-			//vv("server side saw the cancellation request: confirmed.")
+		// confirm that server side function is unblocked too
+		//vv("about to verify that server side context was cancelled.")
+		<-mustCancelMe.callFinished
+		//vv("server side saw the cancellation request: confirmed.")
 
-			// use Message []byte oriented API: test 741
+		// use Message []byte oriented API: test 741
 
-			var cliErr741 error
-			cliErrIsSet741 := make(chan bool)
-			ctx741, cancelFunc741 := context.WithCancel(context.Background())
-			req := NewMessage()
-			req.HDR.Typ = CallRPC
-			req.HDR.ToServiceName = serviceName741
-			req.HDR.FromServiceName = serviceName741
-			var reply741 *Message
+		var cliErr741 error
+		cliErrIsSet741 := make(chan bool)
+		ctx741, cancelFunc741 := context.WithCancel(context.Background())
+		req := NewMessage()
+		req.HDR.Typ = CallRPC
+		req.HDR.ToServiceName = serviceName741
+		req.HDR.FromServiceName = serviceName741
+		var reply741 *Message
 
-			go func() {
-				reply741, cliErr741 = client.SendAndGetReply(req, ctx741.Done(), 0)
-				//vv("client.Call() returned with cliErr = '%v'", cliErr741)
-				close(cliErrIsSet741)
-			}()
+		go func() {
+			reply741, cliErr741 = client.SendAndGetReply(req, ctx741.Done(), 0)
+			//vv("client.Call() returned with cliErr = '%v'", cliErr741)
+			close(cliErrIsSet741)
+		}()
 
-			// let the call get blocked on the server (only works under test, of course).
-			<-mustCancelMe.callStarted
-			//vv("cli_test 741: we got past test741callStarted")
+		// let the call get blocked on the server (only works under test, of course).
+		<-mustCancelMe.callStarted
+		//vv("cli_test 741: we got past test741callStarted")
 
-			// cancel it: transmit cancel request to server.
-			cancelFunc741()
-			//vv("past cancelFunc()")
+		// cancel it: transmit cancel request to server.
+		cancelFunc741()
+		//vv("past cancelFunc()")
 
-			<-cliErrIsSet741
-			//vv("past cliErrIsSet channel; cliErr = '%v'", cliErr741)
+		<-cliErrIsSet741
+		//vv("past cliErrIsSet channel; cliErr = '%v'", cliErr741)
 
-			if cliErr741 != ErrCancelReqSent {
-				t.Errorf("Test741: expected ErrCancelReqSent but got %v", cliErr741)
-			}
+		if cliErr741 != ErrCancelReqSent {
+			t.Errorf("Test741: expected ErrCancelReqSent but got %v", cliErr741)
+		}
 
-			if reply741 != nil {
-				t.Errorf("Test741: expected reply741 to be nil, but got %v", reply741)
-			}
+		if reply741 != nil {
+			t.Errorf("Test741: expected reply741 to be nil, but got %v", reply741)
+		}
 
-			// confirm that server side function is unblocked too
-			//vv("about to verify that server side context was cancelled.")
-			<-mustCancelMe.callFinished
-		})
+		// confirm that server side function is unblocked too
+		//vv("about to verify that server side context was cancelled.")
+		<-mustCancelMe.callFinished
 	})
 }
 
@@ -496,104 +493,103 @@ func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 func Test745_simnetonly_upload(t *testing.T) {
 
 	onlyBubbled(t, func(t *testing.T) {
-		cv.Convey("upload a large file in parts from client to server", t, func() {
+		//cv.Convey("upload a large file in parts from client to server", t, func() {
 
-			cfg := NewConfig()
-			//cfg.TCPonly_no_TLS = false
-			cfg.UseSimNet = true
+		cfg := NewConfig()
+		//cfg.TCPonly_no_TLS = false
+		cfg.UseSimNet = true
 
-			cfg.ServerAddr = "127.0.0.1:0"
-			srv := NewServer("srv_test845", cfg)
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test845", cfg)
 
-			serverAddr, err := srv.Start()
-			panicOn(err)
-			defer srv.Close()
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
 
-			simnet := srv.cfg.GetSimnet()
-			defer simnet.Close()
+		simnet := srv.cfg.GetSimnet()
+		defer simnet.Close()
 
-			//vv("server Start() returned serverAddr = '%v'", serverAddr)
+		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-			// name must be "__fileUploader" for cli.go Uploader to work.
-			uploaderName := "__fileUploader"
-			streamer := NewServerSideUploadState()
-			srv.RegisterUploadReaderFunc(uploaderName, streamer.ReceiveFileInParts)
+		// name must be "__fileUploader" for cli.go Uploader to work.
+		uploaderName := "__fileUploader"
+		streamer := NewServerSideUploadState()
+		srv.RegisterUploadReaderFunc(uploaderName, streamer.ReceiveFileInParts)
 
-			cfg.ClientDialToHostPort = serverAddr.String()
-			client, err := NewClient("test845", cfg)
-			panicOn(err)
-			err = client.Start()
-			panicOn(err)
+		cfg.ClientDialToHostPort = serverAddr.String()
+		client, err := NewClient("test845", cfg)
+		panicOn(err)
+		err = client.Start()
+		panicOn(err)
 
-			defer client.Close()
+		defer client.Close()
 
-			// to read the final reply from the server,
-			// use strm.ReadCh rather than client.GetReadIncomingCh(),
-			// since strm.ReadCh is filtered for our CallID.
+		// to read the final reply from the server,
+		// use strm.ReadCh rather than client.GetReadIncomingCh(),
+		// since strm.ReadCh is filtered for our CallID.
 
-			ctx45, cancelFunc45 := context.WithCancel(context.Background())
-			defer cancelFunc45()
+		ctx45, cancelFunc45 := context.WithCancel(context.Background())
+		defer cancelFunc45()
 
-			// be care not to re-use memory! the client
-			// will not make a copy of the message
-			// while waiting to send it, so you
-			// must allocate new memory to send the next message
-			// (and _not_ overwrite the first!)
-			req := NewMessage()
-			filename := "streams.all.together.txt"
-			os.Remove(filename + ".servergot")
-			req.HDR.ToServiceName = uploaderName
-			req.HDR.FromServiceName = uploaderName
-			req.HDR.Args = map[string]string{"readFile": filename}
-			req.JobSerz = []byte("a=c(0")
+		// be care not to re-use memory! the client
+		// will not make a copy of the message
+		// while waiting to send it, so you
+		// must allocate new memory to send the next message
+		// (and _not_ overwrite the first!)
+		req := NewMessage()
+		filename := "streams.all.together.txt"
+		os.Remove(filename + ".servergot")
+		req.HDR.ToServiceName = uploaderName
+		req.HDR.FromServiceName = uploaderName
+		req.HDR.Args = map[string]string{"readFile": filename}
+		req.JobSerz = []byte("a=c(0")
 
-			// start the call
-			strm, err := client.UploadBegin(ctx45, uploaderName, req, 0)
-			panicOn(err)
+		// start the call
+		strm, err := client.UploadBegin(ctx45, uploaderName, req, 0)
+		panicOn(err)
 
-			originalStreamCallID := strm.CallID()
-			//vv("strm started, with CallID = '%v'", originalStreamCallID)
-			// then send N more parts
+		originalStreamCallID := strm.CallID()
+		//vv("strm started, with CallID = '%v'", originalStreamCallID)
+		// then send N more parts
 
-			var last bool
-			N := 20
-			for i := 1; i <= N; i++ {
-				// good, allocating memory for new messages.
-				streamMsg := NewMessage()
-				streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
-				if i == N {
-					last = true
-					streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
-				}
-				streamMsg.HDR.Args["blake3"] = blake3OfBytesString(streamMsg.JobSerz)
-				err = strm.UploadMore(ctx45, streamMsg, last, 0)
-				panicOn(err)
-				//vv("client sent part %v, len %v : '%v'", i, len(streamMsg.JobSerz), string(streamMsg.JobSerz))
+		var last bool
+		N := 20
+		for i := 1; i <= N; i++ {
+			// good, allocating memory for new messages.
+			streamMsg := NewMessage()
+			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
+			if i == N {
+				last = true
+				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 			}
-			//vv("all N=%v parts sent", N)
+			streamMsg.HDR.Args["blake3"] = blake3OfBytesString(streamMsg.JobSerz)
+			err = strm.UploadMore(ctx45, streamMsg, last, 0)
+			panicOn(err)
+			//vv("client sent part %v, len %v : '%v'", i, len(streamMsg.JobSerz), string(streamMsg.JobSerz))
+		}
+		//vv("all N=%v parts sent", N)
 
-			//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
+		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 
-			timeout := client.NewTimer(time.Minute)
-			select {
-			case m := <-strm.ReadCh:
-				report := string(m.JobSerz)
-				//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
-				cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
-				cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
-				cv.So(fileExists(filename+".servergot"), cv.ShouldBeTrue)
+		timeout := client.NewTimer(time.Minute)
+		select {
+		case m := <-strm.ReadCh:
+			report := string(m.JobSerz)
+			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+			assert(strings.Contains(report, "bytesWrit"))
+			assert(m.HDR.CallID == originalStreamCallID)
+			assert(fileExists(filename + ".servergot"))
 
-			case <-timeout.C:
-				t.Fatalf("should have gotten a reply from the server finishing the stream.")
-			}
-			timeout.Discard()
-			if fileExists(filename) && N == 20 {
-				// verify the contents of the assembled file
-				fileBytes, err := os.ReadFile(filename)
-				panicOn(err)
-				cv.So(string(fileBytes), cv.ShouldEqual, "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
-			}
-		})
+		case <-timeout.C:
+			t.Fatalf("should have gotten a reply from the server finishing the stream.")
+		}
+		timeout.Discard()
+		if fileExists(filename) && N == 20 {
+			// verify the contents of the assembled file
+			fileBytes, err := os.ReadFile(filename)
+			panicOn(err)
+			assert(string(fileBytes) == "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
+		}
 	})
 }
 
@@ -601,101 +597,74 @@ func Test755_simnetonly_simnet_download(t *testing.T) {
 
 	onlyBubbled(t, func(t *testing.T) {
 
-		cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
+		//cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
 
-			cfg := NewConfig()
-			//cfg.TCPonly_no_TLS = false
-			cfg.UseSimNet = true
+		cfg := NewConfig()
+		//cfg.TCPonly_no_TLS = false
+		cfg.UseSimNet = true
 
-			// start server
-			cfg.ServerAddr = "127.0.0.1:0"
-			srv := NewServer("srv_test855", cfg)
+		// start server
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test855", cfg)
 
-			serverAddr, err := srv.Start()
-			panicOn(err)
-			defer srv.Close()
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
 
-			simnet := srv.cfg.GetSimnet()
-			defer simnet.Close()
+		simnet := srv.cfg.GetSimnet()
+		defer simnet.Close()
 
-			// register streamer func with server
-			downloaderName := "downloaderName"
-			ssss := &ServerSendsDownloadStateTest{}
-			srv.RegisterServerSendsDownloadFunc(downloaderName, ssss.ServerSendsDownloadTest)
+		// register streamer func with server
+		downloaderName := "downloaderName"
+		ssss := &ServerSendsDownloadStateTest{}
+		srv.RegisterServerSendsDownloadFunc(downloaderName, ssss.ServerSendsDownloadTest)
 
-			// start client
-			cfg.ClientDialToHostPort = serverAddr.String()
-			client, err := NewClient("cli_test855", cfg)
-			panicOn(err)
-			err = client.Start()
-			panicOn(err)
-			defer client.Close()
+		// start client
+		cfg.ClientDialToHostPort = serverAddr.String()
+		client, err := NewClient("cli_test855", cfg)
+		panicOn(err)
+		err = client.Start()
+		panicOn(err)
+		defer client.Close()
 
-			// ask server to send us the stream
+		// ask server to send us the stream
 
-			// use deadline so we can confirm it is transmitted back from server to client
-			// in the stream.
-			deadline := time.Now().Add(time.Hour)
-			ctx55, cancelFunc55 := context.WithDeadline(context.Background(), deadline)
-			defer cancelFunc55()
+		// use deadline so we can confirm it is transmitted back from server to client
+		// in the stream.
+		deadline := time.Now().Add(time.Hour)
+		ctx55, cancelFunc55 := context.WithDeadline(context.Background(), deadline)
+		defer cancelFunc55()
 
-			// start the call
-			downloader, err := client.RequestDownload(ctx55, downloaderName, "test855_not_real_download")
-			panicOn(err)
+		// start the call
+		downloader, err := client.RequestDownload(ctx55, downloaderName, "test855_not_real_download")
+		panicOn(err)
 
-			//vv("downloader requested, with CallID = '%v'", downloader.CallID)
-			// then send N more parts
+		//vv("downloader requested, with CallID = '%v'", downloader.CallID)
+		// then send N more parts
 
-			done := false
-			for i := 0; !done; i++ {
-				timeout := client.NewTimer(time.Second * 10)
-				select {
-				case m := <-downloader.ReadDownloadsCh:
-					//report := string(m.JobSerz)
-					//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
-
-					if !m.HDR.Deadline.Equal(deadline) {
-						t.Fatalf("deadline not preserved")
-					}
-
-					if m.HDR.Typ == CallDownloadEnd {
-						//vv("good: we see CallDownloadEnd from server.")
-						done = true
-					}
-
-					if i == 0 {
-						cv.So(m.HDR.Typ == CallDownloadBegin, cv.ShouldBeTrue)
-					} else if i == 19 {
-						cv.So(m.HDR.Typ == CallDownloadEnd, cv.ShouldBeTrue)
-					} else {
-						cv.So(m.HDR.Typ == CallDownloadMore, cv.ShouldBeTrue)
-					}
-
-					if m.HDR.Seqno != downloader.Seqno() {
-						t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
-							"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
-					}
-
-				case <-timeout.C:
-					t.Fatalf("should have gotten a reply from the server finishing the stream.")
-				}
-				timeout.Discard()
-			} // end for i
-
-			// do we get the lastReply too then?
-
+		done := false
+		for i := 0; !done; i++ {
 			timeout := client.NewTimer(time.Second * 10)
 			select {
 			case m := <-downloader.ReadDownloadsCh:
 				//report := string(m.JobSerz)
-				//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
-
-				if m.HDR.Subject != "This is end. My only friend, the end. - Jim Morrison, The Doors." {
-					t.Fatalf("where did The Doors quote disappear to?")
-				}
+				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
 
 				if !m.HDR.Deadline.Equal(deadline) {
 					t.Fatalf("deadline not preserved")
+				}
+
+				if m.HDR.Typ == CallDownloadEnd {
+					//vv("good: we see CallDownloadEnd from server.")
+					done = true
+				}
+
+				if i == 0 {
+					assert(m.HDR.Typ == CallDownloadBegin)
+				} else if i == 19 {
+					assert(m.HDR.Typ == CallDownloadEnd)
+				} else {
+					assert(m.HDR.Typ == CallDownloadMore)
 				}
 
 				if m.HDR.Seqno != downloader.Seqno() {
@@ -704,10 +673,36 @@ func Test755_simnetonly_simnet_download(t *testing.T) {
 				}
 
 			case <-timeout.C:
-				t.Fatalf("should have gotten a lastReply from the server finishing the call.")
+				t.Fatalf("should have gotten a reply from the server finishing the stream.")
 			}
 			timeout.Discard()
-		})
+		} // end for i
+
+		// do we get the lastReply too then?
+
+		timeout := client.NewTimer(time.Second * 10)
+		select {
+		case m := <-downloader.ReadDownloadsCh:
+			//report := string(m.JobSerz)
+			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+
+			if m.HDR.Subject != "This is end. My only friend, the end. - Jim Morrison, The Doors." {
+				t.Fatalf("where did The Doors quote disappear to?")
+			}
+
+			if !m.HDR.Deadline.Equal(deadline) {
+				t.Fatalf("deadline not preserved")
+			}
+
+			if m.HDR.Seqno != downloader.Seqno() {
+				t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
+					"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
+			}
+
+		case <-timeout.C:
+			t.Fatalf("should have gotten a lastReply from the server finishing the call.")
+		}
+		timeout.Discard()
 	})
 }
 
@@ -715,156 +710,155 @@ func Test765_simnetonly_bidirectional_download_and_upload(t *testing.T) {
 
 	onlyBubbled(t, func(t *testing.T) {
 
-		cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {
+		//cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {
 
-			cfg := NewConfig()
-			//cfg.TCPonly_no_TLS = false
-			cfg.UseSimNet = true
+		cfg := NewConfig()
+		//cfg.TCPonly_no_TLS = false
+		cfg.UseSimNet = true
 
-			// start server
-			cfg.ServerAddr = "127.0.0.1:0"
-			srv := NewServer("srv_test865", cfg)
+		// start server
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test865", cfg)
 
-			serverAddr, err := srv.Start()
-			panicOn(err)
-			defer srv.Close()
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
 
-			simnet := srv.cfg.GetSimnet()
-			defer simnet.Close()
+		simnet := srv.cfg.GetSimnet()
+		defer simnet.Close()
 
-			// register streamer func with server
-			streamerName := "bi-streamer Name"
-			bi := &ServeBistreamState{}
-			srv.RegisterBistreamFunc(streamerName, bi.ServeBistream)
+		// register streamer func with server
+		streamerName := "bi-streamer Name"
+		bi := &ServeBistreamState{}
+		srv.RegisterBistreamFunc(streamerName, bi.ServeBistream)
 
-			// start client
-			cfg.ClientDialToHostPort = serverAddr.String()
-			client, err := NewClient("cli_test865", cfg)
-			panicOn(err)
-			err = client.Start()
-			panicOn(err)
-			defer client.Close()
+		// start client
+		cfg.ClientDialToHostPort = serverAddr.String()
+		client, err := NewClient("cli_test865", cfg)
+		panicOn(err)
+		err = client.Start()
+		panicOn(err)
+		defer client.Close()
 
-			// ask server to send us the bistream
+		// ask server to send us the bistream
 
-			// use deadline so we can confirm it is transmitted back from server to client
-			// in the stream.
-			deadline := time.Now().Add(time.Hour)
-			ctx65, cancelFunc65 := context.WithDeadline(context.Background(), deadline)
-			defer cancelFunc65()
+		// use deadline so we can confirm it is transmitted back from server to client
+		// in the stream.
+		deadline := time.Now().Add(time.Hour)
+		ctx65, cancelFunc65 := context.WithDeadline(context.Background(), deadline)
+		defer cancelFunc65()
 
-			// start the bistream
+		// start the bistream
 
-			req := NewMessage()
-			filename := "bi.all.srv.read.streams.txt"
-			os.Remove(filename)
-			req.JobSerz = []byte("receiveFile:" + filename + "\na=c(0")
+		req := NewMessage()
+		filename := "bi.all.srv.read.streams.txt"
+		os.Remove(filename)
+		req.JobSerz = []byte("receiveFile:" + filename + "\na=c(0")
 
-			bistream, err := client.RequestBistreaming(ctx65, streamerName, req)
-			panicOn(err)
+		bistream, err := client.RequestBistreaming(ctx65, streamerName, req)
+		panicOn(err)
 
-			//vv("bistream requested, with CallID = '%v'", bistream.CallID())
-			// then send N more parts
+		//vv("bistream requested, with CallID = '%v'", bistream.CallID())
+		// then send N more parts
 
-			//vv("begin download part")
+		//vv("begin download part")
 
-			done := false
-			for i := 0; !done; i++ {
+		done := false
+		for i := 0; !done; i++ {
 
-				timeout := client.NewTimer(time.Second * 10)
-				select {
-				case m := <-bistream.ReadDownloadsCh:
-					//report := string(m.JobSerz)
-					//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
-
-					if !m.HDR.Deadline.Equal(deadline) {
-						t.Fatalf("deadline not preserved")
-					}
-
-					if m.HDR.Typ == CallDownloadEnd {
-						//vv("good: we see CallDownloadEnd from server.")
-						done = true
-					}
-
-					if i == 0 {
-						cv.So(m.HDR.Typ == CallDownloadBegin, cv.ShouldBeTrue)
-					} else if i == 19 {
-						cv.So(m.HDR.Typ == CallDownloadEnd, cv.ShouldBeTrue)
-					} else {
-						cv.So(m.HDR.Typ == CallDownloadMore, cv.ShouldBeTrue)
-					}
-
-					if m.HDR.Seqno != bistream.Seqno() {
-						t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
-							"bistream.Seqno = %v", m.HDR.Seqno, bistream.Seqno())
-					}
-
-				case <-timeout.C:
-					t.Fatalf("should have gotten a reply from the server finishing the stream.")
-				}
-				timeout.Discard()
-			} // end for i
-
-			//vv("done with download. begin upload part")
-
-			// ============================================
-			// ============================================
-			//
-			// next: test that the same server func can receive a stream.
-			//
-			// We now check that the client can upload (send a stream to the server).
-			// While typically these are interleaved in real world usage,
-			// here we start with simple and sequential use.
-			// ============================================
-			// ============================================
-
-			// start upload to the server.
-
-			// read the final reply from the server.
-
-			originalStreamCallID := bistream.CallID()
-			//vv("865 upload starting, with CallID = '%v'", originalStreamCallID)
-			// then send N more parts
-
-			var last bool
-			N := 20
-			for i := 1; i <= N; i++ {
-				streamMsg := NewMessage()
-				streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
-				streamMsg.HDR.Subject = blake3OfBytesString(streamMsg.JobSerz)
-				if i == N {
-					last = true
-					streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
-				}
-				err = bistream.UploadMore(ctx65, streamMsg, last, 0)
-				panicOn(err)
-				//vv("uploaded part %v", i)
-			}
-			//vv("all N=%v parts uploaded", N)
-
-			//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
-
-			timeout := client.NewTimer(time.Minute)
+			timeout := client.NewTimer(time.Second * 10)
 			select {
 			case m := <-bistream.ReadDownloadsCh:
-				report := string(m.JobSerz)
-				//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
-				cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
-				cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
-				cv.So(fileExists(filename), cv.ShouldBeTrue)
+				//report := string(m.JobSerz)
+				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
+
+				if !m.HDR.Deadline.Equal(deadline) {
+					t.Fatalf("deadline not preserved")
+				}
+
+				if m.HDR.Typ == CallDownloadEnd {
+					//vv("good: we see CallDownloadEnd from server.")
+					done = true
+				}
+
+				if i == 0 {
+					assert(m.HDR.Typ == CallDownloadBegin)
+				} else if i == 19 {
+					assert(m.HDR.Typ == CallDownloadEnd)
+				} else {
+					assert(m.HDR.Typ == CallDownloadMore)
+				}
+
+				if m.HDR.Seqno != bistream.Seqno() {
+					t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
+						"bistream.Seqno = %v", m.HDR.Seqno, bistream.Seqno())
+				}
 
 			case <-timeout.C:
 				t.Fatalf("should have gotten a reply from the server finishing the stream.")
 			}
 			timeout.Discard()
+		} // end for i
 
-			if fileExists(filename) && N == 20 {
-				// verify the contents of the assembled file
-				fileBytes, err := os.ReadFile(filename)
-				panicOn(err)
-				cv.So(string(fileBytes), cv.ShouldEqual, "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
+		//vv("done with download. begin upload part")
+
+		// ============================================
+		// ============================================
+		//
+		// next: test that the same server func can receive a stream.
+		//
+		// We now check that the client can upload (send a stream to the server).
+		// While typically these are interleaved in real world usage,
+		// here we start with simple and sequential use.
+		// ============================================
+		// ============================================
+
+		// start upload to the server.
+
+		// read the final reply from the server.
+
+		originalStreamCallID := bistream.CallID()
+		//vv("865 upload starting, with CallID = '%v'", originalStreamCallID)
+		// then send N more parts
+
+		var last bool
+		N := 20
+		for i := 1; i <= N; i++ {
+			streamMsg := NewMessage()
+			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
+			streamMsg.HDR.Subject = blake3OfBytesString(streamMsg.JobSerz)
+			if i == N {
+				last = true
+				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 			}
-		})
+			err = bistream.UploadMore(ctx65, streamMsg, last, 0)
+			panicOn(err)
+			//vv("uploaded part %v", i)
+		}
+		//vv("all N=%v parts uploaded", N)
+
+		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
+
+		timeout := client.NewTimer(time.Minute)
+		select {
+		case m := <-bistream.ReadDownloadsCh:
+			report := string(m.JobSerz)
+			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+			assert(strings.Contains(report, "bytesWrit"))
+			assert(m.HDR.CallID == originalStreamCallID)
+			assert(fileExists(filename))
+
+		case <-timeout.C:
+			t.Fatalf("should have gotten a reply from the server finishing the stream.")
+		}
+		timeout.Discard()
+
+		if fileExists(filename) && N == 20 {
+			// verify the contents of the assembled file
+			fileBytes, err := os.ReadFile(filename)
+			panicOn(err)
+			assert(string(fileBytes) == "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
+		}
 	})
 }
 
@@ -1144,154 +1138,152 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 	// only do that if you are prepared to wait minutes
 	// for each test; under bubbleOrNot with realtime.
 	onlyBubbled(t, func(t *testing.T) {
-		cv.Convey("simnet client dropped sends should appear in the senders dropped send Q", t, func() {
+		//cv.Convey("simnet client dropped sends should appear in the senders dropped send Q", t, func() {
 
-			simt, cfg := newSimnetTest(t, "test771")
-			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
-			defer srv.Close()
-			defer cli.Close()
-			defer simnet.Close()
+		simt, cfg := newSimnetTest(t, "test771")
+		cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
+		defer srv.Close()
+		defer cli.Close()
+		defer simnet.Close()
 
-			serviceName := "customEcho"
-			srv.Register2Func(serviceName, customEcho)
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
 
-			//vv("simnet before cliDropSends %v", simnet.GetSimnetSnapshot())
-			undoCliDrop := simt.clientDropsSends(1)
-			//vv("simnet after cliDropsSends %v", simnet.GetSimnetSnapshot())
+		//vv("simnet before cliDropSends %v", simnet.GetSimnetSnapshot())
+		undoCliDrop := simt.clientDropsSends(1)
+		//vv("simnet after cliDropsSends %v", simnet.GetSimnetSnapshot())
 
-			req := NewMessage()
-			req.HDR.ToServiceName = serviceName
-			req.HDR.FromServiceName = serviceName
-			req.JobSerz = []byte("Hello from client!")
-			waitFor := time.Second
-			reply, err := cli.SendAndGetReply(req, nil, waitFor)
-			if err == nil {
-				panic("wanted timeout could not see server")
-			}
-			if reply != nil {
-				panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
-			}
-			// is dropped send visible? both cli and srv
-			stat := simnet.GetSimnetSnapshot()
+		req := NewMessage()
+		req.HDR.ToServiceName = serviceName
+		req.HDR.FromServiceName = serviceName
+		req.JobSerz = []byte("Hello from client!")
+		waitFor := time.Second
+		reply, err := cli.SendAndGetReply(req, nil, waitFor)
+		if err == nil {
+			panic("wanted timeout could not see server")
+		}
+		if reply != nil {
+			panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
+		}
+		// is dropped send visible? both cli and srv
+		stat := simnet.GetSimnetSnapshot()
 
-			sps := stat.Peermap[srvname]
-			sconn := sps.ConnmapOrigin[srvname]
-			cconn := stat.LoneCli[cliname].Conn[0]
+		sps := stat.Peermap[srvname]
+		sconn := sps.ConnmapOrigin[srvname]
+		cconn := stat.LoneCli[cliname].Conn[0]
 
-			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
+		//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
 
-			// verify client is not faulty in sending, only server.
-			ndrop := cconn.DroppedSendQ.Len()
-			if ndrop == 0 {
-				panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
-			} else {
-				//vv("good, saw cli ndrop(%v) > 0", ndrop)
-			}
+		// verify client is not faulty in sending, only server.
+		ndrop := cconn.DroppedSendQ.Len()
+		if ndrop == 0 {
+			panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
+		} else {
+			//vv("good, saw cli ndrop(%v) > 0", ndrop)
+		}
 
-			ndrop = sconn.DroppedSendQ.Len()
-			if ndrop != 0 {
-				panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
-			} else {
-				//vv("good, saw srv ndrop(%v) == 0", ndrop)
-			}
-			//vv("err = '%v'; reply = %p", err, reply)
+		ndrop = sconn.DroppedSendQ.Len()
+		if ndrop != 0 {
+			panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
+		} else {
+			//vv("good, saw srv ndrop(%v) == 0", ndrop)
+		}
+		//vv("err = '%v'; reply = %p", err, reply)
 
-			// repair the network
-			undoCliDrop()
+		// repair the network
+		undoCliDrop()
 
-			//vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
+		//vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
-			req2 := NewMessage()
-			req2.HDR.ToServiceName = serviceName
-			req2.HDR.FromServiceName = serviceName
-			req2.JobSerz = []byte("Hello from client! 2nd time.")
+		req2 := NewMessage()
+		req2.HDR.ToServiceName = serviceName
+		req2.HDR.FromServiceName = serviceName
+		req2.JobSerz = []byte("Hello from client! 2nd time.")
 
-			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
-			panicOn(err)
-			want := string(req2.JobSerz)
-			gotit := strings.HasPrefix(string(reply2.JobSerz), want)
-			if !gotit {
-				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
-			}
+		reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
+		panicOn(err)
+		want := string(req2.JobSerz)
+		gotit := strings.HasPrefix(string(reply2.JobSerz), want)
+		if !gotit {
+			t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
+		}
 
-		})
 	})
 }
 
 func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 
 	onlyBubbled(t, func(t *testing.T) {
-		cv.Convey("simnet server dropped sends should appear in the servers dropped send Q", t, func() {
+		//cv.Convey("simnet server dropped sends should appear in the servers dropped send Q", t, func() {
 
-			simt, cfg := newSimnetTest(t, "test772")
-			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
-			defer srv.Close()
-			defer cli.Close()
-			defer simnet.Close()
+		simt, cfg := newSimnetTest(t, "test772")
+		cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
+		defer srv.Close()
+		defer cli.Close()
+		defer simnet.Close()
 
-			serviceName := "customEcho"
-			srv.Register2Func(serviceName, customEcho)
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
 
-			//vv("simnet before serverDropSends %v", simnet.GetSimnetSnapshot())
-			undoServerDrop := simt.serverDropsSends(1)
-			//vv("simnet after serverDropsSends %v", simnet.GetSimnetSnapshot())
+		//vv("simnet before serverDropSends %v", simnet.GetSimnetSnapshot())
+		undoServerDrop := simt.serverDropsSends(1)
+		//vv("simnet after serverDropsSends %v", simnet.GetSimnetSnapshot())
 
-			req := NewMessage()
-			req.HDR.ToServiceName = serviceName
-			req.HDR.FromServiceName = serviceName
-			req.JobSerz = []byte("Hello from client!")
-			waitFor := time.Second
-			reply, err := cli.SendAndGetReply(req, nil, waitFor)
-			if err == nil {
-				panic("wanted timeout did not hear from server")
-			}
-			if reply != nil {
-				panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
-			}
-			// is dropped send visible? both cli and srv
-			stat := simnet.GetSimnetSnapshot()
+		req := NewMessage()
+		req.HDR.ToServiceName = serviceName
+		req.HDR.FromServiceName = serviceName
+		req.JobSerz = []byte("Hello from client!")
+		waitFor := time.Second
+		reply, err := cli.SendAndGetReply(req, nil, waitFor)
+		if err == nil {
+			panic("wanted timeout did not hear from server")
+		}
+		if reply != nil {
+			panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
+		}
+		// is dropped send visible? both cli and srv
+		stat := simnet.GetSimnetSnapshot()
 
-			sps := stat.Peermap[srvname]
-			sconn := sps.ConnmapOrigin[srvname]
-			cconn := stat.LoneCli[cliname].Conn[0]
+		sps := stat.Peermap[srvname]
+		sconn := sps.ConnmapOrigin[srvname]
+		cconn := stat.LoneCli[cliname].Conn[0]
 
-			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
+		//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
 
-			// verify only server is faulty in sending, not client.
-			ndrop := cconn.DroppedSendQ.Len()
-			if ndrop != 0 {
-				panic(fmt.Sprintf("expected cli ndrop(%v) == 0", ndrop))
-			} else {
-				//vv("good, saw cli ndrop(%v) == 0", ndrop)
-			}
+		// verify only server is faulty in sending, not client.
+		ndrop := cconn.DroppedSendQ.Len()
+		if ndrop != 0 {
+			panic(fmt.Sprintf("expected cli ndrop(%v) == 0", ndrop))
+		} else {
+			//vv("good, saw cli ndrop(%v) == 0", ndrop)
+		}
 
-			ndrop = sconn.DroppedSendQ.Len()
-			if ndrop == 0 {
-				panic(fmt.Sprintf("expected srv ndrop(%v) > 0", ndrop))
-			} else {
-				//vv("good, saw srv ndrop(%v) > 0", ndrop)
-			}
-			//vv("err = '%v'; reply = %p", err, reply)
+		ndrop = sconn.DroppedSendQ.Len()
+		if ndrop == 0 {
+			panic(fmt.Sprintf("expected srv ndrop(%v) > 0", ndrop))
+		} else {
+			//vv("good, saw srv ndrop(%v) > 0", ndrop)
+		}
+		//vv("err = '%v'; reply = %p", err, reply)
 
-			// repair the network
-			undoServerDrop()
+		// repair the network
+		undoServerDrop()
 
-			//vv("after srv repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
+		//vv("after srv repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
-			req2 := NewMessage()
-			req2.HDR.ToServiceName = serviceName
-			req2.HDR.FromServiceName = serviceName
-			req2.JobSerz = []byte("Hello from client! 2nd time.")
+		req2 := NewMessage()
+		req2.HDR.ToServiceName = serviceName
+		req2.HDR.FromServiceName = serviceName
+		req2.JobSerz = []byte("Hello from client! 2nd time.")
 
-			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
-			panicOn(err)
-			want := string(req2.JobSerz)
-			gotit := strings.HasPrefix(string(reply2.JobSerz), want)
-			if !gotit {
-				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
-			}
+		reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
+		panicOn(err)
+		want := string(req2.JobSerz)
+		gotit := strings.HasPrefix(string(reply2.JobSerz), want)
+		if !gotit {
+			t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
+		}
 
-		})
 	})
 }
 
@@ -1466,79 +1458,78 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 
 	// same as 771 but use AlterHost -> ISOLATED
 	onlyBubbled(t, func(t *testing.T) {
-		cv.Convey("simnet ISOLATED client dropped sends should appear in the client's dropped send Q", t, func() {
+		//cv.Convey("simnet ISOLATED client dropped sends should appear in the client's dropped send Q", t, func() {
 
-			simt, cfg := newSimnetTest(t, "test781")
-			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
-			defer srv.Close()
-			defer cli.Close()
-			defer simnet.Close()
+		simt, cfg := newSimnetTest(t, "test781")
+		cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
+		defer srv.Close()
+		defer cli.Close()
+		defer simnet.Close()
 
-			serviceName := "customEcho"
-			srv.Register2Func(serviceName, customEcho)
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
 
-			//vv("before simt.AlterClient(ISOLATE): %v", simnet.GetSimnetSnapshot())
-			undoIsolated := simt.AlterClient(ISOLATE)
-			vv("after simt.AlterClient(ISOLATE): %v", simnet.GetSimnetSnapshot())
+		//vv("before simt.AlterClient(ISOLATE): %v", simnet.GetSimnetSnapshot())
+		undoIsolated := simt.AlterClient(ISOLATE)
+		vv("after simt.AlterClient(ISOLATE): %v", simnet.GetSimnetSnapshot())
 
-			req := NewMessage()
-			req.HDR.ToServiceName = serviceName
-			req.HDR.FromServiceName = serviceName
-			req.JobSerz = []byte("Hello from client!")
-			waitFor := time.Second
-			reply, err := cli.SendAndGetReply(req, nil, waitFor)
-			if err == nil {
-				panic("wanted timeout could not see server")
-			}
-			if reply != nil {
-				panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
-			}
-			// is dropped send visible? both cli and srv
-			stat := simnet.GetSimnetSnapshot()
+		req := NewMessage()
+		req.HDR.ToServiceName = serviceName
+		req.HDR.FromServiceName = serviceName
+		req.JobSerz = []byte("Hello from client!")
+		waitFor := time.Second
+		reply, err := cli.SendAndGetReply(req, nil, waitFor)
+		if err == nil {
+			panic("wanted timeout could not see server")
+		}
+		if reply != nil {
+			panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
+		}
+		// is dropped send visible? both cli and srv
+		stat := simnet.GetSimnetSnapshot()
 
-			sps := stat.Peermap[srvname]
-			sconn := sps.ConnmapOrigin[srvname]
-			cconn := stat.LoneCli[cliname].Conn[0]
+		sps := stat.Peermap[srvname]
+		sconn := sps.ConnmapOrigin[srvname]
+		cconn := stat.LoneCli[cliname].Conn[0]
 
-			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
+		//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
 
-			// verify client is not faulty in sending, only server.
-			ndrop := cconn.DroppedSendQ.Len()
-			if ndrop == 0 {
-				panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
-			} else {
-				vv("good, saw cli ndrop(%v) > 0", ndrop)
-			}
+		// verify client is not faulty in sending, only server.
+		ndrop := cconn.DroppedSendQ.Len()
+		if ndrop == 0 {
+			panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
+		} else {
+			vv("good, saw cli ndrop(%v) > 0", ndrop)
+		}
 
-			ndrop = sconn.DroppedSendQ.Len()
-			if ndrop != 0 {
-				panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
-			} else {
-				vv("good, saw srv ndrop(%v) == 0", ndrop)
-			}
-			//vv("err = '%v'; reply = %p", err, reply)
+		ndrop = sconn.DroppedSendQ.Len()
+		if ndrop != 0 {
+			panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
+		} else {
+			vv("good, saw srv ndrop(%v) == 0", ndrop)
+		}
+		//vv("err = '%v'; reply = %p", err, reply)
 
-			vv("cli still isolated, network after cli tried to send echo request: %v", simnet.GetSimnetSnapshot())
+		vv("cli still isolated, network after cli tried to send echo request: %v", simnet.GetSimnetSnapshot())
 
-			// repair the network
-			undoIsolated()
+		// repair the network
+		undoIsolated()
 
-			vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
+		vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
-			req2 := NewMessage()
-			req2.HDR.ToServiceName = serviceName
-			req2.HDR.FromServiceName = serviceName
-			req2.JobSerz = []byte("Hello from client! 2nd time.")
+		req2 := NewMessage()
+		req2.HDR.ToServiceName = serviceName
+		req2.HDR.FromServiceName = serviceName
+		req2.JobSerz = []byte("Hello from client! 2nd time.")
 
-			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
-			panicOn(err)
-			want := string(req2.JobSerz)
-			gotit := strings.HasPrefix(string(reply2.JobSerz), want)
-			if !gotit {
-				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
-			}
+		reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
+		panicOn(err)
+		want := string(req2.JobSerz)
+		gotit := strings.HasPrefix(string(reply2.JobSerz), want)
+		if !gotit {
+			t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
+		}
 
-		})
 	})
 }
 
@@ -1546,80 +1537,79 @@ func Test782_simnetonly_server_isolated(t *testing.T) {
 
 	// same as 781 but for server (isolate with AlterHost -> ISOLATED)
 	onlyBubbled(t, func(t *testing.T) {
-		cv.Convey("simnet ISOLATED server dropped sends should appear in the server's dropped send Q", t, func() {
+		//cv.Convey("simnet ISOLATED server dropped sends should appear in the server's dropped send Q", t, func() {
 
-			simt, cfg := newSimnetTest(t, "test782")
-			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
-			defer srv.Close()
-			defer cli.Close()
-			defer simnet.Close()
+		simt, cfg := newSimnetTest(t, "test782")
+		cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
+		defer srv.Close()
+		defer cli.Close()
+		defer simnet.Close()
 
-			serviceName := "customEcho"
-			srv.Register2Func(serviceName, customEcho)
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
 
-			//vv("before simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot())
-			undoIsolated := simt.AlterServer(ISOLATE)
-			//vv("after simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot())
-			//vv("after simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot().ShortString())
+		//vv("before simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot())
+		undoIsolated := simt.AlterServer(ISOLATE)
+		//vv("after simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot())
+		//vv("after simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot().ShortString())
 
-			req := NewMessage()
-			req.HDR.ToServiceName = serviceName
-			req.HDR.FromServiceName = serviceName
-			req.JobSerz = []byte("Hello from client!")
-			waitFor := time.Second
-			reply, err := cli.SendAndGetReply(req, nil, waitFor)
-			if err == nil {
-				panic("wanted timeout could not see server")
-			}
-			if reply != nil {
-				panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
-			}
-			// is dropped send visible? both cli and srv
-			stat := simnet.GetSimnetSnapshot()
+		req := NewMessage()
+		req.HDR.ToServiceName = serviceName
+		req.HDR.FromServiceName = serviceName
+		req.JobSerz = []byte("Hello from client!")
+		waitFor := time.Second
+		reply, err := cli.SendAndGetReply(req, nil, waitFor)
+		if err == nil {
+			panic("wanted timeout could not see server")
+		}
+		if reply != nil {
+			panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
+		}
+		// is dropped send visible? both cli and srv
+		stat := simnet.GetSimnetSnapshot()
 
-			sps := stat.Peermap[srvname]
-			sconn := sps.ConnmapOrigin[srvname]
-			cconn := stat.LoneCli[cliname].Conn[0]
+		sps := stat.Peermap[srvname]
+		sconn := sps.ConnmapOrigin[srvname]
+		cconn := stat.LoneCli[cliname].Conn[0]
 
-			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
+		//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
 
-			// verify client is not faulty in sending, only server.
-			ndrop := cconn.DroppedSendQ.Len()
-			if ndrop == 0 {
-				panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
-			} else {
-				vv("good, saw cli ndrop(%v) > 0", ndrop)
-			}
+		// verify client is not faulty in sending, only server.
+		ndrop := cconn.DroppedSendQ.Len()
+		if ndrop == 0 {
+			panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
+		} else {
+			vv("good, saw cli ndrop(%v) > 0", ndrop)
+		}
 
-			ndrop = sconn.DroppedSendQ.Len()
-			if ndrop > 0 {
-				panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
-			} else {
-				vv("good, saw srv ndrop(%v) == 0", ndrop)
-			}
-			//vv("err = '%v'; reply = %p", err, reply)
+		ndrop = sconn.DroppedSendQ.Len()
+		if ndrop > 0 {
+			panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
+		} else {
+			vv("good, saw srv ndrop(%v) == 0", ndrop)
+		}
+		//vv("err = '%v'; reply = %p", err, reply)
 
-			//vv("srv still isolated, network after cli tried to send echo request: %v", simnet.GetSimnetSnapshot())
+		//vv("srv still isolated, network after cli tried to send echo request: %v", simnet.GetSimnetSnapshot())
 
-			// repair the network
-			undoIsolated()
+		// repair the network
+		undoIsolated()
 
-			vv("after srv repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
+		vv("after srv repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
-			req2 := NewMessage()
-			req2.HDR.ToServiceName = serviceName
-			req2.HDR.FromServiceName = serviceName
-			req2.JobSerz = []byte("Hello from client! 2nd time.")
+		req2 := NewMessage()
+		req2.HDR.ToServiceName = serviceName
+		req2.HDR.FromServiceName = serviceName
+		req2.JobSerz = []byte("Hello from client! 2nd time.")
 
-			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
-			panicOn(err)
-			want := string(req2.JobSerz)
-			gotit := strings.HasPrefix(string(reply2.JobSerz), want)
-			if !gotit {
-				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
-			}
+		reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
+		panicOn(err)
+		want := string(req2.JobSerz)
+		gotit := strings.HasPrefix(string(reply2.JobSerz), want)
+		if !gotit {
+			t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
+		}
 
-		})
 	})
 }
 

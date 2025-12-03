@@ -249,6 +249,12 @@ func panicf(format string, a ...interface{}) {
 	panic(fmt.Sprintf(format, a...))
 }
 
+func assert(b bool) {
+	if !b {
+		panic("assert panics on false")
+	}
+}
+
 /*func fileLine(depth int) string {
 	_, fileName, fileLine, ok := runtime.Caller(depth)
 	var s string

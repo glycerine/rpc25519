@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	//cv "github.com/glycerine/goconvey/convey"
 	//"github.com/glycerine/idem"
 )
 

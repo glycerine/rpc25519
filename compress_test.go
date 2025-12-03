@@ -7,44 +7,41 @@ import (
 	//"net"
 	"testing"
 	//"time"
-
-	cv "github.com/glycerine/goconvey/convey"
 )
 
 var _ = fmt.Printf
 
 func Test030_compress_inverses(t *testing.T) {
 
-	cv.Convey("compress.go pressor and decomp should be inverses", t, func() {
+	//cv.Convey("compress.go pressor and decomp should be inverses", t, func() {
 
-		p := newPressor(1000)
-		d := newDecomp(1000)
+	p := newPressor(1000)
+	d := newDecomp(1000)
 
-		orig := testData0 // append([]byte("hello rpc25519 world!"), make([]byte, 300)...)
-		bytesMsg := append([]byte{}, orig...)
+	orig := testData0 // append([]byte("hello rpc25519 world!"), make([]byte, 300)...)
+	bytesMsg := append([]byte{}, orig...)
 
-		//for _, magic7 := range []byte{1} {
-		for _, magic7 := range []magic7b{0, 1, 2, 3, 4, 5, 6} {
+	//for _, magic7 := range []byte{1} {
+	for _, magic7 := range []magic7b{0, 1, 2, 3, 4, 5, 6} {
 
-			nm, err := decodeMagic7(magic7)
-			_ = nm
-			panicOn(err)
+		nm, err := decodeMagic7(magic7)
+		_ = nm
+		panicOn(err)
 
-			msg1, err := p.handleCompress(magic7, bytesMsg)
-			panicOn(err)
-			//vv("%v compressed from %v -> %v bytes", nm, len(orig), len(msg1))
-			//vv("compressed msg1 = '%v'", string(msg1))
+		msg1, err := p.handleCompress(magic7, bytesMsg)
+		panicOn(err)
+		//vv("%v compressed from %v -> %v bytes", nm, len(orig), len(msg1))
+		//vv("compressed msg1 = '%v'", string(msg1))
 
-			// s2 compressed from 288 -> 271 bytes
+		// s2 compressed from 288 -> 271 bytes
 
-			msg2, err := d.handleDecompress(magic7, msg1)
-			panicOn(err)
-			//vv("msg2 = '%v'", string(msg2))
-			if string(msg2) != string(orig) {
-				panic("compress output did not decompress to the same")
-			}
+		msg2, err := d.handleDecompress(magic7, msg1)
+		panicOn(err)
+		//vv("msg2 = '%v'", string(msg2))
+		if string(msg2) != string(orig) {
+			panic("compress output did not decompress to the same")
 		}
-	})
+	}
 }
 
 var testData0 = []byte{
