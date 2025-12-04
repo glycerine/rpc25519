@@ -139,6 +139,8 @@ type fuzzNemesis struct {
 
 func (s *fuzzNemesis) makeTrouble() {
 
+	node := int(s.rnd(int64(len(s.clus.Nodes))))
+
 	r := fuzzFault(s.rnd(int64(fuzz_LAST)))
 	switch r {
 	case fuzz_NOOP:
@@ -151,8 +153,6 @@ func (s *fuzzNemesis) makeTrouble() {
 		//s.clus.DeafDrop(deaf, drop map[int]float64)
 		//s.clus.AllHealthy(powerOnAnyOff, deliverDroppedSends bool)
 		//s.clus.AllHealthyAndPowerOn(deliverDroppedSends bool)
-		// func (s *TubeNode) DropSends(probDrop float64)
-		// func (s *TubeNode) DeafToReads(probDeaf float64)
 
 	case fuzz_CLOCK_SKEW:
 	case fuzz_MEMBER_ADD:
@@ -160,10 +160,32 @@ func (s *fuzzNemesis) makeTrouble() {
 	case fuzz_MEMBER_RESTART:
 	case fuzz_SWIZZLE_CLOG:
 	case fuzz_ONE_WAY_FAULT:
+
+		probDrop := 1.0
+		probDeaf := 1.0
+		if s.rnd(2) == 1 {
+			s.clus.Nodes[node].DropSends(probDrop)
+		} else {
+			s.clus.Nodes[node].DeafToReads(probDeaf)
+		}
 	case fuzz_ONE_WAY_FAULT_PROBABALISTIC:
+
+		if s.rnd(2) == 1 {
+			probDrop := s.rng.float64prob()
+			s.clus.Nodes[node].DropSends(probDrop)
+			return
+		}
+		probDeaf := s.rng.float64prob()
+		s.clus.Nodes[node].DeafToReads(probDeaf)
+
 	case fuzz_ADD_CLIENT:
 	case fuzz_PAUSE_CLIENT:
 	case fuzz_RESTART_CLIENT:
+		var deliverDroppedSends bool
+		if s.rnd(2) == 1 {
+			deliverDroppedSends = true
+		}
+		s.clus.AllHealthyAndPowerOn(deliverDroppedSends)
 	case fuzz_TERMINATE_CLIENT:
 	case fuzz_MISORDERED_MESSAGE:
 	case fuzz_DUPLICATED_MESSAGE:

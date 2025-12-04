@@ -102,7 +102,7 @@ func chachaRandNonNegInt64Range(cha8 *mathrand2.ChaCha8, nChoices int64) (r int6
 
 	b := make([]byte, 8)
 	if nChoices == math.MaxInt64 {
-		//inlined rng.pseudoRandNonNegInt64():
+		//in-lined rng.pseudoRandNonNegInt64():
 
 		cha8.Read(b)
 		r = int64(binary.LittleEndian.Uint64(b))
@@ -226,4 +226,13 @@ func (rng *prng) pseudoRandInt64RangePosOrNeg(largestPositiveChoice int64) (r in
 
 	panic("never reached")
 	return r
+}
+
+func (rng *prng) float64prob() (r float64) {
+	rng.mut.Lock()
+	defer rng.mut.Unlock()
+
+	const nChoices int64 = 1 << 52
+	r = float64(chachaRandNonNegInt64Range(rng.cha8, nChoices)) / float64(nChoices)
+	return
 }
