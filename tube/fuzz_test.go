@@ -44,9 +44,54 @@ const (
 	fuzz_TERMINATE_CLIENT
 	fuzz_MISORDERED_MESSAGE
 	fuzz_DUPLICATED_MESSAGE
+	fuzz_HEAL_NODE
 
 	fuzz_LAST
 )
+
+func (f fuzzFault) String() string {
+	switch f {
+	case fuzz_NOOP:
+		return "fuzz_NOOP"
+	case fuzz_PAUSE:
+		return "fuzz_PAUSE"
+	case fuzz_CRASH:
+		return "fuzz_CRASH"
+	case fuzz_PARTITON:
+		return "fuzz_PARTITON"
+	case fuzz_CLOCK_SKEW:
+		return "fuzz_CLOCK_SKEW"
+	case fuzz_MEMBER_ADD:
+		return "fuzz_MEMBER_ADD"
+	case fuzz_MEMBER_REMOVE:
+		return "fuzz_MEMBER_REMOVE"
+	case fuzz_MEMBER_RESTART:
+		return "fuzz_MEMBER_RESTART"
+	case fuzz_SWIZZLE_CLOG:
+		return "fuzz_SWIZZLE_CLOG"
+	case fuzz_ONE_WAY_FAULT:
+		return "fuzz_ONE_WAY_FAULT"
+	case fuzz_ONE_WAY_FAULT_PROBABALISTIC:
+		return "fuzz_ONE_WAY_FAULT_PROBABALISTIC"
+	case fuzz_ADD_CLIENT:
+		return "fuzz_ADD_CLIENT"
+	case fuzz_PAUSE_CLIENT:
+		return "fuzz_PAUSE_CLIENT"
+	case fuzz_RESTART_CLIENT:
+		return "fuzz_RESTART_CLIENT"
+	case fuzz_TERMINATE_CLIENT:
+		return "fuzz_TERMINATE_CLIENT"
+	case fuzz_MISORDERED_MESSAGE:
+		return "fuzz_MISORDERED_MESSAGE"
+	case fuzz_DUPLICATED_MESSAGE:
+		return "fuzz_DUPLICATED_MESSAGE"
+	case fuzz_HEAL_NODE:
+		return "fuzz_HEAL_NODE"
+	case fuzz_LAST:
+		return "fuzz_LAST"
+	}
+	panic(fmt.Sprintf("unknown fuzzFault: %v", int(f)))
+}
 
 // user tries to get read/write work done.
 type fuzzUser struct {
@@ -70,7 +115,7 @@ func (s *fuzzUser) Write(key string, writeMe int) {
 	}
 
 	v := []byte(fmt.Sprintf("%v", writeMe))
-	vv("about to write at writeMe=%v: '%v'", writeMe, string(v))
+	vv("about to write at node 0, v = writeMe = %v: '%v'", writeMe, string(v))
 
 	// WRITE
 	tktW, err := s.clus.Nodes[0].Write(bkg, "", Key(key), v, 0, nil)
@@ -98,6 +143,7 @@ func (s *fuzzUser) Read(key string, jnode int) {
 
 	begtmRead := time.Now()
 
+	vv("reading from jnode=%v", jnode)
 	tkt, err := s.clus.Nodes[jnode].Read(bkg, "", Key(key), 0, nil)
 	vv("jnode=%v, back from Read(key='%v') -> tkt.Val:'%v' (tkt.Err='%v')", jnode, key, string(tkt.Val), tkt.Err)
 
@@ -137,20 +183,82 @@ type fuzzNemesis struct {
 	rnd     func(nChoices int64) (r int64)
 	clus    *TubeCluster
 	clients *[]TubeNode
+
+	// so we keep a majority of nodes healthy,
+	// per Raft requirements, track who is damaged currently here.
+	damagedSlc []int
+	damaged    map[int]int
 }
 
 func (s *fuzzNemesis) makeTrouble() {
 
-	node := int(s.rnd(int64(len(s.clus.Nodes))))
+	beat := time.Second
 
-	r := fuzzFault(s.rnd(int64(fuzz_LAST)))
+	nn := len(s.clus.Nodes)
+	quorum := nn/2 + 1
+	numDamaged := len(s.damagedSlc)
+	maxDamaged := nn - quorum
+
+	healProb := 0.1
+	noopProb := 0.3
+	pr := s.rng.float64prob()
+	isHeal := pr <= healProb
+	if !isHeal {
+		isNoop := pr <= healProb+noopProb
+		if isNoop {
+			vv("isNoop true")
+			time.Sleep(beat)
+			return
+		}
+	} else {
+		vv("isHeal true")
+	}
+
+	var r fuzzFault
+	var node int
+
+	if isHeal {
+		if numDamaged == 0 {
+			r = fuzz_NOOP
+		} else {
+			r = fuzz_HEAL_NODE
+			// pick a damaged node at random to heal.
+			which := int(s.rnd(int64(numDamaged)))
+			node = s.damagedSlc[which]
+
+			// remove node from s.damaged and s.damagedSlc
+			where := s.damaged[node]
+			s.damagedSlc = append(s.damagedSlc[:where], s.damagedSlc[where+1:]...)
+			delete(s.damaged, node)
+		}
+	} else {
+		// not healing, damaging
+		if numDamaged < maxDamaged {
+			// any node can take damage
+			node = int(s.rnd(int64(nn)))
+
+			_, already := s.damaged[node]
+			if !already {
+				s.damaged[node] = len(s.damagedSlc)
+				s.damagedSlc = append(s.damagedSlc, node)
+			}
+		} else {
+			// only an already damaged node can take more damage.
+			if numDamaged > 0 {
+				// pick from one of the already damaged nodes
+				which := int(s.rnd(int64(numDamaged)))
+				node = s.damagedSlc[which]
+			}
+		}
+		r = fuzzFault(s.rnd(int64(fuzz_HEAL_NODE)))
+	}
+	vv("node = %v; r = %v", node, r)
 	switch r {
 	case fuzz_NOOP:
 	case fuzz_PAUSE:
 	case fuzz_CRASH:
 	case fuzz_PARTITON:
-		i := int(s.rnd(int64(len(s.clus.Nodes))))
-		s.clus.IsolateNode(i)
+		s.clus.IsolateNode(node)
 
 		//s.clus.DeafDrop(deaf, drop map[int]float64)
 		//s.clus.AllHealthy(powerOnAnyOff, deliverDroppedSends bool)
@@ -174,25 +282,29 @@ func (s *fuzzNemesis) makeTrouble() {
 
 		if s.rnd(2) == 1 {
 			probDrop := s.rng.float64prob()
+			vv("probDrop send = %v on node = %v", probDrop, node)
 			s.clus.Nodes[node].DropSends(probDrop)
 			return
 		}
 		probDeaf := s.rng.float64prob()
+		vv("probDeaf to read = %v on node = %v", probDeaf, node)
 		s.clus.Nodes[node].DeafToReads(probDeaf)
 
 	case fuzz_ADD_CLIENT:
 	case fuzz_PAUSE_CLIENT:
 	case fuzz_RESTART_CLIENT:
+
+	case fuzz_TERMINATE_CLIENT:
+	case fuzz_MISORDERED_MESSAGE:
+	case fuzz_DUPLICATED_MESSAGE:
+
+	case fuzz_HEAL_NODE:
 		var deliverDroppedSends bool
 		if s.rnd(2) == 1 {
 			deliverDroppedSends = true
 		}
 		s.clus.AllHealthyAndPowerOn(deliverDroppedSends)
-	case fuzz_TERMINATE_CLIENT:
-	case fuzz_MISORDERED_MESSAGE:
-	case fuzz_DUPLICATED_MESSAGE:
 	}
-	beat := time.Second
 	time.Sleep(beat)
 }
 
@@ -254,9 +366,10 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 				clus: c,
 			}
 			nemesis := &fuzzNemesis{
-				rng:  rng,
-				rnd:  rnd,
-				clus: c,
+				rng:     rng,
+				rnd:     rnd,
+				clus:    c,
+				damaged: make(map[int]int),
 			}
 			_ = user
 			_ = nemesis
@@ -366,70 +479,71 @@ func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]b
 
 /*
 // GOEXPERIMENT=synctest GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 go test -v -run 299 -count=1
-func Test299_ResetDsimSeed(t *testing.T) {
-	//return
 
-	// tried turning off garbage collection -- we still get non-determinism under
-	// GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 GOEXPERIMENT=synctest go test -v -run 299_ResetDsim -trace=trace.out
-	// GODEBUG=asyncpreemptoff=1,gctrace=1 GO_DSIM_SEED=1 GOEXPERIMENT=synctest go test -v -run 299_ResetDsim -trace=trace.out
-	//
-	//debug.SetMemoryLimit(math.MaxInt64)
-	//debug.SetGCPercent(-1)
-	//vv("turned off garbage collection. now.")
+	func Test299_ResetDsimSeed(t *testing.T) {
+		//return
 
-	onlyBubbled(t, func(t *testing.T) {
-		// try to provoke races
-		vv("begin 299")
+		// tried turning off garbage collection -- we still get non-determinism under
+		// GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 GOEXPERIMENT=synctest go test -v -run 299_ResetDsim -trace=trace.out
+		// GODEBUG=asyncpreemptoff=1,gctrace=1 GO_DSIM_SEED=1 GOEXPERIMENT=synctest go test -v -run 299_ResetDsim -trace=trace.out
+		//
+		//debug.SetMemoryLimit(math.MaxInt64)
+		//debug.SetGCPercent(-1)
+		//vv("turned off garbage collection. now.")
 
-		//trace.Start()
-		//defer trace.Stop()
+		onlyBubbled(t, func(t *testing.T) {
+			// try to provoke races
+			vv("begin 299")
 
-		runtime.ResetDsimSeed(1)
+			//trace.Start()
+			//defer trace.Stop()
 
-		N := uint64(100)
+			runtime.ResetDsimSeed(1)
 
-		ma := make(map[int]int)
-		for k := range 10 {
-			ma[k] = k
-		}
-		sam := make([][]int, 3)
+			N := uint64(100)
 
-		for i := range 3 {
-			runtime.ResetDsimSeed(uint64(i))
-			for k := range ma {
-				sam[i] = append(sam[i], k)
+			ma := make(map[int]int)
+			for k := range 10 {
+				ma[k] = k
 			}
-			vv("sam[%v] = '%#v'", i, sam[i])
-		}
+			sam := make([][]int, 3)
 
-		ctx, task := trace.NewTask(bkg, "i_loop")
-		defer task.End()
+			for i := range 3 {
+				runtime.ResetDsimSeed(uint64(i))
+				for k := range ma {
+					sam[i] = append(sam[i], k)
+				}
+				vv("sam[%v] = '%#v'", i, sam[i])
+			}
 
-		for i := uint64(0); i < N; i++ {
+			ctx, task := trace.NewTask(bkg, "i_loop")
+			defer task.End()
 
-			for j := range 10 { // _000 {
-				seed := j % 3
+			for i := uint64(0); i < N; i++ {
 
-				trace.Log(ctx, "i_j_iter", fmt.Sprintf("have i=%v; j=%v", i, j))
+				for j := range 10 { // _000 {
+					seed := j % 3
 
-				trace.WithRegion(ctx, "one_map_iter", func() {
+					trace.Log(ctx, "i_j_iter", fmt.Sprintf("have i=%v; j=%v", i, j))
 
-					runtime.ResetDsimSeed(uint64(seed))
+					trace.WithRegion(ctx, "one_map_iter", func() {
 
-					ii := 0
-					for k := range ma {
-						if k != sam[seed][ii] {
-							// get timestamp since synctest controls clock.
-							vv("disagree on seed=%v;  i = %v; ii=%v; k=%v but.. sam[i] = %v (at j=%v); runtime.JeaCounter() = %v", seed, i, ii, k, sam[seed][ii], j, runtime.JeaRandCallCounter())
+						runtime.ResetDsimSeed(uint64(seed))
 
-							panicf("disagree on seed=%v;  i = %v; ii=%v; k=%v but sam[i] = %v (at j=%v)", seed, i, ii, k, sam[seed][ii], j)
+						ii := 0
+						for k := range ma {
+							if k != sam[seed][ii] {
+								// get timestamp since synctest controls clock.
+								vv("disagree on seed=%v;  i = %v; ii=%v; k=%v but.. sam[i] = %v (at j=%v); runtime.JeaCounter() = %v", seed, i, ii, k, sam[seed][ii], j, runtime.JeaRandCallCounter())
+
+								panicf("disagree on seed=%v;  i = %v; ii=%v; k=%v but sam[i] = %v (at j=%v)", seed, i, ii, k, sam[seed][ii], j)
+							}
+							ii++
 						}
-						ii++
-					}
-				})
+					})
 
+				}
 			}
-		}
-	})
-}
+		})
+	}
 */
