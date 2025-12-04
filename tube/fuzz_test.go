@@ -78,6 +78,7 @@ func (s *fuzzUser) Write(key string, writeMe int) {
 	switch err {
 	case ErrShutDown, rpc.ErrShutdown2,
 		ErrTimeOut, rpc.ErrTimeout:
+		vv("write failed: '%v'", err)
 		return
 	}
 	panicOn(err)
@@ -90,6 +91,7 @@ func (s *fuzzUser) Write(key string, writeMe int) {
 	s.ops = append(s.ops, op)
 	s.opsMut.Unlock()
 
+	vv("write ok. len ops now %v", len(s.ops))
 }
 
 func (s *fuzzUser) Read(key string, jnode int) {
@@ -272,6 +274,7 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 			jnode2 := int(rnd(int64(numNodes)))
 			user.Read(key, jnode2)
 
+			ops = user.ops
 		})
 
 		linz := porc.CheckOperations(registerModel, ops)
@@ -280,7 +283,7 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 			t.Fatalf("error: expected operations to be linearizable! seed='%v'; ops='%v'", seed, opsSlice(ops))
 		}
 
-		//vv("jnode=%v, i=%v passed linearizability checker.", jnode, i)
+		vv("len(ops)=%v passed linearizability checker.", len(ops))
 	}
 }
 
