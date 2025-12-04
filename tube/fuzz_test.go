@@ -322,17 +322,17 @@ func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]b
 }
 
 /*
-// GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 go test -v -run 299 -count=1
+// GOEXPERIMENT=synctest GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 go test -v -run 299 -count=1
 func Test299_ResetDsimSeed(t *testing.T) {
-	return
+	//return
 
 	// tried turning off garbage collection -- we still get non-determinism under
 	// GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 GOEXPERIMENT=synctest go test -v -run 299_ResetDsim -trace=trace.out
 	// GODEBUG=asyncpreemptoff=1,gctrace=1 GO_DSIM_SEED=1 GOEXPERIMENT=synctest go test -v -run 299_ResetDsim -trace=trace.out
 	//
-	debug.SetMemoryLimit(math.MaxInt64)
-	debug.SetGCPercent(-1)
-	vv("turned off garbage collection. now.")
+	//debug.SetMemoryLimit(math.MaxInt64)
+	//debug.SetGCPercent(-1)
+	//vv("turned off garbage collection. now.")
 
 	onlyBubbled(t, func(t *testing.T) {
 		// try to provoke races
@@ -364,7 +364,7 @@ func Test299_ResetDsimSeed(t *testing.T) {
 
 		for i := uint64(0); i < N; i++ {
 
-			for j := range 10 { // 1_000 {
+			for j := range 10 { // _000 {
 				seed := j % 3
 
 				trace.Log(ctx, "i_j_iter", fmt.Sprintf("have i=%v; j=%v", i, j))
@@ -377,7 +377,8 @@ func Test299_ResetDsimSeed(t *testing.T) {
 					for k := range ma {
 						if k != sam[seed][ii] {
 							// get timestamp since synctest controls clock.
-							vv("disagree on seed=%v;  i = %v; ii=%v; k=%v but.. sam[i] = %v (at j=%v)", seed, i, ii, k, sam[seed][ii], j)
+							vv("disagree on seed=%v;  i = %v; ii=%v; k=%v but.. sam[i] = %v (at j=%v); runtime.JeaCounter() = %v", seed, i, ii, k, sam[seed][ii], j, runtime.JeaRandCallCounter())
+
 							panicf("disagree on seed=%v;  i = %v; ii=%v; k=%v but sam[i] = %v (at j=%v)", seed, i, ii, k, sam[seed][ii], j)
 						}
 						ii++
