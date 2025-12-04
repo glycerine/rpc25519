@@ -48,15 +48,8 @@ const (
 	fuzz_LAST
 )
 
-// func (s *TubeCluster) DeafDrop(deaf, drop map[int]float64)
-// func (s *TubeCluster) IsolateNode(i int)
-// func (s *TubeCluster) AllHealthy(powerOnAnyOff, deliverDroppedSends bool)
-// func (s *TubeCluster) AllHealthyAndPowerOn(deliverDroppedSends bool)
-// func (s *TubeNode) DropSends(probDrop float64)
-// func (s *TubeNode) DeafToReads(probDeaf float64)
-
-// mutator tries to get read/write work done.
-type fuzzMutator struct {
+// user tries to get read/write work done.
+type fuzzUser struct {
 	opsMut sync.Mutex
 	ops    []porc.Operation
 	rnd    func(nChoices int64) (r int64)
@@ -64,7 +57,7 @@ type fuzzMutator struct {
 	clus *TubeCluster
 }
 
-func (s *fuzzMutator) Write(key string, writeMe int) {
+func (s *fuzzUser) Write(key string, writeMe int) {
 
 	begtmWrite := time.Now()
 
@@ -99,12 +92,16 @@ func (s *fuzzMutator) Write(key string, writeMe int) {
 
 }
 
-func (s *fuzzMutator) Read(key string, jnode int) {
+func (s *fuzzUser) Read(key string, jnode int) {
 
 	begtmRead := time.Now()
 
 	tkt, err := s.clus.Nodes[jnode].Read(bkg, "", Key(key), 0, nil)
-	//vv("i=%v, jnode=%v, back from Read", i, jnode)
+	vv("jnode=%v, back from Read(key='%v') -> tkt.Val:'%v' (tkt.Err='%v')", jnode, key, string(tkt.Val), tkt.Err)
+
+	if tkt != nil && tkt.Err != nil && tkt.Err.Error() == "key not found" {
+		return
+	}
 
 	switch err {
 	case ErrShutDown, rpc.ErrShutdown2,
@@ -132,7 +129,7 @@ func (s *fuzzMutator) Read(key string, jnode int) {
 
 }
 
-// nemesis injects faults, makes trouble for mutator.
+// nemesis injects faults, makes trouble for user.
 type fuzzNemesis struct {
 	rng     *prng
 	rnd     func(nChoices int64) (r int64)
@@ -142,30 +139,37 @@ type fuzzNemesis struct {
 
 func (s *fuzzNemesis) makeTrouble() {
 
-	beat := time.Second
-	for {
-		r := fuzzFault(s.rnd(int64(fuzz_LAST)))
-		switch r {
-		case fuzz_NOOP:
-			time.Sleep(beat)
-		case fuzz_PAUSE:
-		case fuzz_CRASH:
-		case fuzz_PARTITON:
-		case fuzz_CLOCK_SKEW:
-		case fuzz_MEMBER_ADD:
-		case fuzz_MEMBER_REMOVE:
-		case fuzz_MEMBER_RESTART:
-		case fuzz_SWIZZLE_CLOG:
-		case fuzz_ONE_WAY_FAULT:
-		case fuzz_ONE_WAY_FAULT_PROBABALISTIC:
-		case fuzz_ADD_CLIENT:
-		case fuzz_PAUSE_CLIENT:
-		case fuzz_RESTART_CLIENT:
-		case fuzz_TERMINATE_CLIENT:
-		case fuzz_MISORDERED_MESSAGE:
-		case fuzz_DUPLICATED_MESSAGE:
-		}
+	r := fuzzFault(s.rnd(int64(fuzz_LAST)))
+	switch r {
+	case fuzz_NOOP:
+	case fuzz_PAUSE:
+	case fuzz_CRASH:
+	case fuzz_PARTITON:
+		i := int(s.rnd(int64(len(s.clus.Nodes))))
+		s.clus.IsolateNode(i)
+
+		//s.clus.DeafDrop(deaf, drop map[int]float64)
+		//s.clus.AllHealthy(powerOnAnyOff, deliverDroppedSends bool)
+		//s.clus.AllHealthyAndPowerOn(deliverDroppedSends bool)
+		// func (s *TubeNode) DropSends(probDrop float64)
+		// func (s *TubeNode) DeafToReads(probDeaf float64)
+
+	case fuzz_CLOCK_SKEW:
+	case fuzz_MEMBER_ADD:
+	case fuzz_MEMBER_REMOVE:
+	case fuzz_MEMBER_RESTART:
+	case fuzz_SWIZZLE_CLOG:
+	case fuzz_ONE_WAY_FAULT:
+	case fuzz_ONE_WAY_FAULT_PROBABALISTIC:
+	case fuzz_ADD_CLIENT:
+	case fuzz_PAUSE_CLIENT:
+	case fuzz_RESTART_CLIENT:
+	case fuzz_TERMINATE_CLIENT:
+	case fuzz_MISORDERED_MESSAGE:
+	case fuzz_DUPLICATED_MESSAGE:
 	}
+	beat := time.Second
+	time.Sleep(beat)
 }
 
 func Test099_fuzz_testing_linz(t *testing.T) {
@@ -221,7 +225,7 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 			_, _, _ = leader, leadi, maxterm
 			defer c.Close()
 
-			mutator := &fuzzMutator{
+			user := &fuzzUser{
 				rnd:  rnd,
 				clus: c,
 			}
@@ -230,14 +234,28 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 				rnd:  rnd,
 				clus: c,
 			}
-			_ = mutator
+			_ = user
 			_ = nemesis
+
+			key := "key10"
+
+			jnode := int(rnd(int64(numNodes)))
+			user.Read(key, jnode)
+
+			writeMe := 10
+			user.Write(key, writeMe)
+
+			nemesis.makeTrouble()
+
+			jnode2 := int(rnd(int64(numNodes)))
+			user.Read(key, jnode2)
+
 		})
 
 		linz := porc.CheckOperations(registerModel, ops)
 		if !linz {
 			writeToDiskNonLinz(t, ops)
-			t.Fatalf("error: expected operations to be linearizable! ops='%v'", opsSlice(ops))
+			t.Fatalf("error: expected operations to be linearizable! seed='%v'; ops='%v'", seed, opsSlice(ops))
 		}
 
 		//vv("jnode=%v, i=%v passed linearizability checker.", jnode, i)
