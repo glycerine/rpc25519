@@ -67,7 +67,7 @@ summer's day in some parts of the world.
 Tube, this package, gives all of the core
 Raft algorithm in a deliberately small,
 compact form. All the core Raft logic
-is in this file, along with important
+is in this file (tube.go), along with important
 and common optimizations like pre-voting
 and sticky-leader.
 
@@ -92,8 +92,7 @@ using, and even extending the Raft algorithm.
 Log compaction and snapshots are implemented (chapter 5).
 
 The client session system from chapter 6 is
-implemented to preserve linearizability
-(aka linz for short).
+implemented to preserve linearizability.
 
 Clients can use CreateNewSession to establish
 a server side record of their activity, and thus obtain
@@ -115,20 +114,23 @@ See also [1][2][3].
 
 We prefer the Mongo-Raft-Reconfig algorithm over the
 dissertation SSAAT algorithm because, in
-addition to being model checked and used
-successfully in for several years in MongoDB operations:
+addition to being model checked, it has been used
+successfully for several years in commercial 
+MongoDB operations. Moreover, the Mongo-Raft-Reconfig algorithm:
 
-a) it has been formally proven. Neither of the
+a) has been formally proven. Neither of the
 dissertation membership change algorithms has been
 formally proven, and thus naturally bugs have
 been found subsequent to their publication[4].
-Despite this known concern, they have still not been
-formally proven.
+Despite this known concern, and even given more than a decade
+since they were first published, nobody has yet
+managed to formally prove that the original Raft
+dissertation membership change algorithms are safe.
 
-b) it keeps the MemberConfig (MC) separate from
+b) keeps the MemberConfig (MC) separate from
 the raft log. This greatly simplifies membership
 management, especially when the raft log has to be truncated
-due to leadership change. As a "logless" algorithm
+due to leadership change or log compaction. As a "logless" algorithm
 the membership is kept instead in the persistent
 (state-machine) state which is separate
 from the Raft log.
@@ -211,7 +213,7 @@ does this automatically, but this optimization
 requires PreVoting to be used on
 all cluster nodes. If the leader has
 heard from a quorum recently, it knows
-it cannot have be deposed before
+it cannot have been deposed before
 another leader election timeout, since any
 other node will lose a pre-vote. The
 trade-off is enduring the same window of

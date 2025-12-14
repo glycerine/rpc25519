@@ -39,6 +39,10 @@ type set struct {
 // Note that the servers try to save these
 // dynamically added nodes to state.Known to
 // remember them even after a reboot.
+//
+// If requireOnlyContact is true, then
+// HelperFindLeader will immediately exit(1) if
+// the contactName is not also the current leader.
 func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool, contacted []*Inspection, err0 error) {
 
 	if node.name != cfg.MyName {

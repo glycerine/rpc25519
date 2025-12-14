@@ -117,7 +117,13 @@ func main() {
 	// Use HelperFindLeader for better chance of locating a leader
 
 	ctx := context.Background()
+
+	// If requireOnlyContact is true,
+	// then HelperFindLeader will
+	// immediately exit(1) if the contactName is
+	// not also the current leader.
 	const requireOnlyContact = false
+
 	leaderURL, leaderName, _, reallyLeader, _, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, requireOnlyContact)
 	panicOn(err)
 	if !reallyLeader {
