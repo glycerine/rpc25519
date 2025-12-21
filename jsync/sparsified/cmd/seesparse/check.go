@@ -19,7 +19,8 @@ func main() {
 	fd, err = os.Open(path)
 	panicOn(err)
 
-	spansRead, err := FindSparseRegions(fd)
+	sparseSum, spansRead, err := FindSparseRegions(fd)
+	_ = sparseSum
 	panicOn(err)
 	vv("spansRead = '%v'", spansRead)
 	return
