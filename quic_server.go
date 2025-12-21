@@ -194,7 +194,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 			//}
 		}
 
-		go func(conn quic.Connection) {
+		go func(conn *quic.Conn) {
 			defer func() {
 				conn.CloseWithError(0, "")
 				//vv("finished with this quic connection.")
@@ -237,7 +237,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 
 				//vv("quic server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 				if s.cfg.encryptPSK {
-					wrap := &NetConnWrapper{Stream: stream, Connection: conn}
+					wrap := &NetConnWrapper{Stream: stream, Conn: conn}
 					switch {
 					case useVerifiedHandshake:
 						randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
@@ -260,7 +260,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 				}
 
 				// each stream gets its own read/send pair.
-				wrap := &NetConnWrapper{Stream: stream, Connection: conn}
+				wrap := &NetConnWrapper{Stream: stream, Conn: conn}
 				pair := s.newRWPair(wrap)
 
 				pair.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey

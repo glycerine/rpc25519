@@ -48,7 +48,7 @@ type uConnLR interface {
 	localRemoteAddr
 }
 
-var _ quic.Connection
+var _ *quic.Conn
 
 var sep = string(os.PathSeparator)
 
@@ -1339,7 +1339,7 @@ type Client struct {
 	PeerAPI  *peerAPI // must be Exported to users!
 
 	conn       uConnLR
-	quicConn   quic.Connection
+	quicConn   *quic.Conn
 	quicConfig *quic.Config
 
 	isTLS  bool

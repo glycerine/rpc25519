@@ -189,7 +189,7 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	}
 	defer stream.Close()
 
-	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
+	wrap := &NetConnWrapper{Stream: stream, Conn: conn}
 
 	//vv("quic client stream: local = '%v'", local(wrap))
 	//vv("quic client stream: remote = '%v'", remote(wrap))
@@ -210,12 +210,12 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 // like `goq` and others that want to inspect
 // that context of their calls can do so.
 type NetConnWrapper struct {
-	quic.Stream
-	quic.Connection
+	*quic.Stream
+	*quic.Conn
 }
 
 func (w *NetConnWrapper) Close() error {
 	//vv("NetConnWrapper Close() called")
 	w.Stream.Close()
-	return w.Connection.CloseWithError(0, "server shutdown")
+	return w.Conn.CloseWithError(0, "server shutdown")
 }

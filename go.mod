@@ -7,7 +7,7 @@ require (
 	github.com/anishathalye/porcupine v1.0.3
 	github.com/apoorvam/goterminal v0.0.0-20180523175556-614d345c47e5
 	github.com/caio/go-tdigest v3.1.0+incompatible
-	github.com/cloudflare/circl v1.5.0
+	github.com/cloudflare/circl v1.6.1
 	github.com/cristalhq/base64 v0.1.2
 	github.com/glycerine/base58 v0.24.2
 	github.com/glycerine/bbolt v1.4.4-jea
@@ -27,12 +27,12 @@ require (
 	github.com/klauspost/compress v1.17.11
 	github.com/klauspost/cpuid/v2 v2.0.9
 	github.com/pierrec/lz4/v4 v4.1.22
-	github.com/quic-go/quic-go v0.48.2
+	github.com/quic-go/quic-go v0.58.0
 	github.com/stretchr/testify v1.11.1
 	github.com/templexxx/cpu v0.1.1
-	golang.org/x/crypto v0.41.0
-	golang.org/x/sys v0.37.0
-	golang.org/x/term v0.34.0
+	golang.org/x/crypto v0.45.0
+	golang.org/x/sys v0.38.0
+	golang.org/x/term v0.37.0
 )
 
 //replace github.com/glycerine/idem => /Users/jaten/go/src/github.com/glycerine/idem
@@ -57,10 +57,10 @@ require (
 	github.com/shurcooL/go-goon v1.0.0 // indirect
 	github.com/tinylib/msgp v1.1.2 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	go.uber.org/mock v0.4.0 // indirect
+	go.uber.org/mock v0.5.2 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
 	golang.org/x/mod v0.27.0 // indirect
-	golang.org/x/net v0.43.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
