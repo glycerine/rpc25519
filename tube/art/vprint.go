@@ -247,3 +247,9 @@ func getGoroutineIDs() map[int]bool {
 
 	return m
 }
+
+func assert(b bool) {
+	if !b {
+		panic("assert panics on false")
+	}
+}

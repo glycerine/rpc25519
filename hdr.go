@@ -16,7 +16,6 @@ import (
 	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/loquet"
-	gjson "github.com/goccy/go-json"
 	mathrand2 "math/rand/v2"
 )
 
@@ -611,14 +610,14 @@ func (m *HDR) Bytes() []byte {
 // Unbytes reverses Bytes.
 func Unbytes(jsonData []byte) *HDR {
 	var mid HDR
-	err := gjson.Unmarshal(jsonData, &mid)
+	err := json.Unmarshal(jsonData, &mid)
 	panicOn(err)
 	return &mid
 }
 
 func HDRFromBytes(jsonData []byte) (*HDR, error) {
 	var mid HDR
-	err := gjson.Unmarshal(jsonData, &mid)
+	err := json.Unmarshal(jsonData, &mid)
 	if err != nil {
 		return nil, err
 	}

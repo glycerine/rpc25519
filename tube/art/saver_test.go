@@ -7,7 +7,6 @@ import (
 	"time"
 	//"bytes"
 	//"encoding/binary"
-	"github.com/stretchr/testify/assert"
 	//"github.com/tidwall/btree"
 	"os"
 	"testing"
@@ -25,9 +24,9 @@ func TestTree_SaverSimple(t *testing.T) {
 
 	// search first
 	value, _, found := tree.FindExact(Key("I'm Key"))
-	assert.True(t, found)
+	assert(found)
 	//vv("before serz, first search value = '%#v'", value)
-	assert.Equal(t, []byte("I'm Value"), value)
+	assert("I'm Value" == string(value))
 
 	// save
 	path := "out.saver_test"
@@ -58,14 +57,14 @@ func TestTree_SaverSimple(t *testing.T) {
 	}
 	// search it
 	value, _, found = tree2.FindExact(Key("I'm Key"))
-	assert.True(t, found)
+	assert(found)
 	//vv("value = '%#v'", value)
-	assert.Equal(t, []byte("I'm Value"), value)
+	assert("I'm Value" == string(value))
 
 	// search it
 	value, _, found = tree2.FindExact(Key("I'm Key2"))
-	assert.True(t, found)
-	assert.Equal(t, []byte("I'm Value2"), value)
+	assert(found)
+	assert("I'm Value2" == string(value))
 }
 
 func TestDepthString_MediumDeepTree(t *testing.T) {
