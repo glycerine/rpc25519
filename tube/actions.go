@@ -50,10 +50,11 @@ import (
 // This provides the strongest and most intuitive
 // consistency. It also gives us composability --
 // a synonym for ease of use.
-func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, sess *Session) (tkt *Ticket, err error) {
+func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, sess *Session, vtype string) (tkt *Ticket, err error) {
 
 	desc := fmt.Sprintf("write: key(%v) = val(%v)", key, showExternalCluster(val))
 	tkt = s.NewTicket(desc, table, key, val, s.PeerID, s.name, WRITE, waitForDur, ctx)
+	tkt.Vtype = vtype
 	if sess != nil {
 		tkt.SessionID = sess.SessionID
 		tkt.SessionSerial = sess.SessionSerial
@@ -96,12 +97,13 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 }
 
 // Compare and Swap
-func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session) (tkt *Ticket, err error) {
+func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string) (tkt *Ticket, err error) {
 
 	desc := fmt.Sprintf("cas(table(%v), key(%v), if oldval(%v) -> newval(%v)", table, key, string(oldval), string(newval))
 
 	tkt = s.NewTicket(desc, table, key, newval, s.PeerID, s.name, CAS, waitForDur, ctx)
 	tkt.OldVal = oldval
+	tkt.Vtype = newVtype
 
 	if sess != nil {
 		tkt.SessionID = sess.SessionID
@@ -689,7 +691,7 @@ func (s *TubeNode) doShowKeys(tkt *Ticket) {
 }
 
 // if ctx is nill we will use s.ctx
-func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, waitForDur time.Duration) (tkt *Ticket, err error) {
+func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, waitForDur time.Duration, newVtype string) (tkt *Ticket, err error) {
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.Write: cli is nil, Session.Errs='%v'", s.Errs)
 	}
@@ -697,11 +699,11 @@ func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, w
 	if ctx == nil {
 		ctx = s.ctx
 	}
-	return s.cli.CAS(ctx, table, key, oldVal, newVal, waitForDur, s)
+	return s.cli.CAS(ctx, table, key, oldVal, newVal, waitForDur, s, newVtype)
 }
 
 // if ctx is nill we will use s.ctx
-func (s *Session) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration) (tkt *Ticket, err error) {
+func (s *Session) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, vtype string) (tkt *Ticket, err error) {
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.Write: cli is nil, Session.Errs='%v'", s.Errs)
 	}
@@ -710,7 +712,7 @@ func (s *Session) Write(ctx context.Context, table, key Key, val Val, waitForDur
 		ctx = s.ctx
 	}
 	//vv("submitting write with s.SessionSerial = %v", s.SessionSerial)
-	return s.cli.Write(ctx, table, key, val, waitForDur, s)
+	return s.cli.Write(ctx, table, key, val, waitForDur, s, vtype)
 }
 
 func (s *Session) RenameTable(ctx context.Context, table, newTableName Key, waitForDur time.Duration) (tkt *Ticket, err error) {

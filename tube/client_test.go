@@ -63,7 +63,7 @@ func Test707_client_linz_semantics(t *testing.T) {
 			v = []byte(fmt.Sprintf("%v", i))
 			vv("707 about to sess.Write '%v'; sess.SessionSerial=%v", string(v), sess.SessionSerial) // not seen.
 			// sess.Write automatically does sess.SessionSerial++ for us.
-			txtW, err := sess.Write(bkg, "", "a", v, 0)
+			txtW, err := sess.Write(bkg, "", "a", v, 0, "")
 			panicOn(err)
 
 			vv("good, past sess.Write at i = %v; now sess.SessionSerial = %v", i, sess.SessionSerial)
@@ -166,7 +166,7 @@ func Test708_client_linz_SessionSerial_gap_caught(t *testing.T) {
 				// the raft log any length.
 				sess.SessionSerial--
 			}
-			tktW, err := sess.Write(bkg, "", "a", v, 0)
+			tktW, err := sess.Write(bkg, "", "a", v, 0, "")
 			if i == itargetSkip {
 				if err == nil {
 					panic("wanted serial number gap error")
@@ -201,7 +201,7 @@ func Test708_client_linz_SessionSerial_gap_caught(t *testing.T) {
 			if i == 2 {
 				// using cli.Write means no automatic increment
 				// of sess.SessionSerial
-				tktW, err := cli.Write(bkg, "", "a", v, 0, sess)
+				tktW, err := cli.Write(bkg, "", "a", v, 0, sess, "")
 				panicOn(err)
 				if !tktW.DupDetected {
 					panic("expected to see DupDetected")
@@ -297,7 +297,7 @@ func Test709_client_linz_SessionSerial_old_or_decreasing_SN_caught(t *testing.T)
 					sess.SessionSerial -= int64(subtractMe)
 					vv("at itargetDecrease = %v, we set sess.SessionSerial = %v", i, sess.SessionSerial)
 				}
-				tktW, err := sess.Write(bkg, "", "a", v, 0)
+				tktW, err := sess.Write(bkg, "", "a", v, 0, "")
 				_ = tktW
 				if i == itargetDecrease {
 					if err == nil {
@@ -317,7 +317,7 @@ func Test709_client_linz_SessionSerial_old_or_decreasing_SN_caught(t *testing.T)
 				if i == 2 {
 					// using cli.Write means no automatic increment
 					// of sess.SessionSerial
-					tktW, err := cli.Write(bkg, "", "a", v, 0, sess)
+					tktW, err := cli.Write(bkg, "", "a", v, 0, sess, "")
 					panicOn(err)
 					if !tktW.DupDetected {
 						panic("expected to see DupDetected")

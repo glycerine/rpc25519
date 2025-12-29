@@ -363,7 +363,7 @@ func Test001_no_replicas_write_new_value(t *testing.T) {
 			//v := []byte("123")
 			v = []byte(fmt.Sprintf("%v", i))
 			//vv("about to write '%v'", string(v))
-			tkt, err := nodes[0].Write(bkg, "", "a", v, 0, nil)
+			tkt, err := nodes[0].Write(bkg, "", "a", v, 0, nil, "")
 			panicOn(err)
 			_ = tkt
 		}
@@ -432,7 +432,7 @@ func Benchmark_101_no_replicas_write_new_value(b *testing.B) {
 		//v := []byte("123")
 		v = []byte(fmt.Sprintf("%v", i))
 		//vv("about to write '%v'", string(v))
-		tkt, err := nodes[0].Write(bkg, "", "a", v, 0, nil)
+		tkt, err := nodes[0].Write(bkg, "", "a", v, 0, nil, "")
 		_ = tkt
 		panicOn(err)
 	}
@@ -553,7 +553,7 @@ func Test003_tube_3_node_write_then_read(t *testing.T) {
 			// Write
 			v = []byte(fmt.Sprintf("%v", i))
 			//vv("about to write '%v'", string(v))
-			tktW, err := nodes[0].Write(bkg, "", "a", v, 0, nil)
+			tktW, err := nodes[0].Write(bkg, "", "a", v, 0, nil, "")
 			panicOn(err)
 			_ = tktW
 
@@ -618,7 +618,7 @@ func Test010_tube_write_new_value_two_replicas(t *testing.T) {
 
 		// write to node 0
 		v := []byte("123")
-		tkt0, err := nodes[0].Write(bkg, "", "a", v, 0, nil)
+		tkt0, err := nodes[0].Write(bkg, "", "a", v, 0, nil, "")
 		panicOn(err)
 		_ = tkt0
 
@@ -677,7 +677,7 @@ func Test015_tube_non_parallel_linz(t *testing.T) {
 			// Write
 			v = []byte(fmt.Sprintf("%v", i))
 			//vv("about to write '%v'", string(v))
-			tktW, err := nodes[0].Write(bkg, "", "a", v, 0, nil)
+			tktW, err := nodes[0].Write(bkg, "", "a", v, 0, nil, "")
 			panicOn(err)
 			_ = tktW
 
@@ -759,7 +759,7 @@ func Test017_write_throughput(t *testing.T) {
 				// Write
 				v = []byte(fmt.Sprintf("%v", i))
 				//vv("about to write '%v'", string(v))
-				tktW, err := nodes[0].Write(bkg, "", "a", v, 0, nil)
+				tktW, err := nodes[0].Write(bkg, "", "a", v, 0, nil, "")
 				panicOn(err)
 				_ = tktW
 

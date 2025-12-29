@@ -489,7 +489,7 @@ repl:
 				}
 			}
 		case isSet:
-			_, err := sess.Write(ctx, tube.Key(targetTable), tube.Key(key), tube.Val(value), 0)
+			_, err := sess.Write(ctx, tube.Key(targetTable), tube.Key(key), tube.Val(value), 0, "")
 			if err != nil {
 				fmt.Printf("error: %v\n", err)
 				sess = needNewSess(sess, err)

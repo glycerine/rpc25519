@@ -37,7 +37,7 @@ func Test059_new_node_joins_after_compaction(t *testing.T) {
 				vv("after startup: node %v has CktReplicaByName: '%v'", j, look.CktReplicaByName)
 			}
 
-			_, err := c.Nodes[1].Write(ctx, "", "key", Val("value"), 0, nil)
+			_, err := c.Nodes[1].Write(ctx, "", "key", Val("value"), 0, nil, "")
 			panicOn(err)
 
 			vv("good: done with the Write")

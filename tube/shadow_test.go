@@ -109,7 +109,7 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 
 				// Write
 				v = []byte(fmt.Sprintf("%v", i))
-				_, err := c.Nodes[0].Write(bkg, "", "a", v, 0, nil)
+				_, err := c.Nodes[0].Write(bkg, "", "a", v, 0, nil, "")
 				panicOn(err)
 
 				vv("good, past Write at i = %v", i)
@@ -140,7 +140,7 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 			vv("good: saw N=%v writes also to shadow", N)
 
 			look := c.Nodes[2].Inspect()
-			val, err := look.State.KVStoreRead("", "a")
+			val, _, err := look.State.KVStoreRead("", "a")
 			panicOn(err)
 
 			if !bytes.Equal(v, val) {
@@ -221,7 +221,7 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 
 				// Write
 				v = []byte(fmt.Sprintf("%v", i))
-				_, err := c.Nodes[0].Write(bkg, "", "a", v, 0, nil)
+				_, err := c.Nodes[0].Write(bkg, "", "a", v, 0, nil, "")
 				panicOn(err)
 
 				vv("good, past Write at i = %v", i)

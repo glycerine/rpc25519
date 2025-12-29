@@ -4,6 +4,8 @@ import (
 	"github.com/glycerine/rpc25519/tube/art"
 )
 
+//go:generate greenpack
+
 type ArtTable struct {
 	Tree *art.Tree `zid:"0"`
 }

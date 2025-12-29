@@ -179,7 +179,7 @@ func Test016_tube_parallel_linz(t *testing.T) {
 			vv("about to write at i=%v: '%v'", i, string(v))
 
 			// WRITE
-			tktW, err := nodes[0].Write(bkg, "", "a", v, 0, nil)
+			tktW, err := nodes[0].Write(bkg, "", "a", v, 0, nil, "")
 
 			switch err {
 			case ErrShutDown, rpc.ErrShutdown2,
