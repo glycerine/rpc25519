@@ -388,7 +388,7 @@ repl:
 				key = args[1]
 				oldval := args[2]
 				newval := args[3]
-				tkt, err := sess.CAS(ctx, tube.Key(table), tube.Key(key), tube.Val(oldval), tube.Val(newval), 0)
+				tkt, err := sess.CAS(ctx, tube.Key(table), tube.Key(key), tube.Val(oldval), tube.Val(newval), 0, "")
 				if err != nil {
 					fmt.Printf("error: %v\n", err)
 					sess = needNewSess(sess, err)
