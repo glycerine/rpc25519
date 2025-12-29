@@ -786,12 +786,13 @@ func (s *TubeNode) Start(
 		// modified s.state.MC if changed
 		changed := s.updateSelfAddressInMemberConfig(s.state.MC)
 		if changed {
-			// ARG! incrementing ConfigVersion has a very bad side effect:
+			// ARG! incrementing ConfigVersion here has a very bad side effect:
 			// by incrementing the version of our MC, we can no
 			// longer participate in elections/elect a leader
 			// among ourselves!?! since we are not _actually_
 			// changing the membership config, just the connection details,
-			// do NOT increment the version!
+			// do NOT increment the version! (here in Start() at any rate;
+			// tube.go: line 12188 in TubeNode.changeMembership() does increment it).
 			//s.state.MC.ConfigVersion++
 
 			//s.state.MC.IsCommitted = false
