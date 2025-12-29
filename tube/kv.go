@@ -22,7 +22,12 @@ func (s *ArtTable) clone() (r *ArtTable) {
 	for iter.Next() {
 		k := iter.Key()
 		v := iter.Value()
-		r.Tree.Insert(k, append([]byte{}, v...))
+		var vtyp string
+		lf := iter.Leaf()
+		if lf != nil {
+			vtyp = lf.Vtype
+		}
+		r.Tree.Insert(k, append([]byte{}, v...), vtyp)
 	}
 	return
 }

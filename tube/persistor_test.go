@@ -31,7 +31,7 @@ func Test301_raftStatePersistorSaveLoad(t *testing.T) {
 		}
 		versions = append(versions, state)
 
-		state.kvstoreWrite("hello", "world", art.ByteSliceValue(Val("43")))
+		state.kvstoreWrite("hello", "world", art.ByteSliceValue(Val("43")), "")
 
 		// check read back immediately...
 		v, err := state.KVStoreRead("hello", "world")

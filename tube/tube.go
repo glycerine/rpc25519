@@ -4447,13 +4447,14 @@ type Ticket struct {
 	TSN int64     `zid:"0"`
 	T0  time.Time `zid:"1"`
 
-	Key                      Key  `zid:"2"`
-	Val                      Val  `zid:"3"`  // Read/Write. For CAS: new value.
-	Table                    Key  `zid:"47"` // like a database table, a namespace.
-	OldVal                   Val  `zid:"48"` // For CAS: old value (tested for).
-	CASwapped                bool `zid:"49"`
-	CASRejectedBecauseCurVal Val  `zid:"50"`
-	NewTableName             Key  `zid:"51"`
+	Key                      Key    `zid:"2"`
+	Val                      Val    `zid:"3"`  // Read/Write. For CAS: new value.
+	Table                    Key    `zid:"47"` // like a database table, a namespace.
+	OldVal                   Val    `zid:"48"` // For CAS: old value (tested for).
+	CASwapped                bool   `zid:"49"`
+	CASRejectedBecauseCurVal Val    `zid:"50"`
+	NewTableName             Key    `zid:"51"`
+	Vtype                    string `zid:"62"`
 
 	FromID    string `zid:"4"`
 	FromName  string `zid:"5"` // tell old leader (or client) from new
@@ -8997,7 +8998,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 			tkt.Applied = true
 
 		case WRITE:
-			s.state.kvstoreWrite(tkt.Table, tkt.Key, tkt.Val, tkt.Vtyp)
+			s.state.kvstoreWrite(tkt.Table, tkt.Key, tkt.Val, tkt.Vtype)
 			tkt.Applied = true
 
 		case CAS:
@@ -10316,7 +10317,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), bytes.Equal(curVal, tkt.OldVal), string(tkt.Val))
 
 	if bytes.Equal(curVal, tkt.OldVal) { // compare
-		table.Tree.Insert(art.Key(tkt.Key), []byte(append([]byte{}, tkt.Val...))) // and swap
+		table.Tree.Insert(art.Key(tkt.Key), []byte(append([]byte{}, tkt.Val...)), tkt.Vtype) // and swap
 		tkt.CASwapped = true
 	} else {
 		tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
