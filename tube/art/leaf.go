@@ -85,14 +85,16 @@ type Leaf struct {
 func (n *Leaf) depth() int {
 	return len(n.Key)
 }
-func (n *Leaf) clone() (c *Leaf) {
-	c = &Leaf{
-		Key:     append([]byte{}, n.Key...),
-		Value:   n.Value,
-		keybyte: n.keybyte,
-	}
-	return c
-}
+
+// func (n *Leaf) clone() (c *Leaf) {
+// 	c = &Leaf{
+// 		Key:     append([]byte{}, n.Key...),
+// 		Value:   append([]byte{}, n.Value...),
+// 		keybyte: n.keybyte,
+// 		Vtype:   n.Vtype,
+// 	}
+// 	return c
+// }
 
 func NewLeaf(key Key, v []byte, vtype string) *Leaf {
 	return &Leaf{
