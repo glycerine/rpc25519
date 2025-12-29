@@ -10330,7 +10330,7 @@ func (s *TubeNode) doReadKey(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	tkt.Val, tkt.Err = s.state.KVStoreRead(tkt.Table, tkt.Key)
+	tkt.Val, tkt.Vtype, tkt.Err = s.state.KVStoreRead(tkt.Table, tkt.Key)
 }
 
 func (s *TubeNode) doReadKeyRange(tkt *Ticket) {

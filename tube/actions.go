@@ -440,18 +440,17 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 	return
 }
 
-func (s *RaftState) KVStoreRead(tktTable, tktKey Key) ([]byte, error) {
+func (s *RaftState) KVStoreRead(tktTable, tktKey Key) ([]byte, string, error) {
 	table, ok := s.KVstore.m[tktTable]
 	if !ok {
-		return nil, ErrKeyNotFound
+		return nil, "", ErrKeyNotFound
 	}
 	val, idx, ok, vtyp := table.Tree.FindExact(art.Key(tktKey))
 	_ = idx
-	_ = vtyp
 	if ok {
-		return val, nil
+		return val, vtyp, nil
 	}
-	return nil, ErrKeyNotFound
+	return nil, "", ErrKeyNotFound
 }
 
 func (s *KVStore) Len() int {
