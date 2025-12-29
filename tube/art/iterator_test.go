@@ -37,7 +37,7 @@ func TestIterConcurrentExpansion(t *testing.T) {
 	)
 
 	for _, key := range keys {
-		tree.Insert(key, key)
+		tree.Insert(key, key, "")
 	}
 	//vv("orig tree: %v", tree)
 	iter := tree.Iter(nil, nil)
@@ -50,7 +50,7 @@ func TestIterConcurrentExpansion(t *testing.T) {
 
 	// adding a 3rd key, after iter started,
 	// that is after the 2nd key we have not read yet.
-	tree.Insert([]byte("aaca"), nil)
+	tree.Insert([]byte("aaca"), nil, "")
 
 	//vv("after adding 'aaca', tree: %v", tree)
 
@@ -76,7 +76,7 @@ func TestIterDeleteBehindFwd(t *testing.T) {
 	for i := range N {
 		k := fmt.Sprintf("%09d", i)
 		key := Key(k) // []byte
-		tree.Insert(key, key)
+		tree.Insert(key, key, "")
 	}
 	//vv("full tree before any delete/iter: '%s'", tree)
 	got := make(map[int]int)
@@ -132,7 +132,7 @@ func TestIterDeleteBehindFwd(t *testing.T) {
 	for i := thresh; i < N; i++ {
 		k := fmt.Sprintf("%09d", i)
 		key := Key(k) // []b
-		_, _, found := tree.FindExact(key)
+		_, _, found, _ := tree.FindExact(key)
 		if !found {
 			t.Fatalf("expected to find '%v' still in tree", k)
 		}
@@ -173,7 +173,7 @@ func TestIterDeleteBehindReverse(t *testing.T) {
 		// are the largest.
 		k := fmt.Sprintf("%09d", i)
 		key := Key(k) // []byte
-		tree.Insert(key, key)
+		tree.Insert(key, key, "")
 	}
 	//vv("full tree before any delete/iter: '%s'", tree)
 	got := make(map[int]int)
@@ -240,7 +240,7 @@ func TestIterDeleteBehindReverse(t *testing.T) {
 	for i := 0; i < N-thresh; i++ {
 		k := fmt.Sprintf("%09d", i)
 		key := Key(k) // []b
-		_, _, found := tree.FindExact(key)
+		_, _, found, _ := tree.FindExact(key)
 		if !found {
 			t.Fatalf("expected to find '%v' still in tree", k)
 		}
@@ -364,7 +364,7 @@ func TestIterator(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			tree := NewArtTree()
 			for _, key := range tc.keys {
-				tree.Insert([]byte(key), []byte(key))
+				tree.Insert([]byte(key), []byte(key), "")
 			}
 			//vv("tree = '%v'", tree)
 			var iter *iterator
@@ -403,7 +403,7 @@ func TestIterRange(t *testing.T) {
 		if i == N-1 {
 			last = append([]byte{}, []byte(key)...)
 		}
-		tree.Insert(key, key)
+		tree.Insert(key, key, "")
 	}
 	//vv("tree: '%s'", tree)
 	//vv("first = '%v'", string(first)) // 0

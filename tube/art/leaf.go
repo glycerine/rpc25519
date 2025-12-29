@@ -77,6 +77,9 @@ type Leaf struct {
 
 	Key   Key    `zid:"0"`
 	Value []byte `zid:"1"`
+
+	// the type/description of the type of Value.
+	Vtype string `zid:"2"`
 }
 
 func (n *Leaf) depth() int {
@@ -91,10 +94,11 @@ func (n *Leaf) clone() (c *Leaf) {
 	return c
 }
 
-func NewLeaf(key Key, v []byte) *Leaf {
+func NewLeaf(key Key, v []byte, vtype string) *Leaf {
 	return &Leaf{
 		Key:   key,
 		Value: v,
+		Vtype: vtype,
 	}
 }
 

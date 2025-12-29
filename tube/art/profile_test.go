@@ -30,7 +30,7 @@ func TestWriteForProfiling(t *testing.T) {
 	for i := range 1_000_000_000 {
 		_ = i
 		rk := randomKey(rng, rkey[:])
-		art.Insert(rk, value)
+		art.Insert(rk, value, "")
 	}
 }
 
@@ -46,7 +46,7 @@ func TestReadForProfiling(t *testing.T) {
 	chacha8 := mathrand2.NewChaCha8(seed32)
 
 	for i, w := range paths {
-		if tree.Insert(w, w) {
+		if tree.Insert(w, w, "") {
 			t.Fatalf("i=%v, could not add '%v', already in tree", i, string(w))
 		}
 	}
@@ -54,7 +54,7 @@ func TestReadForProfiling(t *testing.T) {
 	for i := range 1_000_000_000 {
 		_ = i
 		j := int(chacha8.Uint64() % uint64(len(paths)))
-		val, _, found := tree.FindExact(paths[j])
+		val, _, found, _ := tree.FindExact(paths[j])
 		if !found {
 			panic(fmt.Sprintf("key '%v' was not found", string(paths[j])))
 		}
@@ -154,7 +154,7 @@ func TestWriteAndReadForProfiling(t *testing.T) {
 		if rng.Float32() < readFrac {
 			tree.FindExact(rk)
 		} else {
-			tree.Insert(rk, value)
+			tree.Insert(rk, value, "")
 		}
 	}
 }

@@ -9,7 +9,7 @@ func Test_n4_clone_grow_shrink(t *testing.T) {
 
 	lf := make([]*Leaf, 6)
 	for i := range lf {
-		lf[i] = NewLeaf([]byte(fmt.Sprintf("leaf%v", i)), nil)
+		lf[i] = NewLeaf([]byte(fmt.Sprintf("leaf%v", i)), nil, "")
 	}
 	//n4 := newNode4()
 	n4 := &node4{}

@@ -26,7 +26,7 @@ func TestInsertAndRemove1(t *testing.T) {
 	by := &TestBytes{Slc: []byte("data")}
 
 	//vv("staring sz = %v", tree.Size())
-	if updated := tree.Insert([]byte("test"), by.Slc); updated {
+	if updated := tree.Insert([]byte("test"), by.Slc, ""); updated {
 		t.Fatalf("why no fresh insert? sz = '%v'", tree.Size())
 	}
 	sz := tree.Size()
@@ -52,8 +52,8 @@ func TestInsert2AndRemove1AndRootShouldBeLeafNode(t *testing.T) {
 
 	by := &TestBytes{Slc: []byte("data")}
 
-	tree.Insert([]byte("test"), by.Slc)  // []byte("data"))
-	tree.Insert([]byte("test2"), by.Slc) // []byte("data"))
+	tree.Insert([]byte("test"), by.Slc, "")  // []byte("data"))
+	tree.Insert([]byte("test2"), by.Slc, "") // []byte("data"))
 
 	tree.Remove([]byte("test"))
 
@@ -84,7 +84,7 @@ func TestInsertManyWordsAndRemoveThemAll(t *testing.T) {
 			break
 		} else {
 			by := &TestBytes{Slc: []byte(line)}
-			if updated := tree.Insert([]byte(line), by.Slc); updated {
+			if updated := tree.Insert([]byte(line), by.Slc, ""); updated {
 				panic(fmt.Sprintf("redundant '%v'", string(line)))
 			}
 			sline := string(line)
@@ -164,7 +164,7 @@ func TestInsertManyUUIDsAndRemoveThemAll(t *testing.T) {
 	}
 	for _, line := range words {
 		by := &TestBytes{Slc: []byte(line)}
-		tree.Insert([]byte(line), by.Slc)
+		tree.Insert([]byte(line), by.Slc, "")
 	}
 
 	for _, line := range words {
@@ -193,7 +193,7 @@ func TestInsertWithSameByteSliceAddress(t *testing.T) {
 		key2 := append([]byte{}, key...)
 
 		by := &TestBytes{Slc: append([]byte{}, key2...)}
-		updated := tree.Insert(key2, by.Slc) // key2)
+		updated := tree.Insert(key2, by.Slc, "") // key2)
 		_ = updated
 		//vv("i=%v, inserting key '%v'; updated = %v", i, string(key2), updated)
 
@@ -206,7 +206,7 @@ func TestInsertWithSameByteSliceAddress(t *testing.T) {
 	}
 
 	for k, _ := range keys {
-		n, _, ok := tree.FindExact([]byte(k))
+		n, _, ok, _ := tree.FindExact([]byte(k))
 		if !ok || n == nil {
 			t.Errorf("Did not find entry for key: %v\n", []byte(k))
 		}
@@ -226,7 +226,7 @@ func Test_delete_insert_on_LongCommonPrefixes(t *testing.T) {
 
 	for i, w := range paths {
 		_ = i
-		if tree.Insert(w, w) {
+		if tree.Insert(w, w, "") {
 			t.Fatalf("i=%v, could not add '%v', already in tree", i, string(w))
 		}
 		if tree.Size() != (i + 1) {
@@ -246,7 +246,7 @@ func Test_delete_insert_on_LongCommonPrefixes(t *testing.T) {
 		if i == 0 {
 			continue
 		}
-		if updated := tree.Insert(w, paths[i-1]); !updated {
+		if updated := tree.Insert(w, paths[i-1], ""); !updated {
 			t.Fatalf("i=%v, could not detect dup of '%v', bad: added to tree instead.", i, string(w))
 		}
 		if tree.Size() != expect {
@@ -257,7 +257,7 @@ func Test_delete_insert_on_LongCommonPrefixes(t *testing.T) {
 		if i == 0 {
 			continue
 		}
-		g, _, ok := tree.FindExact(w)
+		g, _, ok, _ := tree.FindExact(w)
 		got := string(g)
 		want := string(paths[i-1])
 		if !ok || want != got {
@@ -288,7 +288,7 @@ func Test_delete_insert_on_LongCommonPrefixes(t *testing.T) {
 	// put them all back in
 	for i, w := range paths {
 		_ = i
-		if updated := tree.Insert(w, w); updated {
+		if updated := tree.Insert(w, w, ""); updated {
 			t.Fatalf("i=%v, could not add '%v', already in tree", i, string(w))
 		}
 		// when does our stale pren happen? at i=7
@@ -453,7 +453,7 @@ func BenchmarkWordsArtTreeInsert(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		tree := NewArtTree()
 		for _, w := range words {
-			tree.Insert(w, w)
+			tree.Insert(w, w, "")
 		}
 	}
 }
@@ -462,7 +462,7 @@ func BenchmarkWordsArtTreeSearch(b *testing.B) {
 	words := loadTestFile("assets/words.txt")
 	tree := NewArtTree()
 	for _, w := range words {
-		tree.Insert(w, w)
+		tree.Insert(w, w, "")
 	}
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -476,7 +476,7 @@ func BenchmarkWordsArtTreeRemove(b *testing.B) {
 	words := loadTestFile("assets/words.txt")
 	tree := NewArtTree()
 	for _, w := range words {
-		tree.Insert(w, w)
+		tree.Insert(w, w, "")
 	}
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -492,7 +492,7 @@ func BenchmarkUUIDsArtTreeInsert(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		tree := NewArtTree()
 		for _, w := range words {
-			tree.Insert(w, w)
+			tree.Insert(w, w, "")
 		}
 	}
 }
@@ -501,7 +501,7 @@ func BenchmarkUUIDsArtTreeSearch(b *testing.B) {
 	words := loadTestFile("assets/uuid.txt")
 	tree := NewArtTree()
 	for _, w := range words {
-		tree.Insert(w, w)
+		tree.Insert(w, w, "")
 	}
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -622,7 +622,7 @@ func Test_n4replace_buggy_test(t *testing.T) {
 			break
 		} else {
 			//by := &TestBytes{Slc: []byte(line)}
-			tree.Insert([]byte(line), []byte(line))
+			tree.Insert([]byte(line), []byte(line), "")
 			sline := string(line)
 			words[sline] = true
 			word_order = append(word_order, sline)
@@ -723,7 +723,7 @@ func Test_PrenInsert(t *testing.T) {
 
 	for i, w := range paths {
 		_ = i
-		if tree.Insert(w, w) {
+		if tree.Insert(w, w, "") {
 			t.Fatalf("i=%v, could not add '%v', "+
 				"already in tree", i, string(w))
 		}
@@ -752,7 +752,7 @@ func Test_Seq2_Iter_on_LongCommonPrefixes(t *testing.T) {
 
 	for i, w := range sorted {
 		_ = i
-		if tree.Insert(w, w) {
+		if tree.Insert(w, w, "") {
 			t.Fatalf("i=%v, could not add '%v', "+
 				"already in tree", i, string(w))
 		}
@@ -802,7 +802,7 @@ func Test_pren_sub_on_update_in_place(t *testing.T) {
 
 	for i, w := range paths {
 		_ = i
-		if tree.Insert(w, w) {
+		if tree.Insert(w, w, "") {
 			t.Fatalf("i=%v, could not add '%v', already in tree", i, string(w))
 		}
 		if tree.Size() != (i + 1) {
@@ -829,7 +829,7 @@ func Test_pren_sub_on_update_in_place(t *testing.T) {
 			continue
 		}
 		// write a new (previous) path to w
-		if updated := tree.Insert(w, paths[i-1]); !updated {
+		if updated := tree.Insert(w, paths[i-1], ""); !updated {
 			t.Fatalf("i=%v, could not detect dup of '%v', bad: added to tree instead.", i, string(w))
 		}
 		if tree.Size() != expect {

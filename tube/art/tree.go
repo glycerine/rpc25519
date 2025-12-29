@@ -182,7 +182,7 @@ func (t *Tree) stringNoKeys(recurse int) string {
 // The return value updated is true if the
 // size of the tree did not change because
 // an existing key was given the new value.
-func (t *Tree) Insert(key Key, value []byte) (updated bool) {
+func (t *Tree) Insert(key Key, value []byte, vtype string) (updated bool) {
 
 	// make a copy of key that we own, so
 	// caller can alter/reuse without messing us up.
@@ -191,7 +191,7 @@ func (t *Tree) Insert(key Key, value []byte) (updated bool) {
 	// without it, for instance, since they
 	// re-use key []byte memory alot.
 	key2 := Key(append([]byte{}, key...))
-	lf := NewLeaf(key2, value)
+	lf := NewLeaf(key2, value, vtype)
 
 	return t.InsertLeaf(lf)
 }
@@ -276,11 +276,12 @@ func (t *Tree) FindLTE(key Key) (val []byte, idx int, found bool) {
 
 // FindExact returns the element whose key
 // matches the supplied key.
-func (t *Tree) FindExact(key Key) (val []byte, idx int, found bool) {
+func (t *Tree) FindExact(key Key) (val []byte, idx int, found bool, vtype string) {
 	var lf *Leaf
 	lf, idx, found = t.Find(Exact, key)
 	if found && lf != nil {
 		val = lf.Value
+		vtype = lf.Vtype
 	}
 	return
 }

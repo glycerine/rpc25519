@@ -8997,7 +8997,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 			tkt.Applied = true
 
 		case WRITE:
-			s.state.kvstoreWrite(tkt.Table, tkt.Key, tkt.Val)
+			s.state.kvstoreWrite(tkt.Table, tkt.Key, tkt.Val, tkt.Vtyp)
 			tkt.Applied = true
 
 		case CAS:
@@ -10306,8 +10306,9 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	curVal, idx, ok := table.Tree.FindExact(art.Key(tkt.Key))
+	curVal, idx, ok, vtyp := table.Tree.FindExact(art.Key(tkt.Key))
 	_ = idx
+	_ = vtyp
 	if !ok {
 		tkt.Err = ErrKeyNotFound
 		return

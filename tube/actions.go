@@ -396,7 +396,7 @@ func (s *TubeNode) DeleteTable(ctx context.Context, table Key, waitForDur time.D
 	}
 }
 
-func (s *RaftState) kvstoreWrite(tktTable, tktKey Key, tktVal []byte) {
+func (s *RaftState) kvstoreWrite(tktTable, tktKey Key, tktVal []byte, vtype string) {
 	if s.KVstore == nil {
 		s.KVstore = newKVStore()
 	}
@@ -408,7 +408,7 @@ func (s *RaftState) kvstoreWrite(tktTable, tktKey Key, tktVal []byte) {
 		table = newArtTable()
 		s.KVstore.m[tktTable] = table
 	}
-	table.Tree.Insert(art.Key(tktKey), art.ByteSliceValue([]byte(append([]byte{}, tktVal...))))
+	table.Tree.Insert(art.Key(tktKey), art.ByteSliceValue([]byte(append([]byte{}, tktVal...))), vtype)
 	//vv("%v wrote key '%v' ; KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
 }
 
@@ -426,7 +426,7 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 			// make copies.
 			key2 := append([]byte{}, key...)
 			val2 := append([]byte{}, lf.Value...)
-			results.Insert(key2, val2)
+			results.Insert(key2, val2, lf.Vtype)
 		}
 	} else {
 		for key, lf := range art.Ascend(table.Tree, art.Key(tktKey), art.Key(tktKeyEndx)) {
@@ -434,7 +434,7 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 			// make copies.
 			key2 := append([]byte{}, key...)
 			val2 := append([]byte{}, lf.Value...)
-			results.Insert(key2, val2)
+			results.Insert(key2, val2, lf.Vtype)
 		}
 	}
 	return
@@ -445,8 +445,9 @@ func (s *RaftState) KVStoreRead(tktTable, tktKey Key) ([]byte, error) {
 	if !ok {
 		return nil, ErrKeyNotFound
 	}
-	val, idx, ok := table.Tree.FindExact(art.Key(tktKey))
+	val, idx, ok, vtyp := table.Tree.FindExact(art.Key(tktKey))
 	_ = idx
+	_ = vtyp
 	if ok {
 		return val, nil
 	}

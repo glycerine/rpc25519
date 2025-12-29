@@ -16,14 +16,14 @@ import (
 func TestTree_SaverSimple(t *testing.T) {
 	tree := NewArtTree()
 	// insert one key
-	tree.Insert(Key("I'm Key"), []byte("I'm Value"))
+	tree.Insert(Key("I'm Key"), []byte("I'm Value"), "vtype1")
 	//insert another key
-	tree.Insert(Key("I'm Key2"), []byte("I'm Value2"))
+	tree.Insert(Key("I'm Key2"), []byte("I'm Value2"), "vtype2")
 
 	//vv("as string tree = \n%v", tree.String())
 
 	// search first
-	value, _, found := tree.FindExact(Key("I'm Key"))
+	value, _, found, _ := tree.FindExact(Key("I'm Key"))
 	assert(found)
 	//vv("before serz, first search value = '%#v'", value)
 	assert("I'm Value" == string(value))
@@ -56,22 +56,25 @@ func TestTree_SaverSimple(t *testing.T) {
 		panic("Why is tree2 nil?")
 	}
 	// search it
-	value, _, found = tree2.FindExact(Key("I'm Key"))
+	var vtype1, vtype2 string
+	value, _, found, vtype1 = tree2.FindExact(Key("I'm Key"))
 	assert(found)
 	//vv("value = '%#v'", value)
 	assert("I'm Value" == string(value))
+	assert(vtype1 == "vtype1")
 
 	// search it
-	value, _, found = tree2.FindExact(Key("I'm Key2"))
+	value, _, found, vtype2 = tree2.FindExact(Key("I'm Key2"))
 	assert(found)
 	assert("I'm Value2" == string(value))
+	assert(vtype2 == "vtype2")
 }
 
 func TestDepthString_MediumDeepTree(t *testing.T) {
 	tree := NewArtTree()
 	paths := loadTestFile("assets/medium.txt")
 	for k := range paths {
-		tree.Insert(paths[k], paths[k])
+		tree.Insert(paths[k], paths[k], "")
 	}
 
 	//vv("as string tree = \n%v", tree.String())
@@ -105,7 +108,7 @@ func TestTree_Saver_LinuxPaths(t *testing.T) {
 	e0 := time.Since(t0)
 	t1 := time.Now()
 	for k := range paths {
-		tree.Insert(paths[k], paths[k])
+		tree.Insert(paths[k], paths[k], "")
 		//tree.Insert(paths[k], nil)
 	}
 	e1 := time.Since(t1)
@@ -125,7 +128,7 @@ func TestTree_Saver_LinuxPaths(t *testing.T) {
 	t4 := time.Now()
 	for k := range paths {
 		key := paths[k]
-		v, _, found := tree.FindExact(key)
+		v, _, found, _ := tree.FindExact(key)
 		if !found {
 			panic(fmt.Sprintf("missing key '%v'", string(key)))
 		}

@@ -58,7 +58,7 @@ func BenchmarkArtReadWrite(b *testing.B) {
 					if rng.Float32() < readFrac {
 						l.FindExact(rk)
 					} else {
-						l.Insert(rk, value)
+						l.Insert(rk, value, "")
 					}
 				}
 			})
@@ -118,7 +118,7 @@ func BenchmarkArtLinuxPaths(b *testing.B) {
 							//l.Remove(paths[k])
 						} else {
 							//l.Insert(randomKey(rng), value)
-							l.Insert(paths[k], paths[k])
+							l.Insert(paths[k], paths[k], "")
 						}
 					}
 				}
@@ -219,7 +219,7 @@ func BenchmarkArtReadWrite_NoLocking_NoParallel(b *testing.B) {
 				if rng.Float32() < readFrac {
 					l.FindExact(rk)
 				} else {
-					l.Insert(rk, value)
+					l.Insert(rk, value, "")
 				}
 			}
 		})
