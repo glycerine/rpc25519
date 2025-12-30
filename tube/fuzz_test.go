@@ -20,6 +20,7 @@ import (
 	rpc "github.com/glycerine/rpc25519"
 )
 
+var _ = runtime.GOMAXPROCS
 var _ = trace.Stop
 var _ = debug.SetMemoryLimit
 var _ = math.MaxInt64
@@ -310,6 +311,7 @@ func (s *fuzzNemesis) makeTrouble() {
 	time.Sleep(beat)
 }
 
+/*
 func Test099_fuzz_testing_linz(t *testing.T) {
 
 	return
@@ -409,6 +411,7 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 		vv("len(ops)=%v passed linearizability checker.", len(ops))
 	}
 }
+*/
 
 func Test199_dsim_seed_string_parsing(t *testing.T) {
 	// GO_DSIM_SEED env variable is parsed
