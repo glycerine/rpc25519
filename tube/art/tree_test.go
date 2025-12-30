@@ -886,7 +886,7 @@ func TestArtTree_SearchMod_GTE(t *testing.T) {
 	tree.Insert(Key("sharedKey::1"), ByteSliceValue("value1"), "")
 	tree.Insert(Key("sharedKey::1::created_at"), ByteSliceValue("created_at_value1"), "")
 
-	v, _, found := tree.FindGTE(Key("sharedKey::1"))
+	v, _, found, _ := tree.FindGTE(Key("sharedKey::1"))
 	if !found {
 		t.Error("expected key to be found")
 	}
@@ -894,7 +894,7 @@ func TestArtTree_SearchMod_GTE(t *testing.T) {
 		t.Errorf("got value %v, want %v", got, want)
 	}
 
-	v, _, found = tree.FindGT(Key("sharedKey::1"))
+	v, _, found, _ = tree.FindGT(Key("sharedKey::1"))
 	if !found {
 		t.Error("expected key to be found")
 	}
@@ -908,7 +908,7 @@ func TestArtTree_SearchMod_GT_requires_backtracking(t *testing.T) {
 	tree.Insert(Key("a14"), ByteSliceValue("a14"), "")
 	tree.Insert(Key("b01"), ByteSliceValue("b01"), "")
 
-	v, _, found := tree.FindGT(Key("a14"))
+	v, _, found, _ := tree.FindGT(Key("a14"))
 	if !found {
 		t.Error("expected key to be found")
 	}
@@ -922,7 +922,7 @@ func TestArtTree_SearchMod_LT_requires_backtracking(t *testing.T) {
 	tree.Insert(Key("a14"), ByteSliceValue("a14"), "")
 	tree.Insert(Key("b01"), ByteSliceValue("b01"), "")
 
-	lf, _, found := tree.FindLT(Key("b01"))
+	lf, _, found, _ := tree.FindLT(Key("b01"))
 	if !found {
 		t.Error("expected key to be found")
 	}
@@ -1940,7 +1940,7 @@ func TestArtTree777_FindGT_key_before_keys_in_tree(t *testing.T) {
 
 	// also GTE
 
-	v, _, found = tree.FindGT(Key("a10"))
+	v, _, found, _ = tree.FindGT(Key("a10"))
 	if !found {
 		t.Error("expected key to be found")
 	}
@@ -1955,7 +1955,7 @@ func TestArtTree777_FindLT_key_after_keys_in_tree(t *testing.T) {
 	tree.Insert(Key("a14"), ByteSliceValue("a14"), "")
 	tree.Insert(Key("b01"), ByteSliceValue("b01"), "")
 
-	v, _, found := tree.FindLT(Key("c00"))
+	v, _, found, _ := tree.FindLT(Key("c00"))
 	if !found {
 		t.Error("expected key to be found")
 	}
@@ -1965,7 +1965,7 @@ func TestArtTree777_FindLT_key_after_keys_in_tree(t *testing.T) {
 
 	// also LTE
 
-	v, _, found = tree.FindLTE(Key("c00"))
+	v, _, found, _ = tree.FindLTE(Key("c00"))
 	if !found {
 		t.Error("expected key to be found")
 	}

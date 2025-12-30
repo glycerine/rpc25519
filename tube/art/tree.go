@@ -231,8 +231,7 @@ func (t *Tree) InsertLeaf(lf *Leaf) (updated bool) {
 
 // FindGT returns the first element whose key
 // is greater than the supplied key.
-func (t *Tree) FindGT(key Key) (val []byte, idx int, found bool) {
-	var lf *Leaf
+func (t *Tree) FindGT(key Key) (val []byte, idx int, found bool, lf *Leaf) {
 	lf, idx, found = t.Find(GT, key)
 	//vv("FindGT got back lf='%v'; idx=%v; found = %v", lf, idx, found)
 	if found && lf != nil {
@@ -243,8 +242,7 @@ func (t *Tree) FindGT(key Key) (val []byte, idx int, found bool) {
 
 // FindGTE returns the first element whose key
 // is greater than, or equal to, the supplied key.
-func (t *Tree) FindGTE(key Key) (val []byte, idx int, found bool) {
-	var lf *Leaf
+func (t *Tree) FindGTE(key Key) (val []byte, idx int, found bool, lf *Leaf) {
 	lf, idx, found = t.Find(GTE, key)
 	if found && lf != nil {
 		val = lf.Value
@@ -254,8 +252,7 @@ func (t *Tree) FindGTE(key Key) (val []byte, idx int, found bool) {
 
 // FindGT returns the first element whose key
 // is less than the supplied key.
-func (t *Tree) FindLT(key Key) (val []byte, idx int, found bool) {
-	var lf *Leaf
+func (t *Tree) FindLT(key Key) (val []byte, idx int, found bool, lf *Leaf) {
 	lf, idx, found = t.Find(LT, key)
 	if found && lf != nil {
 		val = lf.Value
@@ -265,8 +262,7 @@ func (t *Tree) FindLT(key Key) (val []byte, idx int, found bool) {
 
 // FindLTE returns the first element whose key
 // is less-than-or-equal to the supplied key.
-func (t *Tree) FindLTE(key Key) (val []byte, idx int, found bool) {
-	var lf *Leaf
+func (t *Tree) FindLTE(key Key) (val []byte, idx int, found bool, lf *Leaf) {
 	lf, idx, found = t.Find(LTE, key)
 	if found && lf != nil {
 		val = lf.Value
