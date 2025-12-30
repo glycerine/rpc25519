@@ -11483,9 +11483,7 @@ type MemberConfig struct {
 	// to figure out where we are getting it wrong/backwards/flipped.
 	Prov []string `zid:"9"`
 
-	// Note: not used yet:
-	//
-	// A total order on versions from the
+	// ConfigVersion gives a total order on versions from the
 	// MongoRaftReconfig algorithm/paper
 	// uses a (version, term) pair where
 	// term is compared first. Term is
