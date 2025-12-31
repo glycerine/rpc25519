@@ -2743,7 +2743,7 @@ type TubeNode struct {
 	wroteBootstrapFirstLogEntry time.Time
 
 	// Since we want consensus on when
-	// to delete, we have to update the
+	// to delete a session, we have to update the
 	// session table by SESS_REFRESH
 	// and then we can purge those who
 	// have not been refreshed or have expired.
@@ -2762,8 +2762,6 @@ type TubeNode struct {
 	// the leader, since only s.becomeLeader()
 	// sets it.
 	lastBecomeLeaderTerm int64
-
-	ramOnlySubleases map[Key]*Sublease
 }
 
 // tuber uses to read the DataDir in use.
@@ -3709,7 +3707,6 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		leaderFullPongPQ: newPongPQ(name),
 		parked:           newParkedTree(),
 		sessByExpiry:     newSessTableByExpiry(),
-		ramOnlySubleases: make(map[Key]*Sublease),
 	}
 	s.cfg.MyName = name
 	// non-testing default is talk to ourselves.
@@ -10217,7 +10214,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 			// too, so client can survive a leader change
 			// and keep going... althought since their Session
 			// counter is not replicated, we might kill
-			// them on a gap... might not worth it. Comment for
+			// them on a gap... might not be worth it. Comment for
 			// now since local leader reads staying fast is
 			// a big benefit.
 			// return false
@@ -10254,6 +10251,11 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 				tkt.AsOfLogIndex = priorTkt.AsOfLogIndex
 				// READ and SHOW_KEYS:
 				tkt.Val = priorTkt.Val
+				tkt.Vtype = priorTkt.Vtype
+				tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
+				tkt.Leasor = priorTkt.Leasor
+				tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
+
 				// READ_KEYRANGE:
 				tkt.KeyValRangeScan = priorTkt.KeyValRangeScan
 
@@ -13944,7 +13946,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 	// chapter 6, page 75, section 6.4.1 "Using clocks to
 	// reduce messaging for read-only queries":
 	// "To implement this guarantee [of sequential
-	// consistency in the fake of clock badness],
+	// consistency in the face of clock badness],
 	// servers would include the index corresponding
 	// to the state machine state with each reply to clients.
 	// Clients would track the latest index
@@ -14022,6 +14024,11 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 			tkt.AsOfLogIndex = priorTkt.AsOfLogIndex
 			// READ and SHOW_KEYS:
 			tkt.Val = priorTkt.Val
+			tkt.Vtype = priorTkt.Vtype
+			tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
+			tkt.Leasor = priorTkt.Leasor
+			tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
+
 			// READ_KEYRANGE:
 			tkt.KeyValRangeScan = priorTkt.KeyValRangeScan
 			tkt.Stage += ":prev_read_val_used_leaderDoneEarlyOnSessionStuff"
@@ -14613,49 +14620,6 @@ func peerNamesAsString(peers map[string]*RaftNodeInfo) (r string) {
 	}
 	return
 }
-
-type Sublease struct {
-	Until  time.Time `zid:"0"`
-	Leasor string    `zid:"1"`
-	Key    Key       `zid:"2"`
-}
-
-/*
-func (s *TubeNode) handleRamOnlySublease(tkt *Ticket) {
-	ok, until := s.leaderCanServeReadsLocally()
-	vv("handleRamOnlySublease for leaseKey '%v' called. ok=%v; until=%v; leaseDur='%v'", tkt.Key, ok, until, until.Sub(time.Now()))
-	if ok {
-		now := time.Now()
-		from := tkt.FromName
-		cur, ok := s.ramOnlySubleases[tkt.Key]
-		if ok {
-			if cur.Leasor == from {
-				vv("extend lease by '%v'", from)
-				cur.Until = until
-				tkt.LeaseUntilTm = until
-			} else {
-				// not renew-ing, has it expired?
-				if now.After(cur.Until) {
-					vv("sublease expired, grant to requestor")
-					cur.Leasor = from
-					cur.Until = until
-					tkt.LeaseUntilTm = until
-				} else {
-					vv("sublease not expired, reject 2nd requestor")
-					tkt.Err = fmt.Errorf("rejected lease from '%v' because lease to '%v' does not expire until '%v'", from, cur.Leasor, cur.Until)
-				}
-			}
-		} else {
-			vv("brand new lease on '%v', grant it to '%v'", tkt.Key, from)
-			sub := &Sublease{Until: until, Leasor: from}
-			s.ramOnlySubleases[tkt.Key] = sub
-			tkt.LeaseUntilTm = until
-		}
-	} else {
-		tkt.Err = fmt.Errorf("leaderCanServeReadsLocally() replied false")
-	}
-}
-*/
 
 // called on leader by case RedirectTicketToLeaderMsg,
 // by dispatchAwaitingLeaderTickets(),
