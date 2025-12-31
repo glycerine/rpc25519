@@ -4825,6 +4825,10 @@ RemovePeerBaseServerHostPort: "%v"`,
 			t.RemovePeerBaseServerHostPort,
 		)
 	}
+	var leaseUntilTmStr string
+	if !t.LeaseUntilTm.IsZero() {
+		leaseUntilTmStr = t.LeaseUntilTm.Format(RFC3339NanoNumericTZ0pad)
+	}
 	return fmt.Sprintf(`Ticket{
    --------  Ticket basics  ---------
 finishTicketCalled: %v,
@@ -4835,7 +4839,12 @@ finishTicketCalled: %v,
                 Op: %v,
                Key: "%v",
                Val: "%v",
+             Vtype: "%v",
                Err: %v,%v
+   --------  Leasing  ---------
+    LeaseRequestDur: %v
+             Leasor: "%v"
+       LeaseUntilTm: %v
    --------  Ticket membership updates  ---------
        AddPeerName: %v
     RemovePeerName: %v
@@ -4871,8 +4880,12 @@ DoneClosedOnPeerID: "%v",
 
 		// just returns string(t.Val) if not ExternalCluster
 		showExternalCluster(t.Val),
+		t.Vtype,
 		t.Err,
 		extra,
+		t.LeaseRequestDur,
+		t.Leasor,
+		leaseUntilTmStr,
 		t.AddPeerName,
 		t.RemovePeerName,
 		t.Committed,
