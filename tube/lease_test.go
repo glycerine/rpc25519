@@ -15,7 +15,9 @@ func Test079_lease_from_leader(t *testing.T) {
 	// subleases must never be longer than the Czar's lease,
 	// so that master can keep them in memory.
 
-	// From Butler Lampson's 1996 paper, "How to Build
+	// How heirarchical leases work to create RAM-only
+	// fast updates of some state;
+	// from Butler Lampson's 1996 paper, "How to Build
 	// a Highly Available System Using Consensus":
 	//
 	// "Run consensus once to elect a czar C and give C
@@ -61,12 +63,15 @@ func Test079_lease_from_leader(t *testing.T) {
 		defer sess.Close()
 		vv("good: got session to leader (maybe from leader to leader, but meh, we cannot always know who is leader...). sess=%p", sess)
 
+		leaseTable := Key("leaseTableA")
 		leaseKey := Key("leaseKeyA")
+		leaseVal := Val("leaseValA")
+		leaseVtype := "lease"
 		leaseRequestDur := time.Minute
-		leaseTkt, err := sess.Write(ctx, leaseKey, 0, leaseRequestDur)
+		leaseTkt, err := sess.Write(ctx, leaseTable, leaseKey, leaseVal, 0, leaseVtype, leaseRequestDur)
 		panicOn(err)
 		now := time.Now()
-		until := leaseTkt.LeaseGrantedUntilTm
+		until := leaseTkt.LeaseUntilTm
 		left := until.Sub(now)
 		if left <= 0 {
 			panicf("left(%v) <= 0; until='%v'; now='%v'", left, until, now)
