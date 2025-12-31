@@ -421,9 +421,9 @@ doneWithStruct6zgensym_da1be0b343e58527_7:
 			if err != nil {
 				return
 			}
-		case "LastWriteTm_zid05_tim":
+		case "WriteRaftLogIndex_zid05_i64":
 			found6zgensym_da1be0b343e58527_7[5] = true
-			z.LastWriteTm, err = dc.ReadTime()
+			z.WriteRaftLogIndex, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
@@ -450,7 +450,7 @@ doneWithStruct6zgensym_da1be0b343e58527_7:
 }
 
 // fields of Leaf
-var decodeMsgFieldOrder6zgensym_da1be0b343e58527_7 = []string{"Key_zid00_rct", "Value_zid01_bin", "Vtype_zid02_str", "Leasor_zid03_str", "LeaseUntilTm_zid04_tim", "LastWriteTm_zid05_tim"}
+var decodeMsgFieldOrder6zgensym_da1be0b343e58527_7 = []string{"Key_zid00_rct", "Value_zid01_bin", "Vtype_zid02_str", "Leasor_zid03_str", "LeaseUntilTm_zid04_tim", "WriteRaftLogIndex_zid05_i64"}
 
 var decodeMsgFieldSkip6zgensym_da1be0b343e58527_7 = []bool{false, false, false, false, false, false}
 
@@ -480,7 +480,7 @@ func (z *Leaf) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[4] {
 		fieldsInUse--
 	}
-	isempty[5] = (z.LastWriteTm.IsZero()) // time.Time, omitempty
+	isempty[5] = (z.WriteRaftLogIndex == 0) // number, omitempty
 	if isempty[5] {
 		fieldsInUse--
 	}
@@ -575,12 +575,12 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_da1be0b343e58527_9[5] {
-		// write "LastWriteTm_zid05_tim"
-		err = en.Append(0xb5, 0x4c, 0x61, 0x73, 0x74, 0x57, 0x72, 0x69, 0x74, 0x65, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x74, 0x69, 0x6d)
+		// write "WriteRaftLogIndex_zid05_i64"
+		err = en.Append(0xbb, 0x57, 0x72, 0x69, 0x74, 0x65, 0x52, 0x61, 0x66, 0x74, 0x4c, 0x6f, 0x67, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
-		err = en.WriteTime(z.LastWriteTm)
+		err = en.WriteInt64(z.WriteRaftLogIndex)
 		if err != nil {
 			return
 		}
@@ -633,9 +633,9 @@ func (z *Leaf) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[5] {
-		// string "LastWriteTm_zid05_tim"
-		o = append(o, 0xb5, 0x4c, 0x61, 0x73, 0x74, 0x57, 0x72, 0x69, 0x74, 0x65, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x74, 0x69, 0x6d)
-		o = msgp.AppendTime(o, z.LastWriteTm)
+		// string "WriteRaftLogIndex_zid05_i64"
+		o = append(o, 0xbb, 0x57, 0x72, 0x69, 0x74, 0x65, 0x52, 0x61, 0x66, 0x74, 0x4c, 0x6f, 0x67, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.WriteRaftLogIndex)
 	}
 
 	return
@@ -765,9 +765,9 @@ doneWithStruct11zgensym_da1be0b343e58527_12:
 			if err != nil {
 				return
 			}
-		case "LastWriteTm_zid05_tim":
+		case "WriteRaftLogIndex_zid05_i64":
 			found11zgensym_da1be0b343e58527_12[5] = true
-			z.LastWriteTm, bts, err = nbs.ReadTimeBytes(bts)
+			z.WriteRaftLogIndex, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
@@ -795,23 +795,23 @@ doneWithStruct11zgensym_da1be0b343e58527_12:
 }
 
 // fields of Leaf
-var unmarshalMsgFieldOrder11zgensym_da1be0b343e58527_12 = []string{"Key_zid00_rct", "Value_zid01_bin", "Vtype_zid02_str", "Leasor_zid03_str", "LeaseUntilTm_zid04_tim", "LastWriteTm_zid05_tim"}
+var unmarshalMsgFieldOrder11zgensym_da1be0b343e58527_12 = []string{"Key_zid00_rct", "Value_zid01_bin", "Vtype_zid02_str", "Leasor_zid03_str", "LeaseUntilTm_zid04_tim", "WriteRaftLogIndex_zid05_i64"}
 
 var unmarshalMsgFieldSkip11zgensym_da1be0b343e58527_12 = []bool{false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Leaf) Msgsize() (s int) {
-	s = 1 + 14 + msgp.BytesPrefixSize + len([]byte(z.Key)) + 16 + msgp.BytesPrefixSize + len(z.Value) + 16 + msgp.StringPrefixSize + len(z.Vtype) + 17 + msgp.StringPrefixSize + len(z.Leasor) + 23 + msgp.TimeSize + 22 + msgp.TimeSize
+	s = 1 + 14 + msgp.BytesPrefixSize + len([]byte(z.Key)) + 16 + msgp.BytesPrefixSize + len(z.Value) + 16 + msgp.StringPrefixSize + len(z.Vtype) + 17 + msgp.StringPrefixSize + len(z.Leasor) + 23 + msgp.TimeSize + 28 + msgp.Int64Size
 	return
 }
 func (z *Leaf) Gstring() (r string) {
 	r = "&Leaf{\n"
-	r += fmt.Sprintf("         Key: %v,\n", z.Key)
-	r += fmt.Sprintf("       Value: %v,\n", z.Value)
-	r += fmt.Sprintf("       Vtype: \"%v\",\n", z.Vtype)
-	r += fmt.Sprintf("      Leasor: \"%v\",\n", z.Leasor)
-	r += fmt.Sprintf("LeaseUntilTm: %v,\n", z.LeaseUntilTm)
-	r += fmt.Sprintf(" LastWriteTm: %v,\n", z.LastWriteTm)
+	r += fmt.Sprintf("              Key: %v,\n", z.Key)
+	r += fmt.Sprintf("            Value: %v,\n", z.Value)
+	r += fmt.Sprintf("            Vtype: \"%v\",\n", z.Vtype)
+	r += fmt.Sprintf("           Leasor: \"%v\",\n", z.Leasor)
+	r += fmt.Sprintf("     LeaseUntilTm: %v,\n", z.LeaseUntilTm)
+	r += fmt.Sprintf("WriteRaftLogIndex: %v,\n", z.WriteRaftLogIndex)
 	r += "}\n"
 	return
 }

@@ -83,9 +83,9 @@ type Leaf struct {
 	Vtype string `zid:"2"`
 
 	// optional metadata
-	Leasor       string    `zid:"3"`
-	LeaseUntilTm time.Time `zid:"4"`
-	LastWriteTm  time.Time `zid:"5"`
+	Leasor            string    `zid:"3"`
+	LeaseUntilTm      time.Time `zid:"4"`
+	WriteRaftLogIndex int64     `zid:"5"`
 }
 
 func (n *Leaf) depth() int {
