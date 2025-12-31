@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	rpc "github.com/glycerine/rpc25519"
-	"github.com/glycerine/rpc25519/tube/art"
+	//"github.com/glycerine/rpc25519/tube/art"
 )
 
 func Test301_raftStatePersistorSaveLoad(t *testing.T) {
@@ -31,7 +31,12 @@ func Test301_raftStatePersistorSaveLoad(t *testing.T) {
 		}
 		versions = append(versions, state)
 
-		state.kvstoreWrite("hello", "world", art.ByteSliceValue(Val("43")), "")
+		tkt := &Ticket{
+			Table: "hello",
+			Key:   "world",
+			Val:   Val("43"),
+		}
+		state.kvstoreWrite(tkt)
 
 		// check read back immediately...
 		v, _, err := state.KVStoreRead("hello", "world")

@@ -1095,7 +1095,6 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		case tkt := <-s.writeReqCh:
 			// WRITE, DELETE_TABLE, MAKE_TABLE, RENAME_TABLE,
 			// CAS, ADD_SHADOW_NON_VOTING, REMOVE_SHADOW_NON_VOTING,
-			// RAM_ONLY_SUBLEASE
 			// are all submitted here.
 			s.countWriteCh++
 			//s.ay("%v got ticket on %v <-s.writeReqCh: '%v'", s.me(), s.countWriteCh, tkt)
@@ -4583,7 +4582,9 @@ type Ticket struct {
 
 	ForceChangeMC bool `zid:"61"`
 
-	SubleaseGrantedUntilTm time.Time `zid:"63"`
+	LeaseRequestDur time.Duration `zid:"63"` // optional on WRITE
+	Leasor          string        `zid:"64"` // optional on WRITE
+	LeaseUntilTm    time.Time     `zid:"65"`
 
 	// where in tkthist we were entered locally.
 	localHistIndex int
@@ -4630,8 +4631,6 @@ const (
 	REMOVE_SHADOW_NON_VOTING TicketOp = 17
 
 	USER_DEFINED_FSM_OP TicketOp = 18
-
-	RAM_ONLY_SUBLEASE TicketOp = 19
 )
 
 func (t TicketOp) String() (r string) {
@@ -4674,8 +4673,6 @@ func (t TicketOp) String() (r string) {
 		return "REMOVE_SHADOW_NON_VOTING"
 	case USER_DEFINED_FSM_OP:
 		return "USER_DEFINED_FSM_OP"
-	case RAM_ONLY_SUBLEASE:
-		return "RAM_ONLY_SUBLEASE"
 	}
 	r = fmt.Sprintf("(unknown TicketOp: %v", int64(t))
 	panic(r)
@@ -4748,7 +4745,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.LeaderURL = tkt.LeaderURL
 		prior.LeaderStampSN = tkt.LeaderStampSN
 		prior.LeaderID = tkt.LeaderID
-		prior.SubleaseGrantedUntilTm = tkt.SubleaseGrantedUntilTm
+		prior.LeaseRequestDur = tkt.LeaseRequestDur
 		prior.Stage += ":FinishTicket_prior_Val_written"
 		if prior.Done != nil {
 			if prior.DoneClosedOnPeerID != "" {
@@ -4916,7 +4913,7 @@ func (s *TubeNode) NewTicket(
 	tkt = &Ticket{
 		Desc:         desc,
 		TSN:          atomic.AddInt64(&debugNextTSN, 1),
-		T0:           time.Now(), // for gc of abandonded tickets.
+		T0:           time.Now(), // for gc of abandonded tickets. and determistic session expiry.
 		Op:           op,
 		Table:        table,
 		Key:          key,
@@ -8998,7 +8995,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 			tkt.Applied = true
 
 		case WRITE:
-			s.state.kvstoreWrite(tkt.Table, tkt.Key, tkt.Val, tkt.Vtype)
+			s.doWrite(tkt)
 			tkt.Applied = true
 
 		case CAS:
@@ -9481,9 +9478,6 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	}
 
 	switch question.Op {
-	case RAM_ONLY_SUBLEASE:
-		question.SubleaseGrantedUntilTm = answer.SubleaseGrantedUntilTm
-
 	case SESS_NEW:
 		// good, replaces nil with filled in session.
 		//vv("%v answerToQuestionTicket is setting question.NewSessReply(%v) = answer.NewSessReq(%v)", s.name, question.NewSessReply, answer.NewSessReq)
@@ -9509,6 +9503,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.DupDetected = answer.DupDetected
 	question.LogIndex = answer.LogIndex
 	question.Term = answer.Term
+	question.LeaseRequestDur = answer.LeaseRequestDur
 
 	question.Err = answer.Err
 	question.StateSnapshot = answer.StateSnapshot
@@ -10301,6 +10296,10 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 		s.respondToClientTicketApplied(tkt)
 	}
 	return true
+}
+
+func (s *TubeNode) doWrite(tkt *Ticket) {
+	s.state.kvstoreWrite(tkt)
 }
 
 func (s *TubeNode) doCAS(tkt *Ticket) {
@@ -14604,6 +14603,7 @@ type Sublease struct {
 	Key    Key       `zid:"2"`
 }
 
+/*
 func (s *TubeNode) handleRamOnlySublease(tkt *Ticket) {
 	ok, until := s.leaderCanServeReadsLocally()
 	vv("handleRamOnlySublease for leaseKey '%v' called. ok=%v; until=%v; leaseDur='%v'", tkt.Key, ok, until, until.Sub(time.Now()))
@@ -14615,14 +14615,14 @@ func (s *TubeNode) handleRamOnlySublease(tkt *Ticket) {
 			if cur.Leasor == from {
 				vv("extend lease by '%v'", from)
 				cur.Until = until
-				tkt.SubleaseGrantedUntilTm = until
+				tkt.LeaseUntilTm = until
 			} else {
 				// not renew-ing, has it expired?
 				if now.After(cur.Until) {
 					vv("sublease expired, grant to requestor")
 					cur.Leasor = from
 					cur.Until = until
-					tkt.SubleaseGrantedUntilTm = until
+					tkt.LeaseUntilTm = until
 				} else {
 					vv("sublease not expired, reject 2nd requestor")
 					tkt.Err = fmt.Errorf("rejected lease from '%v' because lease to '%v' does not expire until '%v'", from, cur.Leasor, cur.Until)
@@ -14632,12 +14632,13 @@ func (s *TubeNode) handleRamOnlySublease(tkt *Ticket) {
 			vv("brand new lease on '%v', grant it to '%v'", tkt.Key, from)
 			sub := &Sublease{Until: until, Leasor: from}
 			s.ramOnlySubleases[tkt.Key] = sub
-			tkt.SubleaseGrantedUntilTm = until
+			tkt.LeaseUntilTm = until
 		}
 	} else {
 		tkt.Err = fmt.Errorf("leaderCanServeReadsLocally() replied false")
 	}
 }
+*/
 
 // called on leader by case RedirectTicketToLeaderMsg,
 // by dispatchAwaitingLeaderTickets(),
@@ -14649,11 +14650,11 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 		panic("only for leader; followers should not be calling here.")
 	}
 	switch tkt.Op {
-	case RAM_ONLY_SUBLEASE:
-		s.handleRamOnlySublease(tkt)
-		s.respondToClientTicketApplied(tkt)
-		s.FinishTicket(tkt, true)
-		return
+	case WRITE:
+	// 	s.handleRamOnlySublease(tkt)
+	// 	s.respondToClientTicketApplied(tkt)
+	// 	s.FinishTicket(tkt, true)
+	// 	return
 
 	case MEMBERSHIP_SET_UPDATE:
 		s.changeMembership(tkt)

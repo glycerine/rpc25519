@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
 
 //go:generate greenpack
@@ -78,23 +79,17 @@ type Leaf struct {
 	Key   Key    `zid:"0"`
 	Value []byte `zid:"1"`
 
-	// the type/description of the type of Value.
+	// optional type/description of the type of Value.
 	Vtype string `zid:"2"`
+
+	// optional metadata
+	Leasor       string    `zid:"3"`
+	LeaseUntilTm time.Time `zid:"4"`
 }
 
 func (n *Leaf) depth() int {
 	return len(n.Key)
 }
-
-// func (n *Leaf) clone() (c *Leaf) {
-// 	c = &Leaf{
-// 		Key:     append([]byte{}, n.Key...),
-// 		Value:   append([]byte{}, n.Value...),
-// 		keybyte: n.keybyte,
-// 		Vtype:   n.Vtype,
-// 	}
-// 	return c
-// }
 
 func NewLeaf(key Key, v []byte, vtype string) *Leaf {
 	return &Leaf{

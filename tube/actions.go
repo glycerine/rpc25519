@@ -50,11 +50,16 @@ import (
 // This provides the strongest and most intuitive
 // consistency. It also gives us composability --
 // a synonym for ease of use.
-func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, sess *Session, vtype string) (tkt *Ticket, err error) {
+func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, sess *Session, vtype string, leaseDur time.Duration) (tkt *Ticket, err error) {
 
 	desc := fmt.Sprintf("write: key(%v) = val(%v)", key, showExternalCluster(val))
 	tkt = s.NewTicket(desc, table, key, val, s.PeerID, s.name, WRITE, waitForDur, ctx)
 	tkt.Vtype = vtype
+	if leaseDur > 0 {
+		tkt.LeaseRequestDur = leaseDur
+		tkt.LeaseUntilTm = tkt.T0.Add(leaseDur)
+		tkt.Leasor = s.name
+	}
 	if sess != nil {
 		tkt.SessionID = sess.SessionID
 		tkt.SessionSerial = sess.SessionSerial
@@ -96,6 +101,7 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 	}
 }
 
+/* should be on czar to lease to masters of particular area.
 func (s *TubeNode) RamOnlySublease(ctx context.Context, leaseKey Key, waitForDur time.Duration, sess *Session) (tkt *Ticket, err error) {
 
 	desc := fmt.Sprintf("ramOnlySublease: key(%v)", leaseKey)
@@ -142,6 +148,7 @@ func (s *TubeNode) RamOnlySublease(ctx context.Context, leaseKey Key, waitForDur
 	}
 
 }
+*/
 
 // Compare and Swap
 func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string) (tkt *Ticket, err error) {
@@ -445,20 +452,73 @@ func (s *TubeNode) DeleteTable(ctx context.Context, table Key, waitForDur time.D
 	}
 }
 
-func (s *RaftState) kvstoreWrite(tktTable, tktKey Key, tktVal []byte, vtype string) {
+func (s *RaftState) kvstoreWrite(tkt *Ticket) {
+
+	tktTable := tkt.Table
+	tktKey := tkt.Key
+	tktVal := tkt.Val
+
+	var surelyNoPrior bool
 	if s.KVstore == nil {
 		s.KVstore = newKVStore()
+		surelyNoPrior = true
 	}
 	if s.KVstore.m == nil {
 		s.KVstore.m = make(map[Key]*ArtTable)
+		surelyNoPrior = true
 	}
 	table, ok := s.KVstore.m[tktTable]
 	if !ok {
+		surelyNoPrior = true
 		table = newArtTable()
 		s.KVstore.m[tktTable] = table
 	}
-	table.Tree.Insert(art.Key(tktKey), art.ByteSliceValue([]byte(append([]byte{}, tktVal...))), vtype)
-	//vv("%v wrote key '%v' ; KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
+
+	key := art.Key(tktKey)
+	var leaf *art.Leaf
+	var found bool
+	if !surelyNoPrior {
+		// is there a prior lease that must be respected?
+		leaf, _, found = table.Tree.Find(art.Exact, key)
+	}
+	if !found {
+		leaf = art.NewLeaf(key, append([]byte{}, tktVal...), tkt.Vtype)
+		leaf.Leasor = tkt.Leasor
+		leaf.LeaseUntilTm = tkt.LeaseUntilTm
+
+		table.Tree.InsertLeaf(leaf)
+		//vv("%v wrote key '%v' ; KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
+		return
+	}
+	// key already present, so if leased and not leased by Leasor,
+	// we must reject the write.
+	if leaf.Leasor == "" {
+		// no current leasor, just put the write through.
+		leaf.Value = append([]byte{}, tktVal...)
+		leaf.Vtype = tkt.Vtype
+		leaf.Leasor = tkt.Leasor
+		leaf.LeaseUntilTm = tkt.LeaseUntilTm
+		return
+	}
+	// prior key and prior leasor on key is present.
+
+	if tkt.Leasor == tkt.Leasor {
+		// current leasor extending lease, allow it (expired or not)
+		leaf.LeaseUntilTm = tkt.LeaseUntilTm
+		//vv("%v wrote key '%v' extending current lease; KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
+		return
+	}
+	// has prior lease expired?
+	if tkt.T0.After(leaf.LeaseUntilTm) {
+		// prior lease expired, allow write.
+		leaf.Leasor = tkt.Leasor
+		leaf.LeaseUntilTm = tkt.LeaseUntilTm
+		//vv("%v wrote key '%v' updating to new leasor; KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
+		return
+	}
+	// key is already leased by a different leasor, and lease has not expired: reject.
+
+	//vv("%v reject write to already leased key '%v' ; KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
 }
 
 func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend bool) (results *art.Tree, err error) {
@@ -750,7 +810,7 @@ func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, w
 }
 
 // if ctx is nill we will use s.ctx
-func (s *Session) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, vtype string) (tkt *Ticket, err error) {
+func (s *Session) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, vtype string, leaseDur time.Duration) (tkt *Ticket, err error) {
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.Write: cli is nil, Session.Errs='%v'", s.Errs)
 	}
@@ -759,7 +819,7 @@ func (s *Session) Write(ctx context.Context, table, key Key, val Val, waitForDur
 		ctx = s.ctx
 	}
 	//vv("submitting write with s.SessionSerial = %v", s.SessionSerial)
-	return s.cli.Write(ctx, table, key, val, waitForDur, s, vtype)
+	return s.cli.Write(ctx, table, key, val, waitForDur, s, vtype, leaseDur)
 }
 
 func (s *Session) RenameTable(ctx context.Context, table, newTableName Key, waitForDur time.Duration) (tkt *Ticket, err error) {
@@ -843,6 +903,7 @@ func (s *Session) ReadKeyRange(ctx context.Context, table, key, keyEndx Key, des
 	return s.cli.ReadKeyRange(ctx, table, key, keyEndx, descend, waitForDur, s)
 }
 
+/*
 // if ctx is nill we will use s.ctx
 func (s *Session) RamOnlySublease(ctx context.Context, leaseKey Key, waitForDur time.Duration) (tkt *Ticket, err error) {
 	if s.cli == nil {
@@ -855,3 +916,4 @@ func (s *Session) RamOnlySublease(ctx context.Context, leaseKey Key, waitForDur 
 	//vv("submitting write with s.SessionSerial = %v", s.SessionSerial)
 	return s.cli.RamOnlySublease(ctx, leaseKey, waitForDur, s)
 }
+*/
