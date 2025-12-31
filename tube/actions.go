@@ -63,7 +63,8 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 	tkt.Vtype = vtype
 	if leaseDur > 0 {
 		tkt.LeaseRequestDur = leaseDur
-		tkt.LeaseUntilTm = tkt.T0.Add(leaseDur)
+		// let leader set this using tkt.RaftLogEntryTm.Add(tkt.LeaseRequestDur)
+		//tkt.LeaseUntilTm = tkt.T0.Add(leaseDur)
 		tkt.Leasor = s.name
 	}
 	if sess != nil {
@@ -409,7 +410,7 @@ func (s *TubeNode) DeleteTable(ctx context.Context, table Key, waitForDur time.D
 	}
 }
 
-func (s *RaftState) kvstoreWrite(tkt *Ticket) {
+func (s *RaftState) kvstoreWrite(tkt *Ticket, writer *TubeNode) {
 
 	tktTable := tkt.Table
 	tktKey := tkt.Key
@@ -443,6 +444,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket) {
 		leaf = art.NewLeaf(key, append([]byte{}, tktVal...), tkt.Vtype)
 		leaf.Leasor = tkt.Leasor
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
+		leaf.LastWriteTm = tkt.RaftLogEntryTm
 
 		table.Tree.InsertLeaf(leaf)
 		//vv("%v wrote key '%v' (no prior key; leasor='%v' until '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, leaf.LeaseUntilTm, s.KVstore.Len())
@@ -456,6 +458,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket) {
 		leaf.Vtype = tkt.Vtype
 		leaf.Leasor = tkt.Leasor
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
+		leaf.LastWriteTm = tkt.RaftLogEntryTm
 		//vv("%v wrote key '%v' (no current lease); KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
 		return
 	}
@@ -463,20 +466,32 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket) {
 
 	if leaf.Leasor == tkt.Leasor {
 		// current leasor extending lease, allow it (expired or not)
+		// already set: leaf.Leasor = tkt.Leasor
+		leaf.Value = append([]byte{}, tktVal...)
+		leaf.Vtype = tkt.Vtype
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
+		leaf.LastWriteTm = tkt.RaftLogEntryTm
 		//vv("%v wrote key '%v' extending current lease for '%v'; KVstore now len=%v", s.name, tktKey, tkt.Leasor, s.KVstore.Len())
 		return
 	}
 	// has prior lease expired?
-	if tkt.T0.After(leaf.LeaseUntilTm) {
+	// careful: the leaf.LeaseUntilTm could be from the
+	// previous leader's clock, and tkt.RaftLogEntryTm could
+	// be from current leader's clock, so also
+	// include clock drift bound.
+	if tkt.RaftLogEntryTm.After(leaf.LeaseUntilTm.Add(writer.cfg.ClockDriftBound)) {
 		// prior lease expired, allow write.
+
+		leaf.Value = append([]byte{}, tktVal...)
+		leaf.Vtype = tkt.Vtype
 		leaf.Leasor = tkt.Leasor
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
+		leaf.LastWriteTm = tkt.RaftLogEntryTm
 		//vv("%v wrote key '%v' updating to new leasor; KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
 		return
 	}
 	// key is already leased by a different leasor, and lease has not expired: reject.
-	tkt.Err = fmt.Errorf("write to leased key rejected. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; rejecting attempted leasor='%v' at tkt.T0='%v' (left on lease: '%v')", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, tkt.T0.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.T0))
+	tkt.Err = fmt.Errorf("write to leased key rejected. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), writer.cfg.ClockDriftBound)
 
 	//vv("%v reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, tkt.Leasor, s.KVstore.Len())
 }

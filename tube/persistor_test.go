@@ -36,7 +36,9 @@ func Test301_raftStatePersistorSaveLoad(t *testing.T) {
 			Key:   "world",
 			Val:   Val("43"),
 		}
-		state.kvstoreWrite(tkt)
+		// kvstoreWrite() looks up ClockDriftBound from leader
+		leader := &TubeNode{cfg: TubeConfig{}}
+		state.kvstoreWrite(tkt, leader)
 
 		// check read back immediately...
 		v, _, err := state.KVStoreRead("hello", "world")

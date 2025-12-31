@@ -85,6 +85,7 @@ type Leaf struct {
 	// optional metadata
 	Leasor       string    `zid:"3"`
 	LeaseUntilTm time.Time `zid:"4"`
+	LastWriteTm  time.Time `zid:"5"`
 }
 
 func (n *Leaf) depth() int {

@@ -338,7 +338,7 @@ func (z *Leaf) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields6zgensym_da1be0b343e58527_7 = 5
+	const maxFields6zgensym_da1be0b343e58527_7 = 6
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields6zgensym_da1be0b343e58527_7 uint32
@@ -421,6 +421,12 @@ doneWithStruct6zgensym_da1be0b343e58527_7:
 			if err != nil {
 				return
 			}
+		case "LastWriteTm_zid05_tim":
+			found6zgensym_da1be0b343e58527_7[5] = true
+			z.LastWriteTm, err = dc.ReadTime()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -444,16 +450,16 @@ doneWithStruct6zgensym_da1be0b343e58527_7:
 }
 
 // fields of Leaf
-var decodeMsgFieldOrder6zgensym_da1be0b343e58527_7 = []string{"Key_zid00_rct", "Value_zid01_bin", "Vtype_zid02_str", "Leasor_zid03_str", "LeaseUntilTm_zid04_tim"}
+var decodeMsgFieldOrder6zgensym_da1be0b343e58527_7 = []string{"Key_zid00_rct", "Value_zid01_bin", "Vtype_zid02_str", "Leasor_zid03_str", "LeaseUntilTm_zid04_tim", "LastWriteTm_zid05_tim"}
 
-var decodeMsgFieldSkip6zgensym_da1be0b343e58527_7 = []bool{false, false, false, false, false}
+var decodeMsgFieldSkip6zgensym_da1be0b343e58527_7 = []bool{false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Leaf) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 5
+		return 6
 	}
-	var fieldsInUse uint32 = 5
+	var fieldsInUse uint32 = 6
 	isempty[0] = (len(z.Key) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -474,6 +480,10 @@ func (z *Leaf) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[4] {
 		fieldsInUse--
 	}
+	isempty[5] = (z.LastWriteTm.IsZero()) // time.Time, omitempty
+	if isempty[5] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -485,7 +495,7 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_da1be0b343e58527_9 [5]bool
+	var empty_zgensym_da1be0b343e58527_9 [6]bool
 	fieldsInUse_zgensym_da1be0b343e58527_10 := z.fieldsNotEmpty(empty_zgensym_da1be0b343e58527_9[:])
 
 	// map header
@@ -564,6 +574,18 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_da1be0b343e58527_9[5] {
+		// write "LastWriteTm_zid05_tim"
+		err = en.Append(0xb5, 0x4c, 0x61, 0x73, 0x74, 0x57, 0x72, 0x69, 0x74, 0x65, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x74, 0x69, 0x6d)
+		if err != nil {
+			return err
+		}
+		err = en.WriteTime(z.LastWriteTm)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -576,7 +598,7 @@ func (z *Leaf) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [5]bool
+	var empty [6]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -610,6 +632,12 @@ func (z *Leaf) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendTime(o, z.LeaseUntilTm)
 	}
 
+	if !empty[5] {
+		// string "LastWriteTm_zid05_tim"
+		o = append(o, 0xb5, 0x4c, 0x61, 0x73, 0x74, 0x57, 0x72, 0x69, 0x74, 0x65, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x74, 0x69, 0x6d)
+		o = msgp.AppendTime(o, z.LastWriteTm)
+	}
+
 	return
 }
 
@@ -628,7 +656,7 @@ func (z *Leaf) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byt
 
 	var field []byte
 	_ = field
-	const maxFields11zgensym_da1be0b343e58527_12 = 5
+	const maxFields11zgensym_da1be0b343e58527_12 = 6
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields11zgensym_da1be0b343e58527_12 uint32
@@ -737,6 +765,13 @@ doneWithStruct11zgensym_da1be0b343e58527_12:
 			if err != nil {
 				return
 			}
+		case "LastWriteTm_zid05_tim":
+			found11zgensym_da1be0b343e58527_12[5] = true
+			z.LastWriteTm, bts, err = nbs.ReadTimeBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -760,13 +795,13 @@ doneWithStruct11zgensym_da1be0b343e58527_12:
 }
 
 // fields of Leaf
-var unmarshalMsgFieldOrder11zgensym_da1be0b343e58527_12 = []string{"Key_zid00_rct", "Value_zid01_bin", "Vtype_zid02_str", "Leasor_zid03_str", "LeaseUntilTm_zid04_tim"}
+var unmarshalMsgFieldOrder11zgensym_da1be0b343e58527_12 = []string{"Key_zid00_rct", "Value_zid01_bin", "Vtype_zid02_str", "Leasor_zid03_str", "LeaseUntilTm_zid04_tim", "LastWriteTm_zid05_tim"}
 
-var unmarshalMsgFieldSkip11zgensym_da1be0b343e58527_12 = []bool{false, false, false, false, false}
+var unmarshalMsgFieldSkip11zgensym_da1be0b343e58527_12 = []bool{false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Leaf) Msgsize() (s int) {
-	s = 1 + 14 + msgp.BytesPrefixSize + len([]byte(z.Key)) + 16 + msgp.BytesPrefixSize + len(z.Value) + 16 + msgp.StringPrefixSize + len(z.Vtype) + 17 + msgp.StringPrefixSize + len(z.Leasor) + 23 + msgp.TimeSize
+	s = 1 + 14 + msgp.BytesPrefixSize + len([]byte(z.Key)) + 16 + msgp.BytesPrefixSize + len(z.Value) + 16 + msgp.StringPrefixSize + len(z.Vtype) + 17 + msgp.StringPrefixSize + len(z.Leasor) + 23 + msgp.TimeSize + 22 + msgp.TimeSize
 	return
 }
 func (z *Leaf) Gstring() (r string) {
@@ -776,6 +811,7 @@ func (z *Leaf) Gstring() (r string) {
 	r += fmt.Sprintf("       Vtype: \"%v\",\n", z.Vtype)
 	r += fmt.Sprintf("      Leasor: \"%v\",\n", z.Leasor)
 	r += fmt.Sprintf("LeaseUntilTm: %v,\n", z.LeaseUntilTm)
+	r += fmt.Sprintf(" LastWriteTm: %v,\n", z.LastWriteTm)
 	r += "}\n"
 	return
 }

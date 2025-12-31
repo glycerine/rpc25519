@@ -5268,6 +5268,10 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		node:               s,
 	}
 	tkt.RaftLogEntryTm = entry.Tm
+	if tkt.LeaseRequestDur > 0 {
+		// q: subtract s.cfg.ClockDriftBound here?
+		tkt.LeaseUntilTm = tkt.RaftLogEntryTm.Add(tkt.LeaseRequestDur)
+	}
 
 	// index of log entry immediately preceeding new ones
 	var prevLogIndex int64
@@ -10313,7 +10317,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 }
 
 func (s *TubeNode) doWrite(tkt *Ticket) {
-	s.state.kvstoreWrite(tkt)
+	s.state.kvstoreWrite(tkt, s)
 }
 
 func (s *TubeNode) doCAS(tkt *Ticket) {
