@@ -52,6 +52,13 @@ import (
 // a synonym for ease of use.
 func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, sess *Session, vtype string, leaseDur time.Duration) (tkt *Ticket, err error) {
 
+	if leaseDur != 0 {
+		// sanity check
+		if leaseDur < 0 || leaseDur > time.Minute*15 {
+			return nil, fmt.Errorf("leaseDur out of bounds, must be in [0, 15 minutes]: '%v'", leaseDur)
+		}
+	}
+
 	desc := fmt.Sprintf("write: key(%v) = val(%v)", key, showExternalCluster(val))
 	if vtype != "" {
 		desc += fmt.Sprintf("; vtype='%v'", vtype)
