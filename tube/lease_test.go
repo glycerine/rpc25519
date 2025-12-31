@@ -107,6 +107,13 @@ func Test079_lease_from_leader(t *testing.T) {
 		}
 		vv("good: re-newed lease has left %v", left)
 
+		// can we read back the vtype?
+		readTkt, err := sess.Read(ctx, leaseTable, leaseKey, 0)
+		panicOn(err)
+		if readTkt.Vtype != "lease" {
+			panicf("expected lease vtype back, got '%v'", readTkt.Vtype)
+		}
+
 		// avoid bubble complaint about still live goro by sleeping 1 sec after.
 		// since halter can take 500 msec to shutdown.
 		c.Close()

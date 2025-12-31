@@ -4733,6 +4733,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.DupDetected = tkt.DupDetected
 
 		prior.Val = tkt.Val // critical to get read value back
+		prior.Vtype = tkt.Vtype
 		prior.KeyValRangeScan = tkt.KeyValRangeScan
 		prior.Err = tkt.Err
 		prior.Insp = tkt.Insp // membership change/query wants.
@@ -9509,6 +9510,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.LeaseRequestDur = answer.LeaseRequestDur
 	question.Leasor = answer.Leasor
 	question.LeaseUntilTm = answer.LeaseUntilTm
+	question.Vtype = answer.Vtype
 
 	question.Err = answer.Err
 	question.StateSnapshot = answer.StateSnapshot

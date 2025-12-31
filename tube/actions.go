@@ -587,11 +587,11 @@ func (s *KVStore) All() iter.Seq2[Key, *ArtTable] {
 func (s *ArtTable) Len() int {
 	return s.Tree.Size()
 }
-func (s *ArtTable) All() iter.Seq2[Key, Val] {
-	return func(yield func(Key, Val) bool) {
+func (s *ArtTable) All() iter.Seq2[Key, *art.Leaf] {
+	return func(yield func(Key, *art.Leaf) bool) {
 		iter := s.Tree.Iter(nil, nil)
 		for iter.Next() {
-			if !yield(Key(iter.Key()), Val(iter.Value())) {
+			if !yield(Key(iter.Key()), iter.Leaf()) {
 				return
 			}
 		}
