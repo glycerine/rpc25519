@@ -22,7 +22,6 @@ type hoster interface {
 	mustGetLastLogIndex() int64
 	newRaftNodeInfo(peerID, peerName, peerServiceName, peerServiceNameVersion string) (info *RaftNodeInfo)
 	getRaftLogSummary() (localFirstIndex, localFirstTerm, localLastIndex, localLastTerm int64)
-	preVoteOn() bool
 	ackAE(ack *AppendEntriesAck, ae *AppendEntries)
 	becomeFollower(term int64, mc *MemberConfig, save bool)
 	dispatchAwaitingLeaderTickets()

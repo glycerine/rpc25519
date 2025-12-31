@@ -6712,7 +6712,6 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 		AEID:                  ae.AEID,
 		Term:                  s.state.CurrentTerm,
-		PreVoteOn:             s.host.preVoteOn(),
 		MinElectionTimeoutDur: s.cachedMinElectionTimeoutDur,
 
 		// For LargestCommonRaftIndex, lets declare that
@@ -10511,10 +10510,6 @@ func (s *TubeNode) leaderCanServeReadsLocally() (canServe bool, untilTm time.Tim
 	}
 	//vv("%v warning: leader could not get local read-lease from a quorum %v of our cluster %v", s.me(), need, s.clusterSize())
 	return
-}
-
-func (s *TubeNode) preVoteOn() bool {
-	return true
 }
 
 func (s *TubeNode) cloneWaitingAtLeaderToMap() (r map[string]*Ticket) {

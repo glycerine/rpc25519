@@ -125,11 +125,6 @@ func (s *TubeSim) getRaftLogSummary() (localFirstIndex, localFirstTerm, localLas
 	return
 }
 
-func (s *TubeSim) preVoteOn() bool {
-	s.preVoteOnCount++
-	return true // For testing purposes, always return true
-}
-
 func (s *TubeSim) ackAE(ack *AppendEntriesAck, ae *AppendEntries) {
 	s.ackAECount++
 	if ack.Rejected {
@@ -284,7 +279,6 @@ type TubeSim struct {
 
 	// Method call counters for debugging
 	getRaftLogSummaryCount             int
-	preVoteOnCount                     int
 	ackAECount                         int
 	ackAERejectCount                   int
 	becomeFollowerCount                int
@@ -399,7 +393,6 @@ func printScenario(scenario int64, tc *testCase, s, lead *TubeSim, ae *AppendEnt
 // Reset all method call counters
 func (s *TubeSim) resetMethodCounters() {
 	s.getRaftLogSummaryCount = 0
-	s.preVoteOnCount = 0
 	s.ackAECount = 0
 	s.ackAERejectCount = 0
 	s.becomeFollowerCount = 0
@@ -413,7 +406,6 @@ func (s *TubeSim) methodCallCounts() string {
 	var result strings.Builder
 	result.WriteString("Method call counts:\n")
 	result.WriteString(fmt.Sprintf("  getRaftLogSummary: %v\n", s.getRaftLogSummaryCount))
-	result.WriteString(fmt.Sprintf("  preVoteOn: %v\n", s.preVoteOnCount))
 
 	// Determine ackAE status
 	ackStatus := "accept"
@@ -534,7 +526,6 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 
 		AEID:                  ae.AEID,
 		Term:                  s.state.CurrentTerm,
-		PreVoteOn:             s.host.preVoteOn(),
 		MinElectionTimeoutDur: s.cachedMinElectionTimeoutDur,
 
 		LargestCommonRaftIndex: -1,
