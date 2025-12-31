@@ -1094,7 +1094,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 		case tkt := <-s.writeReqCh:
 			// WRITE, DELETE_TABLE, MAKE_TABLE, RENAME_TABLE,
-			// CAS, ADD_SHADOW_NON_VOTING, REMOVE_SHADOW_NON_VOTING
+			// CAS, ADD_SHADOW_NON_VOTING, REMOVE_SHADOW_NON_VOTING,
+			// RAM_ONLY_SUBLEASE
 			// are all submitted here.
 			s.countWriteCh++
 			//s.ay("%v got ticket on %v <-s.writeReqCh: '%v'", s.me(), s.countWriteCh, tkt)
@@ -4579,6 +4580,8 @@ type Ticket struct {
 
 	ForceChangeMC bool `zid:"61"`
 
+	SubleaseGrantedUntilTm time.Time `zid:"63"`
+
 	// where in tkthist we were entered locally.
 	localHistIndex int
 
@@ -4621,9 +4624,11 @@ const (
 	READ_KEYRANGE TicketOp = 15
 
 	ADD_SHADOW_NON_VOTING    TicketOp = 16 // through writeReqCh
-	REMOVE_SHADOW_NON_VOTING          = 17
+	REMOVE_SHADOW_NON_VOTING TicketOp = 17
 
-	USER_DEFINED_FSM_OP = 18
+	USER_DEFINED_FSM_OP TicketOp = 18
+
+	RAM_ONLY_SUBLEASE TicketOp = 19
 )
 
 func (t TicketOp) String() (r string) {
@@ -4666,6 +4671,8 @@ func (t TicketOp) String() (r string) {
 		return "REMOVE_SHADOW_NON_VOTING"
 	case USER_DEFINED_FSM_OP:
 		return "USER_DEFINED_FSM_OP"
+	case RAM_ONLY_SUBLEASE:
+		return "RAM_ONLY_SUBLEASE"
 	}
 	r = fmt.Sprintf("(unknown TicketOp: %v", int64(t))
 	panic(r)
@@ -4738,6 +4745,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.LeaderURL = tkt.LeaderURL
 		prior.LeaderStampSN = tkt.LeaderStampSN
 		prior.LeaderID = tkt.LeaderID
+		prior.SubleaseGrantedUntilTm = tkt.SubleaseGrantedUntilTm
 		prior.Stage += ":FinishTicket_prior_Val_written"
 		if prior.Done != nil {
 			if prior.DoneClosedOnPeerID != "" {
@@ -9470,6 +9478,9 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	}
 
 	switch question.Op {
+	case RAM_ONLY_SUBLEASE:
+		question.SubleaseGrantedUntilTm = answer.SubleaseGrantedUntilTm
+
 	case SESS_NEW:
 		// good, replaces nil with filled in session.
 		//vv("%v answerToQuestionTicket is setting question.NewSessReply(%v) = answer.NewSessReq(%v)", s.name, question.NewSessReply, answer.NewSessReq)
@@ -9523,12 +9534,9 @@ func (s *TubeNode) beginPreVote() {
 
 	if s.amShadowReplica() {
 		//vv("%v in beginPreVote, amShadowReplica ture: do not start a pre-vote since I am a shadow replica.", s.me())
-		// since we use the election timer to maintain
-		// connectivity to the cluster, keep it going.
-		// Update: always done now by the <-s.electionTimeoutCh
-		// case so we don't need to do this again.
-		// s.resetElectionTimeout("in beginPrevote, amShadowReplica true")
-
+		// we use the election timer to maintain
+		// connectivity to the cluster, but the <-s.electionTimeoutCh
+		// handles resets so we don't need do do that again here.
 		return
 	}
 	if s.state != nil && s.state.MC != nil {
@@ -10434,9 +10442,9 @@ func (s *TubeNode) leaderCanServeReadsLocally() (canServe bool, untilTm time.Tim
 	if s.clusterSize() <= 1 {
 		// single node cluster should be able to serve reads locally.
 		//vv("%v leaderCanServeReadsLocally ClusterSize <= 1", s.me())
-		window := s.cfg.MinElectionDur - s.cfg.ClockDriftBound
-		if window <= 0 {
-			panicf("window must be > 0 duration, not: %v", window)
+		window := (s.cfg.MinElectionDur / 2) - s.cfg.ClockDriftBound
+		if window <= 5*time.Millisecond {
+			panicf("window must be >= 5 msec duration, not: %v", window)
 		}
 		untilTm = time.Now().Add(window)
 		return true, untilTm
@@ -13701,10 +13709,14 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderURL string) (r *S
 	case <-tkt.Done.Chan: // waits for completion
 		err = tkt.Err
 		r = tkt.NewSessReply
-		// be ready for next use:
-		r.LastKnownIndex = r.SessionAssignedIndex
-		r.cli = s
-		r.ctx = ctx // because is different from the request
+		if r != nil { // might be nil on error?
+			// be ready for next use:
+			r.LastKnownIndex = r.SessionAssignedIndex
+			r.cli = s
+			r.ctx = ctx // because is different from the request
+		} else {
+			vv("r is nil. err = %v", err)
+		}
 		return
 	case <-ctx.Done():
 		err = ctx.Err()
@@ -14139,14 +14151,15 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 	//vv("%v addToCktall finished processing ckt.RemotePeerName='%v' RemotePeerID='%v'", s.me(), ckt.RemotePeerName, ckt.RemotePeerID)
 	//}()
 
-	if ckt.RemotePeerName == s.name {
-		// we might want to allow this to let in-process
-		// tubecli clients talk to the tube/replica sub-system,
-		// and helper.go creates it in its search to reach
-		// "everyone". but bah! we want to use a direct
-		// channel rather than a circuit in that case.
-		panic(fmt.Sprintf("%v huh? self-loop? use a channel! ckt.RemotePeerName==s.name; ckt='%v'", s.name, ckt))
-	}
+	//if ckt.RemotePeerName == s.name {
+	// we might want to allow this to let in-process
+	// tubecli clients talk to the tube/replica sub-system,
+	// and helper.go creates it in its search to reach
+	// "everyone". but bah! we want to use a direct
+	// channel rather than a circuit in that case.
+	// but bah! we cannot always know if we are leader or not.
+	//panic(fmt.Sprintf("%v huh? self-loop? use a channel! ckt.RemotePeerName==s.name; ckt='%v'", s.name, ckt))
+	//}
 
 	// new replaces old can create an infinite restart loop.
 	// 057 demonstrated that.
@@ -14582,6 +14595,16 @@ func peerNamesAsString(peers map[string]*RaftNodeInfo) (r string) {
 	return
 }
 
+func (s *TubeNode) handleRamOnlySublease(tkt *Ticket, fromWhom string) {
+	ok, until := s.leaderCanServeReadsLocally()
+	vv("handleRamOnlySublease for leaseKey '%v' called. ok=%v; until=%v; leaseDur='%v'", tkt.Key, ok, until, until.Sub(time.Now()))
+	if ok {
+		tkt.SubleaseGrantedUntilTm = until
+	} else {
+		tkt.Err = fmt.Errorf("leaderCanServeReadsLocally() replied false")
+	}
+}
+
 // called on leader by case RedirectTicketToLeaderMsg,
 // by dispatchAwaitingLeaderTickets(),
 // and by resubmitStalledTickets().
@@ -14592,6 +14615,12 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 		panic("only for leader; followers should not be calling here.")
 	}
 	switch tkt.Op {
+	case RAM_ONLY_SUBLEASE:
+		s.handleRamOnlySublease(tkt, fromWhom)
+		s.respondToClientTicketApplied(tkt)
+		s.FinishTicket(tkt, true)
+		return
+
 	case MEMBERSHIP_SET_UPDATE:
 		s.changeMembership(tkt)
 		//vv("%v changeMembership finished, returning from commandSpecificLocalActionsThenReplicateTicket without doing replicateTicket().", s.me())

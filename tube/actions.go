@@ -96,6 +96,53 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 	}
 }
 
+func (s *TubeNode) RamOnlySublease(ctx context.Context, leaseKey Key, waitForDur time.Duration, sess *Session) (tkt *Ticket, err error) {
+
+	desc := fmt.Sprintf("ramOnlySublease: key(%v)", leaseKey)
+	tkt = s.NewTicket(desc, "", leaseKey, nil, s.PeerID, s.name, RAM_ONLY_SUBLEASE, waitForDur, ctx)
+	if sess != nil {
+		tkt.SessionID = sess.SessionID
+		tkt.SessionSerial = sess.SessionSerial
+		tkt.MinSessSerialWaiting = sess.MinSessSerialWaiting
+		tkt.SessionLastKnownIndex = sess.LastKnownIndex
+		//vv("Write set tkt.SessionSerial = %v", tkt.SessionSerial)
+	}
+
+	select {
+	//case s.ramOnlyReqCh <- tkt:
+	case s.writeReqCh <- tkt:
+		// proceed to wait below for txt.done
+	case <-ctx.Done():
+		err = ctx.Err()
+		return
+	case <-s.Halt.ReqStop.Chan:
+		err = ErrTimeOut
+		return
+	}
+
+	select {
+	case <-tkt.Done.Chan:
+		err = tkt.Err
+		if sess != nil && tkt.AsOfLogIndex > sess.LastKnownIndex {
+			sess.LastKnownIndex = tkt.AsOfLogIndex
+		}
+		if sess != nil && err == nil {
+			if tkt.SessionSerial > sess.MinSessSerialWaiting {
+				sess.MinSessSerialWaiting = tkt.SessionSerial
+			}
+		}
+		//vv("RamOnlySublease err = '%v'", err)
+		return
+	case <-ctx.Done():
+		err = ctx.Err()
+		return
+	case <-s.Halt.ReqStop.Chan:
+		err = ErrShutDown
+		return
+	}
+
+}
+
 // Compare and Swap
 func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string) (tkt *Ticket, err error) {
 
@@ -794,4 +841,17 @@ func (s *Session) ReadKeyRange(ctx context.Context, table, key, keyEndx Key, des
 		ctx = s.ctx
 	}
 	return s.cli.ReadKeyRange(ctx, table, key, keyEndx, descend, waitForDur, s)
+}
+
+// if ctx is nill we will use s.ctx
+func (s *Session) RamOnlySublease(ctx context.Context, leaseKey Key, waitForDur time.Duration) (tkt *Ticket, err error) {
+	if s.cli == nil {
+		return nil, fmt.Errorf("error in Session.RamOnlySublease: cli is nil, Session.Errs='%v'", s.Errs)
+	}
+	s.SessionSerial++
+	if ctx == nil {
+		ctx = s.ctx
+	}
+	//vv("submitting write with s.SessionSerial = %v", s.SessionSerial)
+	return s.cli.RamOnlySublease(ctx, leaseKey, waitForDur, s)
 }
