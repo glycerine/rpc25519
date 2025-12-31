@@ -4582,9 +4582,13 @@ type Ticket struct {
 
 	ForceChangeMC bool `zid:"61"`
 
+	// lease on writing to table:key
 	LeaseRequestDur time.Duration `zid:"63"` // optional on WRITE
 	Leasor          string        `zid:"64"` // optional on WRITE
 	LeaseUntilTm    time.Time     `zid:"65"`
+
+	// when actually submitted to raft log in replicateTicket
+	RaftLogEntryTm time.Time
 
 	// where in tkthist we were entered locally.
 	localHistIndex int
@@ -4734,6 +4738,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 
 		prior.Val = tkt.Val // critical to get read value back
 		prior.Vtype = tkt.Vtype
+		prior.RaftLogEntryTm = tkt.RaftLogEntryTm
 		prior.KeyValRangeScan = tkt.KeyValRangeScan
 		prior.Err = tkt.Err
 		prior.Insp = tkt.Insp // membership change/query wants.
@@ -5262,6 +5267,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		CurrentCommitIndex: s.state.CommitIndex,
 		node:               s,
 	}
+	tkt.RaftLogEntryTm = entry.Tm
 
 	// index of log entry immediately preceeding new ones
 	var prevLogIndex int64
@@ -9511,6 +9517,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.Leasor = answer.Leasor
 	question.LeaseUntilTm = answer.LeaseUntilTm
 	question.Vtype = answer.Vtype
+	question.RaftLogEntryTm = answer.RaftLogEntryTm
 
 	question.Err = answer.Err
 	question.StateSnapshot = answer.StateSnapshot
