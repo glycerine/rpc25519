@@ -545,8 +545,6 @@ type TubeConfig struct {
 	// without bound if NoLogCompaction is true.
 	NoLogCompaction bool `zid:"18"`
 
-	SkipNoop0 bool `zid:"19"`
-
 	// the 'tube -zap' command line option to
 	// clear the state.MC on startup.
 	// It is unlikely that you will want
@@ -558,7 +556,7 @@ type TubeConfig struct {
 	// it lost quorum. The 'tube -zap' command line
 	// passes it ephemerally to the tube
 	// process on startup using this setting.
-	ZapMC bool `zid:"20"`
+	ZapMC bool `zid:"19"`
 
 	// for internal failure recovery testing,
 	// e.g. to drop or ignore messages.
@@ -5178,26 +5176,22 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		tkt.LeaderURL = s.URL
 	}
 
-	if s.useNoop0() { // in replicateTicket
-		if !s.initialNoop0HasCommitted {
-			// let the noop0 itself proceed, of course.
-			if tkt == s.initialNoop0Tkt {
-				//vv("%v noop0 tkt recognized: '%v'", s.me(), tkt.Desc)
-			} else {
-				// enforce safety that the leader's first noop0
-				// effects: make others wait until it is commited.
-				// keep the queue used in sync with tube.go:2865 in
-				// resubmitStalledTickets().
-				s.WaitingAtLeader.set(tkt.TicketID, tkt)
-				//vv("%v stalled tkt '%v' until noop0 is done", s.me(), tkt.Desc)
-				tkt.Stage += "_stalled_into_WaitAtLeader_until_noop0"
-				return
-			}
+	if !s.initialNoop0HasCommitted {
+		// let the noop0 itself proceed, of course.
+		if tkt == s.initialNoop0Tkt {
+			//vv("%v noop0 tkt recognized: '%v'", s.me(), tkt.Desc)
+		} else {
+			// enforce safety that the leader's first noop0
+			// effects: make others wait until it is commited.
+			// keep the queue used in sync with tube.go:2865 in
+			// resubmitStalledTickets().
+			s.WaitingAtLeader.set(tkt.TicketID, tkt)
+			//vv("%v stalled tkt '%v' until noop0 is done", s.me(), tkt.Desc)
+			tkt.Stage += "_stalled_into_WaitAtLeader_until_noop0"
+			return
 		}
 	}
 
-	//rlog := s.wal.RaftLog
-	//n := len(rlog)
 	var idx int64
 	lli, llt := s.wal.LastLogIndexAndTerm()
 	if lli > 0 {
@@ -5378,10 +5372,8 @@ func (s *TubeNode) becomeFollower(term int64, mc *MemberConfig, save bool) {
 	}
 
 	// clear out leader-only state
-	if s.useNoop0() { // in becomeFollower
-		s.initialNoop0Tkt = nil // let it be garbage collected
-		s.initialNoop0HasCommitted = false
-	}
+	s.initialNoop0Tkt = nil // let it be garbage collected
+	s.initialNoop0HasCommitted = false
 
 	mcVersionUpdate := false
 	if mc != nil &&
@@ -6090,7 +6082,7 @@ func (s *TubeNode) becomeLeader() {
 				// latest term on winning elections"
 				// from Day 5 of
 				// https://conf.tlapl.us/2024/SiyuanZhou-HowWeDesignedAndModelCheckedMongoDBReconfigurationProtocol.pdf
-				// Note that the noop0 tickeet we replicate
+				// Note that the noop0 ticket we replicate
 				// immedately below will convey this new MC
 				// to followers promptly.
 				s.state.MC.ConfigTerm = s.state.CurrentTerm
@@ -6189,18 +6181,17 @@ func (s *TubeNode) becomeLeader() {
 	// if they exist, cannot be committed in the future, hence
 	// cannot be used for making decisions."
 
-	if s.useNoop0() { // in becomeLeader
-		desc := fmt.Sprintf("noop0 first commit of leader(%v) at term %v", s.name, s.state.CurrentTerm)
-		noopTkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, NOOP, -1, s.MyPeer.Ctx)
-		noopTkt.MC = s.state.MC.Clone()
-		s.initialNoop0Tkt = noopTkt
-		s.WaitingAtLeader.set(noopTkt.TicketID, noopTkt)
+	// in becomeLeader
+	desc := fmt.Sprintf("noop0 first commit of leader(%v) at term %v", s.name, s.state.CurrentTerm)
+	noopTkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, NOOP, -1, s.MyPeer.Ctx)
+	noopTkt.MC = s.state.MC.Clone()
+	s.initialNoop0Tkt = noopTkt
+	s.WaitingAtLeader.set(noopTkt.TicketID, noopTkt)
 
-		// note that replicateTicket takes care of setting
-		// noopTkt.MemberConfig, so we should not.
-		s.replicateTicket(noopTkt)
-		noopTkt.Stage += ":replicateTicket_for_noopTkt_called"
-	}
+	// note that replicateTicket takes care of setting
+	// noopTkt.MemberConfig, so we should not.
+	s.replicateTicket(noopTkt)
+	noopTkt.Stage += ":replicateTicket_for_noopTkt_called"
 
 	// take over any WaitingAtFollow too
 	for _, v := range s.WaitingAtFollow.all() {
@@ -8955,32 +8946,31 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 		case NOOP:
 			tkt.Applied = true
 
-			if s.useNoop0() { // in CommitWhatWeCan
-				//vv("%v no-op commited, ticket '%v'", s.me(), tkt.TicketID)
-				tkt0 := s.initialNoop0Tkt
-				if calledOnLeader && tkt0 != nil {
-					if tkt.TicketID == tkt0.TicketID {
-						//vv("delete noop0 from WaitingAtLeader tkt.TSN='%v'; tkt.LogIndex=%v", s.initialNoop0Tkt.TSN, s.initialNoop0Tkt.LogIndex)
-						s.WaitingAtLeader.del(s.initialNoop0Tkt)
-						s.initialNoop0Tkt.Stage += ":initialNoop0_deleted_from_WaitingAtLeader_in_commitWhatWeCan"
-						//vv("%v leader initalNoopTkt has commited... free to do 2nd txn", s.me())
-						//tkt0.Done.Close() // does it happen elsewhere... FinishTicket below does this.
-						if !s.initialNoop0HasCommitted {
-							s.initialNoop0HasCommitted = true
-							//s.readIndexOptim = s.state.CommitIndex // ?
-							s.readIndexOptim = s.state.LastApplied
+			// in CommitWhatWeCan
+			//vv("%v no-op commited, ticket '%v'", s.me(), tkt.TicketID)
+			tkt0 := s.initialNoop0Tkt
+			if calledOnLeader && tkt0 != nil {
+				if tkt.TicketID == tkt0.TicketID {
+					//vv("delete noop0 from WaitingAtLeader tkt.TSN='%v'; tkt.LogIndex=%v", s.initialNoop0Tkt.TSN, s.initialNoop0Tkt.LogIndex)
+					s.WaitingAtLeader.del(s.initialNoop0Tkt)
+					s.initialNoop0Tkt.Stage += ":initialNoop0_deleted_from_WaitingAtLeader_in_commitWhatWeCan"
+					//vv("%v leader initalNoopTkt has commited... free to do 2nd txn", s.me())
+					//tkt0.Done.Close() // does it happen elsewhere... FinishTicket below does this.
+					if !s.initialNoop0HasCommitted {
+						s.initialNoop0HasCommitted = true
+						//s.readIndexOptim = s.state.CommitIndex // ?
+						s.readIndexOptim = s.state.LastApplied
 
-							// tell tests about it, next func below.
-							s.otherNoop0applyActions(tkt0)
+						// tell tests about it, next func below.
+						s.otherNoop0applyActions(tkt0)
 
-							// warning: without the defer, this will recursively call
-							// commitWhatYouCan immediately, before
-							// the s.state.LastApplied has advanced,
-							// which is kind of a problem; plus our
-							// first no-op is not on disk; other state not adjusted...
-							// So best to leave unless you rethink that flow.
-							defer s.resubmitStalledTickets() // only place called.
-						}
+						// warning: without the defer, this will recursively call
+						// commitWhatYouCan immediately, before
+						// the s.state.LastApplied has advanced,
+						// which is kind of a problem; plus our
+						// first no-op is not on disk; other state not adjusted...
+						// So best to leave unless you rethink that flow.
+						defer s.resubmitStalledTickets() // only place called.
 					}
 				}
 			}
@@ -10374,7 +10364,7 @@ func (s *TubeNode) setConfigDefaultsIfZero() {
 // is in Tube, and the noop0 has been committed
 // in the leader's current term, as it always
 // will be in Tube. I mention this only because
-// these are two optional optimizatoins to the core Raft
+// these are two optional optimizations to the core Raft
 // algorithm (although suggested by the Raft
 // dissertation, they are not in Chapter 3,
 // the description of core Raft),
@@ -10442,7 +10432,7 @@ func (s *TubeNode) leaderCanServeReadsLocally() (canServe bool, untilTm time.Tim
 		return
 	}
 	// in leaderCanServeReadsLocally() here.
-	if s.useNoop0() && !s.initialNoop0HasCommitted {
+	if !s.initialNoop0HasCommitted {
 		// a new leader must consider themselves
 		// "stale" wrt reads until noop0 commits.
 		// See Figure 3.7 of the Raft dissertation.
@@ -14696,7 +14686,7 @@ func (s *TubeNode) mongoLeaderCanReconfig(curMC, newMC *MemberConfig, inCurrentC
 
 	// I think the noop0 takes care of that.
 	// in mongoLeaderCanReconfig() here.
-	if s.useNoop0() && !s.initialNoop0HasCommitted {
+	if !s.initialNoop0HasCommitted {
 		return fmt.Errorf("P1 unmet, mongoLeaderCanReconfig cannot reconfig on '%v' since initialNoop0HasCommitted is false", s.name)
 	}
 
@@ -14866,18 +14856,6 @@ func (s *TubeNode) onLeaderIsCurrentMCcommitted() (curCommited bool) {
 	s.updateMCindex(s.state.CommitIndex, s.state.CommitIndexEntryTerm)
 
 	return true
-}
-
-// even if skipNoop0, if we have started using the log,
-// then we start using using a noop0 for correctness?
-func (s *TubeNode) useNoop0() (use bool) {
-	n := len(s.wal.raftLog)
-	use = !s.cfg.SkipNoop0
-	if s.cfg.SkipNoop0 && n > 0 {
-		//panic(fmt.Sprintf("arg! we have %v raft log entries but noop0 is off!", n))
-		alwaysPrintf("arg! we have %v raft log entries but noop0 is off!", n)
-	}
-	return
 }
 
 func (s *TubeNode) mergeCktPToKnown(cktP *cktPlus) {

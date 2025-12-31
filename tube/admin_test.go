@@ -69,7 +69,6 @@ func Test060_load_config(t *testing.T) {
       NoFaultTolDur: (dur "4m0s"),
              NoDisk: true,
     NoLogCompaction: true,
-          SkipNoop0: true,
      TCPonly_no_TLS: true,
               ZapMC: true,
        HeartbeatDur: (dur "995ms"),

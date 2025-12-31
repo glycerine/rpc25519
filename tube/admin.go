@@ -106,7 +106,6 @@ func (s *TubeConfig) SexpString(ps *zygo.PrintState) (r string) {
       NoFaultTolDur: (dur %q),
              NoDisk: %v,
     NoLogCompaction: %v,
-          SkipNoop0: %v,
      TCPonly_no_TLS: %v,
               ZapMC: %v,
        HeartbeatDur: (dur %q),
@@ -127,7 +126,6 @@ NoBackgroundConnect: %v,
 		s.NoFaultTolDur,
 		s.NoDisk,
 		s.NoLogCompaction,
-		s.SkipNoop0,
 		s.TCPonly_no_TLS,
 		s.ZapMC,
 		s.HeartbeatDur,
@@ -170,9 +168,6 @@ func (s *TubeConfig) ShortSexpString(ps *zygo.PrintState) (r string) {
 	}
 	if s.NoLogCompaction {
 		mainParts = append(mainParts, fmt.Sprintf("    NoLogCompaction: %v", s.NoLogCompaction))
-	}
-	if s.SkipNoop0 {
-		mainParts = append(mainParts, fmt.Sprintf("          SkipNoop0: %v", s.SkipNoop0))
 	}
 
 	if s.TCPonly_no_TLS {

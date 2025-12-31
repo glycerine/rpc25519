@@ -22218,7 +22218,7 @@ func (z *TubeConfig) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields278zgensym_8df0a91a1f250219_279 = 22
+	const maxFields278zgensym_8df0a91a1f250219_279 = 21
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields278zgensym_8df0a91a1f250219_279 uint32
@@ -22403,14 +22403,8 @@ doneWithStruct278zgensym_8df0a91a1f250219_279:
 			if err != nil {
 				return
 			}
-		case "SkipNoop0_zid19_boo":
+		case "ZapMC_zid19_boo":
 			found278zgensym_8df0a91a1f250219_279[19] = true
-			z.SkipNoop0, err = dc.ReadBool()
-			if err != nil {
-				return
-			}
-		case "ZapMC_zid20_boo":
-			found278zgensym_8df0a91a1f250219_279[20] = true
 			z.ZapMC, err = dc.ReadBool()
 			if err != nil {
 				return
@@ -22438,16 +22432,16 @@ doneWithStruct278zgensym_8df0a91a1f250219_279:
 }
 
 // fields of TubeConfig
-var decodeMsgFieldOrder278zgensym_8df0a91a1f250219_279 = []string{"ConfigName_zid00_str", "ClusterID_zid01_str", "ConfigDir_zid02_str", "DataDir_zid03_str", "NoFaultTolDur_zid04_dur", "NoDisk_zid05_boo", "TCPonly_no_TLS_zid06_boo", "HeartbeatDur_zid07_dur", "MinElectionDur_zid08_dur", "ClusterSize_zid09_int", "UseSimNet_zid10_boo", "SimnetGOMAXPROCS_zid11_int", "ClockDriftBound_zid12_dur", "InitialLeaderName_zid13_str", "MyName_zid14_str", "PeerServiceName_zid15_str", "Node2Addr_zid16_map", "NoBackgroundConnect_zid17_boo", "NoLogCompaction_zid18_boo", "SkipNoop0_zid19_boo", "ZapMC_zid20_boo", ""}
+var decodeMsgFieldOrder278zgensym_8df0a91a1f250219_279 = []string{"ConfigName_zid00_str", "ClusterID_zid01_str", "ConfigDir_zid02_str", "DataDir_zid03_str", "NoFaultTolDur_zid04_dur", "NoDisk_zid05_boo", "TCPonly_no_TLS_zid06_boo", "HeartbeatDur_zid07_dur", "MinElectionDur_zid08_dur", "ClusterSize_zid09_int", "UseSimNet_zid10_boo", "SimnetGOMAXPROCS_zid11_int", "ClockDriftBound_zid12_dur", "InitialLeaderName_zid13_str", "MyName_zid14_str", "PeerServiceName_zid15_str", "Node2Addr_zid16_map", "NoBackgroundConnect_zid17_boo", "NoLogCompaction_zid18_boo", "ZapMC_zid19_boo", ""}
 
-var decodeMsgFieldSkip278zgensym_8df0a91a1f250219_279 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var decodeMsgFieldSkip278zgensym_8df0a91a1f250219_279 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *TubeConfig) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 21
+		return 20
 	}
-	var fieldsInUse uint32 = 21
+	var fieldsInUse uint32 = 20
 	isempty[0] = (len(z.ConfigName) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -22524,12 +22518,8 @@ func (z *TubeConfig) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[18] {
 		fieldsInUse--
 	}
-	isempty[19] = (!z.SkipNoop0) // bool, omitempty
+	isempty[19] = (!z.ZapMC) // bool, omitempty
 	if isempty[19] {
-		fieldsInUse--
-	}
-	isempty[20] = (!z.ZapMC) // bool, omitempty
-	if isempty[20] {
 		fieldsInUse--
 	}
 
@@ -22543,7 +22533,7 @@ func (z *TubeConfig) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_281 [22]bool
+	var empty_zgensym_8df0a91a1f250219_281 [21]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_282 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_281[:])
 
 	// map header
@@ -22801,20 +22791,8 @@ func (z *TubeConfig) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_8df0a91a1f250219_281[19] {
-		// write "SkipNoop0_zid19_boo"
-		err = en.Append(0xb3, 0x53, 0x6b, 0x69, 0x70, 0x4e, 0x6f, 0x6f, 0x70, 0x30, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x39, 0x5f, 0x62, 0x6f, 0x6f)
-		if err != nil {
-			return err
-		}
-		err = en.WriteBool(z.SkipNoop0)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_8df0a91a1f250219_281[20] {
-		// write "ZapMC_zid20_boo"
-		err = en.Append(0xaf, 0x5a, 0x61, 0x70, 0x4d, 0x43, 0x5f, 0x7a, 0x69, 0x64, 0x32, 0x30, 0x5f, 0x62, 0x6f, 0x6f)
+		// write "ZapMC_zid19_boo"
+		err = en.Append(0xaf, 0x5a, 0x61, 0x70, 0x4d, 0x43, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x39, 0x5f, 0x62, 0x6f, 0x6f)
 		if err != nil {
 			return err
 		}
@@ -22836,7 +22814,7 @@ func (z *TubeConfig) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [22]bool
+	var empty [21]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -22959,14 +22937,8 @@ func (z *TubeConfig) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[19] {
-		// string "SkipNoop0_zid19_boo"
-		o = append(o, 0xb3, 0x53, 0x6b, 0x69, 0x70, 0x4e, 0x6f, 0x6f, 0x70, 0x30, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x39, 0x5f, 0x62, 0x6f, 0x6f)
-		o = msgp.AppendBool(o, z.SkipNoop0)
-	}
-
-	if !empty[20] {
-		// string "ZapMC_zid20_boo"
-		o = append(o, 0xaf, 0x5a, 0x61, 0x70, 0x4d, 0x43, 0x5f, 0x7a, 0x69, 0x64, 0x32, 0x30, 0x5f, 0x62, 0x6f, 0x6f)
+		// string "ZapMC_zid19_boo"
+		o = append(o, 0xaf, 0x5a, 0x61, 0x70, 0x4d, 0x43, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x39, 0x5f, 0x62, 0x6f, 0x6f)
 		o = msgp.AppendBool(o, z.ZapMC)
 	}
 
@@ -22988,7 +22960,7 @@ func (z *TubeConfig) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o
 
 	var field []byte
 	_ = field
-	const maxFields283zgensym_8df0a91a1f250219_284 = 22
+	const maxFields283zgensym_8df0a91a1f250219_284 = 21
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields283zgensym_8df0a91a1f250219_284 uint32
@@ -23203,15 +23175,8 @@ doneWithStruct283zgensym_8df0a91a1f250219_284:
 			if err != nil {
 				return
 			}
-		case "SkipNoop0_zid19_boo":
+		case "ZapMC_zid19_boo":
 			found283zgensym_8df0a91a1f250219_284[19] = true
-			z.SkipNoop0, bts, err = nbs.ReadBoolBytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "ZapMC_zid20_boo":
-			found283zgensym_8df0a91a1f250219_284[20] = true
 			z.ZapMC, bts, err = nbs.ReadBoolBytes(bts)
 
 			if err != nil {
@@ -23240,9 +23205,9 @@ doneWithStruct283zgensym_8df0a91a1f250219_284:
 }
 
 // fields of TubeConfig
-var unmarshalMsgFieldOrder283zgensym_8df0a91a1f250219_284 = []string{"ConfigName_zid00_str", "ClusterID_zid01_str", "ConfigDir_zid02_str", "DataDir_zid03_str", "NoFaultTolDur_zid04_dur", "NoDisk_zid05_boo", "TCPonly_no_TLS_zid06_boo", "HeartbeatDur_zid07_dur", "MinElectionDur_zid08_dur", "ClusterSize_zid09_int", "UseSimNet_zid10_boo", "SimnetGOMAXPROCS_zid11_int", "ClockDriftBound_zid12_dur", "InitialLeaderName_zid13_str", "MyName_zid14_str", "PeerServiceName_zid15_str", "Node2Addr_zid16_map", "NoBackgroundConnect_zid17_boo", "NoLogCompaction_zid18_boo", "SkipNoop0_zid19_boo", "ZapMC_zid20_boo", ""}
+var unmarshalMsgFieldOrder283zgensym_8df0a91a1f250219_284 = []string{"ConfigName_zid00_str", "ClusterID_zid01_str", "ConfigDir_zid02_str", "DataDir_zid03_str", "NoFaultTolDur_zid04_dur", "NoDisk_zid05_boo", "TCPonly_no_TLS_zid06_boo", "HeartbeatDur_zid07_dur", "MinElectionDur_zid08_dur", "ClusterSize_zid09_int", "UseSimNet_zid10_boo", "SimnetGOMAXPROCS_zid11_int", "ClockDriftBound_zid12_dur", "InitialLeaderName_zid13_str", "MyName_zid14_str", "PeerServiceName_zid15_str", "Node2Addr_zid16_map", "NoBackgroundConnect_zid17_boo", "NoLogCompaction_zid18_boo", "ZapMC_zid19_boo", ""}
 
-var unmarshalMsgFieldSkip283zgensym_8df0a91a1f250219_284 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var unmarshalMsgFieldSkip283zgensym_8df0a91a1f250219_284 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *TubeConfig) Msgsize() (s int) {
@@ -23254,7 +23219,7 @@ func (z *TubeConfig) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(zgensym_8df0a91a1f250219_276) + msgp.StringPrefixSize + len(zgensym_8df0a91a1f250219_277)
 		}
 	}
-	s += 30 + msgp.BoolSize + 26 + msgp.BoolSize + 20 + msgp.BoolSize + 16 + msgp.BoolSize
+	s += 30 + msgp.BoolSize + 26 + msgp.BoolSize + 16 + msgp.BoolSize
 	return
 }
 func (z *TubeConfig) Gstring() (r string) {
@@ -23278,7 +23243,6 @@ func (z *TubeConfig) Gstring() (r string) {
 	r += fmt.Sprintf("          Node2Addr: %v,\n", z.Node2Addr)
 	r += fmt.Sprintf("NoBackgroundConnect: %v,\n", z.NoBackgroundConnect)
 	r += fmt.Sprintf("    NoLogCompaction: %v,\n", z.NoLogCompaction)
-	r += fmt.Sprintf("          SkipNoop0: %v,\n", z.SkipNoop0)
 	r += fmt.Sprintf("              ZapMC: %v,\n", z.ZapMC)
 	r += "}\n"
 	return
