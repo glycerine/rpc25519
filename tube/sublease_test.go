@@ -18,11 +18,14 @@ func Test079_sublease_from_leader(t *testing.T) {
 		numNodes := 3
 		//n := 3
 
-		c, _, leadi, _ := setupTestCluster(t, numNodes, 0, 79)
-		//cfg := NewTubeConfigTest(n, t.Name(), globalUseSimnet)
-		//c := NewCluster(t.Name(), cfg)
-		//c.Start()
+		cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
+		cfg.MinElectionDur = 10 * time.Second
+		cfg.HeartbeatDur = time.Second
+		c, _, leadi, _ := setupTestClusterWithCustomConfig(cfg, t, numNodes, 0, 79)
+
 		defer c.Close()
+		//vv("c.Cfg = '%#v'", c.Cfg)
+
 		if leadi != 0 {
 			panicf("leader should be 0, not %v", leadi)
 		}
@@ -30,8 +33,8 @@ func Test079_sublease_from_leader(t *testing.T) {
 		nodes := c.Nodes
 		leader := nodes[0]
 		ctx := context.Background()
-		//sess, err := nodes[0].CreateNewSession(ctx, leader.URL)
-		sess, err := nodes[1].CreateNewSession(ctx, leader.URL)
+		sess, err := nodes[0].CreateNewSession(ctx, leader.URL)
+		//sess, err := nodes[1].CreateNewSession(ctx, leader.URL)
 		panicOn(err)
 		defer sess.Close()
 		vv("good: got session to leader (maybe from leader to leader, but meh, we cannot always know who is leader...). sess=%p", sess)
