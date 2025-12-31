@@ -2763,6 +2763,8 @@ type TubeNode struct {
 	// the leader, since only s.becomeLeader()
 	// sets it.
 	lastBecomeLeaderTerm int64
+
+	ramOnlySubleases map[Key]*Sublease
 }
 
 // tuber uses to read the DataDir in use.
@@ -3708,6 +3710,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		leaderFullPongPQ: newPongPQ(name),
 		parked:           newParkedTree(),
 		sessByExpiry:     newSessTableByExpiry(),
+		ramOnlySubleases: make(map[Key]*Sublease),
 	}
 	s.cfg.MyName = name
 	// non-testing default is talk to ourselves.
@@ -14595,11 +14598,42 @@ func peerNamesAsString(peers map[string]*RaftNodeInfo) (r string) {
 	return
 }
 
-func (s *TubeNode) handleRamOnlySublease(tkt *Ticket, fromWhom string) {
+type Sublease struct {
+	Until  time.Time `zid:"0"`
+	Leasor string    `zid:"1"`
+	Key    Key       `zid:"2"`
+}
+
+func (s *TubeNode) handleRamOnlySublease(tkt *Ticket) {
 	ok, until := s.leaderCanServeReadsLocally()
 	vv("handleRamOnlySublease for leaseKey '%v' called. ok=%v; until=%v; leaseDur='%v'", tkt.Key, ok, until, until.Sub(time.Now()))
 	if ok {
-		tkt.SubleaseGrantedUntilTm = until
+		now := time.Now()
+		from := tkt.FromName
+		cur, ok := s.ramOnlySubleases[tkt.Key]
+		if ok {
+			if cur.Leasor == from {
+				vv("extend lease by '%v'", from)
+				cur.Until = until
+				tkt.SubleaseGrantedUntilTm = until
+			} else {
+				// not renew-ing, has it expired?
+				if now.After(cur.Until) {
+					vv("sublease expired, grant to requestor")
+					cur.Leasor = from
+					cur.Until = until
+					tkt.SubleaseGrantedUntilTm = until
+				} else {
+					vv("sublease not expired, reject 2nd requestor")
+					tkt.Err = fmt.Errorf("rejected lease from '%v' because lease to '%v' does not expire until '%v'", from, cur.Leasor, cur.Until)
+				}
+			}
+		} else {
+			vv("brand new lease on '%v', grant it to '%v'", tkt.Key, from)
+			sub := &Sublease{Until: until, Leasor: from}
+			s.ramOnlySubleases[tkt.Key] = sub
+			tkt.SubleaseGrantedUntilTm = until
+		}
 	} else {
 		tkt.Err = fmt.Errorf("leaderCanServeReadsLocally() replied false")
 	}
@@ -14616,7 +14650,7 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 	}
 	switch tkt.Op {
 	case RAM_ONLY_SUBLEASE:
-		s.handleRamOnlySublease(tkt, fromWhom)
+		s.handleRamOnlySublease(tkt)
 		s.respondToClientTicketApplied(tkt)
 		s.FinishTicket(tkt, true)
 		return
