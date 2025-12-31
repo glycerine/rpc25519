@@ -5217,7 +5217,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		// Hold up. I'm confused why this is needed?? Should not
 		// all the membership work be done earlier in changeMembership?
 		// We hit this when a stalled ticket was resubmitted
-		// to itself as leader?
+		// to itself as leader...maybe?
 		// Stage:
 		// :redirectToLeader(true,cannot_redirect_to_leader) (no leader yet)
 		// :handleLocalModifyMembership_WaitingAtFollow
@@ -10105,6 +10105,12 @@ func (s *TubeNode) insaneConfig() bool {
 		return true
 	}
 
+	window := s.cfg.MinElectionDur - s.cfg.ClockDriftBound
+	if window < 5*time.Millisecond {
+		alwaysPrintf("%v insane config: cfg.MinElectionDur(%v) - cfg.ClockDriftBound(%v) = window (%v) is less than 5 msec", s.me(), s.cfg.MinElectionDur, s.cfg.ClockDriftBound, window)
+		return true
+	}
+
 	return false
 }
 
@@ -10422,14 +10428,19 @@ func (s *TubeNode) leaderCanServeReadsLocally() (canServe bool, untilTm time.Tim
 	//defer func() {
 	//	vv("%v end leaderCanServeReadsLocally; canServe=%v; untilTm=%v (%v from now)", s.me(), canServe, nice(untilTm), untilTm.Sub(time.Now()))
 	//}()
-	if s.clusterSize() <= 1 {
-		// false for testing 001. true makes 001 red.
-		//vv("%v leaderCanServeReadsLocally ClusterSize <= 1", s.me())
-		return
-	}
 	if s.role != LEADER {
 		panic("should only be called on leader")
 		return
+	}
+	if s.clusterSize() <= 1 {
+		// single node cluster should be able to serve reads locally.
+		//vv("%v leaderCanServeReadsLocally ClusterSize <= 1", s.me())
+		window := s.cfg.MinElectionDur - s.cfg.ClockDriftBound
+		if window <= 0 {
+			panicf("window must be > 0 duration, not: %v", window)
+		}
+		untilTm = time.Now().Add(window)
+		return true, untilTm
 	}
 	// in leaderCanServeReadsLocally() here.
 	if !s.initialNoop0HasCommitted {
