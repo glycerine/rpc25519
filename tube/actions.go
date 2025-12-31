@@ -481,20 +481,24 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 	// prior key and prior lease on key is present.
 
 	// lease end points must be strictly monotically increasing
-	if lte(tkt.LeaseUntilTm, leaf.LeaseUntilTm) {
-		tkt.Err = fmt.Errorf("non-increasing LeaseUntilTm rejected. table='%v'; key='%v'; current leasor='%v'; leaf.LeaseUntilTm='%v' <= tkt.LeaseUntilTm='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v');", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad))
-		return
-	}
+	if tkt.LeaseUntilTm.IsZero() {
+		// not extending lease, going to non-leased. skip down.
+	} else {
+		if lte(tkt.LeaseUntilTm, leaf.LeaseUntilTm) {
+			tkt.Err = fmt.Errorf("non-increasing LeaseUntilTm rejected. table='%v'; key='%v'; current leasor='%v'; leaf.LeaseUntilTm='%v' <= tkt.LeaseUntilTm='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v');", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad))
+			return
+		}
 
-	if leaf.Leasor == tkt.Leasor {
-		// current leasor extending lease, allow it (expired or not)
-		// already set: leaf.Leasor = tkt.Leasor
-		leaf.Value = append([]byte{}, tktVal...)
-		leaf.Vtype = tkt.Vtype
-		leaf.LeaseUntilTm = tkt.LeaseUntilTm
-		leaf.WriteRaftLogIndex = tkt.LogIndex
-		//vv("%v wrote key '%v' extending current lease for '%v'; KVstore now len=%v", s.name, tktKey, tkt.Leasor, s.KVstore.Len())
-		return
+		if leaf.Leasor == tkt.Leasor {
+			// current leasor extending lease, allow it (expired or not)
+			// already set: leaf.Leasor = tkt.Leasor
+			leaf.Value = append([]byte{}, tktVal...)
+			leaf.Vtype = tkt.Vtype
+			leaf.LeaseUntilTm = tkt.LeaseUntilTm
+			leaf.WriteRaftLogIndex = tkt.LogIndex
+			//vv("%v wrote key '%v' extending current lease for '%v'; KVstore now len=%v", s.name, tktKey, tkt.Leasor, s.KVstore.Len())
+			return
+		}
 	}
 	// has prior lease expired?
 	// careful: the leaf.LeaseUntilTm could be from the
