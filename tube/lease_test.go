@@ -1,7 +1,7 @@
 package tube
 
 import (
-	//"bytes"
+	"strings"
 	//"fmt"
 	"time"
 
@@ -12,7 +12,7 @@ import (
 func Test079_lease_from_leader(t *testing.T) {
 
 	// leases allow a "Czar and master of partition" model:
-	// subleases must never be longer than the Czar's lease,
+	// a master's sublease must never be longer than the Czar's lease,
 	// so that master can keep them in memory.
 
 	// How heirarchical leases work to create RAM-only
@@ -37,7 +37,9 @@ func Test079_lease_from_leader(t *testing.T) {
 
 	// here we test that our write of a key can be leased
 	// and not re-leased until that lease has expired.
-	bubbleOrNot(t, func(t *testing.T) {
+	// This is the mechanism for the Czar to be established
+	// via a lease.
+	onlyBubbled(t, func(t *testing.T) {
 
 		numNodes := 3
 		//n := 3
@@ -57,7 +59,7 @@ func Test079_lease_from_leader(t *testing.T) {
 		nodes := c.Nodes
 		leader := nodes[0]
 		ctx := context.Background()
-		//sess, err := nodes[0].CreateNewSession(ctx, leader.URL)
+
 		sess, err := nodes[1].CreateNewSession(ctx, leader.URL)
 		panicOn(err)
 		defer sess.Close()
@@ -77,6 +79,33 @@ func Test079_lease_from_leader(t *testing.T) {
 			panicf("left(%v) <= 0; until='%v'; now='%v'", left, until, now)
 		}
 		vv("lease has left %v", left)
+
+		// now have a second write attempted from a different
+		// server. It should fail because the key is already leased out.
+
+		time.Sleep(15 * time.Second)
+		sess2, err := nodes[2].CreateNewSession(ctx, leader.URL)
+		leaseTkt2, err2 := sess2.Write(ctx, leaseTable, leaseKey, leaseVal, 0, leaseVtype, leaseRequestDur)
+		if leaseTkt2.Err == nil || err2 == nil {
+			panic("expected error from re-lease attempt")
+		}
+		if !strings.HasPrefix(err2.Error(), "write to leased key rejected") {
+			vv("expected ErrAlreadyLeased, but err2 = '%v'", err2)
+		}
+		vv("good: got rejection of premature re-lease by another = '%v'", leaseTkt2.Err)
+
+		// original leasor should be allowed to extend before expiry.
+		time.Sleep(15 * time.Second)
+
+		leaseTkt, err = sess.Write(ctx, leaseTable, leaseKey, leaseVal, 0, leaseVtype, leaseRequestDur)
+		panicOn(err)
+		now = time.Now()
+		until = leaseTkt.LeaseUntilTm
+		left = until.Sub(now)
+		if left <= 0 {
+			panicf("left(%v) <= 0; until='%v'; now='%v'", left, until, now)
+		}
+		vv("good: re-newed lease has left %v", left)
 
 		// avoid bubble complaint about still live goro by sleeping 1 sec after.
 		// since halter can take 500 msec to shutdown.

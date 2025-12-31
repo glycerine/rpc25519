@@ -4746,6 +4746,9 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.LeaderStampSN = tkt.LeaderStampSN
 		prior.LeaderID = tkt.LeaderID
 		prior.LeaseRequestDur = tkt.LeaseRequestDur
+		prior.Leasor = tkt.Leasor
+		prior.LeaseUntilTm = tkt.LeaseUntilTm
+
 		prior.Stage += ":FinishTicket_prior_Val_written"
 		if prior.Done != nil {
 			if prior.DoneClosedOnPeerID != "" {
@@ -9504,6 +9507,8 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.LogIndex = answer.LogIndex
 	question.Term = answer.Term
 	question.LeaseRequestDur = answer.LeaseRequestDur
+	question.Leasor = answer.Leasor
+	question.LeaseUntilTm = answer.LeaseUntilTm
 
 	question.Err = answer.Err
 	question.StateSnapshot = answer.StateSnapshot

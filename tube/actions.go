@@ -53,6 +53,12 @@ import (
 func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, sess *Session, vtype string, leaseDur time.Duration) (tkt *Ticket, err error) {
 
 	desc := fmt.Sprintf("write: key(%v) = val(%v)", key, showExternalCluster(val))
+	if vtype != "" {
+		desc += fmt.Sprintf("; vtype='%v'", vtype)
+	}
+	if leaseDur > 0 {
+		desc += fmt.Sprintf("; leaseDur='%v' requested for Leasor '%v'", leaseDur, s.name)
+	}
 	tkt = s.NewTicket(desc, table, key, val, s.PeerID, s.name, WRITE, waitForDur, ctx)
 	tkt.Vtype = vtype
 	if leaseDur > 0 {
@@ -481,13 +487,14 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket) {
 		// is there a prior lease that must be respected?
 		leaf, _, found = table.Tree.Find(art.Exact, key)
 	}
+
 	if !found {
 		leaf = art.NewLeaf(key, append([]byte{}, tktVal...), tkt.Vtype)
 		leaf.Leasor = tkt.Leasor
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 
 		table.Tree.InsertLeaf(leaf)
-		//vv("%v wrote key '%v' ; KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
+		//vv("%v wrote key '%v' (no prior key; leasor='%v' until '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, leaf.LeaseUntilTm, s.KVstore.Len())
 		return
 	}
 	// key already present, so if leased and not leased by Leasor,
@@ -498,14 +505,15 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket) {
 		leaf.Vtype = tkt.Vtype
 		leaf.Leasor = tkt.Leasor
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
+		//vv("%v wrote key '%v' (no current lease); KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
 		return
 	}
 	// prior key and prior leasor on key is present.
 
-	if tkt.Leasor == tkt.Leasor {
+	if leaf.Leasor == tkt.Leasor {
 		// current leasor extending lease, allow it (expired or not)
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
-		//vv("%v wrote key '%v' extending current lease; KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
+		//vv("%v wrote key '%v' extending current lease for '%v'; KVstore now len=%v", s.name, tktKey, tkt.Leasor, s.KVstore.Len())
 		return
 	}
 	// has prior lease expired?
@@ -517,8 +525,9 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket) {
 		return
 	}
 	// key is already leased by a different leasor, and lease has not expired: reject.
+	tkt.Err = fmt.Errorf("write to leased key rejected. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; rejecting attempted leasor='%v' at tkt.T0='%v' (left on lease: '%v')", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, tkt.T0.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.T0))
 
-	//vv("%v reject write to already leased key '%v' ; KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
+	//vv("%v reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, tkt.Leasor, s.KVstore.Len())
 }
 
 func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend bool) (results *art.Tree, err error) {
