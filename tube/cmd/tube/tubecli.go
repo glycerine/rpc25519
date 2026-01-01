@@ -241,9 +241,14 @@ func main() {
 				fmt.Printf("KVstore: (len %v)\n", state.KVstore.Len())
 				for table, tab := range state.KVstore.All() {
 					fmt.Printf("    table '%v' (len %v):\n", table, tab.Len())
-
+					var extra string
 					for key, leaf := range tab.All() {
-						fmt.Printf("       key: '%v': %v\n", key, string(leaf.Value))
+						if leaf.Leasor == "" {
+							extra = ""
+						} else {
+							extra = fmt.Sprintf("[Leasor:'%v'; until '%v' (in %v)] ", leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(time.Now()))
+						}
+						fmt.Printf("       key: '%v': %v%v\n", key, extra, string(leaf.Value))
 					}
 				}
 			} else {
