@@ -242,8 +242,8 @@ func main() {
 				for table, tab := range state.KVstore.All() {
 					fmt.Printf("    table '%v' (len %v):\n", table, tab.Len())
 
-					for key, val := range tab.All() {
-						fmt.Printf("       key: '%v': %v\n", key, string(val))
+					for key, leaf := range tab.All() {
+						fmt.Printf("       key: '%v': %v\n", key, string(leaf.Value))
 					}
 				}
 			} else {
@@ -444,8 +444,8 @@ func showArchive(path string) (exitCode int) {
 		fmt.Printf("KVstore: (len %v)\n", state.KVstore.Len())
 		for table, tab := range state.KVstore.All() {
 			fmt.Printf("    table '%v' (len %v):\n", table, tab.Len())
-			for key, val := range tab.All() {
-				fmt.Printf("       key: '%v': %v\n", key, string(val))
+			for key, leaf := range tab.All() {
+				fmt.Printf("       key: '%v': %v\n", key, string(leaf.Value))
 			}
 		}
 	} else {
