@@ -468,7 +468,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		return
 	}
 
-	if leaf.Leasor == "" {
+	if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
 		// no current leasor, just put the write through.
 		leaf.Value = append([]byte{}, tktVal...)
 		leaf.Vtype = tkt.Vtype
@@ -478,6 +478,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		//vv("%v wrote key '%v' (no current lease); KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
 		return
 	}
+	// INVAR: leaf.Leasor != "" && leaf.LeaseUntilTm > 0
 	// prior key and prior lease on key is present.
 
 	// lease end points must be strictly monotically increasing
