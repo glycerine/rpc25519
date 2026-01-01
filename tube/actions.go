@@ -57,6 +57,9 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 		if leaseDur < 0 || leaseDur > time.Minute*15 {
 			return nil, fmt.Errorf("leaseDur out of bounds, must be in [0, 15 minutes]: '%v'", leaseDur)
 		}
+		if s.name == "" {
+			return nil, fmt.Errorf("must have s.name for Leasor to take a lease")
+		}
 	}
 
 	desc := fmt.Sprintf("write: key(%v) = val(%v)", key, showExternalCluster(val))
@@ -71,7 +74,7 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 	if leaseDur > 0 {
 		tkt.LeaseRequestDur = leaseDur
 		// let leader set this using tkt.RaftLogEntryTm.Add(tkt.LeaseRequestDur)
-		//tkt.LeaseUntilTm = tkt.T0.Add(leaseDur)
+		//tkt.LeaseUntilTm // set at tube.go:5282 in replicateTicket().
 		tkt.Leasor = s.name
 	}
 	if sess != nil {
