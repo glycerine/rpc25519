@@ -1136,7 +1136,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					//vv("%v arg, tried to redirectToLeader but tkt.Err='%v'", s.me(), tkt.Err)
 					continue // bail out, error happened.
 				}
-				//vv("%v adding to Waiting, readReqCh: '%v'", s.me(), tkt)
+				//vv("%v adding to Waiting, s.leaderName='%v'; readReqCh saw tkt: '%v'", s.me(), s.leaderName, tkt)
 				tkt.Stage += ":after_redirectToLeader_add_WaitingAtFollow"
 
 				prior, already := s.WaitingAtFollow.get2(tkt.TicketID)
@@ -9523,8 +9523,10 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	case READ_KEYRANGE:
 		question.KeyValRangeScan = answer.KeyValRangeScan
 	}
-	if question.Op != WRITE {
+	if question.Op != WRITE || answer.Err != nil {
 		// otherwise client code cannot read what we got!
+		// On leasing error the Val has the lease holder
+		// which is useful for simulating elections.
 		question.Val = answer.Val
 	}
 	question.answer = answer

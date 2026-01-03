@@ -417,6 +417,14 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 
 		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(&cli.cfg, c.Nodes[1].name, false)
 		panicOn(err)
+
+		// try to fix the sporadic race wher
+		// cli might not have updated its own s.leaderName !?!
+		// and so sends the next Read off into the void at the old dead leader.
+		// getCircuitToLeader sets the updated s.leaderName.
+		//ckt2, onlyPossibleAddr2, _, err2 :=
+		cli.getCircuitToLeader(bkg, leaderURL, nil, false)
+
 		if !reallyLeader {
 			panic("could not find leader")
 		}
@@ -424,9 +432,18 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 
 		to, canc := context.WithTimeout(bkg, time.Second*10)
 		tktj, err = sess.Read(to, "", "a", 0)
+		vv("back from sess.Read of a from 2nd leader; err='%v'", err)
+
+		if err != nil && err.Error() == "context deadline exceeded" {
+			vv("timed out!")
+			// network seems fine, read message never gets to leader.
+			// not in dropped queue, so means it was not sent??
+			//snap := c.SimnetSnapshot()
+			//vv("timeout contacting 2nd leader '%v', snap = '%v'", leaderName, snap) // .LongString())
+			//vv("timeout contacting 2nd leader '%v', snap full = '%v'", leaderName, snap.LongString())
+
+		}
 		/*
-			if err.Error() == "context deadline exceeded" {
-				vv("timed out!")
 				ckt, onlyPossibleAddr, _, err := cli.getCircuitToLeader(bkg, c.Nodes[1].URL, nil, false)
 				panicOn(err)
 				_ = ckt
@@ -443,7 +460,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 				vv("tktj3.Val = '%v'; err3 = '%v'", tktj2.Val, err3)
 			}
 		*/
-		panicOn(err)
+		panicOn(err) // sporadic context deadline exceeded
 		canc()
 		vj = tktj.Val
 
