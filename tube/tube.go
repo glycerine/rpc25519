@@ -645,7 +645,7 @@ func (s *TubeNode) Start(
 ) (err0 error) {
 
 	s.Ctx = myPeer.Ctx
-	//vv("%v (PeerID: '%v') top of TubeNode.Start() ", s.name, myPeer.PeerID)
+	vv("%v (PeerID: '%v') top of TubeNode.Start() ", s.name, myPeer.PeerID)
 	//vv("%v (PeerID: '%v') top of TubeNode.Start() ; cfg = '%v'", s.name, myPeer.PeerID, s.cfg.ShortSexpString(nil))
 	//cktHasBeenQuietTooLong := make(chan *rpc.Circuit)
 	cktHasDied := make(chan *rpc.Circuit)
@@ -653,7 +653,7 @@ func (s *TubeNode) Start(
 
 	defer func() {
 		r := recover()
-		//vv("%v: (%v) end of TubeNode.Start() inside defer, about to return/finish; recover='%v'", s.me(), myPeer.ServiceName(), r)
+		vv("%v: (%v) end of TubeNode.Start() inside defer, about to return/finish; recover='%v'", s.me(), myPeer.ServiceName(), r)
 
 		var reason error
 		if r != nil {
@@ -1065,7 +1065,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 		case <-s.Halt.ReqStop.Chan:
 			//s.ay("%v shutdown initiated, s.Halt.ReqStop seen", s.me())
-			//vv("%v shutdown initiated, s.Halt.ReqStop seen", s.name)
+			vv("%v shutdown initiated, s.Halt.ReqStop seen", s.me())
 			s.shutdown()
 			return rpc.ErrHaltRequested
 			//return ErrShutDown
@@ -1455,7 +1455,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				//return rpc.ErrHaltRequested
 				continue
 			}
-			//vv("%v good: sent inspection request to itkt.ckt.RemotePeerName='%v'", s.me(), itkt.ckt.RemotePeerName)
+			vv("%v good: sent inspection request to itkt.ckt.RemotePeerName='%v'", s.me(), itkt.ckt.RemotePeerName)
 
 		case fragCkt := <-arrivingNetworkFrag:
 			frag := fragCkt.frag
@@ -1485,6 +1485,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			switch frag.FragOp {
 
 			case NotifyClientNewLeader:
+				continue // TODO debug remove
 				// only for clients
 				if s.role != CLIENT && s.cfg.PeerServiceName != TUBE_CLIENT {
 					panicf("%v only send NotifyClientNewLeader to clients. PeerServiceName = '%v'", s.me(), s.cfg.PeerServiceName)
@@ -6106,9 +6107,9 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 
 func (s *TubeNode) becomeLeader() {
 	vv("%v becomeLeader top", s.me())
-	//defer func() {
-	//vv("%v end of becomeLeader", s.me())
-	//}()
+	defer func() {
+		vv("%v end of becomeLeader", s.me())
+	}()
 
 	if s.role == LEADER {
 		panic(fmt.Sprintf("%v I am already leader, doing this again will mess up leaderElectedTm", s.me()))
@@ -6306,7 +6307,8 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 			// to node_0, the stopped leader.
 			vv("%v ugh: no circuit to ste.ClientName: '%v'", s.name, ste.ClientName)
 			clientURL := ste.ClientURL
-			// maybe use s.connectInBackgroundIfNoCircuitTo(peerName, "adjustCktReplicaForNewMembership") ? no, because the client is probably not expecting heartbeats/heartbeat traffic could be extensive with lots of clients.
+
+			// background b/c trying to not block th leader main event loop
 			go s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, fragUpdateLeader, 0)
 			continue
 		} else {
@@ -6316,7 +6318,6 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 		s.SendOneWay(ckt, fragUpdateLeader, -1, 0)
 		vv("%v sent new leader(me) notification to %v", s.name, ste.ClientName)
 	}
-	//s.MyPeer.FreeFragment(fragUpdateLeader)
 }
 
 // if reject is returned, then
@@ -11444,7 +11445,7 @@ type fragCkt struct {
 // handle frag.FragOp == PeerListReq
 func (s *TubeNode) peerListRequestHandler(frag *rpc.Fragment, ckt *rpc.Circuit) error {
 
-	//vv("%v top peerListRequestHandler; frag='%v'", s.me(), frag)
+	vv("%v top peerListRequestHandler; frag='%v'", s.me(), frag)
 
 	// since we are inside on the main goro, we cannot
 	// call Inspect, since we are on the same goro that
