@@ -423,7 +423,8 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 		// and so sends the next Read off into the void at the old dead leader.
 		// getCircuitToLeader sets the updated s.leaderName.
 		//ckt2, onlyPossibleAddr2, _, err2 :=
-		cli.getCircuitToLeader(bkg, leaderURL, nil, false)
+		_, _, _, err2 := cli.getCircuitToLeader(bkg, leaderURL, nil, false)
+		panicOn(err2)
 
 		if !reallyLeader {
 			panic("could not find leader")
@@ -441,26 +442,13 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 			//snap := c.SimnetSnapshot()
 			//vv("timeout contacting 2nd leader '%v', snap = '%v'", leaderName, snap) // .LongString())
 			//vv("timeout contacting 2nd leader '%v', snap full = '%v'", leaderName, snap.LongString())
-
 		}
-		/*
-				ckt, onlyPossibleAddr, _, err := cli.getCircuitToLeader(bkg, c.Nodes[1].URL, nil, false)
-				panicOn(err)
-				_ = ckt
-				_ = onlyPossibleAddr
-				vv("onlyPossibleAddr = '%v'; ckt='%v'", onlyPossibleAddr, ckt)
 
-				ckt2, onlyPossibleAddr2, _, err2 := cli.getCircuitToLeader(bkg, c.Nodes[1].URL, nil, false)
-				panicOn(err2)
-
-				vv("onlyPossibleAddr2 = '%v'; ckt2='%v'", onlyPossibleAddr2, ckt2)
-
-				tktj3, err3 := sess.Read(bkg, "", "a", time.Second)
-				panicOn(err)
-				vv("tktj3.Val = '%v'; err3 = '%v'", tktj2.Val, err3)
-			}
-		*/
-		panicOn(err) // sporadic context deadline exceeded
+		// without the cli.getCircuitToLeader() call after
+		// the HelperFindLeader() call, we got
+		// sporadic context deadline exceeded here
+		// due to s.leaderName still pointing to the dead leader.
+		panicOn(err)
 		canc()
 		vj = tktj.Val
 
