@@ -4555,11 +4555,12 @@ type Ticket struct {
 	// SessionSerial (above)
 	// -- which are also essential for client linz.
 
-	NewSessReq           *Session `zid:"42"`
-	NewSessReply         *Session `zid:"43"`
-	DupDetected          bool     `zid:"44"`
-	MinSessSerialWaiting int64    `zid:"45"`
-	EndSessReq_SessionID string   `zid:"46"`
+	NewSessReq                  *Session `zid:"42"`
+	NewSessReply                *Session `zid:"43"`
+	DupDetected                 bool     `zid:"44"`
+	MinSessSerialWaiting        int64    `zid:"45"`
+	EndSessReq_SessionID        string   `zid:"46"`
+	HighestSerialSeenFromClient int64    `zid:"66"`
 
 	// =======  end CLIENT LINEARIZABILITY HELP  ===========
 
@@ -4955,7 +4956,8 @@ type SessionTableEntry struct {
 
 	Serial2Ticket *omap[int64, *Ticket] `msg:"-"`
 
-	HighestSerial int64 `zid:"1"`
+	HighestSerialSeenFromClient int64 `zid:"1"` // any op
+	MaxAppliedSerial            int64 `zid:"2"` // writes or non-cached reads
 
 	// re-created from Serial2Ticket so no need to serz.
 	ticketID2tkt map[string]*Ticket
@@ -4963,25 +4965,26 @@ type SessionTableEntry struct {
 	// Serz is just for greenpack serialization
 	// of Serial2Ticket. Serz will be nil during
 	// normal operations.
-	Serz map[int64]*Ticket `zid:"2"`
+	Serz map[int64]*Ticket `zid:"3"`
 
 	// maintain/update here, initially a copy
 	// of the original sess.SessionIndexEndxTm,
 	// but refresh here too in case we lack the sess
 	// and go to recover from follower-> leader.
-	SessionEndxTm           time.Time `zid:"3"`
-	SessionReplicatedEndxTm time.Time `zid:"4"`
+	SessionEndxTm           time.Time `zid:"4"`
+	SessionReplicatedEndxTm time.Time `zid:"5"`
 
-	SessRequestedInitialDur time.Duration `zid:"5"`
+	SessRequestedInitialDur time.Duration `zid:"6"`
 }
 
 func (z *SessionTableEntry) String() (r string) {
 	r = "&SessionTableEntry{\n"
-	r += fmt.Sprintf("              SessionID: \"%v\",\n", z.SessionID)
-	r += fmt.Sprintf("          HighestSerial: %v,\n", z.HighestSerial)
-	r += fmt.Sprintf("SessRequestedInitialDur: %v,\n", z.SessRequestedInitialDur)
-	r += fmt.Sprintf("          SessionEndxTm: %v,\n", z.SessionEndxTm)
-	r += fmt.Sprintf(" (len %v) Serial2Ticket: \n", z.Serial2Ticket.Len())
+	r += fmt.Sprintf("                  SessionID: \"%v\",\n", z.SessionID)
+	r += fmt.Sprintf("HighestSerialSeenFromClient: %v,\n", z.HighestSerialSeenFromClient)
+	r += fmt.Sprintf("           MaxAppliedSerial: %v,\n", z.MaxAppliedSerial)
+	r += fmt.Sprintf("    SessRequestedInitialDur: %v,\n", z.SessRequestedInitialDur)
+	r += fmt.Sprintf("              SessionEndxTm: %v,\n", z.SessionEndxTm)
+	r += fmt.Sprintf("     (len %v) Serial2Ticket: \n", z.Serial2Ticket.Len())
 	for ser, tkt := range z.Serial2Ticket.All() {
 		r += fmt.Sprintf("             %v: %v\n", ser, tkt.Short())
 	}
@@ -4992,12 +4995,13 @@ func (z *SessionTableEntry) String() (r string) {
 func (s *SessionTableEntry) Clone() (r *SessionTableEntry) {
 
 	r = &SessionTableEntry{
-		SessionID:               s.SessionID,
-		HighestSerial:           s.HighestSerial,
-		Serial2Ticket:           newOmap[int64, *Ticket](),
-		ticketID2tkt:            make(map[string]*Ticket),
-		SessRequestedInitialDur: s.SessRequestedInitialDur,
-		SessionReplicatedEndxTm: s.SessionReplicatedEndxTm,
+		SessionID:                   s.SessionID,
+		HighestSerialSeenFromClient: s.HighestSerialSeenFromClient,
+		MaxAppliedSerial:            s.MaxAppliedSerial,
+		Serial2Ticket:               newOmap[int64, *Ticket](),
+		ticketID2tkt:                make(map[string]*Ticket),
+		SessRequestedInitialDur:     s.SessRequestedInitialDur,
+		SessionReplicatedEndxTm:     s.SessionReplicatedEndxTm,
 	}
 	for _, kv := range s.Serial2Ticket.cached() {
 		r.Serial2Ticket.set(kv.key, kv.val)
@@ -9083,9 +9087,9 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 			}
 			ste.ticketID2tkt[tkt.TicketID] = tkt
 			ste.Serial2Ticket.set(tkt.SessionSerial, tkt)
-			if tkt.SessionSerial > ste.HighestSerial {
-				//vv("%v: updating ste.HighestSerial to higher tkt.Serial: %v -> %v; on tkt.SessionID = '%v'", s.name, ste.HighestSerial, tkt.SessionSerial, tkt.SessionID)
-				ste.HighestSerial = tkt.SessionSerial
+			if tkt.SessionSerial > ste.MaxAppliedSerial {
+				//vv("%v: updating ste.MaxAppliedSerial to higher tkt.SessionSerial: %v -> %v; on tkt.SessionID = '%v'", s.name, ste.MaxAppliedSerial, tkt.SessionSerial, tkt.SessionID)
+				ste.MaxAppliedSerial = tkt.SessionSerial
 			}
 
 			// by using do.Tm below, we gain that
@@ -9533,6 +9537,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.LeaseUntilTm = answer.LeaseUntilTm
 	question.Vtype = answer.Vtype
 	question.RaftLogEntryTm = answer.RaftLogEntryTm
+	question.HighestSerialSeenFromClient = answer.HighestSerialSeenFromClient
 
 	question.Err = answer.Err
 	question.StateSnapshot = answer.StateSnapshot
@@ -10224,6 +10229,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 			return true // done early
 
 		} else {
+			// session exists
 			s.refreshSession(time.Now(), ste)
 
 			// cleanup old state sessions
@@ -10231,7 +10237,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 
 			priorTkt, already := ste.Serial2Ticket.get2(tkt.SessionSerial)
 			if already {
-				// return the previous read, to preserve
+				// dedup: return the previous read, to preserve
 				// linearizability (linz).
 				//
 				// As Ongaro in the Raft disseratation, page 71,
@@ -10274,14 +10280,17 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 				return true
 			}
 
-			// the problem with the below is that to a new
-			// leader, the local-reads served by the
+			// Note that we are only dealing with reads here in
+			// leaderServedLocalRead().
+
+			// the problem with killing a session
+			// is that to a new leader, the local-reads served by the
 			// previous leader look like gaps/dropped serial
 			// numbers, even though they were just
 			// local reads. For performance purposes,
 			// we want local reads to be fast and not
 			// tell followers about them. So now we
-			// skip this early error out return and avoid
+			// skip this early-error-out return and avoid
 			// killing the session so the new leader
 			// can continue it.
 			//
@@ -10291,27 +10300,26 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 			// it to through the raft log, so client needs
 			// to re-try before incrementing their serial
 			// number if they care. If the reply to a
-			// successful write was dropped, the retry
+			// successful write was dropped, the client retry
 			// with the same serial number is idempotent,
 			// so no problem; it will likely succeed on
 			// the client's 2nd attempt.
-			if false {
-				if tkt.SessionSerial != 1+ste.HighestSerial {
+			//if false {
+			// if tkt.SessionSerial < 1+ste.HighestSerial {
+			// 	tkt.Err = fmt.Errorf("%v session killed: gap in SessionSerial, saw %v, expected %v for tkt.SessionID '%v': a client request was dropped. dropped tkt='%v'", s.name, tkt.SessionSerial, ste.HighestSerial+1, tkt.SessionID, tkt)
+			// 	vv("%v error session gap: %v\n", s.name, tkt.Err)
 
-					tkt.Err = fmt.Errorf("%v session killed: gap in SessionSerial, saw %v, expected %v for tkt.SessionID '%v': a client request was dropped. dropped tkt='%v'", s.name, tkt.SessionSerial, ste.HighestSerial+1, tkt.SessionID, tkt)
-					vv("%v error session gap: %v\n", s.name, tkt.Err)
+			// 	// kill the session so client must make a new one.
+			// 	delete(s.state.SessTable, tkt.SessionID)
+			// 	s.sessByExpiry.Delete(ste)
+			// 	s.saver.save(s.state)
 
-					// kill the session so client must make a new one.
-					delete(s.state.SessTable, tkt.SessionID)
-					s.sessByExpiry.Delete(ste)
-					s.saver.save(s.state)
-
-					if tkt.Done != nil {
-						tkt.Done.Close()
-					}
-					return false // failed to serve local read, gap in session
-				}
-			}
+			// 	if tkt.Done != nil {
+			// 		tkt.Done.Close()
+			// 	}
+			// 	return false // failed to serve local read, gap in session
+			// }
+			//}
 		}
 	}
 
@@ -10334,7 +10342,9 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 	s.localReadCount++
 
 	if ste != nil {
-		ste.HighestSerial = tkt.SessionSerial
+		if tkt.SessionSerial > ste.HighestSerialSeenFromClient {
+			ste.HighestSerialSeenFromClient = tkt.SessionSerial
+		}
 		tktClone := tkt.clone()
 		ste.ticketID2tkt[tktClone.TicketID] = tktClone
 		ste.Serial2Ticket.set(tktClone.SessionSerial, tktClone)
@@ -14113,21 +14123,39 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 	}
 
 	//vv("tkt.SessionSerial not in ste.Serial2Ticket: '%v'", tkt.SessionSerial)
-	//if tkt.SessionSerial != 1+ste.HighestSerial {
-	if false { // tkt.SessionSerial != 1+ste.HighestSerial {
-		tkt.Err = fmt.Errorf("%v leader error: session killed: gap in SessionSerial, saw %v, expected %v for tkt.SessionID '%v': a client request was dropped. dropped tkt='%v'", s.name, tkt.SessionSerial, ste.HighestSerial+1, tkt.SessionID, tkt)
-		//vv("%v error session gap: %v\n", s.name, tkt.Err)
-		tkt.Stage += ":gap_in_ticket_leaderDoneEarlyOnSessionStuff"
 
-		// kill the session so client must make a new one.
-		delete(s.state.SessTable, tkt.SessionID)
-		s.sessByExpiry.Delete(ste)
-		s.saver.save(s.state)
+	// The paused client scenario/fencing-token-
+	// needed-argument makes it seem
+	// we should be rejecting delayed/duplicates/replays of
+	// smaller numbered WRITE ops; per
+	// https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html
+	switch tkt.Op {
+	case READ, READ_KEYRANGE, SHOW_KEYS:
+		// reads are idempotent so no need to reject them.
+		// only need to analyze writes...
+	default:
+		if tkt.SessionSerial <= ste.MaxAppliedSerial {
+			// we include ste.HighestSerialSeenFromClient in the reply
+			// to try and let the client recover the session.
+			tkt.HighestSerialSeenFromClient = ste.HighestSerialSeenFromClient
+			tkt.Err = fmt.Errorf("%v leader is rejecting non-read-only ticket with SessionSerial(%v) <= session MaxAppliedSerial(%v); in SessionID '%v'; ste.HighestSerialSeenFromClient='%v'; this client request is dropped. dropped tkt='%v'", s.name, tkt.SessionSerial, ste.MaxAppliedSerial, tkt.SessionID, ste.HighestSerialSeenFromClient, tkt)
 
-		s.respondToClientTicketApplied(tkt)
-		return true // done early
+			//vv("%v error session serial for write too old: %v\n", s.name, tkt.Err)
+			tkt.Stage += ":write_lte_MaxAppliedSerial_in_ticket_leaderDoneEarlyOnSessionStuff"
+
+			// kill the session so client must make a new one?
+			//delete(s.state.SessTable, tkt.SessionID)
+			//s.sessByExpiry.Delete(ste)
+			//s.saver.save(s.state)
+
+			s.respondToClientTicketApplied(tkt)
+			return true // done early
+		}
+	} // end only analyze writes
+
+	if tkt.SessionSerial > ste.HighestSerialSeenFromClient {
+		ste.HighestSerialSeenFromClient = tkt.SessionSerial
 	}
-	ste.HighestSerial = tkt.SessionSerial
 
 	return false // not done early
 }
