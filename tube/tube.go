@@ -14117,6 +14117,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 		tkt.LogIndex = priorTkt.LogIndex
 		tkt.Term = priorTkt.Term
 		tkt.AsOfLogIndex = priorTkt.AsOfLogIndex
+		tkt.HighestSerialSeenFromClient = ste.HighestSerialSeenFromClient
 
 		s.respondToClientTicketApplied(tkt)
 		return true // done early
