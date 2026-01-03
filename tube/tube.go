@@ -387,6 +387,7 @@ const (
 	RequestStateSnapshot           int = 14
 	StateSnapshotEnclosed          int = 15
 	InstallEmptyMC                 int = 16
+	NotifyClientNewLeader          int = 17
 	// PAR means the leader must get log
 	// information from followers, but actually
 	// an empty AE and then AEack should suffice
@@ -430,6 +431,8 @@ func msgop(o int) string {
 		return "StateSnapshotEnclosed"
 	case InstallEmptyMC: // 16
 		return "InstallEmptyMC"
+	case NotifyClientNewLeader: // 17
+		return "NotifyClientNewLeader"
 	}
 	return fmt.Sprintf("unknown MsgOp: %v", o)
 }
@@ -735,6 +738,12 @@ func (s *TubeNode) Start(
 	// to avoid seeing spurious "no role yet" in the logs.
 	s.role = FOLLOWER
 	//vv("%v TubeNode.Start(): set role to FOLLOWER")
+
+	// why does this mess up our finding the new leader in 710 client_test?
+	//if s.cfg.PeerServiceName == TUBE_CLIENT {
+	//	vv("%v setting role to CLIENT b/c PeerServiceName is TUBE_CLIENT", s.me())
+	//	s.role = CLIENT
+	//}
 
 	// allow test setups like to have
 	// given us a wal or memwal especailly;
@@ -1474,6 +1483,16 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 			//now := time.Now()
 			switch frag.FragOp {
+
+			case NotifyClientNewLeader:
+				// only for clients
+				if s.role != CLIENT && s.cfg.PeerServiceName != TUBE_CLIENT {
+					panicf("%v only send NotifyClientNewLeader to clients. PeerServiceName = '%v'", s.me(), s.cfg.PeerServiceName)
+				}
+				s.leaderName, _ = frag.GetUserArg("leaderName")
+				s.leaderID, _ = frag.GetUserArg("leaderID")
+				s.leaderURL, _ = frag.GetUserArg("leaderURL")
+				vv("%v got NotifyClientNewLeader: '%v'", s.name, s.leaderName)
 
 			case InstallEmptyMC:
 				s.handleInstallEmptyMC(frag, fragCkt.ckt)
@@ -4979,6 +4998,9 @@ type SessionTableEntry struct {
 	SessionReplicatedEndxTm time.Time `zid:"5"`
 
 	SessRequestedInitialDur time.Duration `zid:"6"`
+	ClientName              string        `zid:"7"`
+	ClientPeerID            string        `zid:"8"`
+	ClientURL               string        `zid:"9"`
 }
 
 func (z *SessionTableEntry) String() (r string) {
@@ -4989,6 +5011,9 @@ func (z *SessionTableEntry) String() (r string) {
 	r += fmt.Sprintf("    SessRequestedInitialDur: %v,\n", z.SessRequestedInitialDur)
 	r += fmt.Sprintf("              SessionEndxTm: %v,\n", z.SessionEndxTm)
 	r += fmt.Sprintf("     (len %v) Serial2Ticket: \n", z.Serial2Ticket.Len())
+	r += fmt.Sprintf("                 ClientName: %v,\n", z.ClientName)
+	r += fmt.Sprintf("               ClientPeerID: %v,\n", z.ClientPeerID)
+	r += fmt.Sprintf("                  ClientURL: %v,\n", z.ClientURL)
 	for ser, tkt := range z.Serial2Ticket.All() {
 		r += fmt.Sprintf("             %v: %v\n", ser, tkt.Short())
 	}
@@ -5006,6 +5031,9 @@ func (s *SessionTableEntry) Clone() (r *SessionTableEntry) {
 		ticketID2tkt:                make(map[string]*Ticket),
 		SessRequestedInitialDur:     s.SessRequestedInitialDur,
 		SessionReplicatedEndxTm:     s.SessionReplicatedEndxTm,
+		ClientName:                  s.ClientName,
+		ClientPeerID:                s.ClientPeerID,
+		ClientURL:                   s.ClientURL,
 	}
 	for _, kv := range s.Serial2Ticket.cached() {
 		r.Serial2Ticket.set(kv.key, kv.val)
@@ -5072,6 +5100,9 @@ func newSessionTableEntry(sess *Session) *SessionTableEntry {
 		SessionID:               sess.SessionID,
 		Serial2Ticket:           newOmap[int64, *Ticket](),
 		ticketID2tkt:            make(map[string]*Ticket),
+		ClientName:              sess.CliName,
+		ClientPeerID:            sess.CliPeerID,
+		ClientURL:               sess.CliURL,
 	}
 }
 
@@ -6246,6 +6277,46 @@ func (s *TubeNode) becomeLeader() {
 	if s.saver != nil {
 		s.saver.save(s.state)
 	}
+	// client sessions were with the old leader and otherwise
+	// may not know to contact the new one.
+	s.notifyClientSessionsOfNewLeader()
+}
+
+func (s *TubeNode) notifyClientSessionsOfNewLeader() {
+	n := s.sessByExpiry.Len()
+	if n <= 0 {
+		return
+	}
+	vv("%v top of sending NotifyClientNewLeader have %v sessions to notify", s.name, n)
+
+	for it := s.sessByExpiry.tree.Min(); it != s.sessByExpiry.tree.Limit(); it = it.Next() {
+
+		fragUpdateLeader := s.newFrag()
+		fragUpdateLeader.FragOp = NotifyClientNewLeader
+		fragUpdateLeader.FragSubject = "NotifyClientNewLeader"
+		fragUpdateLeader.SetUserArg("leaderName", s.leaderName)
+		fragUpdateLeader.SetUserArg("leaderURL", s.leaderURL)
+		fragUpdateLeader.SetUserArg("leaderID", s.leaderID)
+
+		ste := it.Item().(*SessionTableEntry)
+		cktP0, ok := s.cktAllByName[ste.ClientName] // ste.ClientPeerID avail too
+		var ckt *rpc.Circuit
+		if !ok || cktP0.ckt == nil {
+			// 710 client_test was bailing here. client710 only
+			// to node_0, the stopped leader.
+			vv("%v ugh: no circuit to ste.ClientName: '%v'", s.name, ste.ClientName)
+			clientURL := ste.ClientURL
+			// maybe use s.connectInBackgroundIfNoCircuitTo(peerName, "adjustCktReplicaForNewMembership") ? no, because the client is probably not expecting heartbeats/heartbeat traffic could be extensive with lots of clients.
+			go s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, fragUpdateLeader, 0)
+			continue
+		} else {
+			ckt = cktP0.ckt
+		}
+
+		s.SendOneWay(ckt, fragUpdateLeader, -1, 0)
+		vv("%v sent new leader(me) notification to %v", s.name, ste.ClientName)
+	}
+	//s.MyPeer.FreeFragment(fragUpdateLeader)
 }
 
 // if reject is returned, then
@@ -13322,6 +13393,7 @@ func (s *TubeNode) serviceMembershipObservers() {
 	frag := s.newFrag()
 	frag.SetUserArg("leader", s.leaderID)
 	frag.SetUserArg("leaderName", s.leaderName)
+	frag.SetUserArg("leaderURL", s.leaderURL)
 
 	frag.FragOp = ObserveMembershipChange
 	frag.FragSubject = "ObserveMembershipChange"
@@ -13653,6 +13725,7 @@ type Session struct {
 	CliPeerID          string `zid:"1"`
 	CliPeerServiceName string `zid:"2"`
 	CliRndOnce         string `zid:"3"`
+	CliURL             string `zid:"19"`
 
 	// can be zero, but adjust LastKnownIndex below on session use.
 	CliLastKnownIndex0      int64         `zid:"4"`
@@ -13744,6 +13817,7 @@ func (z *Session) String() (r string) {
 	r += fmt.Sprintf("  //----- initial request  -----\n")
 	r += fmt.Sprintf("              CliName: \"%v\",\n", z.CliName)
 	r += fmt.Sprintf("            CliPeerID: \"%v\",\n", z.CliPeerID)
+	r += fmt.Sprintf("               CliURL: \"%v\",\n", z.CliURL)
 	r += fmt.Sprintf("   CliPeerServiceName: \"%v\",\n", z.CliPeerServiceName)
 	r += fmt.Sprintf("           CliRndOnce: \"%v\",\n", z.CliRndOnce)
 	r += fmt.Sprintf("   CliLastKnownIndex0: %v,\n", z.CliLastKnownIndex0)
@@ -13836,6 +13910,7 @@ func (s *TubeNode) newSessionRequest(ctx context.Context) (r *Session) {
 		ctx:                     ctx,
 		CliName:                 s.name,
 		CliPeerID:               s.PeerID,
+		CliURL:                  s.URL,
 		CliPeerServiceName:      s.PeerServiceName,
 		CliRndOnce:              rpc.NewCallID(""),
 		CliLastKnownIndex0:      0,

@@ -62,8 +62,9 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 		//	insp = contacted[0]
 		//}
 		if lastLeaderName == node.name && selfSurelyNotLeader {
-			// try not to mislead caller into thinking they
-			// themselves are leader when they are not.
+			// not seen
+			//vv("try not to mislead caller into thinking they" +
+			//	" themselves are leader when they are not.")
 			lastLeaderName = ""
 			lastLeaderURL = ""
 			reallyLeader = false
@@ -71,6 +72,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	}()
 
 	verbose := VerboseVerbose.Load()
+	verbose = true
 	var insps []*Inspection
 	vv("cfg.Node2Addr = '%v'", cfg.Node2Addr)
 	for remoteName, addr := range cfg.Node2Addr {
@@ -84,14 +86,14 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			insp = node.Inspect()
 			leaderName = insp.CurrentLeaderName
 			leaderURL = insp.CurrentLeaderURL
-			//vv("%v self inspection gave: leaderName = '%v'", node.name, leaderName)
+			vv("%v self inspection gave: leaderName = '%v'", node.name, leaderName)
 			if leaderName == "" {
 				selfSurelyNotLeader = true
-				//vv("%v self insp says empty leaderName so setting selfSurelyNotLeader=true", node.name)
+				vv("%v self insp says empty leaderName so setting selfSurelyNotLeader=true", node.name)
 			}
 		} else {
-			if true { // verbose {
-				fmt.Printf("%v %v TubeNode.HelperFindLeader(): attempting to contact '%v' at %v ... ", fileLine(1), ts(), remoteName, url)
+			if verbose {
+				fmt.Printf("\n%v %v TubeNode.HelperFindLeader(): attempting to contact '%v' at %v ... \n", fileLine(1), ts(), remoteName, url)
 			}
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
 			_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, remoteName)

@@ -413,12 +413,13 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 		snap := c.SimnetSnapshot()
 		vv("50 seconds after crashing the leader, snap = '%v'", snap) // .LongString())
 
-		vv("try 2nd read from the session, after leader change")
+		vv("try 2nd read from the session, after leader change; current cli.leaderName = '%v'", cli.leaderName)
 
 		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(&cli.cfg, c.Nodes[1].name, false)
 		panicOn(err)
+		vv("HelperFindLeader returned leaderURL='%v', reallyLeader = %v", leaderURL, reallyLeader)
 
-		// try to fix the sporadic race wher
+		// try to fix the sporadic race where
 		// cli might not have updated its own s.leaderName !?!
 		// and so sends the next Read off into the void at the old dead leader.
 		// getCircuitToLeader sets the updated s.leaderName.
@@ -427,7 +428,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 		panicOn(err2)
 
 		if !reallyLeader {
-			panic("could not find leader")
+			panicf("could not really find leader; leaderName='%v'; leaderURL = '%v'", leaderName, leaderURL)
 		}
 		vv("2nd leaderName = '%v'; url = '%v'", leaderName, leaderURL)
 

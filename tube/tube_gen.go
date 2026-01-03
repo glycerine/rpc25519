@@ -15728,7 +15728,7 @@ func (z *Session) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields202zgensym_8df0a91a1f250219_203 = 19
+	const maxFields202zgensym_8df0a91a1f250219_203 = 20
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields202zgensym_8df0a91a1f250219_203 uint32
@@ -15891,6 +15891,12 @@ doneWithStruct202zgensym_8df0a91a1f250219_203:
 			if err != nil {
 				return
 			}
+		case "CliURL_zid19_str":
+			found202zgensym_8df0a91a1f250219_203[19] = true
+			z.CliURL, err = dc.ReadString()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -15914,16 +15920,16 @@ doneWithStruct202zgensym_8df0a91a1f250219_203:
 }
 
 // fields of Session
-var decodeMsgFieldOrder202zgensym_8df0a91a1f250219_203 = []string{"CliName_zid00_str", "CliPeerID_zid01_str", "CliPeerServiceName_zid02_str", "CliRndOnce_zid03_str", "CliLastKnownIndex0_zid04_i64", "SessRequestedInitialDur_zid05_dur", "ClusterID_zid06_str", "SessionAssignedIndex_zid07_i64", "SessionID_zid08_str", "SessionIndexEndxTm_zid09_tim", "LeaderName_zid10_str", "LeaderPeerID_zid11_str", "LeaderPeerServiceName_zid12_str", "LeaderURL_zid13_str", "LeaderRndOnce_zid14_str", "Errs_zid15_str", "SessionSerial_zid16_i64", "LastKnownIndex_zid17_i64", "MinSessSerialWaiting_zid18_i64"}
+var decodeMsgFieldOrder202zgensym_8df0a91a1f250219_203 = []string{"CliName_zid00_str", "CliPeerID_zid01_str", "CliPeerServiceName_zid02_str", "CliRndOnce_zid03_str", "CliLastKnownIndex0_zid04_i64", "SessRequestedInitialDur_zid05_dur", "ClusterID_zid06_str", "SessionAssignedIndex_zid07_i64", "SessionID_zid08_str", "SessionIndexEndxTm_zid09_tim", "LeaderName_zid10_str", "LeaderPeerID_zid11_str", "LeaderPeerServiceName_zid12_str", "LeaderURL_zid13_str", "LeaderRndOnce_zid14_str", "Errs_zid15_str", "SessionSerial_zid16_i64", "LastKnownIndex_zid17_i64", "MinSessSerialWaiting_zid18_i64", "CliURL_zid19_str"}
 
-var decodeMsgFieldSkip202zgensym_8df0a91a1f250219_203 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip202zgensym_8df0a91a1f250219_203 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Session) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 19
+		return 20
 	}
-	var fieldsInUse uint32 = 19
+	var fieldsInUse uint32 = 20
 	isempty[0] = (len(z.CliName) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -16000,6 +16006,10 @@ func (z *Session) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[18] {
 		fieldsInUse--
 	}
+	isempty[19] = (len(z.CliURL) == 0) // string, omitempty
+	if isempty[19] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -16011,7 +16021,7 @@ func (z *Session) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_204 [19]bool
+	var empty_zgensym_8df0a91a1f250219_204 [20]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_205 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_204[:])
 
 	// map header
@@ -16258,6 +16268,18 @@ func (z *Session) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_8df0a91a1f250219_204[19] {
+		// write "CliURL_zid19_str"
+		err = en.Append(0xb0, 0x43, 0x6c, 0x69, 0x55, 0x52, 0x4c, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x39, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.CliURL)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -16270,7 +16292,7 @@ func (z *Session) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [19]bool
+	var empty [20]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -16388,6 +16410,12 @@ func (z *Session) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendInt64(o, z.MinSessSerialWaiting)
 	}
 
+	if !empty[19] {
+		// string "CliURL_zid19_str"
+		o = append(o, 0xb0, 0x43, 0x6c, 0x69, 0x55, 0x52, 0x4c, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x39, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.CliURL)
+	}
+
 	return
 }
 
@@ -16406,7 +16434,7 @@ func (z *Session) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []
 
 	var field []byte
 	_ = field
-	const maxFields206zgensym_8df0a91a1f250219_207 = 19
+	const maxFields206zgensym_8df0a91a1f250219_207 = 20
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields206zgensym_8df0a91a1f250219_207 uint32
@@ -16589,6 +16617,13 @@ doneWithStruct206zgensym_8df0a91a1f250219_207:
 			if err != nil {
 				return
 			}
+		case "CliURL_zid19_str":
+			found206zgensym_8df0a91a1f250219_207[19] = true
+			z.CliURL, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -16612,13 +16647,13 @@ doneWithStruct206zgensym_8df0a91a1f250219_207:
 }
 
 // fields of Session
-var unmarshalMsgFieldOrder206zgensym_8df0a91a1f250219_207 = []string{"CliName_zid00_str", "CliPeerID_zid01_str", "CliPeerServiceName_zid02_str", "CliRndOnce_zid03_str", "CliLastKnownIndex0_zid04_i64", "SessRequestedInitialDur_zid05_dur", "ClusterID_zid06_str", "SessionAssignedIndex_zid07_i64", "SessionID_zid08_str", "SessionIndexEndxTm_zid09_tim", "LeaderName_zid10_str", "LeaderPeerID_zid11_str", "LeaderPeerServiceName_zid12_str", "LeaderURL_zid13_str", "LeaderRndOnce_zid14_str", "Errs_zid15_str", "SessionSerial_zid16_i64", "LastKnownIndex_zid17_i64", "MinSessSerialWaiting_zid18_i64"}
+var unmarshalMsgFieldOrder206zgensym_8df0a91a1f250219_207 = []string{"CliName_zid00_str", "CliPeerID_zid01_str", "CliPeerServiceName_zid02_str", "CliRndOnce_zid03_str", "CliLastKnownIndex0_zid04_i64", "SessRequestedInitialDur_zid05_dur", "ClusterID_zid06_str", "SessionAssignedIndex_zid07_i64", "SessionID_zid08_str", "SessionIndexEndxTm_zid09_tim", "LeaderName_zid10_str", "LeaderPeerID_zid11_str", "LeaderPeerServiceName_zid12_str", "LeaderURL_zid13_str", "LeaderRndOnce_zid14_str", "Errs_zid15_str", "SessionSerial_zid16_i64", "LastKnownIndex_zid17_i64", "MinSessSerialWaiting_zid18_i64", "CliURL_zid19_str"}
 
-var unmarshalMsgFieldSkip206zgensym_8df0a91a1f250219_207 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip206zgensym_8df0a91a1f250219_207 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Session) Msgsize() (s int) {
-	s = 3 + 18 + msgp.StringPrefixSize + len(z.CliName) + 20 + msgp.StringPrefixSize + len(z.CliPeerID) + 29 + msgp.StringPrefixSize + len(z.CliPeerServiceName) + 21 + msgp.StringPrefixSize + len(z.CliRndOnce) + 29 + msgp.Int64Size + 35 + msgp.DurationSize + 20 + msgp.StringPrefixSize + len(z.ClusterID) + 31 + msgp.Int64Size + 20 + msgp.StringPrefixSize + len(z.SessionID) + 29 + msgp.TimeSize + 21 + msgp.StringPrefixSize + len(z.LeaderName) + 23 + msgp.StringPrefixSize + len(z.LeaderPeerID) + 32 + msgp.StringPrefixSize + len(z.LeaderPeerServiceName) + 20 + msgp.StringPrefixSize + len(z.LeaderURL) + 24 + msgp.StringPrefixSize + len(z.LeaderRndOnce) + 15 + msgp.StringPrefixSize + len(z.Errs) + 24 + msgp.Int64Size + 25 + msgp.Int64Size + 31 + msgp.Int64Size
+	s = 3 + 18 + msgp.StringPrefixSize + len(z.CliName) + 20 + msgp.StringPrefixSize + len(z.CliPeerID) + 29 + msgp.StringPrefixSize + len(z.CliPeerServiceName) + 21 + msgp.StringPrefixSize + len(z.CliRndOnce) + 29 + msgp.Int64Size + 35 + msgp.DurationSize + 20 + msgp.StringPrefixSize + len(z.ClusterID) + 31 + msgp.Int64Size + 20 + msgp.StringPrefixSize + len(z.SessionID) + 29 + msgp.TimeSize + 21 + msgp.StringPrefixSize + len(z.LeaderName) + 23 + msgp.StringPrefixSize + len(z.LeaderPeerID) + 32 + msgp.StringPrefixSize + len(z.LeaderPeerServiceName) + 20 + msgp.StringPrefixSize + len(z.LeaderURL) + 24 + msgp.StringPrefixSize + len(z.LeaderRndOnce) + 15 + msgp.StringPrefixSize + len(z.Errs) + 24 + msgp.Int64Size + 25 + msgp.Int64Size + 31 + msgp.Int64Size + 17 + msgp.StringPrefixSize + len(z.CliURL)
 	return
 }
 func (z *Session) Gstring() (r string) {
@@ -16642,6 +16677,7 @@ func (z *Session) Gstring() (r string) {
 	r += fmt.Sprintf("          SessionSerial: %v,\n", z.SessionSerial)
 	r += fmt.Sprintf("         LastKnownIndex: %v,\n", z.LastKnownIndex)
 	r += fmt.Sprintf("   MinSessSerialWaiting: %v,\n", z.MinSessSerialWaiting)
+	r += fmt.Sprintf("                 CliURL: \"%v\",\n", z.CliURL)
 	r += "}\n"
 	return
 }
@@ -16661,7 +16697,7 @@ func (z *SessionTableEntry) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields210zgensym_8df0a91a1f250219_211 = 8
+	const maxFields210zgensym_8df0a91a1f250219_211 = 11
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields210zgensym_8df0a91a1f250219_211 uint32
@@ -16797,6 +16833,24 @@ doneWithStruct210zgensym_8df0a91a1f250219_211:
 			if err != nil {
 				return
 			}
+		case "ClientName_zid07_str":
+			found210zgensym_8df0a91a1f250219_211[7] = true
+			z.ClientName, err = dc.ReadString()
+			if err != nil {
+				return
+			}
+		case "ClientPeerID_zid08_str":
+			found210zgensym_8df0a91a1f250219_211[8] = true
+			z.ClientPeerID, err = dc.ReadString()
+			if err != nil {
+				return
+			}
+		case "ClientURL_zid09_str":
+			found210zgensym_8df0a91a1f250219_211[9] = true
+			z.ClientURL, err = dc.ReadString()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -16820,16 +16874,16 @@ doneWithStruct210zgensym_8df0a91a1f250219_211:
 }
 
 // fields of SessionTableEntry
-var decodeMsgFieldOrder210zgensym_8df0a91a1f250219_211 = []string{"SessionID_zid00_str", "HighestSerialSeenFromClient_zid01_i64", "MaxAppliedSerial_zid02_i64", "Serz_zid03_map", "SessionEndxTm_zid04_tim", "SessionReplicatedEndxTm_zid05_tim", "SessRequestedInitialDur_zid06_dur", ""}
+var decodeMsgFieldOrder210zgensym_8df0a91a1f250219_211 = []string{"SessionID_zid00_str", "HighestSerialSeenFromClient_zid01_i64", "MaxAppliedSerial_zid02_i64", "Serz_zid03_map", "SessionEndxTm_zid04_tim", "SessionReplicatedEndxTm_zid05_tim", "SessRequestedInitialDur_zid06_dur", "ClientName_zid07_str", "ClientPeerID_zid08_str", "ClientURL_zid09_str", ""}
 
-var decodeMsgFieldSkip210zgensym_8df0a91a1f250219_211 = []bool{false, false, false, false, false, false, false, true}
+var decodeMsgFieldSkip210zgensym_8df0a91a1f250219_211 = []bool{false, false, false, false, false, false, false, false, false, false, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *SessionTableEntry) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 7
+		return 10
 	}
-	var fieldsInUse uint32 = 7
+	var fieldsInUse uint32 = 10
 	isempty[0] = (len(z.SessionID) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -16858,6 +16912,18 @@ func (z *SessionTableEntry) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[6] {
 		fieldsInUse--
 	}
+	isempty[7] = (len(z.ClientName) == 0) // string, omitempty
+	if isempty[7] {
+		fieldsInUse--
+	}
+	isempty[8] = (len(z.ClientPeerID) == 0) // string, omitempty
+	if isempty[8] {
+		fieldsInUse--
+	}
+	isempty[9] = (len(z.ClientURL) == 0) // string, omitempty
+	if isempty[9] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -16869,7 +16935,7 @@ func (z *SessionTableEntry) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_213 [8]bool
+	var empty_zgensym_8df0a91a1f250219_213 [11]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_214 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_213[:])
 
 	// map header
@@ -16991,6 +17057,42 @@ func (z *SessionTableEntry) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_8df0a91a1f250219_213[7] {
+		// write "ClientName_zid07_str"
+		err = en.Append(0xb4, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.ClientName)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_8df0a91a1f250219_213[8] {
+		// write "ClientPeerID_zid08_str"
+		err = en.Append(0xb6, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.ClientPeerID)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_8df0a91a1f250219_213[9] {
+		// write "ClientURL_zid09_str"
+		err = en.Append(0xb3, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x55, 0x52, 0x4c, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.ClientURL)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -17003,7 +17105,7 @@ func (z *SessionTableEntry) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [8]bool
+	var empty [11]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -17064,6 +17166,24 @@ func (z *SessionTableEntry) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendDuration(o, z.SessRequestedInitialDur)
 	}
 
+	if !empty[7] {
+		// string "ClientName_zid07_str"
+		o = append(o, 0xb4, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.ClientName)
+	}
+
+	if !empty[8] {
+		// string "ClientPeerID_zid08_str"
+		o = append(o, 0xb6, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.ClientPeerID)
+	}
+
+	if !empty[9] {
+		// string "ClientURL_zid09_str"
+		o = append(o, 0xb3, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x55, 0x52, 0x4c, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.ClientURL)
+	}
+
 	return
 }
 
@@ -17082,7 +17202,7 @@ func (z *SessionTableEntry) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeCon
 
 	var field []byte
 	_ = field
-	const maxFields215zgensym_8df0a91a1f250219_216 = 8
+	const maxFields215zgensym_8df0a91a1f250219_216 = 11
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields215zgensym_8df0a91a1f250219_216 uint32
@@ -17236,6 +17356,27 @@ doneWithStruct215zgensym_8df0a91a1f250219_216:
 			if err != nil {
 				return
 			}
+		case "ClientName_zid07_str":
+			found215zgensym_8df0a91a1f250219_216[7] = true
+			z.ClientName, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "ClientPeerID_zid08_str":
+			found215zgensym_8df0a91a1f250219_216[8] = true
+			z.ClientPeerID, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "ClientURL_zid09_str":
+			found215zgensym_8df0a91a1f250219_216[9] = true
+			z.ClientURL, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -17259,9 +17400,9 @@ doneWithStruct215zgensym_8df0a91a1f250219_216:
 }
 
 // fields of SessionTableEntry
-var unmarshalMsgFieldOrder215zgensym_8df0a91a1f250219_216 = []string{"SessionID_zid00_str", "HighestSerialSeenFromClient_zid01_i64", "MaxAppliedSerial_zid02_i64", "Serz_zid03_map", "SessionEndxTm_zid04_tim", "SessionReplicatedEndxTm_zid05_tim", "SessRequestedInitialDur_zid06_dur", ""}
+var unmarshalMsgFieldOrder215zgensym_8df0a91a1f250219_216 = []string{"SessionID_zid00_str", "HighestSerialSeenFromClient_zid01_i64", "MaxAppliedSerial_zid02_i64", "Serz_zid03_map", "SessionEndxTm_zid04_tim", "SessionReplicatedEndxTm_zid05_tim", "SessRequestedInitialDur_zid06_dur", "ClientName_zid07_str", "ClientPeerID_zid08_str", "ClientURL_zid09_str", ""}
 
-var unmarshalMsgFieldSkip215zgensym_8df0a91a1f250219_216 = []bool{false, false, false, false, false, false, false, true}
+var unmarshalMsgFieldSkip215zgensym_8df0a91a1f250219_216 = []bool{false, false, false, false, false, false, false, false, false, false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *SessionTableEntry) Msgsize() (s int) {
@@ -17278,7 +17419,7 @@ func (z *SessionTableEntry) Msgsize() (s int) {
 			}
 		}
 	}
-	s += 24 + msgp.TimeSize + 35 + msgp.TimeSize + 35 + msgp.DurationSize
+	s += 24 + msgp.TimeSize + 35 + msgp.TimeSize + 35 + msgp.DurationSize + 21 + msgp.StringPrefixSize + len(z.ClientName) + 23 + msgp.StringPrefixSize + len(z.ClientPeerID) + 20 + msgp.StringPrefixSize + len(z.ClientURL)
 	return
 }
 func (z *SessionTableEntry) Gstring() (r string) {
@@ -17290,6 +17431,9 @@ func (z *SessionTableEntry) Gstring() (r string) {
 	r += fmt.Sprintf("              SessionEndxTm: %v,\n", z.SessionEndxTm)
 	r += fmt.Sprintf("    SessionReplicatedEndxTm: %v,\n", z.SessionReplicatedEndxTm)
 	r += fmt.Sprintf("    SessRequestedInitialDur: %v,\n", z.SessRequestedInitialDur)
+	r += fmt.Sprintf("                 ClientName: \"%v\",\n", z.ClientName)
+	r += fmt.Sprintf("               ClientPeerID: \"%v\",\n", z.ClientPeerID)
+	r += fmt.Sprintf("                  ClientURL: \"%v\",\n", z.ClientURL)
 	r += "}\n"
 	return
 }
