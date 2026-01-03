@@ -4474,6 +4474,10 @@ type Ticket struct {
 	// with client retries this might be needed?
 	Done *idem.IdemCloseChan `msg:"-"`
 
+	// notice: the LogIndex for a committed ticket
+	// can act as a fencing token for external
+	// services to avoid consistency issues due to
+	// client processes being paused.
 	LogIndex int64 `zid:"10"` // where we are logged to.
 	Term     int64 `zid:"11"` // where we are logged to.
 
