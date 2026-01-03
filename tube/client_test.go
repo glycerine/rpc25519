@@ -2,9 +2,9 @@ package tube
 
 import (
 	"bytes"
-	//"context"
+	"context"
 	"fmt"
-	//"time"
+	"time"
 
 	"testing"
 )
@@ -49,9 +49,6 @@ func Test707_client_linz_semantics(t *testing.T) {
 			panic(fmt.Sprintf("sess.ctx should be not nil"))
 		}
 		vv("got sess = '%v'", sess) // not seen.
-		//if !sess.SessionIndexEndxTm.Equal(sess.SessRequestedInitialDur) {
-		//	panic("wanted SessionIndexEndxTm to equal SessRequestedInitialDur")
-		//}
 
 		var v []byte
 		i := 0
@@ -140,9 +137,6 @@ func Test708_client_linz_SessionSerial_gap_caught(t *testing.T) {
 		sess, err := cli.CreateNewSession(bkg, leaderURL)
 		panicOn(err)
 		//vv("got sess = '%v'", sess)
-		//if !sess.SessionIndexEndxTm.Equal(sess.SessRequestedInitialDur) {
-		//	panic("wanted SessionIndexEndxTm to equal SessRequestedInitialDur")
-		//}
 
 		var v []byte
 		i := 0
@@ -168,11 +162,17 @@ func Test708_client_linz_SessionSerial_gap_caught(t *testing.T) {
 			}
 			tktW, err := sess.Write(bkg, "", "a", v, 0, "", 0)
 			if i == itargetSkip {
-				if err == nil {
-					panic("wanted serial number gap error")
-				}
-				vv("good: see error when gap in SessionSerial: '%v'", err)
-				return // session is dead anyway, right?
+				// see test 710:
+				// our new understanding is that gaps do need
+				// to be allowed for fast local reads and
+				// leadership change together. So commenting:
+				/*
+					if err == nil {
+						panic("wanted serial number gap error")
+					}
+					vv("good: see error when gap in SessionSerial: '%v'", err)
+					return // session is dead anyway, right?
+				*/
 			} else {
 				panicOn(err)
 			}
@@ -241,6 +241,12 @@ func Test708_client_linz_SessionSerial_gap_caught(t *testing.T) {
 	})
 }
 
+// This test no longer makes sense to me. Old S/N retries could
+// be from network duplicates, but fine, the cache and dedup
+// mecahnism is supposed to allow retries and just provide
+// idempotency, not errors.
+//
+/*
 // if the client decreases (uses an old SN) the Write is rejected.
 func Test709_client_linz_SessionSerial_old_or_decreasing_SN_caught(t *testing.T) {
 
@@ -276,9 +282,6 @@ func Test709_client_linz_SessionSerial_old_or_decreasing_SN_caught(t *testing.T)
 			sess, err := cli.CreateNewSession(bkg, leaderURL)
 			panicOn(err)
 			//vv("got sess = '%v'", sess)
-			//if !sess.SessionIndexEndxTm.Equal(sess.SessRequestedInitialDur) {
-			//	panic("wanted SessionIndexEndxTm to equal SessRequestedInitialDur")
-			//}
 
 			var v []byte
 
@@ -325,37 +328,133 @@ func Test709_client_linz_SessionSerial_old_or_decreasing_SN_caught(t *testing.T)
 				}
 				sess.MinSessSerialWaiting = int64(i)
 
-				/*
-					// Read all member nodes
-					for j := range numNodes {
-						// don't use the session here to read from
-						// other nodes.
-						tktj, err := nodes[j].Read("a", 0, nil)
-						panicOn(err)
-						vj := tktj.Val
-
-						if !bytes.Equal(v, vj) {
-							t.Fatalf("write a:'%v' to node0, but read back from node j=%v: '%v'", string(v), j, string(vj))
-						}
-						vv("good, we read from node j=%v val a = '%v'", j, string(vj))
-					}
-					// Read from the client using the Session
-
-					tktj, err := sess.Read("a", 0)
-					panicOn(err)
-					vj := tktj.Val
-
-					if !bytes.Equal(v, vj) {
-						t.Fatalf("write a:'%v' to node0, but cli session read back from leader the value: '%v'", string(v), string(vj))
-					}
-					vv("good, as expected we read from Session on client->leader val a = '%v'", string(vj))
-				*/
 			}
 
 			//vv("end of t.Loop i = %v", i)
 
 		})
 	}
+}
+*/
+
+// if the client session writes and then reads locally, and
+// then the leadership changes, does the new leader always
+// reject the next serial number as having gapped? The client
+// and the server disagree on what the next serial number
+// should be, but only the s/n for the write matters, right?
+// So we think we can delete the logic that crashes the
+// client session on a gap in serial numbers. Done/green now.
+func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
+
+	onlyBubbled(t, func(t *testing.T) {
+
+		numNodes := 3
+
+		c, _, _, _ := setupTestCluster(t, numNodes, 0, 710)
+		defer c.Close()
+
+		nodes := c.Nodes
+		_ = nodes
+
+		leaderNode0 := c.Nodes[0]
+		leaderURL0 := leaderNode0.URL
+		vv("leaderURL0 = '%v'", leaderURL0)
+		vv("URL1 = '%v'", c.Nodes[1].URL)
+		vv("URL2 = '%v'", c.Nodes[2].URL)
+
+		cliName := "client710"
+		cliCfg := *c.Cfg
+		cliCfg.PeerServiceName = TUBE_CLIENT
+		for _, node := range c.Nodes {
+			cliCfg.Node2Addr[node.name] = node.URL
+		}
+		cli := NewTubeNode(cliName, &cliCfg)
+		err := cli.InitAndStart()
+		panicOn(err)
+		defer cli.Close()
+
+		sess, err := cli.CreateNewSession(bkg, leaderURL0)
+		panicOn(err)
+		//vv("got sess = '%v'", sess)
+
+		var v []byte
+
+		// Write
+		v = []byte(fmt.Sprintf("%v", 99))
+		//vv("about to write '%v'", string(v))
+		tktW, err := sess.Write(bkg, "", "a", v, 0, "", 0)
+		panicOn(err)
+		_ = tktW
+
+		// make sure write goes through
+		time.Sleep(time.Second * 10)
+
+		// Read from the client using the Session to increment the SessionSerial
+		// on leader(node 0)
+
+		tktj, err := sess.Read(bkg, "", "a", 0)
+		panicOn(err)
+		vj := tktj.Val
+
+		if !bytes.Equal(v, vj) {
+			t.Fatalf("write a:'%v' to node0, but cli session read back from leader the value: '%v'", string(v), string(vj))
+		}
+
+		snap0 := c.SimnetSnapshot()
+		vv("before crashing the leader, snap0 = '%v'", snap0) // .LongString())
+
+		// now change leaders, new leader will not know about the
+		// previous read.
+		vv("about to crash the leader")
+		leaderNode0.SimCrash()
+
+		time.Sleep(time.Second * 50)
+
+		snap := c.SimnetSnapshot()
+		vv("50 seconds after crashing the leader, snap = '%v'", snap) // .LongString())
+
+		vv("try 2nd read from the session, after leader change")
+
+		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(&cli.cfg, c.Nodes[1].name, false)
+		panicOn(err)
+		if !reallyLeader {
+			panic("could not find leader")
+		}
+		vv("2nd leaderName = '%v'; url = '%v'", leaderName, leaderURL)
+
+		to, canc := context.WithTimeout(bkg, time.Second*10)
+		tktj, err = sess.Read(to, "", "a", 0)
+		/*
+			if err.Error() == "context deadline exceeded" {
+				vv("timed out!")
+				ckt, onlyPossibleAddr, _, err := cli.getCircuitToLeader(bkg, c.Nodes[1].URL, nil, false)
+				panicOn(err)
+				_ = ckt
+				_ = onlyPossibleAddr
+				vv("onlyPossibleAddr = '%v'; ckt='%v'", onlyPossibleAddr, ckt)
+
+				ckt2, onlyPossibleAddr2, _, err2 := cli.getCircuitToLeader(bkg, c.Nodes[1].URL, nil, false)
+				panicOn(err2)
+
+				vv("onlyPossibleAddr2 = '%v'; ckt2='%v'", onlyPossibleAddr2, ckt2)
+
+				tktj3, err3 := sess.Read(bkg, "", "a", time.Second)
+				panicOn(err)
+				vv("tktj3.Val = '%v'; err3 = '%v'", tktj2.Val, err3)
+			}
+		*/
+		panicOn(err)
+		canc()
+		vj = tktj.Val
+
+		if !bytes.Equal(v, vj) {
+			t.Fatalf("write a:'%v' to node0, but cli session read back from leader the value: '%v'", string(v), string(vj))
+		}
+		vv("ok 2nd read from the session, after leader change")
+
+		//vv("good, as expected we read from Session on client->leader val a = '%v'", string(vj))
+
+	})
 }
 
 // TODO: test for deletion of session after they timeout/go stale.

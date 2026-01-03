@@ -4137,10 +4137,10 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		tkt.Stage += ":redirectToLeader(false,role_is_leader)"
 		return
 	}
-	if s.leaderID == s.PeerID {
-		// probably just a logical race?
-		//panic(fmt.Sprintf("%v I am not leader, so how did my PeerID get set as s.leaderID? s.leaderID = '%v' ", s.me(), s.leaderID))
-	}
+	//if s.leaderID == s.PeerID {
+	// probably just a logical race?
+	//panic(fmt.Sprintf("%v I am not leader, so how did my PeerID get set as s.leaderID? s.leaderID = '%v' ", s.me(), s.leaderID))
+	//}
 
 	//if s.leaderID == s.PeerID {
 	// stale; or we left
@@ -4286,7 +4286,9 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 
 	frag.SetUserArg("leader", s.leaderID)
 	frag.SetUserArg("leaderName", s.leaderName)
-	err = s.SendOneWay(ckt, frag, -1, 0)
+	//err = s.SendOneWay(ckt, frag, -1, 0)
+	//vv("tkt.waitForValid = %v; s.leaderName = '%v'; ckt='%v'", tkt.waitForValid, s.leaderName, ckt)
+	err = s.SendOneWay(ckt, frag, tkt.waitForValid, 0)
 	_ = err // don't panic on halting.
 	if err != nil {
 		alwaysPrintf("%v non nil error '%v' on Redirect to '%v'", s.me(), err, ckt.RemotePeerID)
@@ -4932,7 +4934,7 @@ func (s *TubeNode) NewTicket(
 	tkt = &Ticket{
 		Desc:         desc,
 		TSN:          atomic.AddInt64(&debugNextTSN, 1),
-		T0:           time.Now(), // for gc of abandonded tickets. and determistic session expiry.
+		T0:           time.Now(), // for gc of abandonded tickets.
 		Op:           op,
 		Table:        table,
 		Key:          key,
@@ -6064,7 +6066,7 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 }
 
 func (s *TubeNode) becomeLeader() {
-	//vv("%v becomeLeader top", s.me())
+	vv("%v becomeLeader top", s.me())
 	//defer func() {
 	//vv("%v end of becomeLeader", s.me())
 	//}()
@@ -10223,14 +10225,6 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 
 		} else {
 			s.refreshSession(time.Now(), ste)
-			// replicate so we refresh the session on peers
-			// too, so client can survive a leader change
-			// and keep going... althought since their Session
-			// counter is not replicated, we might kill
-			// them on a gap... might not be worth it. Comment for
-			// now since local leader reads staying fast is
-			// a big benefit.
-			// return false
 
 			// cleanup old state sessions
 			defer s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
@@ -10281,18 +10275,42 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 			}
 
 			if tkt.SessionSerial != 1+ste.HighestSerial {
-				tkt.Err = fmt.Errorf("%v session killed: gap in SessionSerial, saw %v, expected %v for tkt.SessionID '%v': a client request was dropped. dropped tkt='%v'", s.name, tkt.SessionSerial, ste.HighestSerial+1, tkt.SessionID, tkt)
-				//vv("%v error session gap: %v\n", s.name, tkt.Err)
+				// the problem with the below is that to a new
+				// leader, the local-reads served by the
+				// previous leader look like gaps/dropped serial
+				// numbers, even though they were just
+				// local reads. For performance purposes,
+				// we want local reads to be fast and not
+				// tell followers about them. So now we
+				// skip this early error out return and avoid
+				// killing the session so the new leader
+				// can continue it.
+				//
+				// If a read is dropped its no big deal. If a
+				// write was dropped before replication,
+				// well it just never made
+				// it to through the raft log, so client needs
+				// to re-try before incrementing their serial
+				// number if they care. If the reply to a
+				// successful write was dropped, the retry
+				// with the same serial number is idempotent,
+				// so no problem; it will likely succeed on
+				// the client's 2nd attempt.
+				if false {
 
-				// kill the session so client must make a new one.
-				delete(s.state.SessTable, tkt.SessionID)
-				s.sessByExpiry.Delete(ste)
-				s.saver.save(s.state)
+					tkt.Err = fmt.Errorf("%v session killed: gap in SessionSerial, saw %v, expected %v for tkt.SessionID '%v': a client request was dropped. dropped tkt='%v'", s.name, tkt.SessionSerial, ste.HighestSerial+1, tkt.SessionID, tkt)
+					vv("%v error session gap: %v\n", s.name, tkt.Err)
 
-				if tkt.Done != nil {
-					tkt.Done.Close()
+					// kill the session so client must make a new one.
+					delete(s.state.SessTable, tkt.SessionID)
+					s.sessByExpiry.Delete(ste)
+					s.saver.save(s.state)
+
+					if tkt.Done != nil {
+						tkt.Done.Close()
+					}
+					return false // failed to serve local read, gap in session
 				}
-				return false // failed to serve local read, gap in session
 			}
 		}
 	}
@@ -13638,7 +13656,42 @@ type Session struct {
 	// before it could be committed to the raft log.
 	// The client must then reconnect with a new session and
 	// new set of incrementing serial numbers.
-	SessionID             string    `zid:"8"` // fixed on creation
+	SessionID string `zid:"8"` // fixed on creation
+
+	// note that SessionIndexEndxTm is never updated on
+	// the leader during session refresh. Instead it
+	// is immutable after creation, and the SessionTableEntry's
+	// SessionEndxTm starts at SessionIndexEndxTm but
+	// is updated on session refresh. At the moment local
+	// leader-served reads only extend the session locally
+	// to avoid having to do a full cluster consensus
+	// write on every local read (local reads are supposed
+	// to be fast, that is the point of them -- if we
+	// made them extend the session through consensus they
+	// would bog down the system instead). The session
+	// still gets extended in the current leader's local
+	// memory by refreshSession(), but if there is a
+	// leader change then the session extensions are lost.
+	// Which does beg the question does this create
+	// non-determinism since the other replicas might
+	// think the session is gone? I think not, because
+	// only a leader sends SESS_END via garbageCollectOldSessions().
+	// So why bother putting sessions through consensus
+	// in the first place, if session extension won't survive
+	// leadership change anyway? Linearizability demands that raft
+	// leaders deduplicate requests, and session.SessionSerial
+	// is how that is done. But how does that need consensus?
+	// It allows sessions during their initial timeout period
+	// to survive leadership change and still deduplicate
+	// requests... and writes do extend the session across
+	// the cluster, since commitWhatWeCan() extends the
+	// tkt.SessionID on all replicas that commit a log entry.
+	// Reads increment the SessionSerial too as they
+	// should not be dedupped with prior write requests.
+	// On leadership change the session number gap will
+	// kill the session; this will mean an extra round
+	// trip for the client on leadership change, but the benefit
+	// is that most reads are local, and local reads remain fast.
 	SessionIndexEndxTm    time.Time `zid:"9"` // session deleted >= here
 	LeaderName            string    `zid:"10"`
 	LeaderPeerID          string    `zid:"11"` // changes only on restart
@@ -13848,7 +13901,7 @@ func (s *TubeNode) applyEndSess(tkt *Ticket, calledOnLeader bool) {
 	if s.state == nil || s.state.SessTable == nil {
 		return
 	}
-	//vv("%v: delete Session via SESS_END: %v", s.name, tkt.EndSessReq_SessionID)
+	vv("%v: delete Session via SESS_END: %v", s.name, tkt.EndSessReq_SessionID)
 	ste, ok := s.state.SessTable[tkt.EndSessReq_SessionID]
 	if ok {
 		delete(s.state.SessTable, tkt.EndSessReq_SessionID)
@@ -13865,7 +13918,7 @@ func (s *TubeNode) applyEndSess(tkt *Ticket, calledOnLeader bool) {
 // after the session is committed (present on a quorum of servers).
 func (s *TubeNode) applyNewSess(tkt *Ticket, calledOnLeader bool) {
 
-	//vv("%v applying SESS_NEW '%v'", s.me(), tkt.NewSessReq)
+	vv("%v applying SESS_NEW '%v'; tkt.NewSessReq.SessionID='%v'", s.me(), tkt.NewSessReq, tkt.NewSessReq.SessionID)
 	sess := tkt.NewSessReq
 	if s.state.SessTable == nil {
 		s.state.SessTable = make(map[string]*SessionTableEntry)
@@ -13901,6 +13954,7 @@ func (s *TubeNode) garbageCollectOldSessions() {
 
 		if gte(now, ste.SessionEndxTm) {
 			desc := fmt.Sprintf("%v: about to replicate SESS_END for SessionID: '%v' b/c expired at '%v' <= now='%v'", s.name, id, nice(ste.SessionEndxTm), nice(now))
+			vv("garbageCollectOldSessions replicating SESS_END: %v", desc)
 			tkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, SESS_END, 0, s.MyPeer.Ctx)
 			tkt.EndSessReq_SessionID = id
 			s.replicateTicket(tkt)
@@ -14059,7 +14113,8 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 	}
 
 	//vv("tkt.SessionSerial not in ste.Serial2Ticket: '%v'", tkt.SessionSerial)
-	if tkt.SessionSerial != 1+ste.HighestSerial {
+	//if tkt.SessionSerial != 1+ste.HighestSerial {
+	if false { // tkt.SessionSerial != 1+ste.HighestSerial {
 		tkt.Err = fmt.Errorf("%v leader error: session killed: gap in SessionSerial, saw %v, expected %v for tkt.SessionID '%v': a client request was dropped. dropped tkt='%v'", s.name, tkt.SessionSerial, ste.HighestSerial+1, tkt.SessionID, tkt)
 		//vv("%v error session gap: %v\n", s.name, tkt.Err)
 		tkt.Stage += ":gap_in_ticket_leaderDoneEarlyOnSessionStuff"

@@ -46,7 +46,7 @@ type set struct {
 func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool, contacted []*Inspection, err0 error) {
 
 	if node.name != cfg.MyName {
-		panicf("must have consistent node.name(%v) == cfg.MyName(%v)", node.name, cfg.MyName)
+		panicf("must have consistent node.name('%v') == cfg.MyName('%v')", node.name, cfg.MyName)
 	}
 
 	// contact everyone, get their idea of who is leader
@@ -72,6 +72,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 
 	verbose := VerboseVerbose.Load()
 	var insps []*Inspection
+	vv("cfg.Node2Addr = '%v'", cfg.Node2Addr)
 	for remoteName, addr := range cfg.Node2Addr {
 		url := FixAddrPrefix(addr)
 
@@ -89,7 +90,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 				//vv("%v self insp says empty leaderName so setting selfSurelyNotLeader=true", node.name)
 			}
 		} else {
-			if verbose {
+			if true { // verbose {
 				fmt.Printf("%v %v TubeNode.HelperFindLeader(): attempting to contact '%v' at %v ... ", fileLine(1), ts(), remoteName, url)
 			}
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
