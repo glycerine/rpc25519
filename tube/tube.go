@@ -10274,29 +10274,29 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 				return true
 			}
 
-			if tkt.SessionSerial != 1+ste.HighestSerial {
-				// the problem with the below is that to a new
-				// leader, the local-reads served by the
-				// previous leader look like gaps/dropped serial
-				// numbers, even though they were just
-				// local reads. For performance purposes,
-				// we want local reads to be fast and not
-				// tell followers about them. So now we
-				// skip this early error out return and avoid
-				// killing the session so the new leader
-				// can continue it.
-				//
-				// If a read is dropped its no big deal. If a
-				// write was dropped before replication,
-				// well it just never made
-				// it to through the raft log, so client needs
-				// to re-try before incrementing their serial
-				// number if they care. If the reply to a
-				// successful write was dropped, the retry
-				// with the same serial number is idempotent,
-				// so no problem; it will likely succeed on
-				// the client's 2nd attempt.
-				if false {
+			// the problem with the below is that to a new
+			// leader, the local-reads served by the
+			// previous leader look like gaps/dropped serial
+			// numbers, even though they were just
+			// local reads. For performance purposes,
+			// we want local reads to be fast and not
+			// tell followers about them. So now we
+			// skip this early error out return and avoid
+			// killing the session so the new leader
+			// can continue it.
+			//
+			// If a read is dropped its no big deal. If a
+			// write was dropped before replication,
+			// well it just never made
+			// it to through the raft log, so client needs
+			// to re-try before incrementing their serial
+			// number if they care. If the reply to a
+			// successful write was dropped, the retry
+			// with the same serial number is idempotent,
+			// so no problem; it will likely succeed on
+			// the client's 2nd attempt.
+			if false {
+				if tkt.SessionSerial != 1+ste.HighestSerial {
 
 					tkt.Err = fmt.Errorf("%v session killed: gap in SessionSerial, saw %v, expected %v for tkt.SessionID '%v': a client request was dropped. dropped tkt='%v'", s.name, tkt.SessionSerial, ste.HighestSerial+1, tkt.SessionID, tkt)
 					vv("%v error session gap: %v\n", s.name, tkt.Err)
