@@ -457,6 +457,9 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.WriteRaftLogIndex = tkt.LogIndex
 		leaf.LeaseEpoch = 1
 
+		tkt.LeaseEpoch = leaf.LeaseEpoch
+		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
+
 		table.Tree.InsertLeaf(leaf)
 		//vv("%v wrote key '%v' (no prior key; leasor='%v' until '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, leaf.LeaseUntilTm, s.KVstore.Len())
 		return
@@ -480,6 +483,9 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
 		leaf.LeaseEpoch++
+
+		tkt.LeaseEpoch = leaf.LeaseEpoch
+		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 
 		//vv("%v wrote key '%v' (no current lease); KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
 		return
@@ -505,6 +511,9 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 			leaf.WriteRaftLogIndex = tkt.LogIndex
 			// leave this the same! no epoch change! leaf.LeaseEpoch
 
+			tkt.LeaseEpoch = leaf.LeaseEpoch
+			tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
+
 			//vv("%v wrote key '%v' extending current lease for '%v'; KVstore now len=%v", s.name, tktKey, tkt.Leasor, s.KVstore.Len())
 			return
 		}
@@ -523,6 +532,9 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
 		leaf.LeaseEpoch++
+
+		tkt.LeaseEpoch = leaf.LeaseEpoch
+		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 		//vv("%v wrote key '%v' updating to new leasor; KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
 		return
 	}
