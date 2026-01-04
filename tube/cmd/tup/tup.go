@@ -164,6 +164,7 @@ commands: .key               : read key from current table
           +table {key} {endx}: read  ascending key, key+1, ..., endx from table
           -table {key} {endx}: read descending key, key-1, ..., endx from table
                              :  {key} {endx} optional. + alone for current table
+          ^prefix {table}    : prefix scan table, returning only keys with prefix.
           del key            : delete key from current table
           show               : show all tables
           show table         : show all keys in table
@@ -210,6 +211,8 @@ repl:
 		isDeleteTable := false
 		isRangeScan := false
 		isRangeScanDescend := false
+		isPrefixScan := false
+		isPrefixScanDescend := false
 
 		var newTableName, keyEndx string
 		key := args[0]
@@ -248,6 +251,15 @@ repl:
 					isRangeScan = true
 					isRangeScanDescend = false
 					key = ""
+				} else if key[0] == '^' {
+					// prefix scan, ascending
+					if key == "^" {
+						fmt.Printf("error: ^ not follow by prefix; cannot have space after ^\n")
+						continue repl
+					} else {
+						key = key[1:]
+						isPrefixScan = true
+					}
 				} else if key[0] == '-' {
 					// full table key range scan, descending
 					if key == "-" {
@@ -322,6 +334,16 @@ repl:
 					key = args[1]
 					//keyEndx = args[2]
 					//pp("rangeScan targetTable='%v'; key='%v'; keyEndx='%v'", targetTable, key, keyEndx)
+				} else if key[0] == '^' {
+					// prefix scan, ascending
+					if key == "^" {
+						fmt.Printf("error: ^ not follow by prefix; cannot have space after ^\n")
+						continue repl
+					} else {
+						key = key[1:]
+						isPrefixScan = true
+						targetTable = args[1]
+					}
 				} else if key[0] == '-' {
 					// key range scan, descending, no endx
 					if key == "-" {
@@ -406,6 +428,37 @@ repl:
 		}
 
 		switch {
+		case isPrefixScan:
+			tktRange, err := sess.ReadPrefixRange(ctx, tube.Key(targetTable), tube.Key(key), isPrefixScanDescend, 0)
+			if err != nil {
+				fmt.Printf("error in prefix-range scan of table '%v' for keys prefixed with '%v'; error= %v\n", targetTable, key, err)
+				sess = needNewSess(sess, err)
+			} else {
+				if tktRange.Err != nil {
+					fmt.Printf("error in prefix-range scan of table with prefix '%v': %v\n", targetTable, key, tktRange.Err)
+					sess = needNewSess(sess, err)
+
+				} else {
+					if tktRange.KeyValRangeScan == nil {
+						fmt.Printf("(0 keys back)\n") // empty result set back (from range scan of table from '%v' to '%v').\n", targetTable, key, keyEndx)
+					} else {
+						seen := 0
+						if isPrefixScanDescend {
+							for k, lf := range art.Descend(tktRange.KeyValRangeScan, nil, nil) {
+								fmt.Printf("(from table '%v') read key '%v': %v\n", targetTable, string(k), string(lf.Value))
+								seen++
+							}
+						} else {
+							for k, lf := range art.Ascend(tktRange.KeyValRangeScan, nil, nil) {
+								fmt.Printf("(from table '%v') read key '%v': %v\n", targetTable, string(k), string(lf.Value))
+								seen++
+							}
+						}
+						fmt.Printf("(%v keys back)\n", seen)
+					}
+				}
+			}
+
 		case isRangeScan:
 			tktRange, err := sess.ReadKeyRange(ctx, tube.Key(targetTable), tube.Key(key), tube.Key(keyEndx), isRangeScanDescend, 0)
 			if err != nil {

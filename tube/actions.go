@@ -7,7 +7,7 @@ import (
 	"iter"
 	//"net"
 	//"sort"
-	//"strings"
+	"strings"
 
 	//"io"
 	//"os"
@@ -1046,4 +1046,98 @@ func (s *Session) ReadKeyRange(ctx context.Context, table, key, keyEndx Key, des
 		ctx = s.ctx
 	}
 	return s.cli.ReadKeyRange(ctx, table, key, keyEndx, descend, waitForDur, s)
+}
+
+func (s *Session) ReadPrefixRange(ctx context.Context, table, prefix Key, descend bool, waitForDur time.Duration) (tkt *Ticket, err error) {
+	if s.cli == nil {
+		return nil, fmt.Errorf("error in Session.ReadPrefixRange: cli is nil, Session.Errs='%v'", s.Errs)
+	}
+	s.SessionSerial++
+	if ctx == nil {
+		ctx = s.ctx
+	}
+	return s.cli.ReadPrefixRange(ctx, table, prefix, descend, waitForDur, s)
+}
+
+func (s *TubeNode) ReadPrefixRange(ctx context.Context, table, prefix Key, descend bool, waitForDur time.Duration, sess *Session) (tkt *Ticket, err error) {
+
+	desc := fmt.Sprintf("read prefix('%v') range from table '%v' (descend:%v)", prefix, table, descend)
+	tkt = s.NewTicket(desc, table, prefix, nil, s.PeerID, s.name, READ_PREFIX_RANGE, waitForDur, ctx)
+	tkt.ScanDescend = descend
+	if sess != nil {
+		tkt.SessionID = sess.SessionID
+		tkt.SessionSerial = sess.SessionSerial
+		tkt.MinSessSerialWaiting = sess.MinSessSerialWaiting
+		tkt.SessionLastKnownIndex = sess.LastKnownIndex
+	}
+	select {
+	case s.readReqCh <- tkt:
+		// proceed to wait below for txt.Done
+	case <-ctx.Done():
+		err = ctx.Err()
+		return
+	case <-s.Halt.ReqStop.Chan:
+		tkt = nil
+		err = ErrShutDown // ErrTimeOut
+		return
+	}
+
+	// TODO: we can get stuck here if our tcp
+	// connection dropped (e.g. laptop slept and we get
+	// here but have not yet realized it), so we
+	// need to figure out how to bail early/retry
+	// if our request was lost/the network is down...
+	// Of course we have the ctx.Done already;
+	// which can timeout for clients who want a limited wait.
+	select {
+	case <-tkt.Done.Chan: // Read() waits for completion
+		err = tkt.Err
+		if sess != nil && tkt.AsOfLogIndex > sess.LastKnownIndex {
+			sess.LastKnownIndex = tkt.AsOfLogIndex
+		}
+		if sess != nil && err == nil {
+			if tkt.SessionSerial > sess.MinSessSerialWaiting {
+				sess.MinSessSerialWaiting = tkt.SessionSerial
+			}
+		}
+		return
+	case <-ctx.Done():
+		err = ctx.Err()
+		return
+	case <-s.Halt.ReqStop.Chan:
+		tkt = nil
+		err = ErrShutDown
+		return
+	}
+}
+
+func (s *RaftState) kvstorePrefixScan(tktTable, tktPrefix Key, descend bool) (results *art.Tree, err error) {
+	table, ok := s.KVstore.m[tktTable]
+	if !ok {
+		return nil, ErrKeyNotFound
+	}
+	//vv("%v kvstorePrefixScan table='%v', key='%v'; descend=%v", s.name, tktTable, tktPrefix, descend)
+	results = art.NewArtTree()
+	results.SkipLocking = true
+	if descend {
+		// note this is correct, the endx comes first in art.Descend.
+		for key, lf := range art.Descend(table.Tree, nil, art.Key(tktPrefix)) {
+			if !strings.HasPrefix(string(key), string(tktPrefix)) {
+				return
+			}
+			//vv("Descend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
+			lf2 := lf.Clone()
+			results.InsertLeaf(lf2)
+		}
+	} else {
+		for key, lf := range art.Ascend(table.Tree, art.Key(tktPrefix), nil) {
+			if !strings.HasPrefix(string(key), string(tktPrefix)) {
+				return
+			}
+			//vv("Ascend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
+			lf2 := lf.Clone()
+			results.InsertLeaf(lf2)
+		}
+	}
+	return
 }

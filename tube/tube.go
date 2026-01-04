@@ -1130,7 +1130,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			s.handleNewSessionRequestTicket(tkt)
 
 		case tkt := <-s.readReqCh:
-			// SHOW_KEYS, READ_KEYRANGE, and READ use readReqCh.
+			// SHOW_KEYS, READ_KEYRANGE, READ_PREFIX_RANGE, and READ use readReqCh.
 
 			s.countReadCh++
 			//vv("%v got ticket on %v <-s.readReqCh: '%v'", s.me(), s.countReadCh, tkt)
@@ -2565,7 +2565,7 @@ type TubeNode struct {
 	writeReqCh    chan *Ticket
 
 	// re-use the readReqCh for SHOW_KEYS, and READ_KEYRANGE
-	// as well as basic READ,
+	// as well as basic READ, READ_PREFIX_RANGE,
 	// since they all benefit from leader lease fast reads.
 	readReqCh      chan *Ticket
 	deleteKeyReqCh chan *Ticket
@@ -4644,21 +4644,22 @@ const (
 	MEMBERSHIP_SET_UPDATE TicketOp = 4
 	MEMBERSHIP_BOOTSTRAP  TicketOp = 5
 
-	SESS_NEW      TicketOp = 6
-	SESS_END      TicketOp = 7
-	SESS_REFRESH  TicketOp = 8
-	DELETE_KEY    TicketOp = 9
-	SHOW_KEYS     TicketOp = 10
-	CAS           TicketOp = 11 // Compare-And-Swap
-	MAKE_TABLE    TicketOp = 12
-	DELETE_TABLE  TicketOp = 13
-	RENAME_TABLE  TicketOp = 14
-	READ_KEYRANGE TicketOp = 15
+	SESS_NEW          TicketOp = 6
+	SESS_END          TicketOp = 7
+	SESS_REFRESH      TicketOp = 8
+	DELETE_KEY        TicketOp = 9
+	SHOW_KEYS         TicketOp = 10
+	CAS               TicketOp = 11 // Compare-And-Swap
+	MAKE_TABLE        TicketOp = 12
+	DELETE_TABLE      TicketOp = 13
+	RENAME_TABLE      TicketOp = 14
+	READ_KEYRANGE     TicketOp = 15
+	READ_PREFIX_RANGE TicketOp = 16
 
-	ADD_SHADOW_NON_VOTING    TicketOp = 16 // through writeReqCh
-	REMOVE_SHADOW_NON_VOTING TicketOp = 17
+	ADD_SHADOW_NON_VOTING    TicketOp = 17 // through writeReqCh
+	REMOVE_SHADOW_NON_VOTING TicketOp = 18
 
-	USER_DEFINED_FSM_OP TicketOp = 18
+	USER_DEFINED_FSM_OP TicketOp = 19
 )
 
 func (t TicketOp) String() (r string) {
@@ -4695,6 +4696,8 @@ func (t TicketOp) String() (r string) {
 		return "RENAME_TABLE"
 	case READ_KEYRANGE:
 		return "READ_KEYRANGE"
+	case READ_PREFIX_RANGE:
+		return "READ_PREFIX_RANGE"
 	case ADD_SHADOW_NON_VOTING:
 		return "ADD_SHADOW_NON_VOTING"
 	case REMOVE_SHADOW_NON_VOTING:
@@ -9146,6 +9149,10 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 			s.doReadKeyRange(tkt)
 			tkt.Applied = true
 
+		case READ_PREFIX_RANGE:
+			s.doReadPrefixRange(tkt)
+			tkt.Applied = true
+
 			//vv("%v applying read of '%v', got ok=%v, val='%v'", s.me(), tkt.Key, ok, string(tkt.Val))
 		case SESS_NEW:
 			s.applyNewSess(tkt, calledOnLeader)
@@ -9607,7 +9614,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 		question.CASwapped = answer.CASwapped
 		question.CASRejectedBecauseCurVal = answer.CASRejectedBecauseCurVal
 
-	case READ_KEYRANGE:
+	case READ_KEYRANGE, READ_PREFIX_RANGE:
 		question.KeyValRangeScan = answer.KeyValRangeScan
 	}
 	if question.Op != WRITE || answer.Err != nil {
@@ -10277,7 +10284,7 @@ func (s *TubeNode) resetPreVoteState(beginElec, haveLeader bool) {
 
 }
 
-// used for READ, READ_KEYRANGE and SHOW_KEYS now.
+// used for READ, READ_KEYRANGE, READ_PREFIX_RANGE, and SHOW_KEYS now.
 func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bool {
 	if s.role != LEADER {
 		panic("must only be called on leader")
@@ -10362,7 +10369,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 				tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
 				tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
 
-				// READ_KEYRANGE:
+				// READ_KEYRANGE, READ_PREFIX_RANGE:
 				tkt.KeyValRangeScan = priorTkt.KeyValRangeScan
 
 				tkt.DupDetected = true
@@ -10426,6 +10433,8 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 		s.doShowKeys(tkt)
 	case READ_KEYRANGE:
 		s.doReadKeyRange(tkt)
+	case READ_PREFIX_RANGE:
+		s.doReadPrefixRange(tkt)
 	case WRITE:
 		if !isWriteCheckLease {
 			panicf("unhandled tkt.Op case in leaderServedLocalRead; tkt=%v", tkt)
@@ -10522,6 +10531,15 @@ func (s *TubeNode) doReadKeyRange(tkt *Ticket) {
 	}
 	tkt.KeyValRangeScan, tkt.Err =
 		s.state.kvstoreRangeScan(tkt.Table, tkt.Key, tkt.KeyEndx, tkt.ScanDescend)
+}
+
+func (s *TubeNode) doReadPrefixRange(tkt *Ticket) {
+	if s.state.KVstore == nil {
+		tkt.Err = ErrKeyNotFound
+		return
+	}
+	tkt.KeyValRangeScan, tkt.Err =
+		s.state.kvstorePrefixScan(tkt.Table, tkt.Key, tkt.ScanDescend)
 }
 
 func (s *TubeNode) setConfigDefaultsIfZero() {
@@ -14109,7 +14127,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 		return false
 	}
 	switch tkt.Op {
-	case READ, WRITE, CAS, DELETE_KEY, READ_KEYRANGE,
+	case READ, WRITE, CAS, DELETE_KEY, READ_KEYRANGE, READ_PREFIX_RANGE,
 		MAKE_TABLE, DELETE_TABLE, RENAME_TABLE, SHOW_KEYS,
 		MEMBERSHIP_SET_UPDATE:
 		// check these below
@@ -14219,7 +14237,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 		tkt.Err = priorTkt.Err
 
 		switch priorTkt.Op {
-		case READ, READ_KEYRANGE, SHOW_KEYS:
+		case READ, READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
 			// return the previous read, to preserve linz.
 			tkt.AsOfLogIndex = priorTkt.AsOfLogIndex
 			// READ and SHOW_KEYS:
@@ -14231,7 +14249,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 			tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
 			tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
 
-			// READ_KEYRANGE:
+			// READ_KEYRANGE, READ_PREFIX_RANGE:
 			tkt.KeyValRangeScan = priorTkt.KeyValRangeScan
 			tkt.Stage += ":prev_read_val_used_leaderDoneEarlyOnSessionStuff"
 		default:
@@ -14256,7 +14274,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 	// smaller numbered WRITE ops; per
 	// https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html
 	switch tkt.Op {
-	case READ, READ_KEYRANGE, SHOW_KEYS:
+	case READ, READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
 		// reads are idempotent so no need to reject them.
 		// only need to analyze writes...
 	default:
@@ -14855,10 +14873,13 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 	switch tkt.Op {
 	case WRITE:
 		// a failed lease write turns into a read anyway,
-		// so for a fast path: if its lease do a fast local
-		// read and if the write would not win anway just
-		// return the read, keeping it local only.
-		if tkt.Leasor != "" && s.leaderServedLocalRead(tkt, true) {
+		// so for a fast path: if we are leasing, do a fast local
+		// read if we can, and if the write would not win anway just
+		// return the read, keeping it local only (especially
+		// under highly contended election winning writes).
+		if tkt.Leasor != "" && tkt.LeaseRequestDur > 0 &&
+			s.leaderServedLocalRead(tkt, true) {
+
 			vv("%v failed lease write turned into local fast read", s.name)
 			tkt.Stage += ":RedirectTicketToLeaderMsg_leaderServedLocalRead_true_failed_lease_write"
 			return
@@ -14868,7 +14889,7 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 		s.changeMembership(tkt)
 		//vv("%v changeMembership finished, returning from commandSpecificLocalActionsThenReplicateTicket without doing replicateTicket().", s.me())
 		return
-	case READ, SHOW_KEYS, READ_KEYRANGE:
+	case READ, SHOW_KEYS, READ_KEYRANGE, READ_PREFIX_RANGE:
 		if s.leaderServedLocalRead(tkt, false) {
 			//vv("%v leaderServedLocalRead true, returning early! tkt='%v'", s.name, tkt.Short())
 			tkt.Stage += ":RedirectTicketToLeaderMsg_leaderServedLocalRead_true"
