@@ -654,6 +654,7 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 	}
 	//vv("%v kvstoreRangeScan table='%v', key='%v', keyEndx='%v'; descend=%v", s.name, tktTable, tktKey, tktKeyEndx, descend)
 	results = art.NewArtTree()
+	results.SkipLocking = true
 	if descend {
 		// note this is correct, the endx comes first in art.Descend.
 		for key, lf := range art.Descend(table.Tree, art.Key(tktKeyEndx), art.Key(tktKey)) {

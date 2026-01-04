@@ -11,25 +11,22 @@ type ArtTable struct {
 }
 
 func newArtTable() *ArtTable {
-	return &ArtTable{
+	r := &ArtTable{
 		Tree: art.NewArtTree(),
 	}
+	r.Tree.SkipLocking = true
+	return r
 }
 
 func (s *ArtTable) clone() (r *ArtTable) {
 	r = &ArtTable{
 		Tree: art.NewArtTree(),
 	}
+	r.Tree.SkipLocking = true
 	iter := s.Tree.Iter(nil, nil)
 	for iter.Next() {
-		k := iter.Key()
-		v := iter.Value()
-		var vtyp string
 		lf := iter.Leaf()
-		if lf != nil {
-			vtyp = lf.Vtype
-		}
-		r.Tree.Insert(k, append([]byte{}, v...), vtyp)
+		r.Tree.InsertLeaf(lf.Clone())
 	}
 	return
 }
