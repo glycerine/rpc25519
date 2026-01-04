@@ -10,7 +10,7 @@ import (
 	"strings"
 	//"path/filepath"
 	//"sort"
-	//"time"
+	"time"
 
 	//rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/ipaddr"
@@ -159,6 +159,7 @@ func main() {
 commands: .key               : read key from current table
           key                : read key from current table (if not keyword)
           !key newval        : write newval to key in current table
+          &10s key newval    : write newval to key in current table, 10s lease
           @table key newval  : write newval to key in table
           ,table key         : read key from table
           +table {key} {endx}: read  ascending key, key+1, ..., endx from table
@@ -213,6 +214,7 @@ repl:
 		isRangeScanDescend := false
 		isPrefixScan := false
 		isPrefixScanDescend := false
+		var leaseDur time.Duration
 
 		var newTableName, keyEndx string
 		key := args[0]
@@ -374,6 +376,22 @@ repl:
 					targetTable = key[1:]
 					key = args[1]
 					value = args[2]
+				} else if key[0] == '&' {
+					// &10s key newval    : write newval to key in current table, 10s lease
+					if key == "&" {
+						fmt.Printf("& leased write error: no lease duration provided\n")
+						continue repl
+					}
+					dur, err := time.ParseDuration(key[1:])
+					if err != nil {
+						fmt.Printf("& lease duration parsing error, could not parse '%v' as duration: '%v'\n", key[1:], err)
+						continue repl
+					}
+					isSet = true
+					leaseDur = dur
+					key = args[1]
+					value = args[2]
+
 				} else if key[0] == '+' {
 					// key range scan, ascending
 					if key == "+" {
@@ -542,13 +560,17 @@ repl:
 				}
 			}
 		case isSet:
-			_, err := sess.Write(ctx, tube.Key(targetTable), tube.Key(key), tube.Val(value), 0, "", 0)
+			_, err := sess.Write(ctx, tube.Key(targetTable), tube.Key(key), tube.Val(value), 0, "", leaseDur)
 			if err != nil {
 				fmt.Printf("error: %v\n", err)
 				sess = needNewSess(sess, err)
 
 			} else {
-				fmt.Printf("wrote: %v <- %v (in table '%v')\n", key, value, targetTable)
+				if leaseDur > 0 {
+					fmt.Printf("wrote: %v <- %v (in table '%v') (leaseDur: %v)\n", key, value, targetTable, leaseDur)
+				} else {
+					fmt.Printf("wrote: %v <- %v (in table '%v')\n", key, value, targetTable)
+				}
 			}
 
 		case isGet:
