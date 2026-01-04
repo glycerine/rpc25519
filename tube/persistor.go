@@ -90,7 +90,9 @@ func (cfg *TubeConfig) NewRaftStatePersistor(path string, node *TubeNode, readOn
 }
 
 func (s *raftStatePersistor) close() (err error) {
-	// no files are open between saves now.
+	// no path files are open between saves now.
+	// but the parent dir file handle is open.
+	s.parentDirFd.Close()
 	return
 }
 
