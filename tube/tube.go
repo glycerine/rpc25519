@@ -740,7 +740,7 @@ func (s *TubeNode) Start(
 	//vv("%v TubeNode.Start(): set role to FOLLOWER")
 
 	// why does this mess up our finding the new leader in 710 client_test?
-	//if s.cfg.PeerServiceName == TUBE_CLIENT {
+	//if s.cfg.PeerServiceName == TUBE_CLIENT { // TODO uncomment
 	//	vv("%v setting role to CLIENT b/c PeerServiceName is TUBE_CLIENT", s.me())
 	//	s.role = CLIENT
 	//}
@@ -6308,8 +6308,16 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 			vv("%v ugh: no circuit to ste.ClientName: '%v'", s.name, ste.ClientName)
 			clientURL := ste.ClientURL
 
-			// background b/c trying to not block th leader main event loop
-			go s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, fragUpdateLeader, 0)
+			// background b/c trying to not block the leader main event loop
+			go func() {
+				ckt, _, _, _ = s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, fragUpdateLeader, 0)
+				if ckt != nil {
+					select {
+					case s.MyPeer.NewCircuitCh <- ckt:
+					case <-s.MyPeer.Halt.ReqStop.Chan:
+					}
+				}
+			}()
 			continue
 		} else {
 			ckt = cktP0.ckt

@@ -94,8 +94,9 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 		} else {
 			if verbose {
 				fmt.Printf("\n%v %v TubeNode.HelperFindLeader(): attempting to contact '%v' at %v ... \n", fileLine(1), ts(), remoteName, url)
-
-				vv("\n just before sending to '%v', stacks = '%v'", remoteName, allstacks())
+				if remoteName != "node_0" {
+					vv("\n just before sending to '%v', stacks = '%v'", remoteName, allstacks())
+				}
 			}
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
 			_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
