@@ -538,6 +538,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 	tkt.Leasor = leaf.Leasor
 	tkt.LeaseUntilTm = leaf.LeaseUntilTm
 	tkt.LeaseEpoch = leaf.LeaseEpoch
+	tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 
 	//vv("%v reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, tkt.Leasor, s.KVstore.Len())
 }
@@ -587,6 +588,18 @@ func (s *RaftState) KVStoreRead(tktTable, tktKey Key) ([]byte, string, error) {
 		return val, vtyp, nil
 	}
 	return nil, "", ErrKeyNotFound
+}
+
+func (s *RaftState) KVStoreReadLeaf(tktTable, tktKey Key) (*art.Leaf, error) {
+	table, ok := s.KVstore.m[tktTable]
+	if !ok {
+		return nil, ErrKeyNotFound
+	}
+	leaf, _, ok := table.Tree.Find(art.Exact, art.Key(tktKey))
+	if ok {
+		return leaf, nil
+	}
+	return nil, ErrKeyNotFound
 }
 
 func (s *KVStore) Len() int {

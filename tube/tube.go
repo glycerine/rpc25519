@@ -4605,10 +4605,11 @@ type Ticket struct {
 	ForceChangeMC bool `zid:"61"`
 
 	// lease on writing to table:key
-	LeaseRequestDur time.Duration `zid:"63"` // optional on WRITE
-	Leasor          string        `zid:"64"` // optional on WRITE
-	LeaseUntilTm    time.Time     `zid:"65"`
-	LeaseEpoch      int64         `zid:"67"`
+	LeaseRequestDur        time.Duration `zid:"63"` // optional on WRITE
+	Leasor                 string        `zid:"64"` // optional on WRITE
+	LeaseUntilTm           time.Time     `zid:"65"`
+	LeaseEpoch             int64         `zid:"67"` // filled on response
+	LeaseWriteRaftLogIndex int64         `zid:"68"` // filled on response
 
 	// when actually submitted to raft log in replicateTicket
 	RaftLogEntryTm time.Time
@@ -4778,6 +4779,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.Leasor = tkt.Leasor
 		prior.LeaseUntilTm = tkt.LeaseUntilTm
 		prior.LeaseEpoch = tkt.LeaseEpoch
+		prior.LeaseWriteRaftLogIndex = tkt.LeaseWriteRaftLogIndex
 
 		prior.Stage += ":FinishTicket_prior_Val_written"
 		if prior.Done != nil {
@@ -4873,6 +4875,7 @@ finishTicketCalled: %v,
              Leasor: "%v"
        LeaseUntilTm: %v
          LeaseEpoch: %v
+LeaseWriteRaftLogIndex: %v
    --------  Ticket membership updates  ---------
        AddPeerName: %v
     RemovePeerName: %v
@@ -4915,6 +4918,7 @@ DoneClosedOnPeerID: "%v",
 		t.Leasor,
 		leaseUntilTmStr,
 		t.LeaseEpoch,
+		t.LeaseWriteRaftLogIndex,
 		t.AddPeerName,
 		t.RemovePeerName,
 		t.Committed,
@@ -9620,6 +9624,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.LeaseRequestDur = answer.LeaseRequestDur
 	question.Leasor = answer.Leasor
 	question.LeaseEpoch = answer.LeaseEpoch
+	question.LeaseWriteRaftLogIndex = answer.LeaseWriteRaftLogIndex
 	question.LeaseUntilTm = answer.LeaseUntilTm
 	question.Vtype = answer.Vtype
 	question.RaftLogEntryTm = answer.RaftLogEntryTm
@@ -10354,6 +10359,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 				tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
 				tkt.Leasor = priorTkt.Leasor
 				tkt.LeaseEpoch = priorTkt.LeaseEpoch
+				tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
 				tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
 
 				// READ_KEYRANGE:
@@ -10482,7 +10488,16 @@ func (s *TubeNode) doReadKey(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	tkt.Val, tkt.Vtype, tkt.Err = s.state.KVStoreRead(tkt.Table, tkt.Key)
+	var leaf *art.Leaf
+	leaf, tkt.Err = s.state.KVStoreReadLeaf(tkt.Table, tkt.Key)
+	if leaf != nil {
+		tkt.Val = append([]byte{}, leaf.Value...)
+		tkt.Vtype = leaf.Vtype
+		tkt.Leasor = leaf.Leasor
+		tkt.LeaseUntilTm = leaf.LeaseUntilTm
+		tkt.LeaseEpoch = leaf.LeaseEpoch
+		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
+	}
 }
 
 func (s *TubeNode) doReadKeyRange(tkt *Ticket) {
@@ -14198,6 +14213,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 			tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
 			tkt.Leasor = priorTkt.Leasor
 			tkt.LeaseEpoch = priorTkt.LeaseEpoch
+			tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
 			tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
 
 			// READ_KEYRANGE:
