@@ -72,9 +72,8 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	}()
 
 	verbose := VerboseVerbose.Load()
-	verbose = true
 	var insps []*Inspection
-	vv("cfg.Node2Addr = '%v'", cfg.Node2Addr)
+	//vv("cfg.Node2Addr = '%v'", cfg.Node2Addr)
 	for remoteName, addr := range cfg.Node2Addr {
 		url := FixAddrPrefix(addr)
 
@@ -86,17 +85,17 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			insp = node.Inspect()
 			leaderName = insp.CurrentLeaderName
 			leaderURL = insp.CurrentLeaderURL
-			vv("%v self inspection gave: leaderName = '%v'", node.name, leaderName)
+			//vv("%v self inspection gave: leaderName = '%v'", node.name, leaderName)
 			if leaderName == "" {
 				selfSurelyNotLeader = true
-				vv("%v self insp says empty leaderName so setting selfSurelyNotLeader=true", node.name)
+				//vv("%v self insp says empty leaderName so setting selfSurelyNotLeader=true", node.name)
 			}
 		} else {
 			if verbose {
 				fmt.Printf("\n%v %v TubeNode.HelperFindLeader(): attempting to contact '%v' at %v ... \n", fileLine(1), ts(), remoteName, url)
-				if remoteName != "node_0" {
-					vv("\n just before sending to '%v', stacks = '%v'", remoteName, allstacks())
-				}
+				//if remoteName != "node_0" {
+				//	vv("\n just before sending to '%v', stacks = '%v'", remoteName, allstacks())
+				//}
 			}
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
 			_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
@@ -110,10 +109,10 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			} else {
 				if verbose {
 					fmt.Printf("bad. err = '%v'\n\n", err)
-					if remoteName != "node_0" {
-						vv("\n why cannot we contact '%v'; stacks = '%v'\n\n", remoteName, allstacks())
-						panicf("why cannot we contact '%v'", remoteName)
-					}
+					//if remoteName != "node_0" {
+					//	vv("\n why cannot we contact '%v'; stacks = '%v'\n\n", remoteName, allstacks())
+					//	panicf("why cannot we contact '%v'", remoteName)
+					//}
 				}
 			}
 			if leaderName == remoteName {

@@ -653,7 +653,7 @@ func (s *TubeNode) Start(
 
 	defer func() {
 		r := recover()
-		vv("%v: (%v) end of TubeNode.Start() inside defer, about to return/finish; recover='%v'", s.me(), myPeer.ServiceName(), r)
+		//vv("%v: (%v) end of TubeNode.Start() inside defer, about to return/finish; recover='%v'", s.me(), myPeer.ServiceName(), r)
 
 		var reason error
 		if r != nil {
@@ -739,11 +739,10 @@ func (s *TubeNode) Start(
 	s.role = FOLLOWER
 	//vv("%v TubeNode.Start(): set role to FOLLOWER")
 
-	// why does this mess up our finding the new leader in 710 client_test?
-	//if s.cfg.PeerServiceName == TUBE_CLIENT { // TODO uncomment
-	//	vv("%v setting role to CLIENT b/c PeerServiceName is TUBE_CLIENT", s.me())
-	//	s.role = CLIENT
-	//}
+	if s.cfg.PeerServiceName == TUBE_CLIENT {
+		vv("%v setting role to CLIENT b/c PeerServiceName is TUBE_CLIENT", s.me())
+		s.role = CLIENT
+	}
 
 	// allow test setups like to have
 	// given us a wal or memwal especailly;
@@ -1485,7 +1484,6 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			switch frag.FragOp {
 
 			case NotifyClientNewLeader:
-				continue // TODO debug remove
 				// only for clients
 				if s.role != CLIENT && s.cfg.PeerServiceName != TUBE_CLIENT {
 					panicf("%v only send NotifyClientNewLeader to clients. PeerServiceName = '%v'", s.me(), s.cfg.PeerServiceName)
