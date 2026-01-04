@@ -503,7 +503,8 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 			leaf.Vtype = tkt.Vtype
 			leaf.LeaseUntilTm = tkt.LeaseUntilTm
 			leaf.WriteRaftLogIndex = tkt.LogIndex
-			leaf.LeaseEpoch++
+			// leave this the same! no epoch change! leaf.LeaseEpoch
+
 			//vv("%v wrote key '%v' extending current lease for '%v'; KVstore now len=%v", s.name, tktKey, tkt.Leasor, s.KVstore.Len())
 			return
 		}
