@@ -4608,6 +4608,7 @@ type Ticket struct {
 	LeaseRequestDur time.Duration `zid:"63"` // optional on WRITE
 	Leasor          string        `zid:"64"` // optional on WRITE
 	LeaseUntilTm    time.Time     `zid:"65"`
+	LeaseEpoch      int64         `zid:"67"`
 
 	// when actually submitted to raft log in replicateTicket
 	RaftLogEntryTm time.Time
@@ -4637,8 +4638,8 @@ const (
 	READ  TicketOp = 2
 	WRITE TicketOp = 3
 
-	// Add or Remove: we only support one-at-a-time changes.
-	// Update: Now support JointConsensus too.
+	// We only support one-at-a-time raft cluster
+	// membership changes; not JointConsensus.
 	MEMBERSHIP_SET_UPDATE TicketOp = 4
 	MEMBERSHIP_BOOTSTRAP  TicketOp = 5
 
@@ -4776,6 +4777,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.LeaseRequestDur = tkt.LeaseRequestDur
 		prior.Leasor = tkt.Leasor
 		prior.LeaseUntilTm = tkt.LeaseUntilTm
+		prior.LeaseEpoch = tkt.LeaseEpoch
 
 		prior.Stage += ":FinishTicket_prior_Val_written"
 		if prior.Done != nil {
@@ -4870,6 +4872,7 @@ finishTicketCalled: %v,
     LeaseRequestDur: %v
              Leasor: "%v"
        LeaseUntilTm: %v
+         LeaseEpoch: %v
    --------  Ticket membership updates  ---------
        AddPeerName: %v
     RemovePeerName: %v
@@ -4911,6 +4914,7 @@ DoneClosedOnPeerID: "%v",
 		t.LeaseRequestDur,
 		t.Leasor,
 		leaseUntilTmStr,
+		t.LeaseEpoch,
 		t.AddPeerName,
 		t.RemovePeerName,
 		t.Committed,
@@ -9615,6 +9619,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.Term = answer.Term
 	question.LeaseRequestDur = answer.LeaseRequestDur
 	question.Leasor = answer.Leasor
+	question.LeaseEpoch = answer.LeaseEpoch
 	question.LeaseUntilTm = answer.LeaseUntilTm
 	question.Vtype = answer.Vtype
 	question.RaftLogEntryTm = answer.RaftLogEntryTm
@@ -10348,6 +10353,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 				tkt.Vtype = priorTkt.Vtype
 				tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
 				tkt.Leasor = priorTkt.Leasor
+				tkt.LeaseEpoch = priorTkt.LeaseEpoch
 				tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
 
 				// READ_KEYRANGE:
@@ -11582,6 +11588,7 @@ func (s *PeerDetail) Clone() *PeerDetail {
 		Addr:                   s.Addr,
 		PeerServiceName:        s.PeerServiceName,
 		PeerServiceNameVersion: s.PeerServiceNameVersion,
+		NonVoting:              s.NonVoting,
 	}
 }
 
@@ -11593,9 +11600,10 @@ func (s *PeerDetail) String() string {
                   Addr: %v
        PeerServiceName: %v
 PeerServiceNameVersion: %v
-
+             NonVoting: %v
 }`, s.Name, s.URL, s.PeerID, s.Addr,
-		s.PeerServiceName, s.PeerServiceNameVersion)
+		s.PeerServiceName, s.PeerServiceNameVersion,
+		s.NonVoting)
 }
 
 // MemberConfig gets stored and saved
@@ -14189,6 +14197,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 			tkt.Vtype = priorTkt.Vtype
 			tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
 			tkt.Leasor = priorTkt.Leasor
+			tkt.LeaseEpoch = priorTkt.LeaseEpoch
 			tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
 
 			// READ_KEYRANGE:

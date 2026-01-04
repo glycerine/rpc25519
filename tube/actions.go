@@ -455,6 +455,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.Leasor = tkt.Leasor
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
+		leaf.LeaseEpoch = 1
 
 		table.Tree.InsertLeaf(leaf)
 		//vv("%v wrote key '%v' (no prior key; leasor='%v' until '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, leaf.LeaseUntilTm, s.KVstore.Len())
@@ -478,6 +479,8 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.Leasor = tkt.Leasor
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
+		leaf.LeaseEpoch++
+
 		//vv("%v wrote key '%v' (no current lease); KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
 		return
 	}
@@ -500,6 +503,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 			leaf.Vtype = tkt.Vtype
 			leaf.LeaseUntilTm = tkt.LeaseUntilTm
 			leaf.WriteRaftLogIndex = tkt.LogIndex
+			leaf.LeaseEpoch++
 			//vv("%v wrote key '%v' extending current lease for '%v'; KVstore now len=%v", s.name, tktKey, tkt.Leasor, s.KVstore.Len())
 			return
 		}
@@ -517,6 +521,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.Leasor = tkt.Leasor
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
+		leaf.LeaseEpoch++
 		//vv("%v wrote key '%v' updating to new leasor; KVstore now len=%v", s.name, tktKey, s.KVstore.Len())
 		return
 	}
@@ -532,6 +537,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 	tkt.Vtype = leaf.Vtype
 	tkt.Leasor = leaf.Leasor
 	tkt.LeaseUntilTm = leaf.LeaseUntilTm
+	tkt.LeaseEpoch = leaf.LeaseEpoch
 
 	//vv("%v reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, tkt.Leasor, s.KVstore.Len())
 }
@@ -546,19 +552,25 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 	if descend {
 		// note this is correct, the endx comes first in art.Descend.
 		for key, lf := range art.Descend(table.Tree, art.Key(tktKeyEndx), art.Key(tktKey)) {
+			_ = key
 			//vv("Descend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
 			// make copies.
-			key2 := append([]byte{}, key...)
-			val2 := append([]byte{}, lf.Value...)
-			results.Insert(key2, val2, lf.Vtype)
+			//key2 := append([]byte{}, key...)
+			//val2 := append([]byte{}, lf.Value...)
+			//results.Insert(key2, val2, lf.Vtype)
+			lf2 := lf.Clone()
+			results.InsertLeaf(lf2)
 		}
 	} else {
 		for key, lf := range art.Ascend(table.Tree, art.Key(tktKey), art.Key(tktKeyEndx)) {
+			_ = key
 			//vv("Ascend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
 			// make copies.
-			key2 := append([]byte{}, key...)
-			val2 := append([]byte{}, lf.Value...)
-			results.Insert(key2, val2, lf.Vtype)
+			//key2 := append([]byte{}, key...)
+			//val2 := append([]byte{}, lf.Value...)
+			//results.Insert(key2, val2, lf.Vtype)
+			lf2 := lf.Clone()
+			results.InsertLeaf(lf2)
 		}
 	}
 	return

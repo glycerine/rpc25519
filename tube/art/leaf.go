@@ -86,6 +86,20 @@ type Leaf struct {
 	Leasor            string    `zid:"3"`
 	LeaseUntilTm      time.Time `zid:"4"`
 	WriteRaftLogIndex int64     `zid:"5"`
+	LeaseEpoch        int64     `zid:"6"`
+}
+
+func (s *Leaf) Clone() (r *Leaf) {
+	r = &Leaf{
+		Key:               append([]byte{}, s.Key...),
+		Value:             append([]byte{}, s.Value...),
+		Vtype:             s.Vtype,
+		Leasor:            s.Leasor,
+		LeaseUntilTm:      s.LeaseUntilTm,
+		WriteRaftLogIndex: s.WriteRaftLogIndex,
+		LeaseEpoch:        s.LeaseEpoch,
+	}
+	return
 }
 
 func (n *Leaf) depth() int {
