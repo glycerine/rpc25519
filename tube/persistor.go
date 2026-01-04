@@ -11,9 +11,10 @@ import (
 )
 
 type raftStatePersistor struct {
-	name string
-	path string
-	fd   *os.File
+	name        string
+	path        string
+	fd          *os.File
+	parentDirFd *os.File
 
 	// check each TubeLogEntry entry.
 	checkEach *blake3.Hasher
@@ -68,6 +69,13 @@ func (cfg *TubeConfig) NewRaftStatePersistor(path string, node *TubeNode, readOn
 		s.name = node.name
 	}
 
+	// parent directory metadata must also be synced
+	// to disk for true persistence.
+	dir2, err2 := getActualParentDirForFsync(path)
+	panicOn(err2)
+	s.parentDirFd, err = os.Open(dir2)
+	panicOn(err)
+
 	if sz == 0 {
 		// file started empty, fine. nothing to load.
 		return
@@ -91,6 +99,8 @@ func (s *raftStatePersistor) sync() error {
 		return nil
 	}
 	err := s.fd.Sync()
+	panicOn(err)
+	err = s.parentDirFd.Sync()
 	panicOn(err)
 	return nil
 }
@@ -129,6 +139,8 @@ func (s *raftStatePersistor) save(state *RaftState) (nw int64, err error) {
 	//panicOn(err)
 
 	err = os.Rename(tmppath, s.path)
+	panicOn(err)
+	err = s.parentDirFd.Sync()
 	panicOn(err)
 	return
 }
