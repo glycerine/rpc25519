@@ -738,12 +738,39 @@ func (s *TubeNode) doDeleteKey(tkt *Ticket) {
 	//vv("%v DELETE_KEY called on %v:%v", s.me(), tkt.Table, tkt.Key)
 	if s.state.KVstore != nil {
 		table, ok := s.state.KVstore.m[tkt.Table]
+		var doDelete bool
 		if ok {
-			table.Tree.Remove(art.Key(tkt.Key))
-			const purgeEmptyTables = false // purge empty tables immediately?
-			if purgeEmptyTables {
-				if table.Tree.Size() == 0 {
-					delete(s.state.KVstore.m, tkt.Table)
+			// is key leased? cannot delete until lease is up,
+			// unless the requestor is also the Leasor.
+			var leaf *art.Leaf
+			leaf, tkt.Err = s.state.KVStoreReadLeaf(tkt.Table, tkt.Key)
+			if leaf != nil {
+				if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
+					// no current leasor, just put the delete through.
+					doDelete = true
+				} else {
+					// INVAR: leaf.Leasor != "" && leaf.LeaseUntilTm > 0
+					if leaf.Leasor == tkt.Leasor {
+						doDelete = true // allow current leasor to give up lease.
+					} else {
+						if tkt.RaftLogEntryTm.After(
+							leaf.LeaseUntilTm.Add(s.cfg.ClockDriftBound)) {
+							// lease has expired, allow delete.
+							doDelete = true
+						} else {
+							tkt.Err = fmt.Errorf("prior lease on key is not expired. table='%v'; key='%v'; Leasor='%v'; LeaseUntilTm='%v'", tkt.Table, tkt.Key, leaf.Leasor, nice(leaf.LeaseUntilTm))
+						}
+					}
+				}
+			}
+
+			if doDelete {
+				table.Tree.Remove(art.Key(tkt.Key))
+				const purgeEmptyTables = false // purge empty tables immediately?
+				if purgeEmptyTables {
+					if table.Tree.Size() == 0 {
+						delete(s.state.KVstore.m, tkt.Table)
+					}
 				}
 			}
 		}
