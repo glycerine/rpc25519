@@ -90,9 +90,9 @@ Claude.ai
 
 At the core, Reliable Membership just needs to:
 
-Maintain a current view of who's in the group
-Notify members when that view changes
-Ensure all members converge to the same view
+a) Maintain a current view of who's in the group
+b) Notify members when that view changes
+c) Ensure all members converge to the same view
 
 Given your hierarchical lease structure, here's a minimal design:
 The Czar maintains the membership list in RAM. When a master:
@@ -119,7 +119,7 @@ Each Hermes node just heartbeats to the Czar saying:
 If the epoch changes, update the membership list
 in the Hermes upcall.
 
-If the Czar cannot be reached, instead of heartbeats,
+If the Czar cannot be reached, in addition to heartbeats,
 the Hermes node starts trying to become the Czar by
 writing a lease through Raft to a pre-configured "czar" key.
 Repeat until either the current Czar can be reached
@@ -165,4 +165,90 @@ Why this works:
 
 This is elegant: the first tuple element provides strong fencing across czar transitions, while the second element allows cheap updates during normal operation.
 
+me(jea): but Czar lease renewal will increment the raft index without
+changing the Czar so we want to the use czar key's LeaseEpoch instead.
+
 */
+
+//go:generate greenpack
+
+// RMTuple is the two part Reliable Membership tuple.
+// Compare the CzarLeaseEpoch first, then the Version.
+// The CzarLeaseEpoch must go higher when the Czar
+// changes through Raft, and the Version can increment
+// when per-Czar members are added/lost.
+type RMVersionTuple struct {
+	CzarLeaseEpoch int64 `zid:"0"`
+	Version        int64 `zid:"1"`
+}
+
+// ReliableMembership is written under the czar key
+// in Tube (Raft). Tube must set the Vers.CzarLeaseEpoch
+// when it is written for us, since the submitting
+// client won't know what that is. It depends on
+// which write won the race and arrived first.
+type ReliableMembership struct {
+	CzarName string         `zid:"0"`
+	Vers     RMVersionTuple `zid:"1"`
+
+	PeerNames *omap[string, *PeerDetail] `msg:"-"`
+
+	SerzPeerDetails []*PeerDetail `zid:"2"`
+}
+
+func (i *RMVersionTuple) VersionGT(j *RMVersionTuple) bool {
+	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
+		return true
+	}
+	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
+		return i.Version > j.Version
+	}
+	return false
+}
+
+func (i *RMVersionTuple) VersionGTE(j *RMVersionTuple) bool {
+	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
+		return true
+	}
+	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
+		return i.Version >= j.Version
+	}
+	return false
+}
+
+func (i *RMVersionTuple) VersionEqual(j *RMVersionTuple) bool {
+	return i.CzarLeaseEpoch == j.CzarLeaseEpoch &&
+		i.Version == j.Version
+}
+
+func (i *RMVersionTuple) EpochsEqual(j *RMVersionTuple) bool {
+	return i.CzarLeaseEpoch == j.CzarLeaseEpoch
+}
+
+func (s *ReliableMembership) PreSaveHook() {
+	s.SerzPeerDetails = s.SerzPeerDetails[:0]
+	if s.PeerNames == nil {
+		return
+	}
+	for _, kv := range s.PeerNames.cached() {
+		s.SerzPeerDetails = append(s.SerzPeerDetails, kv.val)
+	}
+}
+
+func (s *ReliableMembership) PostLoadHook() {
+	s.PeerNames = newOmap[string, *PeerDetail]()
+	for _, d := range s.SerzPeerDetails {
+		s.PeerNames.set(d.Name, d)
+	}
+	s.SerzPeerDetails = s.SerzPeerDetails[:0]
+}
+
+func (s *TubeNode) NewReliableMembership() *ReliableMembership {
+	r := &ReliableMembership{
+		PeerNames: newOmap[string, *PeerDetail](),
+	}
+	if s == nil {
+		panic("s cannot be nil")
+	}
+	return r
+}
