@@ -645,7 +645,7 @@ func (s *TubeNode) Start(
 ) (err0 error) {
 
 	s.Ctx = myPeer.Ctx
-	vv("%v (PeerID: '%v') top of TubeNode.Start() ", s.name, myPeer.PeerID)
+	//vv("%v (PeerID: '%v') top of TubeNode.Start() ", s.name, myPeer.PeerID)
 	//vv("%v (PeerID: '%v') top of TubeNode.Start() ; cfg = '%v'", s.name, myPeer.PeerID, s.cfg.ShortSexpString(nil))
 	//cktHasBeenQuietTooLong := make(chan *rpc.Circuit)
 	cktHasDied := make(chan *rpc.Circuit)
@@ -740,7 +740,7 @@ func (s *TubeNode) Start(
 	//vv("%v TubeNode.Start(): set role to FOLLOWER")
 
 	if s.cfg.PeerServiceName == TUBE_CLIENT {
-		vv("%v setting role to CLIENT b/c PeerServiceName is TUBE_CLIENT", s.me())
+		//vv("%v setting role to CLIENT b/c PeerServiceName is TUBE_CLIENT", s.me())
 		s.role = CLIENT
 	}
 
@@ -1064,7 +1064,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 		case <-s.Halt.ReqStop.Chan:
 			//s.ay("%v shutdown initiated, s.Halt.ReqStop seen", s.me())
-			vv("%v shutdown initiated, s.Halt.ReqStop seen", s.me())
+			//vv("%v shutdown initiated, s.Halt.ReqStop seen", s.me())
 			s.shutdown()
 			return rpc.ErrHaltRequested
 			//return ErrShutDown
@@ -1454,7 +1454,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				//return rpc.ErrHaltRequested
 				continue
 			}
-			vv("%v good: sent inspection request to itkt.ckt.RemotePeerName='%v'", s.me(), itkt.ckt.RemotePeerName)
+			//vv("%v good: sent inspection request to itkt.ckt.RemotePeerName='%v'", s.me(), itkt.ckt.RemotePeerName)
 
 		case fragCkt := <-arrivingNetworkFrag:
 			frag := fragCkt.frag
@@ -1491,7 +1491,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				s.leaderName, _ = frag.GetUserArg("leaderName")
 				s.leaderID, _ = frag.GetUserArg("leaderID")
 				s.leaderURL, _ = frag.GetUserArg("leaderURL")
-				vv("%v got NotifyClientNewLeader: '%v'", s.name, s.leaderName)
+				//vv("%v got NotifyClientNewLeader: '%v'", s.name, s.leaderName)
 
 			case InstallEmptyMC:
 				s.handleInstallEmptyMC(frag, fragCkt.ckt)
@@ -6104,10 +6104,10 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 }
 
 func (s *TubeNode) becomeLeader() {
-	vv("%v becomeLeader top", s.me())
-	defer func() {
-		vv("%v end of becomeLeader", s.me())
-	}()
+	//vv("%v becomeLeader top", s.me())
+	//defer func() {
+	//	vv("%v end of becomeLeader", s.me())
+	//}()
 
 	if s.role == LEADER {
 		panic(fmt.Sprintf("%v I am already leader, doing this again will mess up leaderElectedTm", s.me()))
@@ -6286,7 +6286,7 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 	if n <= 0 {
 		return
 	}
-	vv("%v top of sending NotifyClientNewLeader have %v sessions to notify", s.name, n)
+	//vv("%v top of sending NotifyClientNewLeader have %v sessions to notify", s.name, n)
 
 	for it := s.sessByExpiry.tree.Min(); it != s.sessByExpiry.tree.Limit(); it = it.Next() {
 
@@ -6301,21 +6301,18 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 		cktP0, ok := s.cktAllByName[ste.ClientName] // ste.ClientPeerID avail too
 		var ckt *rpc.Circuit
 		if !ok || cktP0.ckt == nil {
-			// 710 client_test was bailing here. client710 only
-			// to node_0, the stopped leader.
-			vv("%v ugh: no circuit to ste.ClientName: '%v'", s.name, ste.ClientName)
-			clientURL := ste.ClientURL
+			//vv("%v ugh: no circuit to ste.ClientName: '%v'. making one on a background goro...", s.name, ste.ClientName)
 
 			// background b/c trying to not block the leader main event loop
-			go func() {
-				ckt, _, _, _ = s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, fragUpdateLeader, 0)
+			go func(clientURL string, firstFrag *rpc.Fragment) {
+				ckt, _, _, _ = s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, firstFrag, 0)
 				if ckt != nil {
 					select {
 					case s.MyPeer.NewCircuitCh <- ckt:
 					case <-s.MyPeer.Halt.ReqStop.Chan:
 					}
 				}
-			}()
+			}(ste.ClientURL, fragUpdateLeader)
 			continue
 		} else {
 			ckt = cktP0.ckt
@@ -11451,7 +11448,7 @@ type fragCkt struct {
 // handle frag.FragOp == PeerListReq
 func (s *TubeNode) peerListRequestHandler(frag *rpc.Fragment, ckt *rpc.Circuit) error {
 
-	vv("%v top peerListRequestHandler; frag='%v'", s.me(), frag)
+	//vv("%v top peerListRequestHandler; frag='%v'", s.me(), frag)
 
 	// since we are inside on the main goro, we cannot
 	// call Inspect, since we are on the same goro that
@@ -14016,7 +14013,7 @@ func (s *TubeNode) applyEndSess(tkt *Ticket, calledOnLeader bool) {
 // after the session is committed (present on a quorum of servers).
 func (s *TubeNode) applyNewSess(tkt *Ticket, calledOnLeader bool) {
 
-	vv("%v applying SESS_NEW '%v'; tkt.NewSessReq.SessionID='%v'", s.me(), tkt.NewSessReq, tkt.NewSessReq.SessionID)
+	//vv("%v applying SESS_NEW '%v'; tkt.NewSessReq.SessionID='%v'", s.me(), tkt.NewSessReq, tkt.NewSessReq.SessionID)
 	sess := tkt.NewSessReq
 	if s.state.SessTable == nil {
 		s.state.SessTable = make(map[string]*SessionTableEntry)
