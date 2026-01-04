@@ -1155,7 +1155,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				//vv("%v AFTER adding to WAF, at readReqCh: tkt='%v'", s.me(), tkt)
 				continue
 			}
-			if !s.leaderServedLocalRead(tkt) {
+			if !s.leaderServedLocalRead(tkt, false) {
 				tkt.Stage += ":readReqCh_leaderServedLocalRead_false_calling_replicateTicket"
 				s.replicateTicket(tkt)
 			} else {
@@ -10278,7 +10278,7 @@ func (s *TubeNode) resetPreVoteState(beginElec, haveLeader bool) {
 }
 
 // used for READ, READ_KEYRANGE and SHOW_KEYS now.
-func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
+func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bool {
 	if s.role != LEADER {
 		panic("must only be called on leader")
 	}
@@ -10353,7 +10353,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 
 				tkt.Err = priorTkt.Err
 				tkt.AsOfLogIndex = priorTkt.AsOfLogIndex
-				// READ and SHOW_KEYS:
+				// READ and SHOW_KEYS: (and WRITE)
 				tkt.Val = priorTkt.Val
 				tkt.Vtype = priorTkt.Vtype
 				tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
@@ -10374,7 +10374,8 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 			}
 
 			// Note that we are only dealing with reads here in
-			// leaderServedLocalRead().
+			// leaderServedLocalRead(). And writes to check for
+			// failed leases if isWriteCheckLease.
 
 			// the problem with killing a session
 			// is that to a new leader, the local-reads served by the
@@ -10425,6 +10426,20 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket) bool {
 		s.doShowKeys(tkt)
 	case READ_KEYRANGE:
 		s.doReadKeyRange(tkt)
+	case WRITE:
+		if !isWriteCheckLease {
+			panicf("unhandled tkt.Op case in leaderServedLocalRead; tkt=%v", tkt)
+		}
+		if s.state.kvstoreWouldWriteLease(tkt, s.cfg.ClockDriftBound) {
+			return false
+		}
+		// otherwise the read info for the current lease
+		// that prevents the write is filled in on tkt now.
+		// Since the read is good and it says the write to lease
+		// would fail, we want to return the lease metainfo
+		// (the failed write turns into a fast local read to avoid another
+		// network roundtrip).
+
 	default:
 		panicf("unhandled tkt.Op case in leaderServedLocalRead; tkt=%v", tkt)
 	}
@@ -14839,17 +14854,22 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 	}
 	switch tkt.Op {
 	case WRITE:
-	// 	s.handleRamOnlySublease(tkt)
-	// 	s.respondToClientTicketApplied(tkt)
-	// 	s.FinishTicket(tkt, true)
-	// 	return
+		// a failed lease write turns into a read anyway,
+		// so for a fast path: if its lease do a fast local
+		// read and if the write would not win anway just
+		// return the read, keeping it local only.
+		if tkt.Leasor != "" && s.leaderServedLocalRead(tkt, true) {
+			vv("%v failed lease write turned into local fast read", s.name)
+			tkt.Stage += ":RedirectTicketToLeaderMsg_leaderServedLocalRead_true_failed_lease_write"
+			return
+		}
 
 	case MEMBERSHIP_SET_UPDATE:
 		s.changeMembership(tkt)
 		//vv("%v changeMembership finished, returning from commandSpecificLocalActionsThenReplicateTicket without doing replicateTicket().", s.me())
 		return
 	case READ, SHOW_KEYS, READ_KEYRANGE:
-		if s.leaderServedLocalRead(tkt) {
+		if s.leaderServedLocalRead(tkt, false) {
 			//vv("%v leaderServedLocalRead true, returning early! tkt='%v'", s.name, tkt.Short())
 			tkt.Stage += ":RedirectTicketToLeaderMsg_leaderServedLocalRead_true"
 			return
