@@ -114,6 +114,11 @@ type RMember struct {
 
 	name        string
 	serviceName string
+
+	amCzar   bool
+	myDetail *PeerDetail
+
+	rml *ReliableMembershipList
 }
 
 func NewRMember() *RMember {
@@ -122,6 +127,8 @@ func NewRMember() *RMember {
 	}
 	return r
 }
+
+const RML string = "ReliableMembershipList"
 
 func (s *RMember) Start(
 	myPeer *rpc.LocalPeer,
@@ -138,7 +145,7 @@ func (s *RMember) Start(
 	// 1) register my name and PeerDetail under table:hermes key:names/myname
 	// with a 5 minute lease.
 	// renew it every 4 minutes or so.
-	const table string = "hermes"
+	const tableHermes string = "hermes"
 	s.name = s.Cfg.MyName
 	key := "names/" + s.name
 	nameLeaseDur := time.Minute * 5
@@ -151,9 +158,10 @@ func (s *RMember) Start(
 		PeerServiceName:        s.MyPeer.PeerServiceName,
 		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
 	}
-	bts, err := detail.MarshalMsg(nil)
+	s.myDetail = detail
+	detailBits, err := detail.MarshalMsg(nil)
 	panicOn(err)
-	nameTkt, err := s.sess.Write(ctx0, Key(table), Key(key), Val(bts), 0, "PeerDetail", nameLeaseDur)
+	nameTkt, err := s.sess.Write(ctx0, Key(tableHermes), Key(key), Val(detailBits), 0, "PeerDetail", nameLeaseDur)
 	panicOn(err)
 	_ = nameTkt
 	//
@@ -162,13 +170,71 @@ func (s *RMember) Start(
 	// If the epoch changes, update the membership list
 	// in the Hermes upcall. table:hermes key:czar
 	//
+
+	// find the czar. it might be me.
+	// we try to write to the "czar" key with a lease.
+	// first one there wins. everyone else reads the winner's URL.
+	list := s.Node.NewReliableMembershipList()
+	list.CzarName = s.name // if we win the write race, we are the czar.
+	list.PeerNames.set(s.name, detail)
+	bts2, err := list.MarshalMsg(nil)
+	panicOn(err)
+
+	keyCz := "czar"
+	leaseDurCz := time.Minute
+	czarTkt, err := s.sess.Write(ctx0, Key(tableHermes), Key(keyCz), Val(bts2), 0, RML, leaseDurCz)
+	panicOn(err)
+	_ = czarTkt
+
+	if err == nil {
+		// I am czar, send heartbeats to tube/raft to re-lease
+		// the hermes/czar key to maintain that status.
+		s.amCzar = true
+
+		// Since I am czar, my main job is to maintain the list
+		// of members, and to update all other members when some
+		// member leaves or a new member joins.
+		s.rml = list
+	} else {
+		// some other node is czar, contact them.
+		s.amCzar = false
+		// Heartbeat to them regularly that we are online,
+		// and want to participate as a Hermes node.
+
+		vers := RMVersionTuple{
+			CzarLeaseEpoch: czarTkt.LeaseEpoch,
+			Version:        0,
+		}
+		if czarTkt.Vtype != RML {
+			panicf("czarTkt got back Vtype '%v' not '%v'", czarTkt.Vtype, RML)
+		}
+		rml := &ReliableMembershipList{}
+		_, err := rml.UnmarshalMsg(czarTkt.Val)
+		panicOn(err)
+		rml.Vers = vers
+		vv("we see that czar is '%v'", rml.CzarName)
+		czarDet, ok := rml.PeerNames.get2(rml.CzarName)
+		if !ok {
+			panicf("czar '%v' did not include their own contact details", rml.CzarName)
+		}
+		s.rml = rml
+
+		heartBeatFrag := s.Node.newFrag()
+		heartBeatFrag.FragOp = ReliableMemberHeartBeatToCzar
+		heartBeatFrag.FragSubject = "heartbeat Hermes ReliableMember"
+		heartBeatFrag.SetUserArg("URL", s.myDetail.URL)
+		ckt, _, _, err := s.MyPeer.NewCircuitToPeerURL("czar", czarDet.URL, heartBeatFrag, 0)
+		panicOn(err)
+		_ = ckt
+	}
+
 	// 3) If the Czar cannot be reached, in addition to heartbeats,
 	// the Hermes node starts trying to become the Czar by
 	// writing a lease through Raft to a pre-configured "czar" key.
 	// Repeat until either the current Czar can be reached
 	// or a new Czar is elected. /names/hermes/czar/ will be the key.
 	//
-	// At the core, Reliable Membership just needs to:
+	// Reliable Membership goals:
 	//
 	// a) Maintain a current view of who's in the group
 	// b) Notify members when that view changes

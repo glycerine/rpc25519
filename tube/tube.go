@@ -388,6 +388,7 @@ const (
 	StateSnapshotEnclosed          int = 15
 	InstallEmptyMC                 int = 16
 	NotifyClientNewLeader          int = 17
+	ReliableMemberHeartBeatToCzar  int = 18
 	// PAR means the leader must get log
 	// information from followers, but actually
 	// an empty AE and then AEack should suffice
@@ -433,6 +434,8 @@ func msgop(o int) string {
 		return "InstallEmptyMC"
 	case NotifyClientNewLeader: // 17
 		return "NotifyClientNewLeader"
+	case ReliableMemberHeartBeatToCzar: // 18
+		return "ReliableMemberHeartBeatToCzar"
 	}
 	return fmt.Sprintf("unknown MsgOp: %v", o)
 }
