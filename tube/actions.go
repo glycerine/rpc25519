@@ -119,13 +119,29 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 }
 
 // Compare and Swap
-func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string) (tkt *Ticket, err error) {
+func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string, leaseDur time.Duration) (tkt *Ticket, err error) {
+
+	if leaseDur != 0 {
+		// sanity check
+		if leaseDur < 0 || leaseDur > time.Minute*15 {
+			return nil, fmt.Errorf("leaseDur out of bounds, must be in [0, 15 minutes]: '%v'", leaseDur)
+		}
+		if s.name == "" {
+			return nil, fmt.Errorf("must have s.name for Leasor to take a lease")
+		}
+	}
 
 	desc := fmt.Sprintf("cas(table(%v), key(%v), if oldval(%v) -> newval(%v)", table, key, string(oldval), string(newval))
-
+	if leaseDur > 0 {
+		desc += fmt.Sprintf("; leaseDur='%v' requested for Leasor '%v'", leaseDur, s.name)
+	}
 	tkt = s.NewTicket(desc, table, key, newval, s.PeerID, s.name, CAS, waitForDur, ctx)
 	tkt.OldVal = oldval
 	tkt.Vtype = newVtype
+	if leaseDur > 0 {
+		tkt.LeaseRequestDur = leaseDur
+		tkt.Leasor = s.name
+	}
 
 	if sess != nil {
 		tkt.SessionID = sess.SessionID
@@ -970,7 +986,7 @@ func (s *TubeNode) doShowKeys(tkt *Ticket) {
 }
 
 // if ctx is nill we will use s.ctx
-func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, waitForDur time.Duration, newVtype string) (tkt *Ticket, err error) {
+func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, waitForDur time.Duration, newVtype string, leaseDur time.Duration) (tkt *Ticket, err error) {
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.Write: cli is nil, Session.Errs='%v'", s.Errs)
 	}
@@ -978,7 +994,7 @@ func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, w
 	if ctx == nil {
 		ctx = s.ctx
 	}
-	return s.cli.CAS(ctx, table, key, oldVal, newVal, waitForDur, s, newVtype)
+	return s.cli.CAS(ctx, table, key, oldVal, newVal, waitForDur, s, newVtype, leaseDur)
 }
 
 // if ctx is nill we will use s.ctx
@@ -1167,4 +1183,23 @@ func (s *RaftState) kvstorePrefixScan(tktTable, tktPrefix Key, descend bool) (re
 		}
 	}
 	return
+}
+
+// return nil error if okay, else lease is still in force.
+func (cfg *TubeConfig) okayToWritePossiblyLeasedKey(leaf *art.Leaf, tkt *Ticket) error {
+	if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
+		// no current leasor
+		return nil
+	}
+	// INVAR: leaf.Leasor != "" && leaf.LeaseUntilTm > 0
+	if leaf.Leasor == tkt.Leasor {
+		// allow current leasor to give up lease/write new val.
+		return nil
+	}
+	if tkt.RaftLogEntryTm.After(
+		leaf.LeaseUntilTm.Add(cfg.ClockDriftBound)) {
+		// lease has expired, allow delete.
+		return nil
+	}
+	return fmt.Errorf("prior lease on key is not expired. table='%v'; key='%v'; Leasor='%v'; LeaseUntilTm='%v'", tkt.Table, tkt.Key, leaf.Leasor, nice(leaf.LeaseUntilTm))
 }

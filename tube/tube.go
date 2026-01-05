@@ -1739,62 +1739,6 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			}
 			//s.ay("%v after switch on frag.FragOp!", s.me())
 
-			// pushToPeerURL handling:
-			// this isn't talking to the message handling above.
-			// Do we really need it? there is nothing sending on it.
-			// It is meant for asynchronous pushes, but we
-			// use all SendOneWay which is equivalent.
-			// Let's simply by commenting this for now.
-
-			/*
-				// URL format: tcp://x.x.x.x:port/peerServiceName
-				case pushToURL := <-s.pushToPeerURL:
-
-					//zz("%v: sees pushToURL '%v'", s.name, pushToURL)
-
-					//zz("%v: about to new up the server. pushToURL='%v'", s.name, pushToURL)
-					ckt, ctx, err := myPeer.NewCircuitToPeerURL("tube-node", pushToURL, nil, 0)
-					//zz("%v: back from myPeer.NewCircuitToPeerURL(pushToURL: '%v'): err='%v'", s.name, pushToURL, err)
-					panicOn(err)
-					//zz("%v: got ckt = '%v' back from NewCircuitToPeerURL '%v'", s.name, ckt.Name, pushToURL)
-					defer func() {
-						//zz("%v: (ckt '%v') defer running; closing ckt for pushToURL.", s.name, ckt.Name)
-						ckt.Close(err0)
-					}()
-
-					done := ctx.Done()
-					_ = done
-
-					for {
-						//zz("%v: (ckt '%v'): top of select", s.name, ckt.Name)
-						select {
-						case frag := <-ckt.Reads:
-							//zz("%v: (ckt '%v') got from ckt.Reads ->  '%v'", s.name, ckt.Name, frag.String())
-							_ = frag
-							// this is push! see below
-
-						case fragerr := <-ckt.Errors:
-							//zz("%v: (ckt '%v') got error fragerr back: '%#v'", s.name, ckt.Name, fragerr)
-							_ = fragerr
-						case <-ckt.Halt.ReqStop.Chan:
-							//zz("%v: (ckt '%v') ckt halt requested.", s.name, ckt.Name)
-							// just a circuit halt, not the whole peer.
-							return nil
-
-						case <-done:
-							//zz("%v: (ckt '%v') done seen", s.name, ckt.Name)
-							return nil
-						case <-done0:
-							//zz("%v: (ckt '%v') done0 seen", s.name, ckt.Name)
-							return nil
-						case <-s.Halt.ReqStop.Chan:
-							//zz("%v: (ckt '%v') topp func halt.ReqStop seen", s.name, ckt.Name)
-							return nil
-						}
-					}
-
-			*/
-
 		case ckt := <-cktHasDied:
 			_ = ckt
 			if false {
@@ -10481,30 +10425,50 @@ func (s *TubeNode) doWrite(tkt *Ticket) {
 
 func (s *TubeNode) doCAS(tkt *Ticket) {
 	if s.state.KVstore == nil {
-		tkt.Err = ErrKeyNotFound
-		return
+		if len(tkt.OldVal) > 0 {
+			tkt.Err = ErrKeyNotFound
+			return
+		} else {
+			// request to start a key from scratch
+			s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
+			tkt.CASwapped = (tkt.Err == nil)
+			return
+		}
 	}
 	table, ok := s.state.KVstore.m[tkt.Table]
 	if !ok {
+		if len(tkt.OldVal) == 0 {
+			// request to start a key from scratch
+			s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
+			tkt.CASwapped = (tkt.Err == nil)
+			return
+		}
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	curVal, idx, ok, vtyp := table.Tree.FindExact(art.Key(tkt.Key))
-	_ = idx
-	_ = vtyp
-	if !ok {
+	//curVal, idx, ok, vtyp := table.Tree.FindExact(art.Key(tkt.Key))
+	leaf, _, found := table.Tree.Find(art.Exact, art.Key(tkt.Key))
+	if !found {
+		if len(tkt.OldVal) == 0 {
+			// request to start a key from scratch
+			s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
+			tkt.CASwapped = (tkt.Err == nil)
+			return
+		}
 		tkt.Err = ErrKeyNotFound
 		return
 	}
+	curVal := leaf.Value
 	//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), bytes.Equal(curVal, tkt.OldVal), string(tkt.Val))
 
-	if bytes.Equal(curVal, tkt.OldVal) { // compare
-		table.Tree.Insert(art.Key(tkt.Key), []byte(append([]byte{}, tkt.Val...)), tkt.Vtype) // and swap
-		tkt.CASwapped = true
-	} else {
+	if !bytes.Equal(curVal, tkt.OldVal) { // compare
 		tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
 		tkt.CASwapped = false
+		return
 	}
+	// kvstoreWrite takes care of leasing rejections
+	s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
+	tkt.CASwapped = (tkt.Err == nil)
 }
 
 func (s *TubeNode) doReadKey(tkt *Ticket) {

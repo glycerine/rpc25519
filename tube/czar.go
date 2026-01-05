@@ -1,5 +1,335 @@
 package tube
 
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/glycerine/idem"
+	"github.com/glycerine/ipaddr"
+	rpc "github.com/glycerine/rpc25519"
+	//"github.com/glycerine/rpc25519/tube/art"
+)
+
+//go:generate greenpack
+
+// RMTuple is the two part Reliable Membership tuple.
+// Compare the CzarLeaseEpoch first, then the Version.
+// The CzarLeaseEpoch must go higher when the Czar
+// changes through Raft, and the Version can increment
+// when per-Czar members are added/lost.
+type RMVersionTuple struct {
+	CzarLeaseEpoch int64 `zid:"0"`
+	Version        int64 `zid:"1"`
+}
+
+// ReliableMembershipList is written under the czar key
+// in Tube (Raft). Tube must set the Vers.CzarLeaseEpoch
+// when it is written for us, since the submitting
+// client won't know what that is. It depends on
+// which write won the race and arrived first.
+type ReliableMembershipList struct {
+	CzarName string         `zid:"0"`
+	Vers     RMVersionTuple `zid:"1"`
+
+	PeerNames *omap[string, *PeerDetail] `msg:"-"`
+
+	SerzPeerDetails []*PeerDetail `zid:"2"`
+}
+
+func (i *RMVersionTuple) VersionGT(j *RMVersionTuple) bool {
+	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
+		return true
+	}
+	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
+		return i.Version > j.Version
+	}
+	return false
+}
+
+func (i *RMVersionTuple) VersionGTE(j *RMVersionTuple) bool {
+	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
+		return true
+	}
+	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
+		return i.Version >= j.Version
+	}
+	return false
+}
+
+func (i *RMVersionTuple) VersionEqual(j *RMVersionTuple) bool {
+	return i.CzarLeaseEpoch == j.CzarLeaseEpoch &&
+		i.Version == j.Version
+}
+
+func (i *RMVersionTuple) EpochsEqual(j *RMVersionTuple) bool {
+	return i.CzarLeaseEpoch == j.CzarLeaseEpoch
+}
+
+func (s *ReliableMembershipList) PreSaveHook() {
+	s.SerzPeerDetails = s.SerzPeerDetails[:0]
+	if s.PeerNames == nil {
+		return
+	}
+	for _, kv := range s.PeerNames.cached() {
+		s.SerzPeerDetails = append(s.SerzPeerDetails, kv.val)
+	}
+}
+
+func (s *ReliableMembershipList) PostLoadHook() {
+	s.PeerNames = newOmap[string, *PeerDetail]()
+	for _, d := range s.SerzPeerDetails {
+		s.PeerNames.set(d.Name, d)
+	}
+	s.SerzPeerDetails = s.SerzPeerDetails[:0]
+}
+
+func (s *TubeNode) NewReliableMembershipList() *ReliableMembershipList {
+	r := &ReliableMembershipList{
+		PeerNames: newOmap[string, *PeerDetail](),
+	}
+	if s == nil {
+		panic("s cannot be nil")
+	}
+	return r
+}
+
+type RMember struct {
+
+	// Cfg would usually be supplied. If not
+	// set on Start() will we make our own.
+	// We act as a TUBE_CLIENT and so to do
+	// so will spin up our own TubeNode.
+	Cfg *TubeConfig `msg:"-"`
+
+	Node *TubeNode `msg:"-"`
+
+	MyPeer *rpc.LocalPeer `msg:"-"`
+
+	Halt *idem.Halter `msg:"-"`
+
+	sess *Session
+
+	name        string
+	serviceName string
+}
+
+func NewRMember() *RMember {
+	r := &RMember{
+		//MyPeer: myPeer,
+	}
+	return r
+}
+
+func (s *RMember) Start(
+	myPeer *rpc.LocalPeer,
+	ctx0 context.Context,
+	newCircuitCh <-chan *rpc.Circuit,
+
+) (err0 error) {
+
+	// 0) we must be pre-configured with the raft nodes addresses,
+	//    so we can bootrstrap from them.
+	//
+	s.findMyFriends(ctx0)
+
+	// 1) register my name and PeerDetail under table:hermes key:names/myname
+	// with a 5 minute lease.
+	// renew it every 4 minutes or so.
+	const table string = "hermes"
+	s.name = s.Cfg.MyName
+	key := "names/" + s.name
+	nameLeaseDur := time.Minute * 5
+
+	detail := &PeerDetail{
+		Name:                   s.name,
+		URL:                    s.MyPeer.URL(),
+		PeerID:                 s.MyPeer.PeerID,
+		Addr:                   s.MyPeer.BaseServerAddr,
+		PeerServiceName:        s.MyPeer.PeerServiceName,
+		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
+	}
+	bts, err := detail.MarshalMsg(nil)
+	panicOn(err)
+	nameTkt, err := s.sess.Write(ctx0, Key(table), Key(key), Val(bts), 0, "PeerDetail", nameLeaseDur)
+	panicOn(err)
+	_ = nameTkt
+	//
+	// 2) Each Hermes node just heartbeats to the Czar saying:
+	// "I'm a member, and who else is a member and at what epoch?"
+	// If the epoch changes, update the membership list
+	// in the Hermes upcall. table:hermes key:czar
+	//
+	// 3) If the Czar cannot be reached, in addition to heartbeats,
+	// the Hermes node starts trying to become the Czar by
+	// writing a lease through Raft to a pre-configured "czar" key.
+	// Repeat until either the current Czar can be reached
+	// or a new Czar is elected. /names/hermes/czar/ will be the key.
+	//
+	// At the core, Reliable Membership just needs to:
+	//
+	// a) Maintain a current view of who's in the group
+	// b) Notify members when that view changes
+	// c) Ensure all members converge to the same view
+	//    by providing the RMVersionTuple versioning.
+
+	defer func() {
+		r := recover()
+		//vv("%v: (%v) end of RMember.Start() inside defer, about to return/finish; recover='%v'", s.me(), myPeer.ServiceName(), r)
+
+		s.Node.Close() // shut down TubeNode TUBE_CLIENT
+
+		s.MyPeer.Close()
+		s.Halt.Done.Close()
+		if r != nil {
+			panic(r)
+		}
+	}()
+
+	done0 := ctx0.Done()
+	for i := 0; ; i++ {
+		select {
+
+		case <-s.Halt.ReqStop.Chan:
+			//vv("%v shutdown initiated, s.Halt.ReqStop seen", s.me())
+			//s.shutdown()
+			return rpc.ErrHaltRequested
+
+		case ckt := <-newCircuitCh:
+			_ = ckt
+			//vv("%v ckt := <-newCircuitCh, from ckt.RemotePeerName='%v'; ckt.RemotePeerID='%v'", s.me(), ckt.RemotePeerName, ckt.RemotePeerID)
+			//err := s.handleNewCircuit(ckt, done0, arrivingNetworkFrag, cktHasError, cktHasDied)
+			//if err != nil {
+			//	return err
+			//}
+		case <-done0:
+			//s.ay("%v <-done0", s.me())
+
+			//vv("%v: done0! myPeer closing up b/c context canceled", s.name)
+			return rpc.ErrContextCancelled
+
+		} // end select
+	} // end for i
+	return nil
+}
+
+func (s *RMember) Close() {
+	s.Halt.ReqStop.Close()
+}
+
+func (s *RMember) setupConfigForTube() {
+
+	// get/create a config
+	dir := GetConfigDir()
+	pathCfg := dir + "/" + "rm.default.config"
+	if fileExists(pathCfg) {
+		vv("rm using config file: '%v'", pathCfg)
+	} else {
+		fd, err := os.Create(pathCfg)
+		panicOn(err)
+		cfg := &TubeConfig{
+			// distinguish multiple tup clients
+			MyName:          "rm_" + CryRand15B(),
+			PeerServiceName: TUBE_CLIENT,
+		}
+		fmt.Fprintf(fd, "%v\n", cfg.SexpString(nil))
+		fd.Close()
+		fmt.Fprintf(os.Stderr, "rm error: no config file. Created one from template in '%v'. Please complete it.\n", pathCfg)
+		os.Exit(1)
+	}
+	by, err := os.ReadFile(pathCfg)
+	panicOn(err)
+	pp("got by = '%v'", string(by))
+
+	cfg, err := NewTubeConfigFromSexpString(string(by), nil)
+	panicOn(err)
+	// distinguish multiple rm clients
+	s.Cfg = cfg
+	cfg.MyName = "rm_" + CryRand15B()
+	cfg.PeerServiceName = TUBE_CLIENT
+
+	myHost := ipaddr.GetExternalIP()
+	myPort := ipaddr.GetAvailPort()
+	cfg.RpcCfg.ServerAddr = fmt.Sprintf("%v:%v", myHost, myPort)
+
+	// set up our config
+	const quiet = false
+	const isTest = false
+	cfg.Init(quiet, isTest)
+
+	cfg.UseSimNet = false
+
+	cfg.RpcCfg.TCPonly_no_TLS = cfg.TCPonly_no_TLS
+	cfg.RpcCfg.ServerAutoCreateClientsToDialOtherServers = true
+	cfg.RpcCfg.QuietTestMode = true
+
+	cfg.ClientProdConfigSaneOrPanic()
+
+	cfg.ConvertToExternalAddr()
+
+	vv("rm findMyFriends/setupConfig: cfg = '%v'", cfg.ShortSexpString(nil))
+}
+
+func (s *RMember) findMyFriends(ctx context.Context) (err error) {
+
+	s.setupConfigForTube()
+	cfg := s.Cfg
+
+	//nodeID := rpc.NewCallID("")
+	name := cfg.MyName
+
+	// maybe we don't need a full tube node?? just
+	// an rpc25519 client might do.
+	node := NewTubeNode(name, cfg)
+
+	// start TUBE_CLIENT TubeNode.
+	err = node.InitAndStart()
+	panicOn(err)
+
+	s.Node = node
+
+	// Use HelperFindLeader for better chance of locating a leader
+
+	// If requireOnlyContact is true,
+	// then HelperFindLeader will
+	// immediately exit(1) if the contactName is
+	// not also the current leader.
+	const requireOnlyContact = false
+	contactName := ""
+	leaderURL, leaderName, _, reallyLeader, _, err := node.HelperFindLeader(cfg, contactName, requireOnlyContact)
+	_ = leaderName
+	panicOn(err)
+	if !reallyLeader {
+		panic("could not find Tube/Raft leader")
+	}
+
+	// when no leader, we hang, our tkt in awaitingLeader.
+	vv("%v: rm calling node.CreateNewSession(leaderURL = '%v')", cfg.MyName, leaderURL)
+	sess, err := node.CreateNewSession(ctx, leaderURL)
+	panicOn(err)
+	//defer sess.Close()
+	//pp("back from node.CreateNewSession(leaderURL='%v')", leaderURL)
+
+	s.sess = sess
+	return
+}
+
+func (s *RMember) needNewSess(ctx context.Context, sess *Session, leaderURL string, err error) (s2 *Session) {
+	if err == nil {
+		return sess
+	}
+	errs := err.Error()
+	if strings.Contains(errs, "call CreateNewSession first") {
+		sess.Close()
+		s2, err := s.Node.CreateNewSession(ctx, leaderURL)
+		panicOn(err)
+		return s2
+	}
+	return sess
+}
+
 /*
 Butler Lampson writes, in
 WDAG 1996: Workshop on Distributed Algorithms, Bologna, Italy
@@ -169,86 +499,3 @@ me(jea): but Czar lease renewal will increment the raft index without
 changing the Czar so we want to the use czar key's LeaseEpoch instead.
 
 */
-
-//go:generate greenpack
-
-// RMTuple is the two part Reliable Membership tuple.
-// Compare the CzarLeaseEpoch first, then the Version.
-// The CzarLeaseEpoch must go higher when the Czar
-// changes through Raft, and the Version can increment
-// when per-Czar members are added/lost.
-type RMVersionTuple struct {
-	CzarLeaseEpoch int64 `zid:"0"`
-	Version        int64 `zid:"1"`
-}
-
-// ReliableMembership is written under the czar key
-// in Tube (Raft). Tube must set the Vers.CzarLeaseEpoch
-// when it is written for us, since the submitting
-// client won't know what that is. It depends on
-// which write won the race and arrived first.
-type ReliableMembership struct {
-	CzarName string         `zid:"0"`
-	Vers     RMVersionTuple `zid:"1"`
-
-	PeerNames *omap[string, *PeerDetail] `msg:"-"`
-
-	SerzPeerDetails []*PeerDetail `zid:"2"`
-}
-
-func (i *RMVersionTuple) VersionGT(j *RMVersionTuple) bool {
-	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
-		return true
-	}
-	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
-		return i.Version > j.Version
-	}
-	return false
-}
-
-func (i *RMVersionTuple) VersionGTE(j *RMVersionTuple) bool {
-	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
-		return true
-	}
-	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
-		return i.Version >= j.Version
-	}
-	return false
-}
-
-func (i *RMVersionTuple) VersionEqual(j *RMVersionTuple) bool {
-	return i.CzarLeaseEpoch == j.CzarLeaseEpoch &&
-		i.Version == j.Version
-}
-
-func (i *RMVersionTuple) EpochsEqual(j *RMVersionTuple) bool {
-	return i.CzarLeaseEpoch == j.CzarLeaseEpoch
-}
-
-func (s *ReliableMembership) PreSaveHook() {
-	s.SerzPeerDetails = s.SerzPeerDetails[:0]
-	if s.PeerNames == nil {
-		return
-	}
-	for _, kv := range s.PeerNames.cached() {
-		s.SerzPeerDetails = append(s.SerzPeerDetails, kv.val)
-	}
-}
-
-func (s *ReliableMembership) PostLoadHook() {
-	s.PeerNames = newOmap[string, *PeerDetail]()
-	for _, d := range s.SerzPeerDetails {
-		s.PeerNames.set(d.Name, d)
-	}
-	s.SerzPeerDetails = s.SerzPeerDetails[:0]
-}
-
-func (s *TubeNode) NewReliableMembership() *ReliableMembership {
-	r := &ReliableMembership{
-		PeerNames: newOmap[string, *PeerDetail](),
-	}
-	if s == nil {
-		panic("s cannot be nil")
-	}
-	return r
-}

@@ -122,8 +122,8 @@ func BenchmarkDecodeRMVersionTuple(b *testing.B) {
 	}
 }
 
-func TestMarshalUnmarshalReliableMembership(t *testing.T) {
-	v := ReliableMembership{}
+func TestMarshalUnmarshalRMember(t *testing.T) {
+	v := RMember{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -145,8 +145,8 @@ func TestMarshalUnmarshalReliableMembership(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgReliableMembership(b *testing.B) {
-	v := ReliableMembership{}
+func BenchmarkMarshalMsgRMember(b *testing.B) {
+	v := RMember{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -154,8 +154,8 @@ func BenchmarkMarshalMsgReliableMembership(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgReliableMembership(b *testing.B) {
-	v := ReliableMembership{}
+func BenchmarkAppendMsgRMember(b *testing.B) {
+	v := RMember{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -166,8 +166,8 @@ func BenchmarkAppendMsgReliableMembership(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalReliableMembership(b *testing.B) {
-	v := ReliableMembership{}
+func BenchmarkUnmarshalRMember(b *testing.B) {
+	v := RMember{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -180,8 +180,8 @@ func BenchmarkUnmarshalReliableMembership(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodeReliableMembership(t *testing.T) {
-	v := ReliableMembership{}
+func TestEncodeDecodeRMember(t *testing.T) {
+	v := RMember{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -190,7 +190,7 @@ func TestEncodeDecodeReliableMembership(t *testing.T) {
 		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
 	}
 
-	vn := ReliableMembership{}
+	vn := RMember{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -204,8 +204,8 @@ func TestEncodeDecodeReliableMembership(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodeReliableMembership(b *testing.B) {
-	v := ReliableMembership{}
+func BenchmarkEncodeRMember(b *testing.B) {
+	v := RMember{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -218,8 +218,121 @@ func BenchmarkEncodeReliableMembership(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodeReliableMembership(b *testing.B) {
-	v := ReliableMembership{}
+func BenchmarkDecodeRMember(b *testing.B) {
+	v := RMember{}
+	var buf bytes.Buffer
+	msgp.Encode(&buf, &v)
+	b.SetBytes(int64(buf.Len()))
+	rd := msgp.NewEndlessReader(buf.Bytes(), b)
+	dc := msgp.NewReader(rd)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := v.DecodeMsg(dc)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func TestMarshalUnmarshalReliableMembershipList(t *testing.T) {
+	v := ReliableMembershipList{}
+	bts, err := v.MarshalMsg(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	left, err := v.UnmarshalMsg(bts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) > 0 {
+		t.Errorf("%d bytes left over after UnmarshalMsg(): %q", len(left), left)
+	}
+
+	left, err = msgp.Skip(bts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) > 0 {
+		t.Errorf("%d bytes left over after Skip(): %q", len(left), left)
+	}
+}
+
+func BenchmarkMarshalMsgReliableMembershipList(b *testing.B) {
+	v := ReliableMembershipList{}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		v.MarshalMsg(nil)
+	}
+}
+
+func BenchmarkAppendMsgReliableMembershipList(b *testing.B) {
+	v := ReliableMembershipList{}
+	bts := make([]byte, 0, v.Msgsize())
+	bts, _ = v.MarshalMsg(bts[0:0])
+	b.SetBytes(int64(len(bts)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bts, _ = v.MarshalMsg(bts[0:0])
+	}
+}
+
+func BenchmarkUnmarshalReliableMembershipList(b *testing.B) {
+	v := ReliableMembershipList{}
+	bts, _ := v.MarshalMsg(nil)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(bts)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := v.UnmarshalMsg(bts)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func TestEncodeDecodeReliableMembershipList(t *testing.T) {
+	v := ReliableMembershipList{}
+	var buf bytes.Buffer
+	msgp.Encode(&buf, &v)
+
+	m := v.Msgsize()
+	if buf.Len() > m {
+		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
+	}
+
+	vn := ReliableMembershipList{}
+	err := msgp.Decode(&buf, &vn)
+	if err != nil {
+		t.Error(err)
+	}
+
+	buf.Reset()
+	msgp.Encode(&buf, &v)
+	err = msgp.NewReader(&buf).Skip()
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func BenchmarkEncodeReliableMembershipList(b *testing.B) {
+	v := ReliableMembershipList{}
+	var buf bytes.Buffer
+	msgp.Encode(&buf, &v)
+	b.SetBytes(int64(buf.Len()))
+	en := msgp.NewWriter(msgp.Nowhere)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		v.EncodeMsg(en)
+	}
+	en.Flush()
+}
+
+func BenchmarkDecodeReliableMembershipList(b *testing.B) {
+	v := ReliableMembershipList{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

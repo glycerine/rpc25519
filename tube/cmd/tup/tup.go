@@ -427,6 +427,9 @@ repl:
 				// cas key old new
 				key = args[1]
 				oldval := args[2]
+				if oldval == "''" {
+					oldval = "" // empty string
+				}
 				newval := args[3]
 				tkt, err := sess.CAS(ctx, tube.Key(table), tube.Key(key), tube.Val(oldval), tube.Val(newval), 0, "")
 				if err != nil {
