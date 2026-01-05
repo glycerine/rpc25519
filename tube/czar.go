@@ -128,6 +128,8 @@ func NewRMember() *RMember {
 	return r
 }
 
+// the Vtype for the ReliableMembershipList
+// encoded Value payloads.
 const RML string = "ReliableMembershipList"
 
 func (s *RMember) Start(
@@ -186,6 +188,11 @@ func (s *RMember) Start(
 	panicOn(err)
 	_ = czarTkt
 
+	vers := RMVersionTuple{
+		CzarLeaseEpoch: czarTkt.LeaseEpoch,
+		Version:        0,
+	}
+
 	if err == nil {
 		// I am czar, send heartbeats to tube/raft to re-lease
 		// the hermes/czar key to maintain that status.
@@ -194,17 +201,15 @@ func (s *RMember) Start(
 		// Since I am czar, my main job is to maintain the list
 		// of members, and to update all other members when some
 		// member leaves or a new member joins.
+		list.Vers = vers
 		s.rml = list
+
 	} else {
 		// some other node is czar, contact them.
 		s.amCzar = false
 		// Heartbeat to them regularly that we are online,
 		// and want to participate as a Hermes node.
 
-		vers := RMVersionTuple{
-			CzarLeaseEpoch: czarTkt.LeaseEpoch,
-			Version:        0,
-		}
 		if czarTkt.Vtype != RML {
 			panicf("czarTkt got back Vtype '%v' not '%v'", czarTkt.Vtype, RML)
 		}
