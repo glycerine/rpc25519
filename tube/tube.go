@@ -10349,22 +10349,6 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 			// with the same serial number is idempotent,
 			// so no problem; it will likely succeed on
 			// the client's 2nd attempt.
-			//if false {
-			// if tkt.SessionSerial < 1+ste.HighestSerial {
-			// 	tkt.Err = fmt.Errorf("%v session killed: gap in SessionSerial, saw %v, expected %v for tkt.SessionID '%v': a client request was dropped. dropped tkt='%v'", s.name, tkt.SessionSerial, ste.HighestSerial+1, tkt.SessionID, tkt)
-			// 	vv("%v error session gap: %v\n", s.name, tkt.Err)
-
-			// 	// kill the session so client must make a new one.
-			// 	delete(s.state.SessTable, tkt.SessionID)
-			// 	s.sessByExpiry.Delete(ste)
-			// 	s.saver.save(s.state)
-
-			// 	if tkt.Done != nil {
-			// 		tkt.Done.Close()
-			// 	}
-			// 	return false // failed to serve local read, gap in session
-			// }
-			//}
 		}
 	}
 
@@ -10446,7 +10430,6 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	//curVal, idx, ok, vtyp := table.Tree.FindExact(art.Key(tkt.Key))
 	leaf, _, found := table.Tree.Find(art.Exact, art.Key(tkt.Key))
 	if !found {
 		if len(tkt.OldVal) == 0 {
