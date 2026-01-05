@@ -15,86 +15,7 @@ import (
 
 //go:generate greenpack
 
-// RMTuple is the two part Reliable Membership tuple.
-// Compare the CzarLeaseEpoch first, then the Version.
-// The CzarLeaseEpoch must go higher when the Czar
-// changes through Raft, and the Version can increment
-// when per-Czar members are added/lost.
-type RMVersionTuple struct {
-	CzarLeaseEpoch int64 `zid:"0"`
-	Version        int64 `zid:"1"`
-}
-
-// ReliableMembershipList is written under the czar key
-// in Tube (Raft). Tube must set the Vers.CzarLeaseEpoch
-// when it is written for us, since the submitting
-// client won't know what that is. It depends on
-// which write won the race and arrived first.
-type ReliableMembershipList struct {
-	CzarName string         `zid:"0"`
-	Vers     RMVersionTuple `zid:"1"`
-
-	PeerNames *omap[string, *PeerDetail] `msg:"-"`
-
-	SerzPeerDetails []*PeerDetail `zid:"2"`
-}
-
-func (i *RMVersionTuple) VersionGT(j *RMVersionTuple) bool {
-	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
-		return true
-	}
-	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
-		return i.Version > j.Version
-	}
-	return false
-}
-
-func (i *RMVersionTuple) VersionGTE(j *RMVersionTuple) bool {
-	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
-		return true
-	}
-	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
-		return i.Version >= j.Version
-	}
-	return false
-}
-
-func (i *RMVersionTuple) VersionEqual(j *RMVersionTuple) bool {
-	return i.CzarLeaseEpoch == j.CzarLeaseEpoch &&
-		i.Version == j.Version
-}
-
-func (i *RMVersionTuple) EpochsEqual(j *RMVersionTuple) bool {
-	return i.CzarLeaseEpoch == j.CzarLeaseEpoch
-}
-
-func (s *ReliableMembershipList) PreSaveHook() {
-	s.SerzPeerDetails = s.SerzPeerDetails[:0]
-	if s.PeerNames == nil {
-		return
-	}
-	for _, kv := range s.PeerNames.cached() {
-		s.SerzPeerDetails = append(s.SerzPeerDetails, kv.val)
-	}
-}
-
-func (s *ReliableMembershipList) PostLoadHook() {
-	s.PeerNames = newOmap[string, *PeerDetail]()
-	for _, d := range s.SerzPeerDetails {
-		s.PeerNames.set(d.Name, d)
-	}
-	s.SerzPeerDetails = s.SerzPeerDetails[:0]
-}
-
-func (s *TubeNode) NewReliableMembershipList() *ReliableMembershipList {
-	r := &ReliableMembershipList{
-		PeerNames: newOmap[string, *PeerDetail](),
-	}
-	if s == nil {
-		panic("s cannot be nil")
-	}
-	return r
-}
+const tableHermes string = "hermes"
 
 type RMember struct {
 
@@ -147,25 +68,8 @@ func (s *RMember) Start(
 	// 1) register my name and PeerDetail under table:hermes key:names/myname
 	// with a 5 minute lease.
 	// renew it every 4 minutes or so.
-	const tableHermes string = "hermes"
-	s.name = s.Cfg.MyName
-	key := "names/" + s.name
-	nameLeaseDur := time.Minute * 5
+	periodicallyRenewNameLeaseCh := s.renewNameLease(ctx0)
 
-	detail := &PeerDetail{
-		Name:                   s.name,
-		URL:                    s.MyPeer.URL(),
-		PeerID:                 s.MyPeer.PeerID,
-		Addr:                   s.MyPeer.BaseServerAddr,
-		PeerServiceName:        s.MyPeer.PeerServiceName,
-		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
-	}
-	s.myDetail = detail
-	detailBits, err := detail.MarshalMsg(nil)
-	panicOn(err)
-	nameTkt, err := s.sess.Write(ctx0, Key(tableHermes), Key(key), Val(detailBits), 0, "PeerDetail", nameLeaseDur)
-	panicOn(err)
-	_ = nameTkt
 	//
 	// 2) Each Hermes node just heartbeats to the Czar saying:
 	// "I'm a member, and who else is a member and at what epoch?"
@@ -178,7 +82,7 @@ func (s *RMember) Start(
 	// first one there wins. everyone else reads the winner's URL.
 	list := s.Node.NewReliableMembershipList()
 	list.CzarName = s.name // if we win the write race, we are the czar.
-	list.PeerNames.set(s.name, detail)
+	list.PeerNames.set(s.name, s.myDetail)
 	bts2, err := list.MarshalMsg(nil)
 	panicOn(err)
 
@@ -262,6 +166,9 @@ func (s *RMember) Start(
 	done0 := ctx0.Done()
 	for i := 0; ; i++ {
 		select {
+		case <-periodicallyRenewNameLeaseCh:
+			// time to renew name lease with Tube
+			periodicallyRenewNameLeaseCh = s.renewNameLease(ctx0)
 
 		case <-s.Halt.ReqStop.Chan:
 			//vv("%v shutdown initiated, s.Halt.ReqStop seen", s.me())
@@ -343,6 +250,31 @@ func (s *RMember) setupConfigForTube() {
 	vv("rm findMyFriends/setupConfig: cfg = '%v'", cfg.ShortSexpString(nil))
 }
 
+func (s *RMember) renewNameLease(ctx0 context.Context) <-chan time.Time {
+	s.name = s.Cfg.MyName
+	key := "names/" + s.name
+	nameLeaseDur := time.Minute * 5
+	nameLeaseRenewDur := time.Minute * 2
+	periodicallyRenewNameLeaseCh := time.After(nameLeaseRenewDur)
+
+	detail := &PeerDetail{
+		Name:                   s.name,
+		URL:                    s.MyPeer.URL(),
+		PeerID:                 s.MyPeer.PeerID,
+		Addr:                   s.MyPeer.BaseServerAddr,
+		PeerServiceName:        s.MyPeer.PeerServiceName,
+		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
+	}
+	s.myDetail = detail
+	detailBits, err := s.myDetail.MarshalMsg(nil)
+	panicOn(err)
+	nameTkt, err := s.sess.Write(ctx0, Key(tableHermes), Key(key), Val(detailBits), 0, "PeerDetail", nameLeaseDur)
+	panicOn(err)
+	_ = nameTkt
+
+	return periodicallyRenewNameLeaseCh
+}
+
 func (s *RMember) findMyFriends(ctx context.Context) (err error) {
 
 	s.setupConfigForTube()
@@ -372,8 +304,25 @@ func (s *RMember) findMyFriends(ctx context.Context) (err error) {
 	leaderURL, leaderName, _, reallyLeader, _, err := node.HelperFindLeader(cfg, contactName, requireOnlyContact)
 	_ = leaderName
 	panicOn(err)
+
+	if false { // needed?
+		// try to fix the sporadic race where (see 710 client_test:422 )
+		// cli might not have updated its own s.leaderName !?!
+		// and so sends the next Read off into the void at the old dead leader.
+		// getCircuitToLeader sets the updated s.leaderName.
+		//ckt2, onlyPossibleAddr2, _, err2 :=
+		_, _, _, err2 := node.getCircuitToLeader(ctx, leaderURL, nil, false)
+		panicOn(err2)
+	}
 	if !reallyLeader {
-		panic("could not find Tube/Raft leader")
+		panicf("could not really find Tube/Raft leader; leaderName='%v'; leaderURL = '%v'; reallyLeader=%v", leaderName, leaderURL, reallyLeader)
+	}
+
+	// note: if we must contact new peers, use this pattern:
+	//s.contactNewPeer(url) // defined below
+
+	if !reallyLeader {
+		panicf("could not really find leader; leaderName='%v'; leaderURL = '%v'", leaderName, leaderURL)
 	}
 
 	// when no leader, we hang, our tkt in awaitingLeader.
@@ -399,6 +348,99 @@ func (s *RMember) needNewSess(ctx context.Context, sess *Session, leaderURL stri
 		return s2
 	}
 	return sess
+}
+
+// note: if we must contact new peers, use this pattern,
+// where saving the ckt is critically important!
+func (s *RMember) contactNewPeer(url string, firstFrag *rpc.Fragment) {
+	ckt, _, _, _ := s.MyPeer.NewCircuitToPeerURL("rm-ckt", url, firstFrag, 0)
+	if ckt != nil {
+		select {
+		case s.MyPeer.NewCircuitCh <- ckt:
+		case <-s.MyPeer.Halt.ReqStop.Chan:
+		}
+	}
+}
+
+// RMTuple is the two part Reliable Membership tuple.
+// Compare the CzarLeaseEpoch first, then the Version.
+// The CzarLeaseEpoch must go higher when the Czar
+// changes through Raft, and the Version can increment
+// when per-Czar members are added/lost.
+type RMVersionTuple struct {
+	CzarLeaseEpoch int64 `zid:"0"`
+	Version        int64 `zid:"1"`
+}
+
+// ReliableMembershipList is written under the czar key
+// in Tube (Raft). Tube must set the Vers.CzarLeaseEpoch
+// when it is written for us, since the submitting
+// client won't know what that is. It depends on
+// which write won the race and arrived first.
+type ReliableMembershipList struct {
+	CzarName string         `zid:"0"`
+	Vers     RMVersionTuple `zid:"1"`
+
+	PeerNames *omap[string, *PeerDetail] `msg:"-"`
+
+	SerzPeerDetails []*PeerDetail `zid:"2"`
+}
+
+func (i *RMVersionTuple) VersionGT(j *RMVersionTuple) bool {
+	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
+		return true
+	}
+	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
+		return i.Version > j.Version
+	}
+	return false
+}
+
+func (i *RMVersionTuple) VersionGTE(j *RMVersionTuple) bool {
+	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
+		return true
+	}
+	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
+		return i.Version >= j.Version
+	}
+	return false
+}
+
+func (i *RMVersionTuple) VersionEqual(j *RMVersionTuple) bool {
+	return i.CzarLeaseEpoch == j.CzarLeaseEpoch &&
+		i.Version == j.Version
+}
+
+func (i *RMVersionTuple) EpochsEqual(j *RMVersionTuple) bool {
+	return i.CzarLeaseEpoch == j.CzarLeaseEpoch
+}
+
+func (s *ReliableMembershipList) PreSaveHook() {
+	s.SerzPeerDetails = s.SerzPeerDetails[:0]
+	if s.PeerNames == nil {
+		return
+	}
+	for _, kv := range s.PeerNames.cached() {
+		s.SerzPeerDetails = append(s.SerzPeerDetails, kv.val)
+	}
+}
+
+func (s *ReliableMembershipList) PostLoadHook() {
+	s.PeerNames = newOmap[string, *PeerDetail]()
+	for _, d := range s.SerzPeerDetails {
+		s.PeerNames.set(d.Name, d)
+	}
+	s.SerzPeerDetails = s.SerzPeerDetails[:0]
+}
+
+func (s *TubeNode) NewReliableMembershipList() *ReliableMembershipList {
+	r := &ReliableMembershipList{
+		PeerNames: newOmap[string, *PeerDetail](),
+	}
+	if s == nil {
+		panic("s cannot be nil")
+	}
+	return r
 }
 
 /*
