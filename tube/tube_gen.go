@@ -8665,7 +8665,7 @@ func (z *MemberConfig) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields126zgensym_8df0a91a1f250219_127 = 17
+	const maxFields126zgensym_8df0a91a1f250219_127 = 16
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields126zgensym_8df0a91a1f250219_127 uint32
@@ -8833,26 +8833,20 @@ doneWithStruct126zgensym_8df0a91a1f250219_127:
 			if err != nil {
 				return
 			}
-		case "Shim_zid12_i64":
+		case "IsCommitted_zid12_boo":
 			found126zgensym_8df0a91a1f250219_127[12] = true
-			z.Shim, err = dc.ReadInt64()
-			if err != nil {
-				return
-			}
-		case "IsCommitted_zid13_boo":
-			found126zgensym_8df0a91a1f250219_127[13] = true
 			z.IsCommitted, err = dc.ReadBool()
 			if err != nil {
 				return
 			}
-		case "CommitIndex_zid14_i64":
-			found126zgensym_8df0a91a1f250219_127[14] = true
+		case "CommitIndex_zid13_i64":
+			found126zgensym_8df0a91a1f250219_127[13] = true
 			z.CommitIndex, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
-		case "CommitIndexEntryTerm_zid15_i64":
-			found126zgensym_8df0a91a1f250219_127[15] = true
+		case "CommitIndexEntryTerm_zid14_i64":
+			found126zgensym_8df0a91a1f250219_127[14] = true
 			z.CommitIndexEntryTerm, err = dc.ReadInt64()
 			if err != nil {
 				return
@@ -8880,16 +8874,16 @@ doneWithStruct126zgensym_8df0a91a1f250219_127:
 }
 
 // fields of MemberConfig
-var decodeMsgFieldOrder126zgensym_8df0a91a1f250219_127 = []string{"SerzPeerDetails_zid00_slc", "RaftLogIndex_zid01_i64", "BootCount_zid02_int", "OriginPeerID_zid03_str", "OriginPeerName_zid04_str", "OriginPeerServiceName_zid05_str", "OriginPeerServiceNameVersion_zid06_str", "CreateTm_zid07_tim", "CreateWho_zid08_str", "Prov_zid09_slc", "ConfigVersion_zid10_i64", "ConfigTerm_zid11_i64", "Shim_zid12_i64", "IsCommitted_zid13_boo", "CommitIndex_zid14_i64", "CommitIndexEntryTerm_zid15_i64", ""}
+var decodeMsgFieldOrder126zgensym_8df0a91a1f250219_127 = []string{"SerzPeerDetails_zid00_slc", "RaftLogIndex_zid01_i64", "BootCount_zid02_int", "OriginPeerID_zid03_str", "OriginPeerName_zid04_str", "OriginPeerServiceName_zid05_str", "OriginPeerServiceNameVersion_zid06_str", "CreateTm_zid07_tim", "CreateWho_zid08_str", "Prov_zid09_slc", "ConfigVersion_zid10_i64", "ConfigTerm_zid11_i64", "IsCommitted_zid12_boo", "CommitIndex_zid13_i64", "CommitIndexEntryTerm_zid14_i64", ""}
 
-var decodeMsgFieldSkip126zgensym_8df0a91a1f250219_127 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var decodeMsgFieldSkip126zgensym_8df0a91a1f250219_127 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *MemberConfig) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 16
+		return 15
 	}
-	var fieldsInUse uint32 = 16
+	var fieldsInUse uint32 = 15
 	isempty[0] = (len(z.SerzPeerDetails) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -8938,20 +8932,16 @@ func (z *MemberConfig) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[11] {
 		fieldsInUse--
 	}
-	isempty[12] = (z.Shim == 0) // number, omitempty
+	isempty[12] = (!z.IsCommitted) // bool, omitempty
 	if isempty[12] {
 		fieldsInUse--
 	}
-	isempty[13] = (!z.IsCommitted) // bool, omitempty
+	isempty[13] = (z.CommitIndex == 0) // number, omitempty
 	if isempty[13] {
 		fieldsInUse--
 	}
-	isempty[14] = (z.CommitIndex == 0) // number, omitempty
+	isempty[14] = (z.CommitIndexEntryTerm == 0) // number, omitempty
 	if isempty[14] {
-		fieldsInUse--
-	}
-	isempty[15] = (z.CommitIndexEntryTerm == 0) // number, omitempty
-	if isempty[15] {
 		fieldsInUse--
 	}
 
@@ -8965,7 +8955,7 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_130 [17]bool
+	var empty_zgensym_8df0a91a1f250219_130 [16]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_131 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_130[:])
 
 	// map header
@@ -9150,20 +9140,8 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_8df0a91a1f250219_130[12] {
-		// write "Shim_zid12_i64"
-		err = en.Append(0xae, 0x53, 0x68, 0x69, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x32, 0x5f, 0x69, 0x36, 0x34)
-		if err != nil {
-			return err
-		}
-		err = en.WriteInt64(z.Shim)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_8df0a91a1f250219_130[13] {
-		// write "IsCommitted_zid13_boo"
-		err = en.Append(0xb5, 0x49, 0x73, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x62, 0x6f, 0x6f)
+		// write "IsCommitted_zid12_boo"
+		err = en.Append(0xb5, 0x49, 0x73, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x32, 0x5f, 0x62, 0x6f, 0x6f)
 		if err != nil {
 			return err
 		}
@@ -9173,9 +9151,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_130[14] {
-		// write "CommitIndex_zid14_i64"
-		err = en.Append(0xb5, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x69, 0x36, 0x34)
+	if !empty_zgensym_8df0a91a1f250219_130[13] {
+		// write "CommitIndex_zid13_i64"
+		err = en.Append(0xb5, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
@@ -9185,9 +9163,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_130[15] {
-		// write "CommitIndexEntryTerm_zid15_i64"
-		err = en.Append(0xbe, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x69, 0x36, 0x34)
+	if !empty_zgensym_8df0a91a1f250219_130[14] {
+		// write "CommitIndexEntryTerm_zid14_i64"
+		err = en.Append(0xbe, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
@@ -9209,7 +9187,7 @@ func (z *MemberConfig) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [17]bool
+	var empty [16]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -9303,26 +9281,20 @@ func (z *MemberConfig) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[12] {
-		// string "Shim_zid12_i64"
-		o = append(o, 0xae, 0x53, 0x68, 0x69, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x32, 0x5f, 0x69, 0x36, 0x34)
-		o = msgp.AppendInt64(o, z.Shim)
-	}
-
-	if !empty[13] {
-		// string "IsCommitted_zid13_boo"
-		o = append(o, 0xb5, 0x49, 0x73, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x62, 0x6f, 0x6f)
+		// string "IsCommitted_zid12_boo"
+		o = append(o, 0xb5, 0x49, 0x73, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x32, 0x5f, 0x62, 0x6f, 0x6f)
 		o = msgp.AppendBool(o, z.IsCommitted)
 	}
 
-	if !empty[14] {
-		// string "CommitIndex_zid14_i64"
-		o = append(o, 0xb5, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x69, 0x36, 0x34)
+	if !empty[13] {
+		// string "CommitIndex_zid13_i64"
+		o = append(o, 0xb5, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x69, 0x36, 0x34)
 		o = msgp.AppendInt64(o, z.CommitIndex)
 	}
 
-	if !empty[15] {
-		// string "CommitIndexEntryTerm_zid15_i64"
-		o = append(o, 0xbe, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x69, 0x36, 0x34)
+	if !empty[14] {
+		// string "CommitIndexEntryTerm_zid14_i64"
+		o = append(o, 0xbe, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x69, 0x36, 0x34)
 		o = msgp.AppendInt64(o, z.CommitIndexEntryTerm)
 	}
 
@@ -9344,7 +9316,7 @@ func (z *MemberConfig) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) 
 
 	var field []byte
 	_ = field
-	const maxFields132zgensym_8df0a91a1f250219_133 = 17
+	const maxFields132zgensym_8df0a91a1f250219_133 = 16
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields132zgensym_8df0a91a1f250219_133 uint32
@@ -9535,29 +9507,22 @@ doneWithStruct132zgensym_8df0a91a1f250219_133:
 			if err != nil {
 				return
 			}
-		case "Shim_zid12_i64":
+		case "IsCommitted_zid12_boo":
 			found132zgensym_8df0a91a1f250219_133[12] = true
-			z.Shim, bts, err = nbs.ReadInt64Bytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "IsCommitted_zid13_boo":
-			found132zgensym_8df0a91a1f250219_133[13] = true
 			z.IsCommitted, bts, err = nbs.ReadBoolBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "CommitIndex_zid14_i64":
-			found132zgensym_8df0a91a1f250219_133[14] = true
+		case "CommitIndex_zid13_i64":
+			found132zgensym_8df0a91a1f250219_133[13] = true
 			z.CommitIndex, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "CommitIndexEntryTerm_zid15_i64":
-			found132zgensym_8df0a91a1f250219_133[15] = true
+		case "CommitIndexEntryTerm_zid14_i64":
+			found132zgensym_8df0a91a1f250219_133[14] = true
 			z.CommitIndexEntryTerm, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
@@ -9586,13 +9551,13 @@ doneWithStruct132zgensym_8df0a91a1f250219_133:
 }
 
 // fields of MemberConfig
-var unmarshalMsgFieldOrder132zgensym_8df0a91a1f250219_133 = []string{"SerzPeerDetails_zid00_slc", "RaftLogIndex_zid01_i64", "BootCount_zid02_int", "OriginPeerID_zid03_str", "OriginPeerName_zid04_str", "OriginPeerServiceName_zid05_str", "OriginPeerServiceNameVersion_zid06_str", "CreateTm_zid07_tim", "CreateWho_zid08_str", "Prov_zid09_slc", "ConfigVersion_zid10_i64", "ConfigTerm_zid11_i64", "Shim_zid12_i64", "IsCommitted_zid13_boo", "CommitIndex_zid14_i64", "CommitIndexEntryTerm_zid15_i64", ""}
+var unmarshalMsgFieldOrder132zgensym_8df0a91a1f250219_133 = []string{"SerzPeerDetails_zid00_slc", "RaftLogIndex_zid01_i64", "BootCount_zid02_int", "OriginPeerID_zid03_str", "OriginPeerName_zid04_str", "OriginPeerServiceName_zid05_str", "OriginPeerServiceNameVersion_zid06_str", "CreateTm_zid07_tim", "CreateWho_zid08_str", "Prov_zid09_slc", "ConfigVersion_zid10_i64", "ConfigTerm_zid11_i64", "IsCommitted_zid12_boo", "CommitIndex_zid13_i64", "CommitIndexEntryTerm_zid14_i64", ""}
 
-var unmarshalMsgFieldSkip132zgensym_8df0a91a1f250219_133 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var unmarshalMsgFieldSkip132zgensym_8df0a91a1f250219_133 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *MemberConfig) Msgsize() (s int) {
-	s = 3 + 26 + msgp.ArrayHeaderSize
+	s = 1 + 26 + msgp.ArrayHeaderSize
 	for zgensym_8df0a91a1f250219_124 := range z.SerzPeerDetails {
 		if z.SerzPeerDetails[zgensym_8df0a91a1f250219_124] == nil {
 			s += msgp.NilSize
@@ -9604,7 +9569,7 @@ func (z *MemberConfig) Msgsize() (s int) {
 	for zgensym_8df0a91a1f250219_125 := range z.Prov {
 		s += msgp.StringPrefixSize + len(z.Prov[zgensym_8df0a91a1f250219_125])
 	}
-	s += 24 + msgp.Int64Size + 21 + msgp.Int64Size + 15 + msgp.Int64Size + 22 + msgp.BoolSize + 22 + msgp.Int64Size + 31 + msgp.Int64Size
+	s += 24 + msgp.Int64Size + 21 + msgp.Int64Size + 22 + msgp.BoolSize + 22 + msgp.Int64Size + 31 + msgp.Int64Size
 	return
 }
 func (z *MemberConfig) Gstring() (r string) {
@@ -9621,7 +9586,6 @@ func (z *MemberConfig) Gstring() (r string) {
 	r += fmt.Sprintf("                        Prov: %v,\n", z.Prov)
 	r += fmt.Sprintf("               ConfigVersion: %v,\n", z.ConfigVersion)
 	r += fmt.Sprintf("                  ConfigTerm: %v,\n", z.ConfigTerm)
-	r += fmt.Sprintf("                        Shim: %v,\n", z.Shim)
 	r += fmt.Sprintf("                 IsCommitted: %v,\n", z.IsCommitted)
 	r += fmt.Sprintf("                 CommitIndex: %v,\n", z.CommitIndex)
 	r += fmt.Sprintf("        CommitIndexEntryTerm: %v,\n", z.CommitIndexEntryTerm)

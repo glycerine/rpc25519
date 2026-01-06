@@ -48,7 +48,7 @@ type RMember struct {
 	PeerServiceNameVersion string
 
 	Srvname              string
-	Srv                  *rpc.Server
+	Srv                  *rpc.Server `msg:"-"`
 	rpcServerAddr        net.Addr
 	startupNodeUrlSafeCh *idem.IdemCloseChan
 }

@@ -377,6 +377,14 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 		panicOn(err)
 		//vv("got sess = '%v'", sess)
 
+		// session should set cli.MC, so we know all 3 nodes.
+		insp := cli.Inspect()
+		knownN := insp.State.MC.PeerNames.Len()
+		if knownN != numNodes {
+			panicf("expected size %v known MC, but got %v", numNodes, knownN)
+		}
+		vv("good, we see MC = '%v", insp.State.MC)
+
 		var v []byte
 
 		// Write

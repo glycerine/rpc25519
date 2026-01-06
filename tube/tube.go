@@ -11704,8 +11704,6 @@ type MemberConfig struct {
 	ConfigVersion int64 `zid:"10"` // logless analog to Raft log index.
 	ConfigTerm    int64 `zid:"11"` // same as Raft Term. initially 0.
 
-	Shim int64 `zid:"12"`
-
 	// Is every version that the leader
 	// broadcasts a committed version? if the
 	// ConfigTerm == leader.Term, then we
@@ -11715,9 +11713,9 @@ type MemberConfig struct {
 	// it yet.
 	// leader sets to let followers know that
 	// the MC has been loglessly committed.
-	IsCommitted          bool  `zid:"13"`
-	CommitIndex          int64 `zid:"14"`
-	CommitIndexEntryTerm int64 `zid:"15"`
+	IsCommitted          bool  `zid:"12"`
+	CommitIndex          int64 `zid:"13"`
+	CommitIndexEntryTerm int64 `zid:"14"`
 }
 
 func peerNamesUnion(peerNamesA, peerNamesB *omap[string, *PeerDetail]) (r *omap[string, *PeerDetail]) {
@@ -11959,7 +11957,7 @@ func (s *MemberConfig) short(withProv bool) (r string) {
 	if s.IsCommitted {
 		com = "*"
 	}
-	r = fmt.Sprintf(`[%v term:%v; vers=%v; idx:%v; ci:%v shim:%v]{`, com, s.ConfigTerm, s.ConfigVersion, s.RaftLogIndex, s.CommitIndex, s.Shim)
+	r = fmt.Sprintf(`[%v term:%v; vers=%v; idx:%v; ci:%v]{`, com, s.ConfigTerm, s.ConfigVersion, s.RaftLogIndex, s.CommitIndex)
 	i := 0
 	if s.PeerNames != nil {
 		for peerName := range s.PeerNames.all() {
@@ -15991,11 +15989,9 @@ func (s *TubeNode) handleInstallEmptyMC(frag *rpc.Fragment, ckt *rpc.Circuit) {
 	target, ok := frag.GetUserArg("target")
 	if ok && target == s.name {
 		alwaysPrintf("installing empty MC per request from '%v'", frag.FromPeerName)
-		shim := s.state.MC.Shim
 		vers := s.state.MC.ConfigVersion
 		s.state.MC = s.NewMemberConfig("InstallEmptyMC")
 		s.state.MC.ConfigVersion = vers + 1
-		s.state.MC.Shim = shim + 1
 		s.saver.save(s.state)
 	} else {
 		alwaysPrintf("%v not for us! ignoring empty MC per request from '%v'", s.name, frag.FromPeerName)
