@@ -58,13 +58,13 @@ func main() {
 		return
 	}
 
-	cliName := "client710"
 	const quiet = false
 	const isTest = false
 	const useSimNet = false
 	cliCfg, err := tube.LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
 	panicOn(err)
 	vv("cliCfg = '%v'", cliCfg)
+	cliName := cliCfg.MyName
 
 	cli := tube.NewTubeNode(cliName, cliCfg)
 	err = cli.InitAndStart()
