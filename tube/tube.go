@@ -1496,6 +1496,14 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				s.leaderURL, _ = frag.GetUserArg("leaderURL")
 				//vv("%v got NotifyClientNewLeader: '%v'", s.name, s.leaderName)
 
+				// also take the MC payload so we know all the tube nodes
+				if len(frag.Payload) > 0 {
+					mc := &MemberConfig{}
+					_, err := mc.UnmarshalMsg(frag.Payload)
+					panicOn(err)
+					s.clientInstallNewTubeClusterMC(mc)
+				}
+
 			case InstallEmptyMC:
 				s.handleInstallEmptyMC(frag, fragCkt.ckt)
 
@@ -1567,7 +1575,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 				if answer.ClusterID != s.ClusterID {
 					//vv("%v wrong ClusterID answer='%v'", s.me(), answer)
-					panic("wrong ClusterID")
+					alwaysPrintf("%v wrong ClusterID answer.ClusterID='%v' vs s.ClusterID='%v'", s.me(), answer.ClusterID, s.ClusterID)
 					continue
 				}
 
@@ -1679,7 +1687,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				}
 				s.handleAppendEntries(ae, fragCkt.ckt)
 
-				// Ugh. This causes pre-mature shutdown of node_4
+				// Ugh. checking isFollowerKaput causes
+				// pre-mature shutdown of node_4
 				// trying to joint the cluster for the first time.
 				// some kind of logical race.
 				//
@@ -1688,12 +1697,12 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				// if we are not in the membership?
 				// we could move replica to observer and send observers
 				// the latest MC.
-				if false { // off for 065 shadow replicas
-					if s.isFollowerKaput() {
-						alwaysPrintf("%v isFollowerKaput() true, returing from TubeNode.Start()", s.me())
-						return
-					}
-				}
+				//if false { // off for 065 shadow replicas
+				//	if s.isFollowerKaput() {
+				//		alwaysPrintf("%v isFollowerKaput() true, returing from TubeNode.Start()", s.me())
+				//		return
+				//	}
+				//}
 
 			case AppendEntriesAckMsg:
 				//s.ay("%v AppendEntriesAckMsg", s.me())
@@ -1790,6 +1799,18 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		} // end select
 	} // end for i
 	return nil
+}
+
+func (s *TubeNode) clientInstallNewTubeClusterMC(mc *MemberConfig) {
+	if s.state == nil || mc == nil {
+		return
+	}
+	if s.state.MC != nil {
+		if s.state.MC.ConfigVersion >= mc.ConfigVersion {
+			return
+		}
+	}
+	s.state.MC = mc
 }
 
 func (s *TubeNode) handleNewCircuit(
@@ -4730,6 +4751,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.LeaseUntilTm = tkt.LeaseUntilTm
 		prior.LeaseEpoch = tkt.LeaseEpoch
 		prior.LeaseWriteRaftLogIndex = tkt.LeaseWriteRaftLogIndex
+		prior.MC = tkt.MC
 
 		prior.Stage += ":FinishTicket_prior_Val_written"
 		if prior.Done != nil {
@@ -4744,6 +4766,12 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		}
 	}
 	waiting.del(tkt)
+
+	// responses to client actions, when received on
+	// the client, want to update their update view of MC.
+	if s.role == CLIENT && tkt.MC != nil {
+		s.clientInstallNewTubeClusterMC(tkt.MC)
+	}
 
 	// I understand the double close now! (old sporadic, should now be fixed).
 	// Once on the apply at the peer who is both cluster member and client; and
@@ -5264,6 +5292,10 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		if tkt.MC == nil && s.state.MC != nil {
 			tkt.MC = s.state.MC.Clone()
 		}
+		// note that all replicated tickets will have tkt.MC because
+		// of the above, unless they are
+		// MEMBERSHIP_SET_UPDATE or MEMBERSHIP_BOOTSTRAP.
+
 	}
 	tkt.Term = s.state.CurrentTerm
 	entry := &RaftLogEntry{
@@ -6239,6 +6271,7 @@ func (s *TubeNode) becomeLeader() {
 	s.notifyClientSessionsOfNewLeader()
 }
 
+// internal, called by becomeLeader() just above.
 func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 	n := s.sessByExpiry.Len()
 	if n <= 0 {
@@ -6254,6 +6287,13 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 		fragUpdateLeader.SetUserArg("leaderName", s.leaderName)
 		fragUpdateLeader.SetUserArg("leaderURL", s.leaderURL)
 		fragUpdateLeader.SetUserArg("leaderID", s.leaderID)
+
+		if s.state.MC != nil && s.state.MC.BootCount == 0 {
+			// BootCount == 0 means is not a psuedo-config from boot time.
+			bts, err := s.state.MC.MarshalMsg(nil)
+			panicOn(err)
+			fragUpdateLeader.Payload = bts
+		}
 
 		ste := it.Item().(*SessionTableEntry)
 		cktP0, ok := s.cktAllByName[ste.ClientName] // ste.ClientPeerID avail too
@@ -9556,7 +9596,9 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	case MEMBERSHIP_SET_UPDATE, MEMBERSHIP_BOOTSTRAP,
 		ADD_SHADOW_NON_VOTING, REMOVE_SHADOW_NON_VOTING,
 		USER_DEFINED_FSM_OP:
-		question.MC = answer.MC
+		// below now, to be universal
+		// question.MC = answer.MC
+
 	case CAS:
 		question.CASwapped = answer.CASwapped
 		question.CASRejectedBecauseCurVal = answer.CASRejectedBecauseCurVal
@@ -9570,6 +9612,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 		// which is useful for simulating elections.
 		question.Val = answer.Val
 	}
+	question.MC = answer.MC
 	question.answer = answer
 	question.AsOfLogIndex = answer.AsOfLogIndex
 	question.DupDetected = answer.DupDetected
@@ -10257,6 +10300,12 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 	//vv("%v about to serve read locally", s.me())
 
 	var ste *SessionTableEntry
+
+	// fast local reads also return tkt.MC, just
+	// like replicated tickets.
+	if s.state != nil && s.state.MC != nil {
+		tkt.MC = s.state.MC.Clone()
+	}
 
 	if tkt.SessionID != "" {
 		var ok bool
@@ -11611,10 +11660,6 @@ PeerServiceNameVersion: %v
 // state.CommittedMemberConfig.
 type MemberConfig struct {
 	PeerNames *omap[string, *PeerDetail] `msg:"-"`
-
-	// PeerNames: peerName -> URL
-	// Name2PeerID: peerName -> PeerID
-	// Name2Addr: peerName -> host:port
 
 	SerzPeerDetails []*PeerDetail `zid:"0"`
 
@@ -15933,7 +15978,7 @@ func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 // possible TODO: use Ticket system instead? We don't,
 // for now, because this is intended as a rarely
 // needed wedge-recovery operation for when quorum has been
-// lost, and so it forgoes the usually nicities.
+// lost, and so it forgos the usually niceties.
 // We certainly don't want to wait for consensus
 // in such cases, as it will never happen due
 // to the fact that we have already lost quorum.
