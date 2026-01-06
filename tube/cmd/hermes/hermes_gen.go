@@ -3,6 +3,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/glycerine/greenpack/msgp"
 )
 
@@ -689,6 +691,17 @@ var unmarshalMsgFieldSkip13zgensym_38280071042a4e6d_14 = []bool{false, false}
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ACK) Msgsize() (s int) {
 	s = 1 + 17 + msgp.StringPrefixSize + len(z.FromID) + 14 + msgp.StringPrefixSize + len(string(z.Key)) + 18 + msgp.Int64Size + 13 + 1 + 18 + msgp.Int64Size + 18 + msgp.StringPrefixSize + len(z.TS.CoordID) + 19 + msgp.StringPrefixSize + len(z.TicketID) + 14 + msgp.BytesPrefixSize + len([]byte(z.Val))
+	return
+}
+func (z *ACK) Gstring() (r string) {
+	r = "&ACK{\n"
+	r += fmt.Sprintf("  FromID: \"%v\",\n", z.FromID)
+	r += fmt.Sprintf("     Key: %v,\n", z.Key)
+	r += fmt.Sprintf(" EpochID: %v,\n", z.EpochID)
+	r += fmt.Sprintf("      TS: %v,\n", z.TS)
+	r += fmt.Sprintf("TicketID: \"%v\",\n", z.TicketID)
+	r += fmt.Sprintf("     Val: %v,\n", z.Val)
+	r += "}\n"
 	return
 }
 
@@ -1507,6 +1520,18 @@ func (z *INV) Msgsize() (s int) {
 	s = 1 + 17 + msgp.StringPrefixSize + len(z.FromID) + 14 + msgp.StringPrefixSize + len(string(z.Key)) + 18 + msgp.Int64Size + 13 + 1 + 18 + msgp.Int64Size + 18 + msgp.StringPrefixSize + len(z.TS.CoordID) + 16 + msgp.BoolSize + 14 + msgp.BytesPrefixSize + len([]byte(z.Val)) + 19 + msgp.StringPrefixSize + len(z.TicketID)
 	return
 }
+func (z *INV) Gstring() (r string) {
+	r = "&INV{\n"
+	r += fmt.Sprintf("  FromID: \"%v\",\n", z.FromID)
+	r += fmt.Sprintf("     Key: %v,\n", z.Key)
+	r += fmt.Sprintf(" EpochID: %v,\n", z.EpochID)
+	r += fmt.Sprintf("      TS: %v,\n", z.TS)
+	r += fmt.Sprintf("   IsRMW: %v,\n", z.IsRMW)
+	r += fmt.Sprintf("     Val: %v,\n", z.Val)
+	r += fmt.Sprintf("TicketID: \"%v\",\n", z.TicketID)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -1914,6 +1939,13 @@ var unmarshalMsgFieldSkip40zgensym_38280071042a4e6d_41 = []bool{false, false}
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *TS) Msgsize() (s int) {
 	s = 1 + 18 + msgp.Int64Size + 18 + msgp.StringPrefixSize + len(z.CoordID)
+	return
+}
+func (z *TS) Gstring() (r string) {
+	r = "&TS{\n"
+	r += fmt.Sprintf("Version: %v,\n", z.Version)
+	r += fmt.Sprintf("CoordID: \"%v\",\n", z.CoordID)
+	r += "}\n"
 	return
 }
 
@@ -2600,6 +2632,17 @@ var unmarshalMsgFieldSkip55zgensym_38280071042a4e6d_56 = []bool{false, false}
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *VALIDATE) Msgsize() (s int) {
 	s = 1 + 17 + msgp.StringPrefixSize + len(z.FromID) + 14 + msgp.StringPrefixSize + len(string(z.Key)) + 18 + msgp.Int64Size + 13 + 1 + 18 + msgp.Int64Size + 18 + msgp.StringPrefixSize + len(z.TS.CoordID) + 19 + msgp.StringPrefixSize + len(z.TicketID) + 14 + msgp.BytesPrefixSize + len([]byte(z.Val))
+	return
+}
+func (z *VALIDATE) Gstring() (r string) {
+	r = "&VALIDATE{\n"
+	r += fmt.Sprintf("  FromID: \"%v\",\n", z.FromID)
+	r += fmt.Sprintf("     Key: %v,\n", z.Key)
+	r += fmt.Sprintf(" EpochID: %v,\n", z.EpochID)
+	r += fmt.Sprintf("      TS: %v,\n", z.TS)
+	r += fmt.Sprintf("TicketID: \"%v\",\n", z.TicketID)
+	r += fmt.Sprintf("     Val: %v,\n", z.Val)
+	r += "}\n"
 	return
 }
 
