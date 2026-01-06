@@ -58,4 +58,7 @@ func main() {
 		return
 	}
 
+	memb, err := tube.NewRMember()
+	panicOn(err)
+	memb.InitAndStart()
 }

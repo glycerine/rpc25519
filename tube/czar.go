@@ -3,6 +3,7 @@ package tube
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -25,7 +26,7 @@ type RMember struct {
 	// so will spin up our own TubeNode.
 	Cfg *TubeConfig `msg:"-"`
 
-	Node *TubeNode `msg:"-"`
+	TubeNode *TubeNode `msg:"-"`
 
 	MyPeer *rpc.LocalPeer `msg:"-"`
 
@@ -33,20 +34,69 @@ type RMember struct {
 
 	sess *Session
 
-	name        string
-	serviceName string
+	name string
+	//serviceName string
+	URL    string
+	PeerID string
 
 	amCzar   bool
 	myDetail *PeerDetail
 
 	rml *ReliableMembershipList
+
+	PeerServiceName        string
+	PeerServiceNameVersion string
+
+	Srvname              string
+	Srv                  *rpc.Server
+	rpcServerAddr        net.Addr
+	startupNodeUrlSafeCh *idem.IdemCloseChan
 }
 
-func NewRMember() *RMember {
-	r := &RMember{
-		//MyPeer: myPeer,
+func NewRMember() (m *RMember, err error) {
+	m = &RMember{
+		startupNodeUrlSafeCh: idem.NewIdemCloseChan(),
 	}
-	return r
+	err = m.setupConfigForTube()
+	m.PeerServiceName = "reliable-member"
+	return
+}
+
+// InitAndStart sets everything up and Start()s the node.
+func (s *RMember) InitAndStart() error {
+
+	// start the tube client
+	s.TubeNode.InitAndStart()
+
+	s.Srvname = "reliable_member_srv_" + s.name
+	//s.srvname = s.name
+	s.Srv = rpc.NewServer(s.Srvname, s.Cfg.RpcCfg)
+
+	serverAddr, err := s.Srv.Start()
+	panicOn(err)
+	s.rpcServerAddr = serverAddr
+	vv("%v RMember.InitAndStart() started srv at '%v'", s.name, serverAddr)
+
+	err = s.Srv.PeerAPI.RegisterPeerServiceFunc(string(s.PeerServiceName), s.Start)
+	panicOn(err)
+
+	// coordinated shutdown
+	// try having Cluster own instead?
+	//s.Srv.GetHostHalter().AddChild(s.Halt) // already has parent if cluster owns it
+
+	// racy so try not to touch 's' now, the Start() goro has it!
+	_, err = s.Srv.PeerAPI.StartLocalPeer(context.Background(), string(s.PeerServiceName), s.PeerServiceNameVersion, nil, s.name, true)
+	panicOn(err)
+
+	// to avoid racing on reading s.URL and PeerID to wire
+	// up the grid, wait for startupNodeUrlSafeCh to be closed.
+	select {
+	case <-s.startupNodeUrlSafeCh.Chan:
+		//vv("TubeNode.InitAndStart end: node '%v' has started, at url '%v'", s.name, s.URL)
+	case <-s.Halt.ReqStop.Chan:
+		return ErrShutDown
+	}
+	return nil
 }
 
 // the Vtype for the ReliableMembershipList
@@ -59,6 +109,13 @@ func (s *RMember) Start(
 	newCircuitCh <-chan *rpc.Circuit,
 
 ) (err0 error) {
+
+	s.MyPeer = myPeer
+	s.URL = myPeer.URL()
+	s.PeerID = myPeer.PeerID
+	if s.startupNodeUrlSafeCh != nil {
+		s.startupNodeUrlSafeCh.Close()
+	}
 
 	// 0) we must be pre-configured with the raft nodes addresses,
 	//    so we can bootrstrap from them.
@@ -80,7 +137,7 @@ func (s *RMember) Start(
 	// find the czar. it might be me.
 	// we try to write to the "czar" key with a lease.
 	// first one there wins. everyone else reads the winner's URL.
-	list := s.Node.NewReliableMembershipList()
+	list := s.TubeNode.NewReliableMembershipList()
 	list.CzarName = s.name // if we win the write race, we are the czar.
 	list.PeerNames.set(s.name, s.myDetail)
 	bts2, err := list.MarshalMsg(nil)
@@ -128,7 +185,7 @@ func (s *RMember) Start(
 		}
 		s.rml = rml
 
-		heartBeatFrag := s.Node.newFrag()
+		heartBeatFrag := s.TubeNode.newFrag()
 		heartBeatFrag.FragOp = ReliableMemberHeartBeatToCzar
 		heartBeatFrag.FragSubject = "heartbeat Hermes ReliableMember"
 		heartBeatFrag.SetUserArg("URL", s.myDetail.URL)
@@ -154,7 +211,7 @@ func (s *RMember) Start(
 		r := recover()
 		//vv("%v: (%v) end of RMember.Start() inside defer, about to return/finish; recover='%v'", s.me(), myPeer.ServiceName(), r)
 
-		s.Node.Close() // shut down TubeNode TUBE_CLIENT
+		s.TubeNode.Close() // shut down TubeNode TUBE_CLIENT
 
 		s.MyPeer.Close()
 		s.Halt.Done.Close()
@@ -197,7 +254,7 @@ func (s *RMember) Close() {
 	s.Halt.ReqStop.Close()
 }
 
-func (s *RMember) setupConfigForTube() {
+func (s *RMember) setupConfigForTube() error {
 
 	// get/create a config
 	dir := GetConfigDir()
@@ -214,8 +271,9 @@ func (s *RMember) setupConfigForTube() {
 		}
 		fmt.Fprintf(fd, "%v\n", cfg.SexpString(nil))
 		fd.Close()
-		fmt.Fprintf(os.Stderr, "rm error: no config file. Created one from template in '%v'. Please complete it.\n", pathCfg)
-		os.Exit(1)
+		err = fmt.Errorf("rm error: no config file. Created one from template in '%v'. Please complete it.\n", pathCfg)
+		panicOn(err)
+		return err
 	}
 	by, err := os.ReadFile(pathCfg)
 	panicOn(err)
@@ -248,6 +306,7 @@ func (s *RMember) setupConfigForTube() {
 	cfg.ConvertToExternalAddr()
 
 	vv("rm findMyFriends/setupConfig: cfg = '%v'", cfg.ShortSexpString(nil))
+	return nil
 }
 
 func (s *RMember) renewNameLease(ctx0 context.Context) <-chan time.Time {
@@ -277,7 +336,6 @@ func (s *RMember) renewNameLease(ctx0 context.Context) <-chan time.Time {
 
 func (s *RMember) findMyFriends(ctx context.Context) (err error) {
 
-	s.setupConfigForTube()
 	cfg := s.Cfg
 
 	//nodeID := rpc.NewCallID("")
@@ -291,7 +349,7 @@ func (s *RMember) findMyFriends(ctx context.Context) (err error) {
 	err = node.InitAndStart()
 	panicOn(err)
 
-	s.Node = node
+	s.TubeNode = node
 
 	// Use HelperFindLeader for better chance of locating a leader
 
@@ -343,7 +401,7 @@ func (s *RMember) needNewSess(ctx context.Context, sess *Session, leaderURL stri
 	errs := err.Error()
 	if strings.Contains(errs, "call CreateNewSession first") {
 		sess.Close()
-		s2, err := s.Node.CreateNewSession(ctx, leaderURL)
+		s2, err := s.TubeNode.CreateNewSession(ctx, leaderURL)
 		panicOn(err)
 		return s2
 	}
