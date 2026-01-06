@@ -64,6 +64,7 @@ func main() {
 	const useSimNet = false
 	cliCfg, err := tube.LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
 	panicOn(err)
+	vv("cliCfg = '%v'", cliCfg)
 
 	cli := tube.NewTubeNode(cliName, cliCfg)
 	err = cli.InitAndStart()
