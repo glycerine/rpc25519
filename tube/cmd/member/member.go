@@ -7,13 +7,13 @@ import (
 	"fmt"
 	//"io"
 	"os"
-	"strings"
+	//"strings"
 	//"path/filepath"
 	//"sort"
 	//"time"
 
 	//rpc "github.com/glycerine/rpc25519"
-	"github.com/glycerine/ipaddr"
+	//"github.com/glycerine/ipaddr"
 	"github.com/glycerine/rpc25519/tube"
 	//"github.com/glycerine/rpc25519/tube/art"
 )
@@ -57,5 +57,31 @@ func main() {
 		fs.PrintDefaults()
 		return
 	}
+
+	cliName := "client710"
+	const quiet = false
+	const isTest = false
+	const useSimNet = false
+	cliCfg, err := tube.LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
+	panicOn(err)
+
+	cli := tube.NewTubeNode(cliName, cliCfg)
+	err = cli.InitAndStart()
+	panicOn(err)
+	defer cli.Close()
+
+	bkg := context.Background()
+
+	//leaderURL0 :=
+
+	const requireOnlyContact = false
+
+	leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(cliCfg, "", requireOnlyContact)
+	panicOn(err)
+	vv("got leaderName = '%v'; leaderURL = '%v'; reallyLeader='%v'", leaderName, leaderURL, reallyLeader)
+
+	sess, err := cli.CreateNewSession(bkg, leaderURL)
+	panicOn(err)
+	vv("got sess = '%v'", sess)
 
 }
