@@ -365,7 +365,6 @@ func main() {
 				ccfg := *cli.GetConfig().RpcCfg
 				ccfg.ClientDialToHostPort = removeTcp(czarDetail.Addr)
 
-				// ?want? uses same serverBaseID so simnet can group same host simnodes.
 				rpcClientToCzar, err = rpc.NewClient(cliName+"_pinger", &ccfg)
 				panicOn(err)
 				err = rpcClientToCzar.Start()

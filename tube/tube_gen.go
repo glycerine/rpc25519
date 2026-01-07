@@ -6089,7 +6089,7 @@ func (z *Inspection) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields92zgensym_8df0a91a1f250219_93 = 25
+	const maxFields92zgensym_8df0a91a1f250219_93 = 26
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields92zgensym_8df0a91a1f250219_93 uint32
@@ -6600,6 +6600,12 @@ doneWithStruct92zgensym_8df0a91a1f250219_93:
 			if err != nil {
 				return
 			}
+		case "Minimal_zid24_boo":
+			found92zgensym_8df0a91a1f250219_93[24] = true
+			z.Minimal, err = dc.ReadBool()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -6623,16 +6629,16 @@ doneWithStruct92zgensym_8df0a91a1f250219_93:
 }
 
 // fields of Inspection
-var decodeMsgFieldOrder92zgensym_8df0a91a1f250219_93 = []string{"CktReplica_zid00_map", "CktReplicaByName_zid01_map", "CktAll_zid02_map", "CktAllByName_zid03_map", "Peers_zid04_map", "WaitingAtLeader_zid05_map", "WaitingAtFollow_zid06_map", "Role_zid07_rct", "State_zid08_ptr", "CurrentLeaderName_zid09_str", "CurrentLeaderID_zid10_str", "CurrentLeaderURL_zid11_str", "ElectionCount_zid12_int", "LastLeaderActiveStepDown_zid13_tim", "Cfg_zid14_rct", "MC_zid15_ptr", "ResponderPeerID_zid16_str", "ResponderPeerURL_zid17_str", "ResponderName_zid18_str", "LastLogIndex_zid19_i64", "LastLogTerm_zid20_i64", "ShadowReplicas_zid21_ptr", "Known_zid22_map", "CurrentLeaderFirstObservedTm_zid23_tim", ""}
+var decodeMsgFieldOrder92zgensym_8df0a91a1f250219_93 = []string{"CktReplica_zid00_map", "CktReplicaByName_zid01_map", "CktAll_zid02_map", "CktAllByName_zid03_map", "Peers_zid04_map", "WaitingAtLeader_zid05_map", "WaitingAtFollow_zid06_map", "Role_zid07_rct", "State_zid08_ptr", "CurrentLeaderName_zid09_str", "CurrentLeaderID_zid10_str", "CurrentLeaderURL_zid11_str", "ElectionCount_zid12_int", "LastLeaderActiveStepDown_zid13_tim", "Cfg_zid14_rct", "MC_zid15_ptr", "ResponderPeerID_zid16_str", "ResponderPeerURL_zid17_str", "ResponderName_zid18_str", "LastLogIndex_zid19_i64", "LastLogTerm_zid20_i64", "ShadowReplicas_zid21_ptr", "Known_zid22_map", "CurrentLeaderFirstObservedTm_zid23_tim", "Minimal_zid24_boo", ""}
 
-var decodeMsgFieldSkip92zgensym_8df0a91a1f250219_93 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var decodeMsgFieldSkip92zgensym_8df0a91a1f250219_93 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Inspection) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 24
+		return 25
 	}
-	var fieldsInUse uint32 = 24
+	var fieldsInUse uint32 = 25
 	isempty[0] = (len(z.CktReplica) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -6729,6 +6735,10 @@ func (z *Inspection) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[23] {
 		fieldsInUse--
 	}
+	isempty[24] = (!z.Minimal) // bool, omitempty
+	if isempty[24] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -6740,7 +6750,7 @@ func (z *Inspection) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_103 [25]bool
+	var empty_zgensym_8df0a91a1f250219_103 [26]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_104 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_103[:])
 
 	// map header
@@ -7181,6 +7191,18 @@ func (z *Inspection) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_8df0a91a1f250219_103[24] {
+		// write "Minimal_zid24_boo"
+		err = en.Append(0xb1, 0x4d, 0x69, 0x6e, 0x69, 0x6d, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x32, 0x34, 0x5f, 0x62, 0x6f, 0x6f)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBool(z.Minimal)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -7193,7 +7215,7 @@ func (z *Inspection) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [25]bool
+	var empty [26]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -7442,6 +7464,12 @@ func (z *Inspection) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendTime(o, z.CurrentLeaderFirstObservedTm)
 	}
 
+	if !empty[24] {
+		// string "Minimal_zid24_boo"
+		o = append(o, 0xb1, 0x4d, 0x69, 0x6e, 0x69, 0x6d, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x32, 0x34, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.Minimal)
+	}
+
 	return
 }
 
@@ -7460,7 +7488,7 @@ func (z *Inspection) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o
 
 	var field []byte
 	_ = field
-	const maxFields105zgensym_8df0a91a1f250219_106 = 25
+	const maxFields105zgensym_8df0a91a1f250219_106 = 26
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields105zgensym_8df0a91a1f250219_106 uint32
@@ -8075,6 +8103,13 @@ doneWithStruct105zgensym_8df0a91a1f250219_106:
 			if err != nil {
 				return
 			}
+		case "Minimal_zid24_boo":
+			found105zgensym_8df0a91a1f250219_106[24] = true
+			z.Minimal, bts, err = nbs.ReadBoolBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -8098,9 +8133,9 @@ doneWithStruct105zgensym_8df0a91a1f250219_106:
 }
 
 // fields of Inspection
-var unmarshalMsgFieldOrder105zgensym_8df0a91a1f250219_106 = []string{"CktReplica_zid00_map", "CktReplicaByName_zid01_map", "CktAll_zid02_map", "CktAllByName_zid03_map", "Peers_zid04_map", "WaitingAtLeader_zid05_map", "WaitingAtFollow_zid06_map", "Role_zid07_rct", "State_zid08_ptr", "CurrentLeaderName_zid09_str", "CurrentLeaderID_zid10_str", "CurrentLeaderURL_zid11_str", "ElectionCount_zid12_int", "LastLeaderActiveStepDown_zid13_tim", "Cfg_zid14_rct", "MC_zid15_ptr", "ResponderPeerID_zid16_str", "ResponderPeerURL_zid17_str", "ResponderName_zid18_str", "LastLogIndex_zid19_i64", "LastLogTerm_zid20_i64", "ShadowReplicas_zid21_ptr", "Known_zid22_map", "CurrentLeaderFirstObservedTm_zid23_tim", ""}
+var unmarshalMsgFieldOrder105zgensym_8df0a91a1f250219_106 = []string{"CktReplica_zid00_map", "CktReplicaByName_zid01_map", "CktAll_zid02_map", "CktAllByName_zid03_map", "Peers_zid04_map", "WaitingAtLeader_zid05_map", "WaitingAtFollow_zid06_map", "Role_zid07_rct", "State_zid08_ptr", "CurrentLeaderName_zid09_str", "CurrentLeaderID_zid10_str", "CurrentLeaderURL_zid11_str", "ElectionCount_zid12_int", "LastLeaderActiveStepDown_zid13_tim", "Cfg_zid14_rct", "MC_zid15_ptr", "ResponderPeerID_zid16_str", "ResponderPeerURL_zid17_str", "ResponderName_zid18_str", "LastLogIndex_zid19_i64", "LastLogTerm_zid20_i64", "ShadowReplicas_zid21_ptr", "Known_zid22_map", "CurrentLeaderFirstObservedTm_zid23_tim", "Minimal_zid24_boo", ""}
 
-var unmarshalMsgFieldSkip105zgensym_8df0a91a1f250219_106 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var unmarshalMsgFieldSkip105zgensym_8df0a91a1f250219_106 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Inspection) Msgsize() (s int) {
@@ -8201,7 +8236,7 @@ func (z *Inspection) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(zgensym_8df0a91a1f250219_90) + msgp.StringPrefixSize + len(zgensym_8df0a91a1f250219_91)
 		}
 	}
-	s += 40 + msgp.TimeSize
+	s += 40 + msgp.TimeSize + 18 + msgp.BoolSize
 	return
 }
 func (z *Inspection) Gstring() (r string) {
@@ -8230,6 +8265,7 @@ func (z *Inspection) Gstring() (r string) {
 	r += fmt.Sprintf("              ShadowReplicas: %v,\n", z.ShadowReplicas)
 	r += fmt.Sprintf("                       Known: %v,\n", z.Known)
 	r += fmt.Sprintf("CurrentLeaderFirstObservedTm: %v,\n", z.CurrentLeaderFirstObservedTm)
+	r += fmt.Sprintf("                     Minimal: %v,\n", z.Minimal)
 	r += "}\n"
 	return
 }

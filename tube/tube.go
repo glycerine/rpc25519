@@ -3925,6 +3925,7 @@ func panicAtCap[T any](ch chan T) chan T {
 func (s *TubeNode) addInspectionToTicket(tkt *Ticket) {
 	//vv("%v addInspectionToTicket called by '%v'", s.name, fileLine(3)) // FinishTicket typically, or changeMembership earlier.
 	insp := newInspection()
+	insp.Minimal = true
 	insp.done = nil
 	s.inspectHandler(insp)
 	tkt.Insp = insp
@@ -3932,6 +3933,13 @@ func (s *TubeNode) addInspectionToTicket(tkt *Ticket) {
 
 func (s *TubeNode) inspectHandler(ins *Inspection) {
 	//vv("%v got <-s.requestInspect, in inspectHandler()", s.me())
+
+	// minimize true
+	// tries to avoid tubels failing to get reply
+	// when the serz gets too large (hdr.go drops
+	// on exceeding UserMaxPayload/maxMessage.
+	minimize := ins.Minimal
+
 	ins.Cfg = s.cfg
 	ins.LastLogIndex = s.lastLogIndex()
 	ins.LastLogTerm = s.lastLogTerm()
@@ -3962,11 +3970,16 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.LastLeaderActiveStepDown = s.lastLeaderActiveStepDown
 	ins.State = s.getStateSnapshot()
 	ins.Role = s.role
-	for _, tkt := range s.tkthist {
-		ins.Tkthist = append(ins.Tkthist, tkt.clone())
+	if !minimize {
+		for _, tkt := range s.tkthist {
+			ins.Tkthist = append(ins.Tkthist, tkt.clone())
+		}
 	}
 
 	for id, info := range s.peers {
+		if minimize && info.PeerServiceName == TUBE_CLIENT {
+			continue
+		}
 		infoClone := info.clone()
 		ins.Peers[id] = infoClone
 		cktP, ok := s.cktall[id]
@@ -4009,7 +4022,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	}
 	// for inspection ease, make a pseudo ins.CktReplicaByName.
 	// it does not really exist on the node. but also cover the
-	// furl current MC
+	// full current MC
 	if s.state.MC != nil {
 		for name, det := range s.state.MC.PeerNames.All() {
 			//for _, cktP := range s.cktReplica {
@@ -4032,41 +4045,44 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 		ins.CktReplicaByName[s.name] = s.URL // inspection copy
 	}
 
-	for id, cktP := range s.cktall {
-		ckt := cktP.ckt
-		ins.CktAll[id] = ckt.RemoteCircuitURL()
-	}
-	// add ourselves too.
-	ins.CktAll[s.PeerID] = s.URL
-
-	for name, cktP := range s.cktAllByName {
-		ckt := cktP.ckt
-
-		var url string
-		switch {
-		case cktP.isPending():
-			url = "pending"
-		case ckt == nil:
-			// racy
-			//panic(fmt.Sprintf("why is ckt nil if not pending? cktP='%#v'", cktP))
-		default:
-			url = ckt.RemoteCircuitURL()
-		}
-		ins.CktAllByName[name] = url
-	}
-	// add ourselves too.
-	ins.CktAllByName[s.name] = s.URL
-
-	ins.WaitingAtLeader = s.cloneWaitingAtLeaderToMap()
-	ins.WaitingAtFollow = s.cloneWaitingAtFollowToMap()
 	ins.MC = s.state.MC.Clone() // in inspectHandler
 	ins.ShadowReplicas = s.state.ShadowReplicas.Clone()
 
-	// same format as CktAllByName, for helper.go ease.
-	ins.CktAllByName[s.name] = s.URL
-	for name, det := range s.state.Known.PeerNames.All() {
-		ins.Known[name] = det.URL
-	}
+	if !minimize {
+		for id, cktP := range s.cktall {
+			ckt := cktP.ckt
+			ins.CktAll[id] = ckt.RemoteCircuitURL()
+		}
+		// add ourselves too.
+		ins.CktAll[s.PeerID] = s.URL
+
+		for name, cktP := range s.cktAllByName {
+			ckt := cktP.ckt
+
+			var url string
+			switch {
+			case cktP.isPending():
+				url = "pending"
+			case ckt == nil:
+				// racy
+				//panic(fmt.Sprintf("why is ckt nil if not pending? cktP='%#v'", cktP))
+			default:
+				url = ckt.RemoteCircuitURL()
+			}
+			ins.CktAllByName[name] = url
+		}
+		// add ourselves too.
+		ins.CktAllByName[s.name] = s.URL
+
+		ins.WaitingAtLeader = s.cloneWaitingAtLeaderToMap()
+		ins.WaitingAtFollow = s.cloneWaitingAtFollowToMap()
+
+		// same format as CktAllByName, for helper.go ease.
+		ins.CktAllByName[s.name] = s.URL
+		for name, det := range s.state.Known.PeerNames.All() {
+			ins.Known[name] = det.URL
+		}
+	} // end if minimize
 
 	if ins.done != nil {
 		close(ins.done)
@@ -4329,6 +4345,8 @@ type Inspection struct {
 
 	Tkthist []*Ticket `msg:"-"`
 
+	Minimal bool `zid:"24"`
+
 	// internal use only. tests/users call TubeNode.Inpsect()
 	done chan struct{}
 }
@@ -4413,6 +4431,7 @@ func newInspection() *Inspection {
 }
 func (s *TubeNode) Inspect() (look *Inspection) {
 	look = newInspection()
+	look.Minimal = false
 	select {
 	case s.requestInpsect <- look:
 	case <-s.Halt.ReqStop.Chan:
@@ -11151,6 +11170,12 @@ func (s *TubeNode) UseLeaderURL(ctx context.Context, leaderURL string) (onlyPoss
 }
 
 // do inspection, get membership list. used by tup and tests.
+// NOTE: we were getting dropped messages complaints
+// (from hdr.go) when they got too big (> 1MB) because
+// we included all the sesions (and maybe clients?)--so
+// exclude those. A dropped reply makes tubels appear as if
+// a replica node is down even though it is not. We
+// should send on the package but without the payload?
 func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName string) (mc *MemberConfig, insp *Inspection, actualLeaderURL, actualLeaderName string, onlyPossibleAddr string, err error) {
 
 	_, _, peerID, _, err := rpc.ParsePeerURL(leaderURL)
@@ -11511,6 +11536,7 @@ func (s *TubeNode) peerListRequestHandler(frag *rpc.Fragment, ckt *rpc.Circuit) 
 	// has to service it (deadlocks), so just call inspectHandler
 	// directly.
 	insp := newInspection()
+	insp.Minimal = true
 	s.inspectHandler(insp)
 
 	//vv("%v back from s.Inpsect, insp = '%v'", s.me(), insp)
@@ -11537,8 +11563,7 @@ func (s *TubeNode) peerListRequestHandler(frag *rpc.Fragment, ckt *rpc.Circuit) 
 	bts, err := insp.MarshalMsg(nil)
 	panicOn(err)
 	frag1.Payload = bts
-	const maxMessage = 1_310_720 - 80
-	if len(bts) > maxMessage {
+	if len(bts) > rpc.UserMaxPayload { // 1_200_000
 		// I think this happens because we are including
 		// all the dead clients from membership attempts
 		// whose processes are very short lived! The
