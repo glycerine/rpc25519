@@ -58,6 +58,11 @@ type Czar struct {
 func (s *Czar) expireSilentNodes() (changed bool) {
 	now := time.Now()
 	for name := range s.Members.PeerNames.All() {
+		if name == s.cliName {
+			// we ourselves are obviously alive so
+			// we don't bother to heartbeat to ourselves.
+			continue
+		}
 		lastHeard, ok := s.heard[name]
 		if !ok {
 			panicf("should have a heard entry for '%v'", name)
@@ -181,7 +186,7 @@ func main() {
 	memberHeartBeatDur := time.Second * 10
 	writeAttemptDur := time.Second * 5
 
-	expireCheckCh := time.After(5 * time.Second)
+	var expireCheckCh <-chan time.Time
 
 	halt := idem.NewHalter()
 	defer halt.Done.Close()
@@ -189,12 +194,6 @@ func main() {
 	// TODO: handle needing new session, maybe it times out?
 	// should survive leader change, but needs checking.
 	for {
-		select {
-		case <-expireCheckCh:
-			czar.expireSilentNodes()
-			expireCheckCh = time.After(5 * time.Second)
-		default:
-		}
 
 		switch cState {
 		case unknownCzarState:
@@ -217,6 +216,7 @@ func main() {
 			if err == nil {
 				czarLeaseUntilTm = czarTkt.LeaseUntilTm
 				cState = amCzar
+				expireCheckCh = time.After(5 * time.Second)
 				vers := tube.RMVersionTuple{
 					CzarLeaseEpoch: czarTkt.LeaseEpoch,
 					Version:        0,
@@ -227,6 +227,7 @@ func main() {
 			} else {
 				cState = notCzar
 				czarLeaseUntilTm = czarTkt.LeaseUntilTm
+				expireCheckCh = nil
 
 				if czarTkt.Vtype != tube.ReliableMembershipListType {
 					panicf("why not tube.ReliableMembershipListType back? got '%v'", czarTkt.Vtype)
@@ -244,6 +245,10 @@ func main() {
 
 		case amCzar:
 			select {
+			case <-expireCheckCh:
+				czar.expireSilentNodes()
+				expireCheckCh = time.After(5 * time.Second)
+
 			case <-renewCzarLeaseCh:
 				list := czar.Members
 				bts2, err := list.MarshalMsg(nil)
@@ -257,9 +262,6 @@ func main() {
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 			case <-halt.ReqStop.Chan:
 				return
-
-				// case handle request to register new member, and update
-				// the list that we periodically write to Tube/Raft.
 			}
 
 		case notCzar:
@@ -302,7 +304,12 @@ func main() {
 
 				vv("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
 				err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
-				panicOn(err)
+				if err != nil {
+					rpcClientToCzar.Close()
+					rpcClientToCzar = nil
+					cState = unknownCzarState
+					continue
+				}
 				vv("member(cliName='%v') called to Czar.Ping, got reply='%v'", cliName, reply)
 				// czarCkt, _, _, err = cli.MyPeer.NewCircuitToPeerURL("member-to-czar", czarURL, heartBeatFrag, 0)
 				// panicOn(err)
