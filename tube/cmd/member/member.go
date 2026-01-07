@@ -8,6 +8,7 @@ import (
 	//"io"
 	"os"
 	"strings"
+	"sync"
 	//"path/filepath"
 	//"sort"
 	"time"
@@ -50,6 +51,8 @@ const (
 )
 
 type Czar struct {
+	mut sync.Mutex
+
 	Members *tube.ReliableMembershipList `zid:"0"`
 	heard   map[string]time.Time
 	cliName string
@@ -58,8 +61,13 @@ type Czar struct {
 
 var declaredDeadDur = time.Second * 25
 
-func (s *Czar) expireSilentNodes() (changed bool) {
+func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 	now := time.Now()
+	if !skipLock {
+		s.mut.Lock()
+		defer s.mut.Unlock()
+	}
+
 	for name := range s.Members.PeerNames.All() {
 		if name == s.cliName {
 			// we ourselves are obviously alive so
@@ -96,6 +104,12 @@ func (s *Czar) expireSilentNodes() (changed bool) {
 
 func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.ReliableMembershipList) error {
 
+	// since the rpc system will call us on a
+	// new goroutine, separate from the main goroutine,
+	// we must lock to prevent data races.
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
 	orig := s.Members.Vers.Version
 	//vv("Ping called at cliName = '%v', since args = '%v'", s.cliName, args)
 	det, ok := s.Members.PeerNames.Get2(args.Name)
@@ -115,7 +129,7 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 	*reply = *(s.Members)
 
 	s.heard[args.Name] = time.Now()
-	changed := s.expireSilentNodes()
+	changed := s.expireSilentNodes(true) // true since mut is already locked.
 	if changed {
 		s.Members.Vers.Version++
 	}
@@ -229,6 +243,8 @@ func main() {
 	halt := idem.NewHalter()
 	defer halt.Done.Close()
 
+	var nonCzarMembers *tube.ReliableMembershipList
+
 	// TODO: handle needing new session, maybe it times out?
 	// should survive leader change, but needs checking.
 	for {
@@ -255,6 +271,7 @@ func main() {
 				czarLeaseUntilTm = czarTkt.LeaseUntilTm
 				cState = amCzar
 				expireCheckCh = time.After(5 * time.Second)
+				czar.t0 = time.Now() // since we took over as czar
 				vers := tube.RMVersionTuple{
 					CzarLeaseEpoch: czarTkt.LeaseEpoch,
 					Version:        0,
@@ -272,28 +289,29 @@ func main() {
 				}
 
 				// avoid re-use of prior pointed to values!
-				cm := &tube.ReliableMembershipList{}
-				_, err = cm.UnmarshalMsg(czarTkt.Val)
+				nonCzarMembers = &tube.ReliableMembershipList{}
+				_, err = nonCzarMembers.UnmarshalMsg(czarTkt.Val)
 				panicOn(err)
-				czar.Members = cm
 
-				vv("I am not czar, did not write to key: '%v'; czar.Members = '%v'", err, czar.Members)
+				vv("I am not czar, did not write to key: '%v'; czar.Members = '%v'", err, nonCzarMembers)
 				// contact the czar and register ourselves.
 			}
 
 		case amCzar:
 			select {
 			case <-expireCheckCh:
-				changed := czar.expireSilentNodes()
+				changed := czar.expireSilentNodes(false)
 				if changed {
 					vv("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortMemberSummary())
 				}
 				expireCheckCh = time.After(5 * time.Second)
 
 			case <-renewCzarLeaseCh:
+				czar.mut.Lock()
 				list := czar.Members
 				bts2, err := list.MarshalMsg(nil)
 				panicOn(err)
+				czar.mut.Unlock()
 
 				czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), writeAttemptDur, tube.ReliableMembershipListType, leaseDurCz)
 				panicOn(err)
@@ -307,7 +325,7 @@ func main() {
 
 		case notCzar:
 			if rpcClientToCzar == nil {
-				list := czar.Members
+				list := nonCzarMembers
 				czarDetail, ok := list.PeerNames.Get2(list.CzarName)
 				if !ok {
 					panicf("list with winning czar did not include czar itself?? list='%v'", list)
@@ -357,7 +375,7 @@ func main() {
 				// vv("got circuit to czar: %v", czarCkt)
 				// cli.MyPeer.NewCircuitCh <- czarCkt // needed/desirable?
 				if err == nil {
-					czar.Members = reply
+					nonCzarMembers = reply
 				}
 				memberHeartBeatCh = time.After(memberHeartBeatDur)
 			}
