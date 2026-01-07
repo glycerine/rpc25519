@@ -117,7 +117,11 @@ func main() {
 
 		vv("I am not czar, did not write to key: '%v'; vers='%#v'; list='%v'; \n with list.CzarName='%v'", err, vers, list, list.CzarName)
 		// contact the czar and register ourselves.
-
+		det, ok := list.PeerNames.Get2(list.CzarName)
+		if !ok {
+			panicf("list with winning czar did not include czar itself?? list='%v'", list)
+		}
+		vv("will contact czar '%v' at URL: '%v'", list.CzarName, det.URL)
 	}
 
 	for {
