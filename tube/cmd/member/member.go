@@ -92,15 +92,20 @@ func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
 	defer s.mut.Unlock()
 	raddr := droppedCli.Conn.RemoteAddr().String()
 
+	vv("Czar.remove() for raddr='%v'", raddr)
+
 	// linear search, for now. TODO: map based lookup?
 	for name, detail := range s.members.PeerNames.All() {
 		addr := removeTcp(detail.Addr)
+		vv("checking addr='%v' against raddr='%v'", addr, raddr)
 		if addr == raddr {
 			s.members.PeerNames.Delkey(name)
 			s.members.Vers.Version++
 			vv("remove dropped client '%v', vers='%#v'", name, s.members.Vers)
+			return
 		}
 	}
+	vv("remove could not find client '%v'", raddr)
 }
 
 func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
@@ -281,6 +286,7 @@ func main() {
 	// client comes back, well, we just change
 	// membership again.
 	cli.Srv.NotifyAllNewClients = make(chan *rpc.ConnHalt, 1000)
+	vv("cli.Srv.NotifyAllNewClients = %p", cli.Srv.NotifyAllNewClients)
 	funneler := newFunneler()
 
 	myDetail := cli.GetMyPeerDetail()
@@ -369,7 +375,7 @@ looptop:
 		case amCzar:
 			select {
 			case cliConnHalt := <-cli.Srv.NotifyAllNewClients:
-				vv("czar has new client '%v'", cliConnHalt.Conn.RemoteAddr())
+				vv("czar received on cli.Srv.NotifyAllNewClients, has new client '%v'", cliConnHalt.Conn.RemoteAddr())
 				// tell the funneler to listen for it to drop.
 				// It will notify us on clientDroppedCh below.
 				select {
@@ -546,30 +552,38 @@ func newFunneler() (r *funneler) {
 	r = &funneler{
 		newCliCh:        newCliCh,
 		clientDroppedCh: clientDroppedCh,
-		clientConnHalt:  []*rpc.ConnHalt{nil}, // keep aligned with clientConns
+
+		// add an empty clientConnHalt[0] to keep
+		// aligned with clientConns which always has newCliCh at [0].
+		clientConnHalt: []*rpc.ConnHalt{nil},
 	}
-	r.clientConns = append(r.clientConns, reflect.ValueOf(newCliCh))
+	r.clientConns = append(r.clientConns, reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(newCliCh),
+	})
+
 	go func() {
 		for {
 			chosen, recv, _ := reflect.Select(r.clientConns)
+			vv("reflect.Select chosen='%v'", chosen) // seen 0
 			if chosen == 0 {
 				// new client arrives, listen on its Halt.Done.Chan
 				connHalt := recv.Interface().(*rpc.ConnHalt)
 				r.clientConnHalt = append(r.clientConnHalt, connHalt)
 
-				addr := connHalt.Conn.RemoteAddr().String()
 				r.clientConns = append(r.clientConns, reflect.SelectCase{
 					Dir:  reflect.SelectRecv,
-					Chan: connHalt.Halt.Done.Chan,
+					Chan: reflect.ValueOf(connHalt.Halt.Done.Chan),
 				})
 				if len(r.clientConns) > 65536 {
 					panicf("only 65536 recieves supported by reflect.Select!")
 				}
 				continue
 			}
-			// client departs
 			// stop listening for it
 			dropped := r.clientConnHalt[chosen]
+			vv("client departs: '%v'", dropped.Conn.RemoteAddr())
+			r.clientConnHalt = append(r.clientConnHalt[:chosen], r.clientConnHalt[(chosen+1):]...)
 			r.clientConns = append(r.clientConns[:chosen], r.clientConns[(chosen+1):]...)
 			// notify czar that server noticed a client disconnect.
 			select {
