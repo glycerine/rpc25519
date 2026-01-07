@@ -96,6 +96,7 @@ func (s *Czar) expireSilentNodes() (changed bool) {
 
 func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.ReliableMembershipList) error {
 
+	orig := s.Members.Vers.Version
 	vv("Ping called at cliName = '%v', since args = '%v'", s.cliName, args)
 	det, ok := s.Members.PeerNames.Get2(args.Name)
 	if !ok {
@@ -114,11 +115,24 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 	*reply = *(s.Members)
 
 	s.heard[args.Name] = time.Now()
-	s.expireSilentNodes()
+	changed := s.expireSilentNodes()
+	if changed {
+		s.Members.Vers.Version++
+	}
+	if s.Members.Vers.Version != orig {
+		vv("Czar.Ping: membership has changed, is now: {%v}", s.shortMemberSummary())
+	}
 
-	vv("Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, reply='%v'", s.cliName, args, reply)
+	//vv("czar sees Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, czar replies with ='%v'", s.cliName, args, reply)
 
 	return nil
+}
+
+func (s *Czar) shortMemberSummary() (r string) {
+	for name := range s.Members.PeerNames.All() {
+		r += name + " "
+	}
+	return
 }
 
 func NewCzar(cli *tube.TubeNode) *Czar {
@@ -262,7 +276,10 @@ func main() {
 		case amCzar:
 			select {
 			case <-expireCheckCh:
-				czar.expireSilentNodes()
+				changed := czar.expireSilentNodes()
+				if changed {
+					vv("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortMemberSummary())
+				}
 				expireCheckCh = time.After(5 * time.Second)
 
 			case <-renewCzarLeaseCh:
