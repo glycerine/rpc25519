@@ -64,11 +64,14 @@ type Czar struct {
 
 var declaredDeadDur = time.Second * 25
 
-func (s *Czar) setVers(v tube.RMVersionTuple, list *tube.ReliableMembershipList) {
+func (s *Czar) setVers(v tube.RMVersionTuple, list *tube.ReliableMembershipList, t0 time.Time) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	s.members = list.Clone()
 	s.members.Vers = v
+	s.t0 = t0
+
+	vv("end of setVers(v='%#v') s.members is now '%v')", v, s.members)
 }
 
 func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
@@ -120,8 +123,8 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	orig := s.members.Vers.Version
-	//vv("Ping called at cliName = '%v', since args = '%v'", s.cliName, args)
+	orig := s.members.Vers
+	vv("Ping called at cliName = '%v', since args = '%v'; orig='%#v'", s.CliName, args, orig)
 	det, ok := s.members.PeerNames.Get2(args.Name)
 	if !ok {
 		//vv("args.Name('%v') is new, adding to PeerNames", args.Name)
@@ -143,8 +146,8 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 	if changed {
 		s.members.Vers.Version++
 	}
-	if s.members.Vers.Version != orig {
-		vv("Czar.Ping: membership has changed, is now: {%v}", s.shortMemberSummary())
+	if s.members.Vers.Version != orig.Version {
+		vv("Czar.Ping: membership has changed (was %#v; now %#v), is now: {%v}", orig, s.members.Vers, s.shortMemberSummary())
 	}
 
 	//vv("czar sees Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, czar replies with ='%v'", s.cliName, args, reply)
@@ -154,7 +157,7 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 
 func (s *Czar) shortMemberSummary() (r string) {
 	n := s.members.PeerNames.Len()
-	r = fmt.Sprintf("[%v members; Vers:(CzarLeaseEpoch: %v, Version:%v)]{", s.members.Vers.CzarLeaseEpoch, s.members.Vers.Version, n)
+	r = fmt.Sprintf("[%v members; Vers:(CzarLeaseEpoch: %v, Version:%v)]{", n, s.members.Vers.CzarLeaseEpoch, s.members.Vers.Version)
 	i := 0
 	for name := range s.members.PeerNames.All() {
 		r += name
@@ -284,12 +287,12 @@ func main() {
 				czarLeaseUntilTm = czarTkt.LeaseUntilTm
 				cState = amCzar
 				expireCheckCh = time.After(5 * time.Second)
-				czar.t0 = time.Now() // since we took over as czar
 				vers := tube.RMVersionTuple{
 					CzarLeaseEpoch: czarTkt.LeaseEpoch,
 					Version:        0,
 				}
-				czar.setVers(vers, list)
+				t0 := time.Now() // since we took over as czar
+				czar.setVers(vers, list, t0)
 
 				czar.mut.Lock()
 				sum := czar.shortMemberSummary()
@@ -326,8 +329,7 @@ func main() {
 
 			case <-renewCzarLeaseCh:
 				czar.mut.Lock()
-				list := czar.members
-				bts2, err := list.MarshalMsg(nil)
+				bts2, err := czar.members.MarshalMsg(nil)
 				czar.mut.Unlock()
 				panicOn(err)
 
