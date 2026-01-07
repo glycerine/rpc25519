@@ -605,7 +605,12 @@ repl:
 				readVal := tktR.Val
 				var leaseInfo string
 				if tktR.Leasor != "" {
-					leaseInfo = fmt.Sprintf(" Leasor:'%v';  LeaseEpoch='%v'; LeaseWriteRaftLogIndex='%v'; LeaseUntilTm='%v' (left: %v)", tktR.Leasor, tktR.LeaseEpoch, tktR.LeaseWriteRaftLogIndex, nice(tktR.LeaseUntilTm), tktR.LeaseUntilTm.Sub(time.Now()))
+					leaf := &art.Leaf{
+						Leasor:       tktR.Leasor,
+						LeaseEpoch:   tktR.LeaseEpoch,
+						LeaseUntilTm: tktR.LeaseUntilTm,
+					}
+					leaseInfo = leaseInfoFromLeaf(leaf)
 				}
 				fmt.Printf("(from table '%v') read key '%v': %v%v\n", targetTable, key, string(readVal), leaseInfo)
 			}
@@ -629,5 +634,12 @@ func getLine(reader *bufio.Reader) (string, error) {
 }
 
 func leaseInfoFromLeaf(leaf *art.Leaf) string {
-	return fmt.Sprintf(" Leasor:'%v'; LeaseEpoch='%v'; LeaseUntilTm='%v' (%v left)", leaf.Leasor, leaf.LeaseEpoch, nice(leaf.LeaseUntilTm), leaf.LeaseUntilTm.Sub(time.Now()))
+	left := leaf.LeaseUntilTm.Sub(time.Now())
+	var lefts string
+	if left <= 0 {
+		lefts = "(lease expired)"
+	} else {
+		lefts = fmt.Sprintf("(%v left)", left)
+	}
+	return fmt.Sprintf(" Leasor:'%v'; LeaseEpoch='%v'; LeaseUntilTm='%v' %v", leaf.Leasor, leaf.LeaseEpoch, nice(leaf.LeaseUntilTm), lefts)
 }
