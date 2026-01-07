@@ -11568,7 +11568,7 @@ func (s *TubeNode) peerListRequestHandler(frag *rpc.Fragment, ckt *rpc.Circuit) 
 		// all the dead clients from membership attempts
 		// whose processes are very short lived! The
 		// inspection thus gets too large (3MB).
-		panicf("problem! our peer list reply (%v) is over maxMessage(%v)", len(bts), maxMessage)
+		panicf("problem! our peer list reply (%v) is over maxMessage(%v)", len(bts), rpc.UserMaxPayload)
 	}
 
 	frag1.SetUserArg("leader", insp.CurrentLeaderID)
