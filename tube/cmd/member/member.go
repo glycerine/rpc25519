@@ -64,14 +64,22 @@ type Czar struct {
 
 var declaredDeadDur = time.Second * 25
 
-func (s *Czar) setVers(v tube.RMVersionTuple, list *tube.ReliableMembershipList, t0 time.Time) {
+func (s *Czar) setVers(v tube.RMVersionTuple, list *tube.ReliableMembershipList, t0 time.Time) error {
 	s.mut.Lock()
 	defer s.mut.Unlock()
+
+	if v.VersionGT(&s.members.Vers) {
+		// okay
+	} else {
+		return fmt.Errorf("error: RMVersionTuple must be monotone increasing, current='%v'; rejecting proposed new Vers '%v'", s.members.Vers, v)
+	}
+
 	s.members = list.Clone()
 	s.members.Vers = v
 	s.t0 = t0
 
 	vv("end of setVers(v='%#v') s.members is now '%v')", v, s.members)
+	return nil
 }
 
 func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
@@ -217,20 +225,27 @@ func main() {
 	defer cli.Close()
 
 	ctx := context.Background()
+	var sess *tube.Session
+	for {
+		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(cliCfg, "", false)
+		panicOn(err)
+		vv("got leaderName = '%v'; leaderURL = '%v'; reallyLeader='%v'", leaderName, leaderURL, reallyLeader)
 
-	leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(cliCfg, "", false)
-	panicOn(err)
-	vv("got leaderName = '%v'; leaderURL = '%v'; reallyLeader='%v'", leaderName, leaderURL, reallyLeader)
-
-	sess, err := cli.CreateNewSession(ctx, leaderURL)
-	panicOn(err)
+		sess, err = cli.CreateNewSession(ctx, leaderURL)
+		//panicOn(err) // panic: hmm. no leader known to me (node 'node_0')
+		if err == nil {
+			break
+		}
+		vv("got err fro CreateNewSession, sleep 1 sec and try again: '%v'", err)
+		time.Sleep(time.Second)
+	}
 	//vv("got sess = '%v'", sess)
 
 	keyCz := "czar"
 	tableHermes := "hermes"
 	var renewCzarLeaseCh <-chan time.Time
 
-	leaseDurCz := time.Minute
+	leaseDurCz := time.Second * 16
 	renewCzarLeaseDur := leaseDurCz / 2
 
 	var cState czarState = unknownCzarState
@@ -294,7 +309,8 @@ func main() {
 					Version:        0,
 				}
 				t0 := time.Now() // since we took over as czar
-				czar.setVers(vers, list, t0)
+				err = czar.setVers(vers, list, t0)
+				panicOn(err) // non monotone versioning
 
 				czar.mut.Lock()
 				sum := czar.shortMemberSummary()
