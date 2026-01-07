@@ -61,6 +61,13 @@ type Czar struct {
 
 var declaredDeadDur = time.Second * 25
 
+func (s *Czar) setVers(v tube.RMVersionTuple, list *tube.ReliableMembershipList) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.Members = list
+	s.Members.Vers = v
+}
+
 func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 	now := time.Now()
 	if !skipLock {
@@ -255,7 +262,10 @@ func main() {
 			// find the czar. it might be me.
 			// we try to write to the "czar" key with a lease.
 			// first one there wins. everyone else reads the winner's URL.
-			list := czar.Members
+			czar.mut.Lock()
+			list := czar.Members.Clone()
+			czar.mut.Unlock()
+
 			list.CzarName = cliName // if we win the write race, we are the czar.
 			// without the Clone, myDetail was getting overwritten! by
 			// the czar detail... wat?!? when we unmarshall below into
@@ -276,7 +286,8 @@ func main() {
 					CzarLeaseEpoch: czarTkt.LeaseEpoch,
 					Version:        0,
 				}
-				list.Vers = vers
+				czar.setVers(vers, list)
+
 				vv("err=nil on lease write. I am czar (cliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'", cliName, vers)
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 			} else {
@@ -293,7 +304,7 @@ func main() {
 				_, err = nonCzarMembers.UnmarshalMsg(czarTkt.Val)
 				panicOn(err)
 
-				vv("I am not czar, did not write to key: '%v'; czar.Members = '%v'", err, nonCzarMembers)
+				vv("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers)
 				// contact the czar and register ourselves.
 			}
 
@@ -395,7 +406,7 @@ func main() {
 				}
 				//vv("member called to Czar.Ping, got reply='%v'", reply)
 				if err == nil {
-					czar.Members = reply
+					nonCzarMembers = reply
 				}
 
 				memberHeartBeatCh = time.After(memberHeartBeatDur)

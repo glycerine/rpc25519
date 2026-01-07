@@ -448,6 +448,18 @@ type ReliableMembershipList struct {
 	SerzPeerDetails []*PeerDetail `zid:"2"`
 }
 
+func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {
+	r = &ReliableMembershipList{
+		CzarName:  s.CzarName,
+		Vers:      s.Vers,
+		PeerNames: NewOmap[string, *PeerDetail](),
+	}
+	for name, det := range s.PeerNames.All() {
+		r.PeerNames.Set(name, det.Clone())
+	}
+	return
+}
+
 func (s *ReliableMembershipList) String() (r string) {
 	r = "&ReliableMembershipList{\n"
 	r += fmt.Sprintf(" CzarName: \"%v\",\n", s.CzarName)
