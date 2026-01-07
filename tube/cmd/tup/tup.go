@@ -465,13 +465,22 @@ repl:
 					} else {
 						seen := 0
 						if isPrefixScanDescend {
-							for k, lf := range art.Descend(tktRange.KeyValRangeScan, nil, nil) {
-								fmt.Printf("(from table '%v') read key '%v': %v\n", targetTable, string(k), string(lf.Value))
+							for k, leaf := range art.Descend(tktRange.KeyValRangeScan, nil, nil) {
+								var leaseInfo string
+								if leaf.Leasor != "" {
+									leaseInfo = fmt.Sprintf(" Leasor:'%v'; LeaseUntilTm='%v'; LeaseEpoch='%v'", leaf.Leasor, nice(leaf.LeaseUntilTm), leaf.LeaseEpoch)
+								}
+								fmt.Printf("(from table '%v') read key '%v': %v%v\n", targetTable, string(k), string(leaf.Value), leaseInfo)
 								seen++
 							}
 						} else {
-							for k, lf := range art.Ascend(tktRange.KeyValRangeScan, nil, nil) {
-								fmt.Printf("(from table '%v') read key '%v': %v\n", targetTable, string(k), string(lf.Value))
+							for k, leaf := range art.Ascend(tktRange.KeyValRangeScan, nil, nil) {
+								var leaseInfo string
+								if leaf.Leasor != "" {
+									leaseInfo = fmt.Sprintf(" Leasor:'%v'; LeaseUntilTm='%v'; LeaseEpoch='%v'", leaf.Leasor, nice(leaf.LeaseUntilTm), leaf.LeaseEpoch)
+								}
+
+								fmt.Printf("(from table '%v') read key '%v': %v%v\n", targetTable, string(k), string(leaf.Value), leaseInfo)
 								seen++
 							}
 						}
@@ -496,13 +505,23 @@ repl:
 					} else {
 						seen := 0
 						if isRangeScanDescend {
-							for k, lf := range art.Descend(tktRange.KeyValRangeScan, nil, nil) {
-								fmt.Printf("(from table '%v') read key '%v': %v\n", targetTable, string(k), string(lf.Value))
+							for k, leaf := range art.Descend(tktRange.KeyValRangeScan, nil, nil) {
+								var leaseInfo string
+								if leaf.Leasor != "" {
+									leaseInfo = fmt.Sprintf(" Leasor:'%v'; LeaseUntilTm='%v'; LeaseEpoch='%v'", leaf.Leasor, nice(leaf.LeaseUntilTm), leaf.LeaseEpoch)
+								}
+
+								fmt.Printf("(from table '%v') read key '%v': %v\n", targetTable, string(k), string(leaf.Value), leaseInfo)
 								seen++
 							}
 						} else {
-							for k, lf := range art.Ascend(tktRange.KeyValRangeScan, nil, nil) {
-								fmt.Printf("(from table '%v') read key '%v': %v\n", targetTable, string(k), string(lf.Value))
+							for k, leaf := range art.Ascend(tktRange.KeyValRangeScan, nil, nil) {
+								var leaseInfo string
+								if leaf.Leasor != "" {
+									leaseInfo = fmt.Sprintf(" Leasor:'%v'; LeaseUntilTm='%v'; LeaseEpoch='%v'", leaf.Leasor, nice(leaf.LeaseUntilTm), leaf.LeaseEpoch)
+								}
+
+								fmt.Printf("(from table '%v') read key '%v': %v%v\n", targetTable, string(k), string(leaf.Value), leaseInfo)
 								seen++
 							}
 						}
