@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"reflect"
 	//"io"
 	"os"
 	"strings"
@@ -57,6 +58,10 @@ type Czar struct {
 	heard   map[string]time.Time
 
 	// something for greenpack to serz
+	// this the client of Tube, not rpc.
+	// It represents the TubeNode of the
+	// Czar when it is active as czar (having
+	// won the lease on the hermes.czar key in Tube).
 	CliName string `zid:"0"`
 
 	t0 time.Time
@@ -80,6 +85,22 @@ func (s *Czar) setVers(v tube.RMVersionTuple, list *tube.ReliableMembershipList,
 
 	vv("end of setVers(v='%#v') s.members is now '%v')", v, s.members)
 	return nil
+}
+
+func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	raddr := droppedCli.Conn.RemoteAddr().String()
+
+	// linear search, for now. TODO: map based lookup?
+	for name, detail := range s.members.PeerNames.All() {
+		addr := removeTcp(detail.Addr)
+		if addr == raddr {
+			s.members.PeerNames.Delkey(name)
+			s.members.Vers.Version++
+			vv("remove dropped client '%v', vers='%#v'", name, s.members.Vers)
+		}
+	}
 }
 
 func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
@@ -255,6 +276,13 @@ func main() {
 
 	cli.Srv.RegisterName("Czar", czar)
 
+	// used by czar to notice when client drops
+	// and change membership quickly. If the
+	// client comes back, well, we just change
+	// membership again.
+	cli.Srv.NotifyAllNewClients = make(chan *rpc.ConnHalt, 1000)
+	funneler := newFunneler()
+
 	myDetail := cli.GetMyPeerDetail()
 	//vv("myDetail = '%v' for cliName = '%v'", myDetail, cliName)
 
@@ -340,6 +368,19 @@ looptop:
 
 		case amCzar:
 			select {
+			case cliConnHalt := <-cli.Srv.NotifyAllNewClients:
+				vv("czar has new client '%v'", cliConnHalt.Conn.RemoteAddr())
+				// tell the funneler to listen for it to drop.
+				// It will notify us on clientDroppedCh below.
+				select {
+				case funneler.newCliCh <- cliConnHalt:
+				case <-halt.ReqStop.Chan:
+					return
+				}
+
+			case dropped := <-funneler.clientDroppedCh:
+				czar.remove(dropped)
+
 			case <-expireCheckCh:
 				changed := czar.expireSilentNodes(false)
 				if changed {
@@ -423,7 +464,7 @@ looptop:
 			}
 			select {
 			case <-rpcClientToCzarDoneCh:
-				vv("client dropped! rpcClientToCzarDoneCh closed.")
+				vv("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
 				rpcClientToCzar.Close()
 				rpcClientToCzar = nil
 				rpcClientToCzarDoneCh = nil
@@ -487,4 +528,55 @@ func detailsChanged(a, b *tube.PeerDetail) bool {
 		return true
 	}
 	return false
+}
+
+// funneler allows us to listen for up to 65535 clients
+// disconnecting from the czar by monitoring a single
+// clientDroppedCh.
+type funneler struct {
+	newCliCh        chan *rpc.ConnHalt
+	clientDroppedCh chan *rpc.ConnHalt
+	clientConns     []reflect.SelectCase
+	clientConnHalt  []*rpc.ConnHalt
+}
+
+func newFunneler() (r *funneler) {
+	newCliCh := make(chan *rpc.ConnHalt)
+	clientDroppedCh := make(chan *rpc.ConnHalt, 1024)
+	r = &funneler{
+		newCliCh:        newCliCh,
+		clientDroppedCh: clientDroppedCh,
+		clientConnHalt:  []*rpc.ConnHalt{nil}, // keep aligned with clientConns
+	}
+	r.clientConns = append(r.clientConns, reflect.ValueOf(newCliCh))
+	go func() {
+		for {
+			chosen, recv, _ := reflect.Select(r.clientConns)
+			if chosen == 0 {
+				// new client arrives, listen on its Halt.Done.Chan
+				connHalt := recv.Interface().(*rpc.ConnHalt)
+				r.clientConnHalt = append(r.clientConnHalt, connHalt)
+
+				addr := connHalt.Conn.RemoteAddr().String()
+				r.clientConns = append(r.clientConns, reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: connHalt.Halt.Done.Chan,
+				})
+				if len(r.clientConns) > 65536 {
+					panicf("only 65536 recieves supported by reflect.Select!")
+				}
+				continue
+			}
+			// client departs
+			// stop listening for it
+			dropped := r.clientConnHalt[chosen]
+			r.clientConns = append(r.clientConns[:chosen], r.clientConns[(chosen+1):]...)
+			// notify czar that server noticed a client disconnect.
+			select {
+			case clientDroppedCh <- dropped:
+			default:
+			}
+		}
+	}()
+	return
 }

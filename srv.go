@@ -362,6 +362,11 @@ func (s *Server) serveConn(conn net.Conn) {
 	pair.srvEphemPub = srvEphemPub
 	pair.cliStaticPub = cliStaticPub
 
+	select {
+	case s.NotifyAllNewClients <- &ConnHalt{Conn: pair.Conn, Halt: pair.halt}:
+	default:
+	}
+
 	go pair.runSendLoop(conn)
 	go pair.runReadLoop(conn)
 }
@@ -1264,6 +1269,16 @@ type Server struct {
 	// where it is used to avoid a race/panic.
 	RemoteConnectedCh chan *ServerClient
 
+	// NotifyAllNewClients sends the halter for conn's
+	// rwpair, so that users can notice when a client drops.
+	// It allows monitoring of the close-down, as well
+	// as start up (RemoteConnectedCh only notifies on start-up).
+	// This is optional of course; it can be nil.
+	// NotifyAllNewClients should be a buffered channel,
+	// since the server will default: out quickly if
+	// it cannot be sent on.
+	NotifyAllNewClients chan *ConnHalt
+
 	// net/rpc implementation details
 	serviceMap sync.Map   // map[string]*service
 	reqLock    sync.Mutex // protects freeReq
@@ -1736,6 +1751,11 @@ func (s *Server) register(rcvr msgp.Encodable, name string, useName bool) error 
 	}
 
 	return nil
+}
+
+type ConnHalt struct {
+	Conn net.Conn
+	Halt *idem.Halter
 }
 
 // keep the pair of goroutines running
