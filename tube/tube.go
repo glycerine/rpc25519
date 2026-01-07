@@ -1746,6 +1746,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			case ObserveMembershipChange:
 				s.handleObserveMembershipChange(frag, fragCkt.ckt)
 
+			//case ReliableMemberHeartBeatToCzar:
+			//	s.handleReliableMemberHeartBeatToCzar(frag, fragCkt.ckt)
+
 			default:
 				panic(fmt.Sprintf("unknown raft message: not CallPeerStartCircuit frag.FragOp='%v'; frag='%v'", frag.FragOp, frag.String()))
 			}
@@ -14331,6 +14334,15 @@ func (s *TubeNode) handleObserveMembershipChange(
 	//vv("%v sees handleObserveMembershipChange() mc='%v'", s.name, mc)
 }
 
+/*
+func (s *TubeNode) handleReliableMemberHeartBeatToCzar(
+	frag *rpc.Fragment,
+	ckt *rpc.Circuit,
+) {
+	vv("%v sees handleReliableMemberHeartBeatToCzar()", s.name)
+
+}
+*/
 // starting is not modified, read-only.
 func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, atRaftLogIndex int64) (newConfig *MemberConfig) {
 

@@ -19,6 +19,8 @@ import (
 	//"github.com/glycerine/rpc25519/tube/art"
 )
 
+//go:generate greenpack
+
 var sep = string(os.PathSeparator)
 
 type ConfigMember struct {
@@ -46,6 +48,34 @@ const (
 	amCzar           czarState = 1
 	notCzar          czarState = 2
 )
+
+type Czar struct {
+	Members *tube.ReliableMembershipList `zid:"0"`
+}
+
+func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.ReliableMembershipList) error {
+	vv("Czar.Ping called with args='%v', reply with current membership list", args)
+
+	det, ok := s.Members.PeerNames.Get2(args.Name)
+	if !ok {
+		s.Members.PeerNames.Set(args.Name, args)
+		s.Members.Vers.Version++
+	} else {
+		if detailsChanged(det, args) {
+			s.Members.PeerNames.Set(args.Name, args)
+			s.Members.Vers.Version++
+		}
+	}
+	reply = s.Members
+	return nil
+}
+
+func NewCzar(cli *tube.TubeNode) *Czar {
+	list := cli.NewReliableMembershipList()
+	return &Czar{
+		Members: list,
+	}
+}
 
 func main() {
 	cmdCfg := &ConfigMember{}
@@ -98,12 +128,16 @@ func main() {
 	renewCzarLeaseDur := leaseDurCz / 2
 
 	var cState czarState = unknownCzarState
-	var vers tube.RMVersionTuple
-	list := cli.NewReliableMembershipList()
+
+	czar := NewCzar(cli)
+	cli.Srv.RegisterName("Czar", czar)
+
 	myDetail := cli.GetMyPeerDetail()
 
-	var czarURL string
-	var czarCkt *rpc.Circuit
+	//var czarURL string
+	//var czarCkt *rpc.Circuit
+
+	var rpcClientToCzar *rpc.Client
 
 	var memberHeartBeatCh <-chan time.Time
 	memberHeartBeatDur := time.Second * 10
@@ -118,9 +152,10 @@ func main() {
 			// find the czar. it might be me.
 			// we try to write to the "czar" key with a lease.
 			// first one there wins. everyone else reads the winner's URL.
+			list := czar.Members
 			list.CzarName = cliName // if we win the write race, we are the czar.
 			list.PeerNames.Set(cliName, myDetail)
-			list.Vers = vers
+
 			bts2, err := list.MarshalMsg(nil)
 			panicOn(err)
 
@@ -128,10 +163,11 @@ func main() {
 
 			if err == nil {
 				cState = amCzar
-				vers = tube.RMVersionTuple{
+				vers := tube.RMVersionTuple{
 					CzarLeaseEpoch: czarTkt.LeaseEpoch,
 					Version:        0,
 				}
+				list.Vers = vers
 				vv("err=nil on lease write. I am czar, send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'", vers)
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 			} else {
@@ -139,17 +175,18 @@ func main() {
 				if czarTkt.Vtype != tube.ReliableMembershipListType {
 					panicf("why not tube.ReliableMembershipListType back? got '%v'", czarTkt.Vtype)
 				}
-				_, err = list.UnmarshalMsg(czarTkt.Val)
+
+				_, err = czar.Members.UnmarshalMsg(czarTkt.Val)
 				panicOn(err)
 
-				vv("I am not czar, did not write to key: '%v'; vers='%#v'; list='%v'; \n with list.CzarName='%v'", err, vers, list, list.CzarName)
+				vv("I am not czar, did not write to key: '%v'; czar.Members = '%v'", err, czar.Members)
 				// contact the czar and register ourselves.
 			}
 
 		case amCzar:
 			select {
 			case <-renewCzarLeaseCh:
-				list.Vers = vers
+				list := czar.Members
 				bts2, err := list.MarshalMsg(nil)
 				panicOn(err)
 
@@ -165,42 +202,64 @@ func main() {
 			}
 
 		case notCzar:
-			if czarCkt == nil {
+			if rpcClientToCzar == nil {
+				list := czar.Members
 				czarDetail, ok := list.PeerNames.Get2(list.CzarName)
 				if !ok {
 					panicf("list with winning czar did not include czar itself?? list='%v'", list)
 				}
 				vv("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetail.URL)
-				czarURL = czarDetail.URL
+				//czarURL = czarDetail.URL
 
-				heartBeatFrag := cli.MyPeer.NewFragment()
-				heartBeatFrag.FragOp = tube.ReliableMemberHeartBeatToCzar
-				heartBeatFrag.FragSubject = "ReliableMemberHeartBeatToCzar"
-				heartBeatFrag.SetUserArg("URL", myDetail.URL)
+				// heartBeatFrag := cli.MyPeer.NewFragment()
+				// heartBeatFrag.FragOp = tube.ReliableMemberHeartBeatToCzar
+				// heartBeatFrag.FragSubject = "ReliableMemberHeartBeatToCzar"
+				// heartBeatFrag.SetUserArg("URL", myDetail.URL)
 
-				czarCkt, _, _, err = cli.MyPeer.NewCircuitToPeerURL("member-to-czar", czarURL, heartBeatFrag, 0)
+				reply := &tube.ReliableMembershipList{}
+
+				ccfg := *cli.GetConfig().RpcCfg
+				ccfg.ClientDialToHostPort = removeTcp(czarDetail.Addr)
+
+				// ?want? uses same serverBaseID so simnet can group same host simnodes.
+				rpcClientToCzar, err = rpc.NewClient(cliName+"_pinger", &ccfg)
 				panicOn(err)
-				vv("got circuit to czar: %v", czarCkt)
-				cli.MyPeer.NewCircuitCh <- czarCkt // needed/desirable?
+				err = rpcClientToCzar.Start()
+				panicOn(err)
+				// TODO: arrange for: defer rpcClientToCzar.Close()
+				//halt.AddChild(rpcClientToCzar.halt) // unexported .halt
 
+				err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
+				panicOn(err)
+				vv("member called to Czar.Ping, got reply='%v'", reply)
+				// czarCkt, _, _, err = cli.MyPeer.NewCircuitToPeerURL("member-to-czar", czarURL, heartBeatFrag, 0)
+				// panicOn(err)
+				// vv("got circuit to czar: %v", czarCkt)
+				// cli.MyPeer.NewCircuitCh <- czarCkt // needed/desirable?
+				if err == nil {
+					czar.Members = reply
+				}
 				memberHeartBeatCh = time.After(memberHeartBeatDur)
 			}
 			select {
 			case <-memberHeartBeatCh:
-				heartBeatFrag := cli.MyPeer.NewFragment()
-				heartBeatFrag.FragOp = tube.ReliableMemberHeartBeatToCzar
-				heartBeatFrag.FragSubject = "ReliableMemberHeartBeatToCzar"
-				heartBeatFrag.SetUserArg("URL", myDetail.URL)
 
-				err = cli.SendOneWay(czarCkt, heartBeatFrag, 0, 0)
+				reply := &tube.ReliableMembershipList{}
 
-				const connRefused = "connect: connection refused"
-				if strings.Contains(err.Error(), connRefused) {
+				err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
+				vv("member called to Czar.Ping")
+				if err != nil {
 					vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
-					czarCkt = nil
+					rpcClientToCzar.Close()
+					rpcClientToCzar = nil
 					cState = unknownCzarState
 					continue
 				}
+				vv("member called to Czar.Ping, got reply='%v'", reply)
+				if err == nil {
+					czar.Members = reply
+				}
+
 				memberHeartBeatCh = time.After(memberHeartBeatDur)
 
 			case <-halt.ReqStop.Chan:
@@ -208,4 +267,35 @@ func main() {
 			}
 		}
 	}
+}
+
+func removeTcp(s string) string {
+	if strings.HasPrefix(s, "tcp://") {
+		return s[6:]
+	}
+	return s
+}
+func detailsChanged(a, b *tube.PeerDetail) bool {
+	if a.Name != b.Name {
+		return true
+	}
+	if a.URL != b.URL {
+		return true
+	}
+	if a.PeerID != b.PeerID {
+		return true
+	}
+	if a.Addr != b.Addr {
+		return true
+	}
+	if a.PeerServiceName != b.PeerServiceName {
+		return true
+	}
+	if a.PeerServiceNameVersion != b.PeerServiceNameVersion {
+		return true
+	}
+	if a.NonVoting != b.NonVoting {
+		return true
+	}
+	return false
 }
