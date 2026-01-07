@@ -54,7 +54,6 @@ type Czar struct {
 }
 
 func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.ReliableMembershipList) error {
-	vv("Czar.Ping called with args='%v', reply with current membership list", args)
 
 	det, ok := s.Members.PeerNames.Get2(args.Name)
 	if !ok {
@@ -67,6 +66,9 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 		}
 	}
 	reply = s.Members
+
+	vv("Czar.Ping called with args='%v', reply with current membership list, reply='%v'", args, reply)
+
 	return nil
 }
 
@@ -225,7 +227,13 @@ func main() {
 				rpcClientToCzar, err = rpc.NewClient(cliName+"_pinger", &ccfg)
 				panicOn(err)
 				err = rpcClientToCzar.Start()
-				panicOn(err)
+				if err != nil {
+					vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
+					rpcClientToCzar.Close()
+					rpcClientToCzar = nil
+					cState = unknownCzarState
+					continue
+				}
 				// TODO: arrange for: defer rpcClientToCzar.Close()
 				//halt.AddChild(rpcClientToCzar.halt) // unexported .halt
 
