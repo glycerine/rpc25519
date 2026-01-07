@@ -51,23 +51,30 @@ const (
 
 type Czar struct {
 	Members *tube.ReliableMembershipList `zid:"0"`
+
+	cliName string
 }
 
 func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.ReliableMembershipList) error {
 
+	vv("Ping called at cliName = '%v', since args = '%v'", s.cliName, args)
 	det, ok := s.Members.PeerNames.Get2(args.Name)
 	if !ok {
+		vv("args.Name('%v') is new, adding to PeerNames", args.Name)
 		s.Members.PeerNames.Set(args.Name, args)
 		s.Members.Vers.Version++
 	} else {
 		if detailsChanged(det, args) {
+			vv("args.Name('%v') details have changed, updating PeerNames", args.Name)
 			s.Members.PeerNames.Set(args.Name, args)
 			s.Members.Vers.Version++
+		} else {
+			vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
 		}
 	}
-	reply = s.Members
+	*reply = *(s.Members)
 
-	vv("Czar.Ping called with args='%v', reply with current membership list, reply='%v'", args, reply)
+	vv("Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, reply='%v'", s.cliName, args, reply)
 
 	return nil
 }
@@ -107,6 +114,8 @@ func main() {
 	vv("cliCfg = '%v'", cliCfg)
 	cliName := cliCfg.MyName
 
+	vv("cliName = '%v'", cliName)
+
 	cli := tube.NewTubeNode(cliName, cliCfg)
 	err = cli.InitAndStart()
 	panicOn(err)
@@ -132,9 +141,12 @@ func main() {
 	var cState czarState = unknownCzarState
 
 	czar := NewCzar(cli)
+	czar.cliName = cliName
+
 	cli.Srv.RegisterName("Czar", czar)
 
 	myDetail := cli.GetMyPeerDetail()
+	vv("myDetail = '%v' for cliName = '%v'", myDetail, cliName)
 
 	//var czarURL string
 	//var czarCkt *rpc.Circuit
@@ -156,7 +168,10 @@ func main() {
 			// first one there wins. everyone else reads the winner's URL.
 			list := czar.Members
 			list.CzarName = cliName // if we win the write race, we are the czar.
-			list.PeerNames.Set(cliName, myDetail)
+			// without the Clone, myDetail was getting overwritten! by
+			// the czar detail... wat?!? when we unmarshall below into
+			// the czar.Members which did not re-allocate the pointer!??
+			list.PeerNames.Set(cliName, myDetail.Clone())
 
 			bts2, err := list.MarshalMsg(nil)
 			panicOn(err)
@@ -170,7 +185,7 @@ func main() {
 					Version:        0,
 				}
 				list.Vers = vers
-				vv("err=nil on lease write. I am czar, send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'", vers)
+				vv("err=nil on lease write. I am czar (cliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'", cliName, vers)
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 			} else {
 				cState = notCzar
@@ -178,8 +193,11 @@ func main() {
 					panicf("why not tube.ReliableMembershipListType back? got '%v'", czarTkt.Vtype)
 				}
 
-				_, err = czar.Members.UnmarshalMsg(czarTkt.Val)
+				// avoid re-use of prior pointed to values!
+				cm := &tube.ReliableMembershipList{}
+				_, err = cm.UnmarshalMsg(czarTkt.Val)
 				panicOn(err)
+				czar.Members = cm
 
 				vv("I am not czar, did not write to key: '%v'; czar.Members = '%v'", err, czar.Members)
 				// contact the czar and register ourselves.
@@ -237,9 +255,10 @@ func main() {
 				// TODO: arrange for: defer rpcClientToCzar.Close()
 				//halt.AddChild(rpcClientToCzar.halt) // unexported .halt
 
+				vv("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
 				err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
 				panicOn(err)
-				vv("member called to Czar.Ping, got reply='%v'", reply)
+				vv("member(cliName='%v') called to Czar.Ping, got reply='%v'", cliName, reply)
 				// czarCkt, _, _, err = cli.MyPeer.NewCircuitToPeerURL("member-to-czar", czarURL, heartBeatFrag, 0)
 				// panicOn(err)
 				// vv("got circuit to czar: %v", czarCkt)
@@ -255,7 +274,7 @@ func main() {
 				reply := &tube.ReliableMembershipList{}
 
 				err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
-				vv("member called to Czar.Ping")
+				vv("member called to Czar.Ping, err='%v'", err)
 				if err != nil {
 					vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
 					rpcClientToCzar.Close()
