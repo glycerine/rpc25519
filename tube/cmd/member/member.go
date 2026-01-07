@@ -367,7 +367,7 @@ func main() {
 				reply := &tube.ReliableMembershipList{}
 
 				err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
-				vv("member called to Czar.Ping, err='%v'", err)
+				//vv("member called to Czar.Ping, err='%v'", err)
 				if err != nil {
 					vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
 					rpcClientToCzar.Close()
@@ -375,7 +375,7 @@ func main() {
 					cState = unknownCzarState
 					continue
 				}
-				vv("member called to Czar.Ping, got reply='%v'", reply)
+				//vv("member called to Czar.Ping, got reply='%v'", reply)
 				if err == nil {
 					czar.Members = reply
 				}
