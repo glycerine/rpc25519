@@ -1,16 +1,15 @@
 package tube
 
 import (
-	"context"
+	//"context"
 	"fmt"
-	"net"
-	"os"
-	"strings"
-	"time"
-
-	"github.com/glycerine/idem"
-	"github.com/glycerine/ipaddr"
-	rpc "github.com/glycerine/rpc25519"
+	//"net"
+	//"os"
+	//"strings"
+	//"time"
+	//"github.com/glycerine/idem"
+	//"github.com/glycerine/ipaddr"
+	//rpc "github.com/glycerine/rpc25519"
 	//"github.com/glycerine/rpc25519/tube/art"
 )
 
@@ -26,6 +25,7 @@ const tableHermes string = "hermes"
 // as that is the name of the type.
 const ReliableMembershipListType string = "ReliableMembershipListType"
 
+/*
 type RMember struct {
 
 	// Cfg would usually be supplied. If not
@@ -424,12 +424,14 @@ func (s *RMember) contactNewPeer(url string, firstFrag *rpc.Fragment) {
 		}
 	}
 }
+*/
 
 // RMTuple is the two part Reliable Membership tuple.
 // Compare the CzarLeaseEpoch first, then the Version.
 // The CzarLeaseEpoch must go higher when the Czar
 // changes through Raft, and the Version can increment
 // when per-Czar members are added/lost.
+// Used by cmd/member/member.go.
 type RMVersionTuple struct {
 	CzarLeaseEpoch int64 `zid:"0"`
 	Version        int64 `zid:"1"`
@@ -440,6 +442,7 @@ type RMVersionTuple struct {
 // when it is written for us, since the submitting
 // client won't know what that is. It depends on
 // which write won the race and arrived first.
+// Used by cmd/member/member.go.
 type ReliableMembershipList struct {
 	CzarName string         `zid:"0"`
 	Vers     RMVersionTuple `zid:"1"`
@@ -485,12 +488,32 @@ func (i *RMVersionTuple) VersionGT(j *RMVersionTuple) bool {
 	return false
 }
 
+func (i *RMVersionTuple) VersionLT(j *RMVersionTuple) bool {
+	if i.CzarLeaseEpoch < j.CzarLeaseEpoch {
+		return true
+	}
+	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
+		return i.Version < j.Version
+	}
+	return false
+}
+
 func (i *RMVersionTuple) VersionGTE(j *RMVersionTuple) bool {
 	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
 		return true
 	}
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
 		return i.Version >= j.Version
+	}
+	return false
+}
+
+func (i *RMVersionTuple) VersionLTE(j *RMVersionTuple) bool {
+	if i.CzarLeaseEpoch < j.CzarLeaseEpoch {
+		return true
+	}
+	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
+		return i.Version <= j.Version
 	}
 	return false
 }
