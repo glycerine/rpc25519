@@ -144,7 +144,7 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 
 func (s *Czar) shortMemberSummary() (r string) {
 	n := s.Members.PeerNames.Len()
-	r = fmt.Sprintf("[%v members]{", n)
+	r = fmt.Sprintf("[%v members; Vers:(CzarLeaseEpoch: %v, Version:%v)]{", s.Members.Vers.CzarLeaseEpoch, s.Members.Vers.Version, n)
 	i := 0
 	for name := range s.Members.PeerNames.All() {
 		r += name
