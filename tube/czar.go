@@ -139,7 +139,7 @@ func (s *RMember) Start(
 	// first one there wins. everyone else reads the winner's URL.
 	list := s.TubeNode.NewReliableMembershipList()
 	list.CzarName = s.name // if we win the write race, we are the czar.
-	list.PeerNames.set(s.name, s.myDetail)
+	list.PeerNames.Set(s.name, s.myDetail)
 	bts2, err := list.MarshalMsg(nil)
 	panicOn(err)
 
@@ -179,7 +179,7 @@ func (s *RMember) Start(
 		panicOn(err)
 		rml.Vers = vers
 		vv("we see that czar is '%v'", rml.CzarName)
-		czarDet, ok := rml.PeerNames.get2(rml.CzarName)
+		czarDet, ok := rml.PeerNames.Get2(rml.CzarName)
 		if !ok {
 			panicf("czar '%v' did not include their own contact details", rml.CzarName)
 		}
@@ -439,7 +439,7 @@ type ReliableMembershipList struct {
 	CzarName string         `zid:"0"`
 	Vers     RMVersionTuple `zid:"1"`
 
-	PeerNames *omap[string, *PeerDetail] `msg:"-"`
+	PeerNames *Omap[string, *PeerDetail] `msg:"-"`
 
 	SerzPeerDetails []*PeerDetail `zid:"2"`
 }
@@ -478,22 +478,22 @@ func (s *ReliableMembershipList) PreSaveHook() {
 	if s.PeerNames == nil {
 		return
 	}
-	for _, kv := range s.PeerNames.cached() {
+	for _, kv := range s.PeerNames.Cached() {
 		s.SerzPeerDetails = append(s.SerzPeerDetails, kv.val)
 	}
 }
 
 func (s *ReliableMembershipList) PostLoadHook() {
-	s.PeerNames = newOmap[string, *PeerDetail]()
+	s.PeerNames = NewOmap[string, *PeerDetail]()
 	for _, d := range s.SerzPeerDetails {
-		s.PeerNames.set(d.Name, d)
+		s.PeerNames.Set(d.Name, d)
 	}
 	s.SerzPeerDetails = s.SerzPeerDetails[:0]
 }
 
 func (s *TubeNode) NewReliableMembershipList() *ReliableMembershipList {
 	r := &ReliableMembershipList{
-		PeerNames: newOmap[string, *PeerDetail](),
+		PeerNames: NewOmap[string, *PeerDetail](),
 	}
 	if s == nil {
 		panic("s cannot be nil")

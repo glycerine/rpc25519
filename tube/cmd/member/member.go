@@ -10,7 +10,7 @@ import (
 	//"strings"
 	//"path/filepath"
 	//"sort"
-	//"time"
+	"time"
 
 	//rpc "github.com/glycerine/rpc25519"
 	//"github.com/glycerine/ipaddr"
@@ -71,18 +71,41 @@ func main() {
 	panicOn(err)
 	defer cli.Close()
 
-	bkg := context.Background()
+	ctx := context.Background()
 
-	//leaderURL0 :=
-
-	const requireOnlyContact = false
-
-	leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(cliCfg, "", requireOnlyContact)
+	leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(cliCfg, "", false)
 	panicOn(err)
 	vv("got leaderName = '%v'; leaderURL = '%v'; reallyLeader='%v'", leaderName, leaderURL, reallyLeader)
 
-	sess, err := cli.CreateNewSession(bkg, leaderURL)
+	sess, err := cli.CreateNewSession(ctx, leaderURL)
 	panicOn(err)
 	vv("got sess = '%v'", sess)
 
+	myDetail := cli.GetMyPeerDetail()
+
+	// find the czar. it might be me.
+	// we try to write to the "czar" key with a lease.
+	// first one there wins. everyone else reads the winner's URL.
+	list := cli.NewReliableMembershipList()
+	list.CzarName = cliName // if we win the write race, we are the czar.
+	list.PeerNames.set(cliName, myDetail)
+	bts2, err := list.MarshalMsg(nil)
+	panicOn(err)
+
+	keyCz := "czar"
+	tableHermes := "hermes"
+	leaseDurCz := time.Minute
+	czarTkt, err := sess.Write(ctx0, Key(tableHermes), Key(keyCz), Val(bts2), 0, RML, leaseDurCz)
+	_ = czarTkt
+
+	vers := RMVersionTuple{
+		CzarLeaseEpoch: czarTkt.LeaseEpoch,
+		Version:        0,
+	}
+
+	if err == nil {
+		vv("err=nil on lease write. I am czar, send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'", vers)
+	} else {
+		vv("I am not czar, did not write to key: '%v'; vers='%#v'", err, vers)
+	}
 }

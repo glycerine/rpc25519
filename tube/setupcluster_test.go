@@ -60,7 +60,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 		// c.NoInitialLeaderTimeout = true above.
 		boot.NewConfig.BootCount = numNodes
 		for _, node := range c.Nodes {
-			boot.NewConfig.PeerNames.set(node.name, &PeerDetail{Name: node.name, URL: "boot.blank"})
+			boot.NewConfig.PeerNames.Set(node.name, &PeerDetail{Name: node.name, URL: "boot.blank"})
 		}
 		//c.Nodes[forceLeader].testBootstrapLogCh <- boot
 		c.BootMC = boot.NewConfig
@@ -101,7 +101,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 		boot.NewConfig.BootCount = numNodes
 		boot.DoElection = true
 		for _, node := range c.Nodes {
-			boot.NewConfig.PeerNames.set(node.name, &PeerDetail{Name: node.name, URL: "boot.blank"})
+			boot.NewConfig.PeerNames.Set(node.name, &PeerDetail{Name: node.name, URL: "boot.blank"})
 
 		}
 		for _, node := range c.Nodes {

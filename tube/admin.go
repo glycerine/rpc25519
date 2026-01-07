@@ -81,11 +81,11 @@ func (s *TubeConfig) String() string {
 func (s *TubeConfig) SexpString(ps *zygo.PrintState) (r string) {
 	nodes := "(hash "
 	i := 0
-	omap := newOmap[string, string]()
+	omap := NewOmap[string, string]()
 	for node, addr := range s.Node2Addr {
-		omap.set(node, addr)
+		omap.Set(node, addr)
 	}
-	for node, addr := range omap.all() {
+	for node, addr := range omap.All() {
 		if i > 0 {
 			nodes += ", "
 		}
@@ -208,11 +208,11 @@ func (s *TubeConfig) ShortSexpString(ps *zygo.PrintState) (r string) {
 
 	nodes := "(hash "
 	i := 0
-	omap := newOmap[string, string]()
+	omap := NewOmap[string, string]()
 	for node, addr := range s.Node2Addr {
-		omap.set(node, addr)
+		omap.Set(node, addr)
 	}
-	for node, addr := range omap.all() {
+	for node, addr := range omap.All() {
 		//if i > 0 {
 		//nodes += ", "
 		nodes += "\n"

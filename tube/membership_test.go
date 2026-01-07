@@ -520,7 +520,7 @@ func Test403_reduce_a_cluster_down_to_one_node(t *testing.T) {
 			//time.Sleep(time.Second * 5)
 
 			// for sure it should be in Newest... sanity check
-			_, presentNewest := inspAfterAdd.MC.PeerNames.get2(node1.name)
+			_, presentNewest := inspAfterAdd.MC.PeerNames.Get2(node1.name)
 			if !presentNewest {
 				panic(fmt.Sprintf("expected '%v' to be in (newest) membership after SingleUpdateClusterMemberConfig; inspAfterAdd = '%v'", name1, inspAfterAdd.MC.Short()))
 			} else {
@@ -531,7 +531,7 @@ func Test403_reduce_a_cluster_down_to_one_node(t *testing.T) {
 			// to update Committed on followers too.
 
 			//_, present := inspAfterAdd.CktReplicaByName[node1.name]
-			_, present := inspAfterAdd.MC.PeerNames.get2(node1.name)
+			_, present := inspAfterAdd.MC.PeerNames.Get2(node1.name)
 			if !present {
 				panic(fmt.Sprintf("expected '%v' to be in (committed) membership after SingleUpdateClusterMemberConfig; inspAfterAdd = '%v'", name1, inspAfterAdd.MC.Short())) // panic here
 			}
@@ -683,7 +683,7 @@ func Test403_reduce_a_cluster_down_to_one_node(t *testing.T) {
 		}
 
 		lastLook := nodes[0].Inspect()
-		_, hasUs := lastLook.MC.PeerNames.get2("node_0") // leaderNode.name
+		_, hasUs := lastLook.MC.PeerNames.Get2("node_0") // leaderNode.name
 		if !hasUs || lastLook.MC.PeerNames.Len() != 1 {
 			panic(fmt.Sprintf("want cluster size 1 (just us) now, not: lastLook.MC='%v'", lastLook.MC.ShortProv()))
 		}

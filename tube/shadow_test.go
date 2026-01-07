@@ -73,7 +73,7 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 			if node2replica {
 				panic("arg. node 2 is still in CktReplica")
 			}
-			_, node2member := inspAfterRemove.MC.PeerNames.get2(node2.name)
+			_, node2member := inspAfterRemove.MC.PeerNames.Get2(node2.name)
 			if node2member {
 				panic("arg. node 2 is still in MC")
 			}
@@ -91,12 +91,12 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 			canc5()
 			panicOn(err)
 
-			_, node2member = inspAfterAdd.ShadowReplicas.PeerNames.get2(node2.name)
+			_, node2member = inspAfterAdd.ShadowReplicas.PeerNames.Get2(node2.name)
 			if !node2member {
 				panicf("arg. node 2 was not added to ShadowReplicas; state=%v", stateSnapshot)
 			}
 
-			_, node2member = inspAfterAdd.MC.PeerNames.get2(node2.name)
+			_, node2member = inspAfterAdd.MC.PeerNames.Get2(node2.name)
 			if node2member {
 				panic("arg. node 2 got added to MC as well as ShadowReplicas!")
 			}

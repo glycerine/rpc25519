@@ -13,18 +13,18 @@ import (
 // and an ordered omap providing ordered
 // access by RaftLogEntry.Index int64; Ticket.LogIndex.
 type imap struct {
-	ordered *omap[int64, *Ticket]
+	ordered *Omap[int64, *Ticket]
 	m       map[string]*Ticket
 
 	// if we deferred adding to ordered b/c they lacked LogIndex
-	awaitIndex *omap[string, *Ticket]
+	awaitIndex *Omap[string, *Ticket]
 }
 
 func newImap() *imap {
 	return &imap{
-		ordered:    newOmap[int64, *Ticket](),
+		ordered:    NewOmap[int64, *Ticket](),
 		m:          make(map[string]*Ticket),
-		awaitIndex: newOmap[string, *Ticket](),
+		awaitIndex: NewOmap[string, *Ticket](),
 	}
 }
 
@@ -35,7 +35,7 @@ func (s *imap) Len() int {
 
 func (s *imap) String() (r string) {
 	r = fmt.Sprintf("imap{\n")
-	for logIndex, tkt := range s.ordered.all() {
+	for logIndex, tkt := range s.ordered.All() {
 		r += fmt.Sprintf("  [LogIndex: %v] Desc:'%v'; TicketID:'%v'\n", logIndex, tkt.Desc, tkt.TicketID)
 	}
 	r += "}\n"
@@ -47,16 +47,16 @@ func (s *imap) del(tkt *Ticket) { // (found bool, next rb.Iterator) {
 	if !present {
 		return
 	}
-	s.ordered.delkey(tkt.LogIndex)
-	s.awaitIndex.delkey(tkt.TicketID)
+	s.ordered.Delkey(tkt.LogIndex)
+	s.awaitIndex.Delkey(tkt.TicketID)
 	delete(s.m, tkt.TicketID)
 	return
 }
 
 // deleteAll clears the tree in O(1) time.
 func (s *imap) deleteAll() {
-	s.ordered.deleteAll()
-	s.awaitIndex.deleteAll()
+	s.ordered.DeleteAll()
+	s.awaitIndex.DeleteAll()
 	clear(s.m)
 }
 
@@ -75,9 +75,9 @@ func (s *imap) set(tktID string, tkt *Ticket) (newlyAdded bool) {
 	newlyAdded = !ok
 
 	if tkt.LogIndex > 0 {
-		s.ordered.set(tkt.LogIndex, tkt)
+		s.ordered.Set(tkt.LogIndex, tkt)
 	} else {
-		s.awaitIndex.set(tkt.TicketID, tkt)
+		s.awaitIndex.Set(tkt.TicketID, tkt)
 	}
 	s.m[tktID] = tkt
 
@@ -99,25 +99,25 @@ func (s *imap) repair() {
 	// first repair earlier set() additions that could
 	// not be added to the tree because they
 	// lacked LogIndex at the time.
-	for tktID, tkt := range s.awaitIndex.all() {
+	for tktID, tkt := range s.awaitIndex.All() {
 		_, ok := s.m[tktID]
 		if ok {
 			if tkt.LogIndex > 0 {
-				s.ordered.set(tkt.LogIndex, tkt)
-				s.awaitIndex.delkey(tktID)
+				s.ordered.Set(tkt.LogIndex, tkt)
+				s.awaitIndex.Delkey(tktID)
 			}
 		} else {
-			s.awaitIndex.delkey(tktID)
+			s.awaitIndex.Delkey(tktID)
 		}
 	}
 }
 
 func (s *imap) all() iter.Seq2[int64, *Ticket] {
 	s.repair()
-	return s.ordered.all()
+	return s.ordered.All()
 }
 
 func (s *imap) allByTicketID() iter.Seq2[int64, *Ticket] {
 	s.repair()
-	return s.ordered.all()
+	return s.ordered.All()
 }

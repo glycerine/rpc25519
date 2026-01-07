@@ -136,7 +136,7 @@ func Test040_election_then_first_noop(t *testing.T) {
 		boot.NewConfig.BootCount = numNodes
 		boot.DoElection = true
 		for _, node := range c.Nodes {
-			boot.NewConfig.PeerNames.set(node.name, &PeerDetail{Name: node.name, URL: "boot.blank"})
+			boot.NewConfig.PeerNames.Set(node.name, &PeerDetail{Name: node.name, URL: "boot.blank"})
 		}
 
 		for _, node := range c.Nodes {
@@ -545,7 +545,7 @@ func giveAllNodesInitialMemberConfig(cluster *TubeCluster, doElection bool) {
 	boot.NewConfig.BootCount = numNodes
 	boot.DoElection = doElection
 	for _, node := range cluster.Nodes {
-		boot.NewConfig.PeerNames.set(node.name, &PeerDetail{Name: node.name, URL: "boot.blank"})
+		boot.NewConfig.PeerNames.Set(node.name, &PeerDetail{Name: node.name, URL: "boot.blank"})
 	}
 	//cluster.Nodes[forceLeader].testBootstrapLogCh <- boot
 	for _, node := range cluster.Nodes {

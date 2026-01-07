@@ -620,7 +620,7 @@ func (s *TubeNode) newMCfromAddr2Node() (mc *MemberConfig) {
 		}
 		addr = FixAddrPrefix(addr)
 		if name != s.name {
-			_, ok := mc.PeerNames.get2(name)
+			_, ok := mc.PeerNames.Get2(name)
 			if ok {
 				panic(fmt.Sprintf("%v: double entry for peerName='%v' in the cfg Node2Addr: '%#v'", s.name, name, s.cfg.Node2Addr))
 			}
@@ -846,13 +846,13 @@ func (s *TubeNode) Start(
 		// in prod...
 
 		if s.state.MC != nil {
-			_, iAmReplicaInCurrentMC = s.state.MC.PeerNames.get2(s.name)
+			_, iAmReplicaInCurrentMC = s.state.MC.PeerNames.Get2(s.name)
 
 			// allow starting as client after being in the log before.
 			if iAmReplicaInCurrentMC && s.PeerServiceName != TUBE_REPLICA {
 				alwaysPrintf("%v: we are no longer a replica; (now: %v). deleting ourselves from the MC.PeerNames", s.name, s.PeerServiceName)
 				iAmReplicaInCurrentMC = false
-				s.state.MC.PeerNames.delkey(s.name)
+				s.state.MC.PeerNames.Delkey(s.name)
 			}
 		}
 
@@ -910,7 +910,7 @@ func (s *TubeNode) Start(
 	// Note that s.state.MC will be
 	// nil for fresh cluster followers, so check first.
 	if s.state.MC != nil {
-		detail, present := s.state.MC.PeerNames.get2(s.name)
+		detail, present := s.state.MC.PeerNames.Get2(s.name)
 		_ = detail
 		updatedDetail := &PeerDetail{
 			Name:                   s.name,
@@ -926,7 +926,7 @@ func (s *TubeNode) Start(
 		if present {
 			s.state.MC.setNameDetail(s.name, updatedDetail, s)
 		}
-		s.state.Known.PeerNames.set(s.name, updatedDetail)
+		s.state.Known.PeerNames.Set(s.name, updatedDetail)
 	} else {
 		if !strings.HasPrefix(s.name, "tup") {
 			// for tup we expect it. do not bark.
@@ -2882,7 +2882,7 @@ func (s *TubeNode) me() string {
 func (s *TubeNode) shadowReplicasShortString() (membr string, numMember int) {
 	numMember = s.state.ShadowReplicas.PeerNames.Len()
 	i := 0
-	for peerName := range s.state.ShadowReplicas.PeerNames.all() {
+	for peerName := range s.state.ShadowReplicas.PeerNames.All() {
 		if i > 0 {
 			membr += ", "
 		}
@@ -2915,7 +2915,7 @@ func (s *TubeNode) memberNewestShortString() (membr string, numMember int) {
 	numMember = s.state.MC.PeerNames.Len()
 	i := 0
 	//down := s.followerDownDur()
-	for peerName := range s.state.MC.PeerNames.all() {
+	for peerName := range s.state.MC.PeerNames.All() {
 		if i > 0 {
 			membr += ", "
 		}
@@ -3999,7 +3999,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	// add ourselves too. but only if we are in MC.
 	var inMC bool
 	if s.state.MC != nil {
-		_, inMC = s.state.MC.PeerNames.get2(s.name)
+		_, inMC = s.state.MC.PeerNames.Get2(s.name)
 		if inMC {
 			ins.CktReplica[s.PeerID] = s.URL // inspection copy
 		}
@@ -4008,7 +4008,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	// it does not really exist on the node. but also cover the
 	// furl current MC
 	if s.state.MC != nil {
-		for name, det := range s.state.MC.PeerNames.all() {
+		for name, det := range s.state.MC.PeerNames.All() {
 			//for _, cktP := range s.cktReplica {
 			cktP, ok := s.cktReplica[det.PeerID]
 			if ok {
@@ -4061,7 +4061,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 
 	// same format as CktAllByName, for helper.go ease.
 	ins.CktAllByName[s.name] = s.URL
-	for name, det := range s.state.Known.PeerNames.all() {
+	for name, det := range s.state.Known.PeerNames.All() {
 		ins.Known[name] = det.URL
 	}
 
@@ -4962,7 +4962,7 @@ func (s *TubeNode) NewTicket(
 type SessionTableEntry struct {
 	SessionID string `zid:"0"`
 
-	Serial2Ticket *omap[int64, *Ticket] `msg:"-"`
+	Serial2Ticket *Omap[int64, *Ticket] `msg:"-"`
 
 	HighestSerialSeenFromClient int64 `zid:"1"` // any op
 	MaxAppliedSerial            int64 `zid:"2"` // writes or non-cached reads
@@ -5012,7 +5012,7 @@ func (s *SessionTableEntry) Clone() (r *SessionTableEntry) {
 		SessionID:                   s.SessionID,
 		HighestSerialSeenFromClient: s.HighestSerialSeenFromClient,
 		MaxAppliedSerial:            s.MaxAppliedSerial,
-		Serial2Ticket:               newOmap[int64, *Ticket](),
+		Serial2Ticket:               NewOmap[int64, *Ticket](),
 		ticketID2tkt:                make(map[string]*Ticket),
 		SessRequestedInitialDur:     s.SessRequestedInitialDur,
 		SessionReplicatedEndxTm:     s.SessionReplicatedEndxTm,
@@ -5020,8 +5020,8 @@ func (s *SessionTableEntry) Clone() (r *SessionTableEntry) {
 		ClientPeerID:                s.ClientPeerID,
 		ClientURL:                   s.ClientURL,
 	}
-	for _, kv := range s.Serial2Ticket.cached() {
-		r.Serial2Ticket.set(kv.key, kv.val)
+	for _, kv := range s.Serial2Ticket.Cached() {
+		r.Serial2Ticket.Set(kv.key, kv.val)
 	}
 	for k, v := range s.ticketID2tkt {
 		r.ticketID2tkt[k] = v
@@ -5035,16 +5035,16 @@ func (s *SessionTableEntry) PreSaveHook() {
 		return
 	}
 	s.Serz = make(map[int64]*Ticket)
-	for _, kv := range s.Serial2Ticket.cached() {
+	for _, kv := range s.Serial2Ticket.Cached() {
 		s.Serz[kv.key] = kv.val
 	}
 }
 
 func (s *SessionTableEntry) PostLoadHook() {
-	s.Serial2Ticket = newOmap[int64, *Ticket]()
+	s.Serial2Ticket = NewOmap[int64, *Ticket]()
 	s.ticketID2tkt = make(map[string]*Ticket)
 	for k, v := range s.Serz {
-		s.Serial2Ticket.set(k, v)
+		s.Serial2Ticket.Set(k, v)
 		s.ticketID2tkt[v.TicketID] = v
 	}
 	s.Serz = nil
@@ -5059,19 +5059,19 @@ func (s *SessionTableEntry) delTicketID(ticketID string) {
 	if tkt.SessionSerial == 0 {
 		panic(fmt.Sprintf("cannot have 0 for SessionSerial now. tkt='%v'", tkt))
 	}
-	s.Serial2Ticket.delkey(tkt.SessionSerial)
+	s.Serial2Ticket.Delkey(tkt.SessionSerial)
 }
 
 func (s *SessionTableEntry) delSessionSerial(sessSerial int64) {
 	if sessSerial == 0 {
 		panic(fmt.Sprintf("cannot have 0 for sessSerial now."))
 	}
-	tkt, ok := s.Serial2Ticket.get2(sessSerial)
+	tkt, ok := s.Serial2Ticket.Get2(sessSerial)
 	if !ok {
 		return
 	}
 	delete(s.ticketID2tkt, tkt.TicketID)
-	s.Serial2Ticket.delkey(sessSerial)
+	s.Serial2Ticket.Delkey(sessSerial)
 }
 
 func newSessionTableEntry(sess *Session) *SessionTableEntry {
@@ -5083,7 +5083,7 @@ func newSessionTableEntry(sess *Session) *SessionTableEntry {
 		SessionReplicatedEndxTm: sess.SessionIndexEndxTm,
 		SessRequestedInitialDur: sess.SessRequestedInitialDur,
 		SessionID:               sess.SessionID,
-		Serial2Ticket:           newOmap[int64, *Ticket](),
+		Serial2Ticket:           NewOmap[int64, *Ticket](),
 		ticketID2tkt:            make(map[string]*Ticket),
 		ClientName:              sess.CliName,
 		ClientPeerID:            sess.CliPeerID,
@@ -5548,7 +5548,7 @@ func (s *TubeNode) resetElectionTimeout(where string) time.Duration {
 // Two elections in a row due to the election
 // timer should NOT increment the term again!
 func (s *TubeNode) beginElection() {
-	_, weOK := s.state.MC.PeerNames.get2(s.name)
+	_, weOK := s.state.MC.PeerNames.Get2(s.name)
 	if !weOK {
 		//vv("%v in beginElection, mongo ignore: do not start an election since I am not in MC", s.me())
 		return
@@ -5571,7 +5571,7 @@ func (s *TubeNode) beginElection() {
 		_ = amDesignated
 
 		// AM I THE EVEN IN THE CLUSTER; let alone the designated leader?
-		_, iAmReplica := s.state.MC.PeerNames.get2(s.name)
+		_, iAmReplica := s.state.MC.PeerNames.Get2(s.name)
 		//vv("%v iAmReplica = %v; amDesignated = %v; (s.cfg.isTest && s.cfg.testNum < 400) = %v; s.state.MC.PeerNames = '%v'; s.cfg.InitialLeaderName = '%v'", s.me(), iAmReplica, amDesignated, (s.cfg.isTest && s.cfg.testNum < 400), s.state.MC, s.cfg.InitialLeaderName)
 
 		//if (iAmReplica && amDesignated) || (s.cfg.isTest && s.cfg.testNum < 400) {
@@ -5845,14 +5845,14 @@ func (s *TubeNode) tallyPreVote(vote *Vote) {
 	// ourselves (the leader) are in the current MC,
 	// since for liveness we may have to manage a
 	// cluster we are leaving for a while longer.
-	//_, weOK := s.state.MC.PeerNames.get2(s.name)
+	//_, weOK := s.state.MC.PeerNames.Get2(s.name)
 	//if !weOK {
 	//	vv("%v in tallyPreVote, mongo ignore pre-vote received since I am not in MC", s.me())
 	//	return
 	//}
 
 	// Is the voter in our current config? (checks our own vote too).
-	_, voterOK := s.state.MC.PeerNames.get2(vote.FromPeerName)
+	_, voterOK := s.state.MC.PeerNames.Get2(vote.FromPeerName)
 	if !voterOK {
 		//vv("%v mongo ignore pre-vote received since voter is not in MC: '%v'", s.me(), vote.FromPeerName)
 		return
@@ -5995,12 +5995,12 @@ func (s *TubeNode) tallyVote(vote *Vote) {
 	// mongo reconfig: are both we and the voter in
 	// our current config? update: per 4.2.2 I think
 	// we must allow elections without ourselves.
-	//_, weOK := s.state.MC.PeerNames.get2(s.name)
+	//_, weOK := s.state.MC.PeerNames.Get2(s.name)
 	//if !weOK {
 	//	//vv("%v mongo ignore vote received since I am not in MC", s.me())
 	//	return
 	//}
-	_, voterOK := s.state.MC.PeerNames.get2(vote.FromPeerName)
+	_, voterOK := s.state.MC.PeerNames.Get2(vote.FromPeerName)
 	if !voterOK {
 		//vv("%v mongo ignore vote received since voter is not in MC: '%v'", s.me(), vote.FromPeerName)
 		return
@@ -7461,14 +7461,14 @@ func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
 	uncontactedMemberName := make(map[string]bool)
 	if s.state != nil {
 		if s.state.MC != nil {
-			for name := range s.state.MC.PeerNames.all() {
+			for name := range s.state.MC.PeerNames.All() {
 				if name != s.name { // no need to contact self.
 					uncontactedMemberName[name] = true
 				}
 			}
 		}
 		if s.state.ShadowReplicas != nil {
-			for name := range s.state.ShadowReplicas.PeerNames.all() {
+			for name := range s.state.ShadowReplicas.PeerNames.All() {
 				if name != s.name { // no need to contact self.
 					uncontactedMemberName[name] = true
 				}
@@ -7484,7 +7484,7 @@ func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
 		// deliberately removed from the MC and the
 		// lack of heartbeats coming to them in the
 		// near future is not due to leader failure.
-		for name, det := range s.state.Observers.PeerNames.all() {
+		for name, det := range s.state.Observers.PeerNames.All() {
 			if name == s.name {
 				continue
 			}
@@ -7494,7 +7494,7 @@ func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
 				// zero gc count means never garbage collect
 				if det.gcAfterHeartbeatCount > 0 {
 					if det.gcAfterHeartbeatCount == 1 {
-						s.state.Observers.PeerNames.delkey(name)
+						s.state.Observers.PeerNames.Delkey(name)
 					} else {
 						det.gcAfterHeartbeatCount--
 					}
@@ -7509,7 +7509,7 @@ func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
 	}
 
 	// in leaderSendsHeartbeats here.
-	//for name, det := range s.state.MC.PeerNames.all() {
+	//for name, det := range s.state.MC.PeerNames.All() {
 
 	// so the way this works is: we try send to everyone
 	// we have in cktReplica. If any members are not
@@ -8303,11 +8303,11 @@ func (s *TubeNode) skipAEBecauseNotReplica(followerID, followerName, followerSer
 	if s == nil || s.state == nil || s.state.MC == nil {
 		return false
 	}
-	_, isShadow := s.state.ShadowReplicas.PeerNames.get2(followerName)
+	_, isShadow := s.state.ShadowReplicas.PeerNames.Get2(followerName)
 	if isShadow {
 		return false // allow shadows.
 	}
-	_, isMember := s.state.MC.PeerNames.get2(followerName)
+	_, isMember := s.state.MC.PeerNames.Get2(followerName)
 	if isMember {
 		return false
 	}
@@ -8846,7 +8846,7 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 		// seems important: only count match indexes from
 		// currently configured membership
 		if s.state.MC != nil {
-			_, ok := s.state.MC.PeerNames.get2(info.PeerName)
+			_, ok := s.state.MC.PeerNames.Get2(info.PeerName)
 			if !ok {
 				//vv("%v warning: ignoring match index from peer '%v' (%v) b/c not in MC.PeerNames: '%#v'", s.name, info.PeerName, info.PeerID, s.state.MC.PeerNames)
 				continue
@@ -9167,7 +9167,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 				continue
 			}
 			ste.ticketID2tkt[tkt.TicketID] = tkt
-			ste.Serial2Ticket.set(tkt.SessionSerial, tkt)
+			ste.Serial2Ticket.Set(tkt.SessionSerial, tkt)
 			if tkt.SessionSerial > ste.MaxAppliedSerial {
 				//vv("%v: updating ste.MaxAppliedSerial to higher tkt.SessionSerial: %v -> %v; on tkt.SessionID = '%v'", s.name, ste.MaxAppliedSerial, tkt.SessionSerial, tkt.SessionID)
 				ste.MaxAppliedSerial = tkt.SessionSerial
@@ -9660,7 +9660,7 @@ func (s *TubeNode) beginPreVote() {
 		return
 	}
 	if s.state != nil && s.state.MC != nil {
-		_, weOK := s.state.MC.PeerNames.get2(s.name)
+		_, weOK := s.state.MC.PeerNames.Get2(s.name)
 		if !weOK {
 			//vv("%v in beginPreVote, mongo ignore: do not start a pre-vote since I am not in MC", s.me())
 			return
@@ -10329,7 +10329,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 			// cleanup old state sessions
 			defer s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
 
-			priorTkt, already := ste.Serial2Ticket.get2(tkt.SessionSerial)
+			priorTkt, already := ste.Serial2Ticket.Get2(tkt.SessionSerial)
 			if already {
 				// dedup: return the previous read, to preserve
 				// linearizability (linz).
@@ -10444,7 +10444,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 		}
 		tktClone := tkt.clone()
 		ste.ticketID2tkt[tktClone.TicketID] = tktClone
-		ste.Serial2Ticket.set(tktClone.SessionSerial, tktClone)
+		ste.Serial2Ticket.Set(tktClone.SessionSerial, tktClone)
 	}
 
 	if tkt.FromID == s.PeerID {
@@ -11659,7 +11659,7 @@ PeerServiceNameVersion: %v
 // state.MC;
 // state.CommittedMemberConfig.
 type MemberConfig struct {
-	PeerNames *omap[string, *PeerDetail] `msg:"-"`
+	PeerNames *Omap[string, *PeerDetail] `msg:"-"`
 
 	SerzPeerDetails []*PeerDetail `zid:"0"`
 
@@ -11718,13 +11718,13 @@ type MemberConfig struct {
 	CommitIndexEntryTerm int64 `zid:"14"`
 }
 
-func peerNamesUnion(peerNamesA, peerNamesB *omap[string, *PeerDetail]) (r *omap[string, *PeerDetail]) {
-	r = newOmap[string, *PeerDetail]()
-	for _, okv := range peerNamesA.cached() {
-		r.set(okv.key, okv.val)
+func peerNamesUnion(peerNamesA, peerNamesB *Omap[string, *PeerDetail]) (r *Omap[string, *PeerDetail]) {
+	r = NewOmap[string, *PeerDetail]()
+	for _, okv := range peerNamesA.Cached() {
+		r.Set(okv.key, okv.val)
 	}
-	for _, okv := range peerNamesB.cached() {
-		v2, ok2 := r.get2(okv.key)
+	for _, okv := range peerNamesB.Cached() {
+		v2, ok2 := r.Get2(okv.key)
 		if ok2 {
 			// okv.key is in both A and B.
 			if strings.Contains(okv.val.URL, "pending") &&
@@ -11734,7 +11734,7 @@ func peerNamesUnion(peerNamesA, peerNamesB *omap[string, *PeerDetail]) (r *omap[
 			}
 		}
 		// overwrite any key also in A.
-		r.set(okv.key, okv.val)
+		r.Set(okv.key, okv.val)
 	}
 	return
 }
@@ -11782,15 +11782,15 @@ func (s *MemberConfig) PreSaveHook() {
 	if s.PeerNames == nil {
 		return
 	}
-	for _, kv := range s.PeerNames.cached() {
+	for _, kv := range s.PeerNames.Cached() {
 		s.SerzPeerDetails = append(s.SerzPeerDetails, kv.val)
 	}
 }
 
 func (s *MemberConfig) PostLoadHook() {
-	s.PeerNames = newOmap[string, *PeerDetail]()
+	s.PeerNames = NewOmap[string, *PeerDetail]()
 	for _, d := range s.SerzPeerDetails {
-		s.PeerNames.set(d.Name, d)
+		s.PeerNames.Set(d.Name, d)
 	}
 	s.SerzPeerDetails = s.SerzPeerDetails[:0]
 }
@@ -11798,7 +11798,7 @@ func (s *MemberConfig) PostLoadHook() {
 // give the optional origin of this MemberConfig in s.
 func (s *TubeNode) NewMemberConfig(loc string) *MemberConfig {
 	r := &MemberConfig{
-		PeerNames: newOmap[string, *PeerDetail](),
+		PeerNames: NewOmap[string, *PeerDetail](),
 		//ConfigVersion: 0,
 		//IsCommitted: false,
 	}
@@ -11866,12 +11866,12 @@ func (s *MemberConfig) setNameDetail(name string, detail *PeerDetail, who *TubeN
 	// sanity check, where is future update from??
 	s.check(who)
 
-	s.PeerNames.set(name, detail)
+	s.PeerNames.Set(name, detail)
 	// call addProv after if desired; e.g. r.addProv("setNameDetails")
 }
 
 func (s *MemberConfig) delName(name string, who *TubeNode) {
-	s.PeerNames.delkey(name)
+	s.PeerNames.Delkey(name)
 
 	// sanity check, where is future update from??
 	now := s.check(who)
@@ -11904,7 +11904,7 @@ func (s *MemberConfig) LongString() (r string) {
 		s.ConfigVersion, s.ConfigTerm,
 		s.BootCount, s.BootCount > 0, s.PeerNames.Len())
 
-	for peerName, det := range s.PeerNames.all() {
+	for peerName, det := range s.PeerNames.All() {
 		r += fmt.Sprintf("%v -> %v\n", peerName, det)
 	}
 	r += "}\n" + s.ProvString()
@@ -11936,7 +11936,7 @@ func (s *MemberConfig) ContentString() (r string) {
 		s.RaftLogIndex,
 		s.BootCount, s.BootCount > 0, s.PeerNames.Len())
 
-	for peerName, det := range s.PeerNames.all() {
+	for peerName, det := range s.PeerNames.All() {
 		r += fmt.Sprintf("%v -> %v\n", peerName, det)
 	}
 	r += "}\n"
@@ -11960,7 +11960,7 @@ func (s *MemberConfig) short(withProv bool) (r string) {
 	r = fmt.Sprintf(`[%v term:%v; vers=%v; idx:%v; ci:%v]{`, com, s.ConfigTerm, s.ConfigVersion, s.RaftLogIndex, s.CommitIndex)
 	i := 0
 	if s.PeerNames != nil {
-		for peerName := range s.PeerNames.all() {
+		for peerName := range s.PeerNames.All() {
 			if i > 0 {
 				r += ","
 			}
@@ -11987,10 +11987,10 @@ func (s *MemberConfig) Clone() (r *MemberConfig) {
 	}
 	r = &MemberConfig{}
 	*r = *s
-	r.PeerNames = newOmap[string, *PeerDetail]()
+	r.PeerNames = NewOmap[string, *PeerDetail]()
 
-	for peerName, det := range s.PeerNames.all() {
-		r.PeerNames.set(peerName, det.Clone())
+	for peerName, det := range s.PeerNames.All() {
+		r.PeerNames.Set(peerName, det.Clone())
 	}
 	r.Prov = nil
 	for _, prov := range s.Prov {
@@ -12002,13 +12002,13 @@ func (s *MemberConfig) Clone() (r *MemberConfig) {
 // return a-b union b-a
 func (a *MemberConfig) Diff(b *MemberConfig) (diff map[string]bool) {
 	diff = make(map[string]bool)
-	for peerName := range a.PeerNames.all() {
-		if _, ok := b.PeerNames.get2(peerName); !ok {
+	for peerName := range a.PeerNames.All() {
+		if _, ok := b.PeerNames.Get2(peerName); !ok {
 			diff[peerName] = true
 		}
 	}
-	for peerName := range b.PeerNames.all() {
-		if _, ok := a.PeerNames.get2(peerName); !ok {
+	for peerName := range b.PeerNames.All() {
+		if _, ok := a.PeerNames.Get2(peerName); !ok {
 			diff[peerName] = true
 		}
 	}
@@ -12359,7 +12359,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 				s.state.ShadowReplicas.PeerNames != nil {
 				// only MEMBERSHIP_SET_UPDATE or MEMBERSHIP_BOOTSTRAP here
 				// (never ADD_SHADOW_NON_VOTING/REMOVE_SHADOW_NON_VOTING)
-				_, alreadyShadow := s.state.ShadowReplicas.PeerNames.get2(tkt.AddPeerName)
+				_, alreadyShadow := s.state.ShadowReplicas.PeerNames.Get2(tkt.AddPeerName)
 				if alreadyShadow {
 					tkt.Err = fmt.Errorf("'%v' is already a shadow replica, cannot add as regular regular peer, as these sets must be disjoint. rejecting '%v'; error at leader '%v' in changeMembership().", tkt.AddPeerName, tkt.AddPeerName, s.name)
 					s.respondToClientTicketApplied(tkt)
@@ -12444,7 +12444,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		inCurTermCount = 0
 	}
 	curTerm := s.state.CurrentTerm
-	for peerName, detail := range curConfig.PeerNames.all() {
+	for peerName, detail := range curConfig.PeerNames.All() {
 		_ = detail
 		cktP0, ok := s.cktAllByName[peerName]
 		if ok && cktP0.ckt != nil {
@@ -12492,7 +12492,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			}
 			s.setAddrURL(det, cktP0)
 			newConfig.setNameDetail(peerName, det, s)
-			s.state.Known.PeerNames.set(peerName, det)
+			s.state.Known.PeerNames.Set(peerName, det)
 		}
 	}
 	if s.weAreMemberOfCurrentMC() {
@@ -12508,7 +12508,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			//NonVoting:              s.NonVoting,
 		}
 		newConfig.setNameDetail(s.name, det, s)
-		s.state.Known.PeerNames.set(s.name, det)
+		s.state.Known.PeerNames.Set(s.name, det)
 	}
 
 	// DONE: we have updated newConfig set of curConfig members
@@ -12518,7 +12518,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	switch {
 	case tkt.AddPeerName != "":
 
-		_, already := curConfig.PeerNames.get2(tkt.AddPeerName)
+		_, already := curConfig.PeerNames.Get2(tkt.AddPeerName)
 		if already {
 			break // just proceed below
 
@@ -12546,7 +12546,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			}
 			s.setAddrURL(det, cktP)
 			newConfig.setNameDetail(tkt.AddPeerName, det, s)
-			s.state.Known.PeerNames.set(tkt.AddPeerName, det)
+			s.state.Known.PeerNames.Set(tkt.AddPeerName, det)
 
 		} else {
 
@@ -12565,7 +12565,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 					//NonVoting:              s.NonVoting,
 				}
 				newConfig.setNameDetail(s.name, det, s)
-				s.state.Known.PeerNames.set(s.name, det)
+				s.state.Known.PeerNames.Set(s.name, det)
 			} else {
 				//vv("%v no existing connection to tkt.AddPeerName='%v', try to spin one up in background", s.me(), target)
 				cktP := s.newCktPlus(target, TUBE_REPLICA)
@@ -12591,7 +12591,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			}
 		}
 	case tkt.RemovePeerName != "":
-		gonerDetail, already := curConfig.PeerNames.get2(tkt.RemovePeerName)
+		gonerDetail, already := curConfig.PeerNames.Get2(tkt.RemovePeerName)
 		if !already {
 			alwaysPrintf("%v remove peer '%v' is a noop since it is already gone", s.me(), tkt.RemovePeerName)
 
@@ -12614,7 +12614,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			// once all the other checks below have passed.
 		} else {
 			gonerDetail.gcAfterHeartbeatCount = 3
-			s.state.Observers.PeerNames.set(gonerDetail.Name, gonerDetail)
+			s.state.Observers.PeerNames.Set(gonerDetail.Name, gonerDetail)
 		}
 		newConfig.delName(tkt.RemovePeerName, s)
 
@@ -12730,8 +12730,8 @@ func (a *MemberConfig) SamePeers(b *MemberConfig) bool {
 	if na != nb {
 		return false
 	}
-	for p := range a.PeerNames.all() {
-		_, ok := b.PeerNames.get2(p)
+	for p := range a.PeerNames.All() {
+		_, ok := b.PeerNames.Get2(p)
 		if !ok {
 			return false
 		}
@@ -12782,7 +12782,7 @@ func (s *TubeNode) setMC(members *MemberConfig, caller string) (amInLatest, igno
 
 	defer func() {
 		if s != nil && s.state != nil && s.state.MC != nil {
-			_, amInLatest = s.state.MC.PeerNames.get2(s.name)
+			_, amInLatest = s.state.MC.PeerNames.Get2(s.name)
 		}
 	}()
 
@@ -12837,16 +12837,16 @@ func (s *TubeNode) putRemovedReplicasIntoShadows(newMC *MemberConfig) {
 	for name, action := range diff {
 		if action == "removed" {
 			// use the detail from s.state.MC for shadows
-			detail, ok := s.state.MC.PeerNames.get2(name)
+			detail, ok := s.state.MC.PeerNames.Get2(name)
 			if ok {
-				s.state.ShadowReplicas.PeerNames.set(name, detail)
+				s.state.ShadowReplicas.PeerNames.Set(name, detail)
 				s.clearFromObservers(name)
 			} else {
 				panicf("should be impossible; why no detail if we just saw the name in diff='%v'", name)
 			}
 		} else {
 			// adding name to MC, so take out of Shadows automatically.
-			s.state.ShadowReplicas.PeerNames.delkey(name)
+			s.state.ShadowReplicas.PeerNames.Delkey(name)
 		}
 	}
 }
@@ -12887,7 +12887,7 @@ func cktsDiff(update, orig map[string]*cktPlus) (diff map[string]string) {
 // the tube (Raft) mechanism.
 // ===================
 type ExternalCluster struct {
-	Member *omap[string, string] `msg:"-"`
+	Member *Omap[string, string] `msg:"-"`
 
 	// nil almost always; only used
 	// briefly during serialization to/from disk.
@@ -12896,10 +12896,10 @@ type ExternalCluster struct {
 
 func NewExternalCluster(m map[string]string) (r *ExternalCluster) {
 	r = &ExternalCluster{
-		Member: newOmap[string, string](),
+		Member: NewOmap[string, string](),
 	}
 	for k, v := range m {
-		r.Member.set(k, v)
+		r.Member.Set(k, v)
 	}
 	return
 }
@@ -12907,7 +12907,7 @@ func NewExternalCluster(m map[string]string) (r *ExternalCluster) {
 func (s *ExternalCluster) String() (r string) {
 	r = "ExternalCluster{\n"
 	i := 0
-	for k, v := range s.Member.all() {
+	for k, v := range s.Member.All() {
 		r += fmt.Sprintf(` %02d Member[ "%v" ]: "%v"
 `, i, k, v)
 		i++
@@ -12922,15 +12922,15 @@ func (s *ExternalCluster) PreSaveHook() {
 		return
 	}
 	s.Serz = make(map[string]string)
-	for _, kv := range s.Member.cached() {
+	for _, kv := range s.Member.Cached() {
 		s.Serz[kv.key] = kv.val
 	}
 }
 
 func (s *ExternalCluster) PostLoadHook() {
-	s.Member = newOmap[string, string]()
+	s.Member = NewOmap[string, string]()
 	for k, v := range s.Serz {
-		s.Member.set(k, v)
+		s.Member.Set(k, v)
 	}
 	s.Serz = nil
 }
@@ -13200,11 +13200,11 @@ func (s *TubeNode) connectToMC(origin string) {
 	//	//vv("%v end of connectToMC(); backgroundConnCount=%v", s.me(), backgroundConnCount)
 	//}()
 
-	sortedPeerNamesCached := s.state.MC.PeerNames.cached()
+	sortedPeerNamesCached := s.state.MC.PeerNames.Cached()
 	numNames := len(sortedPeerNamesCached)
 
 	// these are disjoint, as we enforce that.
-	shadows := s.state.ShadowReplicas.PeerNames.cached()
+	shadows := s.state.ShadowReplicas.PeerNames.Cached()
 	sortedPeerNamesCached = append(sortedPeerNamesCached, shadows...)
 	numNames += len(shadows)
 
@@ -13282,7 +13282,7 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 	//vv("%v top connectInBackgroundIfNoCircuitTo '%v'", s.me(), peerName) // seen in 059
 
 	var url, peerID, netAddr string
-	detail, ok := s.state.MC.PeerNames.get2(peerName)
+	detail, ok := s.state.MC.PeerNames.Get2(peerName)
 	if ok {
 		url = detail.URL
 		peerID = detail.PeerID
@@ -13489,13 +13489,13 @@ func (s *TubeNode) adjustCktReplicaForNewMembership() {
 	keepName := make(map[string]*cktPlus)
 	var toss []string
 	for peerID, cktP := range s.cktReplica {
-		_, allowed0 := s.state.MC.PeerNames.get2(cktP.PeerName)
+		_, allowed0 := s.state.MC.PeerNames.Get2(cktP.PeerName)
 		if allowed0 && cktP.PeerName != s.name {
 			// (but don't add self to cktReplica)
 			keepName[cktP.PeerName] = cktP
 		} else {
 			// also keep ShadowReplicas, as well as MC.
-			_, allowed1 := s.state.ShadowReplicas.PeerNames.get2(cktP.PeerName)
+			_, allowed1 := s.state.ShadowReplicas.PeerNames.Get2(cktP.PeerName)
 			if allowed1 && cktP.PeerName != s.name {
 				// (but don't add self to cktReplica)
 				keepName[cktP.PeerName] = cktP
@@ -13519,7 +13519,7 @@ func (s *TubeNode) adjustCktReplicaForNewMembership() {
 		case 1:
 			group = s.state.ShadowReplicas
 		}
-		for peerName, det := range group.PeerNames.all() {
+		for peerName, det := range group.PeerNames.All() {
 			if peerName == s.name {
 				// never want self in cktReplica
 				continue
@@ -13683,8 +13683,8 @@ func (s *TubeNode) initWalOnce() (err error) {
 func (s *TubeNode) membershipDiffOldNew(prevConfig, newConfig *MemberConfig) (diff map[string]string) {
 
 	diff = make(map[string]string)
-	for newName, newDet := range newConfig.PeerNames.all() {
-		oldDet, ok := prevConfig.PeerNames.get2(newName)
+	for newName, newDet := range newConfig.PeerNames.All() {
+		oldDet, ok := prevConfig.PeerNames.Get2(newName)
 		if !ok {
 			diff[newName] = "added"
 		} else {
@@ -13695,8 +13695,8 @@ func (s *TubeNode) membershipDiffOldNew(prevConfig, newConfig *MemberConfig) (di
 			}
 		}
 	}
-	for prevName := range prevConfig.PeerNames.all() {
-		_, ok := newConfig.PeerNames.get2(prevName)
+	for prevName := range prevConfig.PeerNames.All() {
+		_, ok := newConfig.PeerNames.Get2(prevName)
 		if !ok {
 			diff[prevName] = "removed"
 		}
@@ -14202,7 +14202,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 	// for it.
 
 	defer s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
-	priorTkt, already := ste.Serial2Ticket.get2(tkt.SessionSerial)
+	priorTkt, already := ste.Serial2Ticket.Get2(tkt.SessionSerial)
 	if already {
 		// return the previous read, to preserve
 		// linearizability (linz).
@@ -14302,11 +14302,11 @@ func (s *TubeNode) cleanupAcked(ste *SessionTableEntry, deleteBelow int64) {
 	if deleteBelow <= 0 {
 		return
 	}
-	for ser, tkt := range ste.Serial2Ticket.all() {
+	for ser, tkt := range ste.Serial2Ticket.All() {
 		if ser < deleteBelow {
 			//vv("%v deleting acked SessionSerial %v in SessionID '%v'", s.name, ser, tkt.SessionID)
 			delete(ste.ticketID2tkt, tkt.TicketID)
-			ste.Serial2Ticket.delkey(ser)
+			ste.Serial2Ticket.Delkey(ser)
 		} else {
 			// since we are ordered by serial,
 			// all the others will be higher and we
@@ -14339,7 +14339,7 @@ func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, 
 	// now apply the change (add one, or remove one node) specified in tkt.
 	switch {
 	case tkt.AddPeerName != "":
-		_, already := newConfig.PeerNames.get2(tkt.AddPeerName)
+		_, already := newConfig.PeerNames.Get2(tkt.AddPeerName)
 		if already {
 			// allow no-op config changes since logical races may happen.
 			return // newConfig ready to go then.
@@ -14358,7 +14358,7 @@ func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, 
 			s.setAddrURL(det, cktP)
 
 			newConfig.setNameDetail(tkt.AddPeerName, det, s)
-			s.state.Known.PeerNames.set(tkt.AddPeerName, det)
+			s.state.Known.PeerNames.Set(tkt.AddPeerName, det)
 
 			if tkt.AddPeerID != cktP.PeerID {
 				panic("which is more up to date?")
@@ -14375,16 +14375,16 @@ func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, 
 				Addr:   tkt.AddPeerBaseServerHostPort,
 			}
 			newConfig.setNameDetail(tkt.AddPeerName, det, s)
-			s.state.Known.PeerNames.set(tkt.AddPeerName, det)
+			s.state.Known.PeerNames.Set(tkt.AddPeerName, det)
 		}
 	case tkt.RemovePeerName != "":
-		_, already := newConfig.PeerNames.get2(tkt.RemovePeerName)
+		_, already := newConfig.PeerNames.Get2(tkt.RemovePeerName)
 		if !already {
 			// allow logical no-ops b/c changes might be racing from
 			// different clients and that should not crash us.
 			return
 		}
-		newConfig.PeerNames.delkey(tkt.RemovePeerName)
+		newConfig.PeerNames.Delkey(tkt.RemovePeerName)
 	}
 	return
 }
@@ -14529,7 +14529,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 	if s.state == nil || s.state.MC == nil {
 		return
 	}
-	detail, present := s.state.MC.PeerNames.get2(ckt.RemotePeerName)
+	detail, present := s.state.MC.PeerNames.Get2(ckt.RemotePeerName)
 	_ = detail
 	if !present {
 		// this is a bit of a logical race/chicken-and-egg.
@@ -14567,7 +14567,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 		// in addToCktall here.
 		// have a call to s.adjustCktReplicaForNewMembership() ?
 	}
-	s.state.Known.PeerNames.set(ckt.RemotePeerName, updatedDetail)
+	s.state.Known.PeerNames.Set(ckt.RemotePeerName, updatedDetail)
 
 	if ckt.RemoteServiceName == TUBE_REPLICA {
 		s.cktReplica[cktP.PeerID] = cktP // cktReplica-write (?)
@@ -14770,7 +14770,7 @@ func (c *cktPlus) isPending() (ans bool) {
 }
 
 func (s *MemberConfig) hasNamePeerID(peerName, peerID string) bool {
-	detail, ok := s.PeerNames.get2(peerName)
+	detail, ok := s.PeerNames.Get2(peerName)
 	if ok {
 		if detail.PeerID == peerID {
 			return true
@@ -14782,7 +14782,7 @@ func (s *MemberConfig) hasNamePeerID(peerName, peerID string) bool {
 // called on reboot to refresh our own address;
 // in case we become leader we are ready to go.
 func (s *TubeNode) updateSelfAddressInMemberConfig(mc *MemberConfig) (changed bool) {
-	det, present := mc.PeerNames.get2(s.name)
+	det, present := mc.PeerNames.Get2(s.name)
 	if !present {
 		// cluster may not want us in the peer membership at the moment.
 		return
@@ -14804,7 +14804,7 @@ func (s *TubeNode) updateSelfAddressInMemberConfig(mc *MemberConfig) (changed bo
 		updatedDetail.Addr = s.MyPeer.BaseServerAddr
 	}
 	mc.setNameDetail(s.name, updatedDetail, s)
-	s.state.Known.PeerNames.set(s.name, updatedDetail)
+	s.state.Known.PeerNames.Set(s.name, updatedDetail)
 
 	return
 }
@@ -14893,7 +14893,7 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 		}
 
 	case ADD_SHADOW_NON_VOTING:
-		_, isMember := s.state.MC.PeerNames.get2(tkt.AddPeerName)
+		_, isMember := s.state.MC.PeerNames.Get2(tkt.AddPeerName)
 		if isMember {
 			tkt.Err = fmt.Errorf("node is already in replica membership MC, so cannot use ADD_SHADOW_NON_VOTING to add them to ShadowReplica: '%v'", tkt.AddPeerName)
 			s.respondToClientTicketApplied(tkt)
@@ -14903,7 +14903,7 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 	// fallthrough to replicateTicket
 
 	case REMOVE_SHADOW_NON_VOTING:
-		_, isShadow := s.state.ShadowReplicas.PeerNames.get2(tkt.RemovePeerName)
+		_, isShadow := s.state.ShadowReplicas.PeerNames.Get2(tkt.RemovePeerName)
 		if !isShadow {
 			tkt.Err = fmt.Errorf("node is not in ShadowReplicas, so cannot use REMOVE_SHADOW_NON_VOTING to remove them: '%v'", tkt.RemovePeerName)
 			s.respondToClientTicketApplied(tkt)
@@ -15031,16 +15031,16 @@ func quorumsOverlap(curMC, newMC *MemberConfig) bool {
 	intersection := make(map[string]bool)
 	if curN < newN {
 		// curN is smaller
-		for name := range curMC.PeerNames.all() {
-			_, ok := newMC.PeerNames.get2(name)
+		for name := range curMC.PeerNames.All() {
+			_, ok := newMC.PeerNames.Get2(name)
 			if ok {
 				intersection[name] = true
 			}
 		}
 	} else {
 		// newN is smaller
-		for name := range newMC.PeerNames.all() {
-			_, ok := curMC.PeerNames.get2(name)
+		for name := range newMC.PeerNames.All() {
+			_, ok := curMC.PeerNames.Get2(name)
 			if ok {
 				intersection[name] = true
 			}
@@ -15066,11 +15066,11 @@ func (s *TubeNode) isFollowerKaput() bool {
 	if !s.state.MC.IsCommitted {
 		return false
 	}
-	_, weAreInCurConfig := s.state.MC.PeerNames.get2(s.name)
+	_, weAreInCurConfig := s.state.MC.PeerNames.Get2(s.name)
 	if weAreInCurConfig {
 		return false
 	}
-	_, weAreShadow := s.state.ShadowReplicas.PeerNames.get2(s.name)
+	_, weAreShadow := s.state.ShadowReplicas.PeerNames.Get2(s.name)
 	return !weAreShadow
 }
 
@@ -15080,7 +15080,7 @@ func (s *TubeNode) leaderShouldStepDownBecauseNotInCurCommittedMC() bool {
 	if !curCommitted {
 		return false
 	}
-	_, weAreInCurConfig := s.state.MC.PeerNames.get2(s.name)
+	_, weAreInCurConfig := s.state.MC.PeerNames.Get2(s.name)
 	return !weAreInCurConfig
 }
 
@@ -15111,7 +15111,7 @@ func (s *TubeNode) onLeaderIsCurrentMCcommitted() (curCommited bool) {
 		inCurTermCount = 0
 	}
 	curTerm := s.state.CurrentTerm
-	for peerName, _ := range curConfig.PeerNames.all() {
+	for peerName, _ := range curConfig.PeerNames.All() {
 		cktP0, ok := s.cktAllByName[peerName]
 		if ok && cktP0.ckt != nil {
 			if peerName == s.name {
@@ -15164,15 +15164,15 @@ func (s *TubeNode) mergeCktPToKnown(cktP *cktPlus) {
 		Addr:                   addr,
 	}
 	// in mergeCktPToKnown here
-	s.state.Known.PeerNames.set(det.Name, det)
+	s.state.Known.PeerNames.Set(det.Name, det)
 }
 
 func (a *MemberConfig) merge(b *MemberConfig) {
 	if b == nil || a == nil {
 		return
 	}
-	for name, det := range b.PeerNames.all() {
-		_, ok := a.PeerNames.get2(name)
+	for name, det := range b.PeerNames.All() {
+		_, ok := a.PeerNames.Get2(name)
 		if ok {
 			// already have name. which to keep?
 			// Avoid new one if it has no info; is pending,
@@ -15180,12 +15180,12 @@ func (a *MemberConfig) merge(b *MemberConfig) {
 			// a snapshot from leader who is more actively
 			// keeping connections up.
 			if det.URL != "pending" {
-				a.PeerNames.set(name, det)
+				a.PeerNames.Set(name, det)
 			}
 			continue
 		}
 		// totally new peer, add it.
-		a.PeerNames.set(name, det)
+		a.PeerNames.Set(name, det)
 	}
 }
 
@@ -15350,7 +15350,7 @@ func (s *TubeNode) weAreMemberOfCurrentMC() bool {
 	if s == nil || s.state == nil || s.state.MC == nil {
 		return false
 	}
-	_, ok := s.state.MC.PeerNames.get2(s.name)
+	_, ok := s.state.MC.PeerNames.Get2(s.name)
 	return ok
 }
 
@@ -15361,7 +15361,7 @@ func (s *TubeNode) observerOnlyNow() bool {
 	if s.state == nil {
 		return false
 	}
-	_, isObs := s.state.Observers.PeerNames.get2(s.name)
+	_, isObs := s.state.Observers.PeerNames.Get2(s.name)
 	if !isObs {
 		return false
 	}
@@ -15372,7 +15372,7 @@ func (s *TubeNode) observerOnlyNow() bool {
 		!s.state.MC.IsCommitted {
 		return false
 	}
-	_, ok := s.state.MC.PeerNames.get2(s.name)
+	_, ok := s.state.MC.PeerNames.Get2(s.name)
 	if ok {
 		return false
 	}
@@ -15390,7 +15390,7 @@ func (s *TubeNode) amShadowReplica() bool {
 	if s.state.ShadowReplicas == nil {
 		return false
 	}
-	_, isShadow := s.state.ShadowReplicas.PeerNames.get2(s.name)
+	_, isShadow := s.state.ShadowReplicas.PeerNames.Get2(s.name)
 	return isShadow
 }
 
@@ -15457,7 +15457,7 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 		return false
 	}
 	if n == 1 {
-		_, justMe := s.state.MC.PeerNames.get2(s.name)
+		_, justMe := s.state.MC.PeerNames.Get2(s.name)
 		if !justMe {
 			//vv("%v not just me 2; MC=%v", s.name, s.state.MC)
 			return false
@@ -15467,9 +15467,9 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 
 	detail := s.getMyDetails()
 	s.state.MC.setNameDetail(s.name, detail, s)
-	s.state.Known.PeerNames.set(s.name, detail)
+	s.state.Known.PeerNames.Set(s.name, detail)
 
-	s.state.ShadowReplicas.PeerNames.delkey(s.name)
+	s.state.ShadowReplicas.PeerNames.Delkey(s.name)
 	//vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
 	if s.role != LEADER {
 		s.becomeLeader()
@@ -15519,7 +15519,7 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 		target = tkt.RemovePeerName
 	}
 	// needed?
-	detailTarget, have := s.state.MC.PeerNames.get2(target)
+	detailTarget, have := s.state.MC.PeerNames.Get2(target)
 	_ = detailTarget
 	if isAdd {
 		if have {
@@ -15553,8 +15553,8 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 
 			s.state.MC.ConfigVersion++
 			s.state.MC.setNameDetail(s.name, detail, s)
-			s.state.ShadowReplicas.PeerNames.delkey(s.name)
-			s.state.Known.PeerNames.set(s.name, detail)
+			s.state.ShadowReplicas.PeerNames.Delkey(s.name)
+			s.state.Known.PeerNames.Set(s.name, detail)
 			changeMade = true
 
 			//vv("%v forcing MC add rather than redirectToLeader. added me='%v'; now MC='%v'", s.me(), s.name, s.state.MC)
@@ -15567,15 +15567,15 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 		// we can try Shadow and Known... else error out?
 		// or put pending? I mean Shadow and Known
 		// might have good host:port, so worth trying.
-		detail, ok := s.state.ShadowReplicas.PeerNames.get2(target)
+		detail, ok := s.state.ShadowReplicas.PeerNames.Get2(target)
 		if !ok {
-			detail, ok = s.state.Known.PeerNames.get2(target)
+			detail, ok = s.state.Known.PeerNames.Get2(target)
 		}
 		if ok {
 
 			s.state.MC.ConfigVersion++
 			s.state.MC.setNameDetail(target, detail, s)
-			s.state.ShadowReplicas.PeerNames.delkey(target)
+			s.state.ShadowReplicas.PeerNames.Delkey(target)
 			changeMade = true
 
 			//vv("%v forcing MC add rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
@@ -15595,14 +15595,14 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 		detail := s.getMyDetails()
 
 		s.state.MC.ConfigVersion++
-		s.state.MC.PeerNames.delkey(s.name)
+		s.state.MC.PeerNames.Delkey(s.name)
 
 		// assume if we are force removing that
 		// the node is dead and gone, and we do not
 		// want them lingering in shadows either, so comment out:
-		//s.state.ShadowReplicas.PeerNames.set(s.name, detail)
+		//s.state.ShadowReplicas.PeerNames.Set(s.name, detail)
 
-		s.state.Known.PeerNames.set(s.name, detail)
+		s.state.Known.PeerNames.Set(s.name, detail)
 		changeMade = true
 
 		//vv("%v forcing MC remove of myself('%v') rather than redirectToLeader. now MC='%v'", s.me(), s.name, s.state.MC)
@@ -15612,13 +15612,13 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 	}
 	// remove, not me
 	s.state.MC.ConfigVersion++
-	s.state.MC.PeerNames.delkey(target)
+	s.state.MC.PeerNames.Delkey(target)
 	changeMade = true
 
 	// assume if we are force removing that
 	// the node is dead and gone, and we do not
 	// want them lingering in shadows either, so comment out:
-	//s.state.ShadowReplicas.PeerNames.set(target, detailTarget)
+	//s.state.ShadowReplicas.PeerNames.Set(target, detailTarget)
 
 	//vv("%v forcing MC remove of non-self target rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
 
@@ -15634,11 +15634,11 @@ func (s *TubeNode) clearFromObservers(name string) {
 		s.state.Observers = s.NewMemberConfig("clearFromObserverse")
 		return
 	}
-	_, ok := s.state.Observers.PeerNames.get2(name)
+	_, ok := s.state.Observers.PeerNames.Get2(name)
 	if !ok {
 		return
 	}
-	s.state.Observers.PeerNames.delkey(name)
+	s.state.Observers.PeerNames.Delkey(name)
 }
 
 func (s *TubeNode) InjectEmptyMC(ctx context.Context, targetURL, nodeName string) (err error) {
@@ -15726,15 +15726,15 @@ func (s *TubeNode) doAddShadow(tkt *Ticket) {
 		Addr:                   tkt.AddPeerBaseServerHostPort,
 		//URL:                    tkt.AddPeerURL ??
 	}
-	s.state.ShadowReplicas.PeerNames.set(tkt.AddPeerName, detail)
-	s.state.Known.PeerNames.set(tkt.AddPeerName, detail)
+	s.state.ShadowReplicas.PeerNames.Set(tkt.AddPeerName, detail)
+	s.state.Known.PeerNames.Set(tkt.AddPeerName, detail)
 	s.clearFromObservers(tkt.AddPeerName)
 }
 
 func (s *TubeNode) doRemoveShadow(tkt *Ticket) {
 	//vv("%v top of doRemoveShadow() tkt='%v'", s.me(), tkt.Short())
 
-	s.state.ShadowReplicas.PeerNames.delkey(tkt.RemovePeerName)
+	s.state.ShadowReplicas.PeerNames.Delkey(tkt.RemovePeerName)
 }
 
 // For user defined library operations we will need
@@ -15995,5 +15995,16 @@ func (s *TubeNode) handleInstallEmptyMC(frag *rpc.Fragment, ckt *rpc.Circuit) {
 		s.saver.save(s.state)
 	} else {
 		alwaysPrintf("%v not for us! ignoring empty MC per request from '%v'", s.name, frag.FromPeerName)
+	}
+}
+
+func (s *TubeNode) GetMyPeerDetail() *PeerDetail {
+	return &PeerDetail{
+		Name:                   s.name,
+		URL:                    s.MyPeer.URL(),
+		PeerID:                 s.MyPeer.PeerID,
+		Addr:                   s.MyPeer.BaseServerAddr,
+		PeerServiceName:        s.MyPeer.PeerServiceName,
+		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
 	}
 }
