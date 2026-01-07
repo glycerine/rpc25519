@@ -88,17 +88,18 @@ func main() {
 	// first one there wins. everyone else reads the winner's URL.
 	list := cli.NewReliableMembershipList()
 	list.CzarName = cliName // if we win the write race, we are the czar.
-	list.PeerNames.set(cliName, myDetail)
+	list.PeerNames.Set(cliName, myDetail)
 	bts2, err := list.MarshalMsg(nil)
 	panicOn(err)
 
 	keyCz := "czar"
 	tableHermes := "hermes"
+	const RML string = "ReliableMembershipList"
 	leaseDurCz := time.Minute
-	czarTkt, err := sess.Write(ctx0, Key(tableHermes), Key(keyCz), Val(bts2), 0, RML, leaseDurCz)
+	czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), 0, RML, leaseDurCz)
 	_ = czarTkt
 
-	vers := RMVersionTuple{
+	vers := tube.RMVersionTuple{
 		CzarLeaseEpoch: czarTkt.LeaseEpoch,
 		Version:        0,
 	}
