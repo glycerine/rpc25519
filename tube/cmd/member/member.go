@@ -53,10 +53,13 @@ const (
 type Czar struct {
 	mut sync.Mutex
 
-	Members *tube.ReliableMembershipList `zid:"0"`
+	members *tube.ReliableMembershipList
 	heard   map[string]time.Time
-	cliName string
-	t0      time.Time
+
+	// something for greenpack to serz
+	CliName string `zid:"0"`
+
+	t0 time.Time
 }
 
 var declaredDeadDur = time.Second * 25
@@ -64,8 +67,8 @@ var declaredDeadDur = time.Second * 25
 func (s *Czar) setVers(v tube.RMVersionTuple, list *tube.ReliableMembershipList) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	s.Members = list
-	s.Members.Vers = v
+	s.members = list.Clone()
+	s.members.Vers = v
 }
 
 func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
@@ -75,8 +78,8 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 		defer s.mut.Unlock()
 	}
 
-	for name := range s.Members.PeerNames.All() {
-		if name == s.cliName {
+	for name := range s.members.PeerNames.All() {
+		if name == s.CliName {
 			// we ourselves are obviously alive so
 			// we don't bother to heartbeat to ourselves.
 			continue
@@ -103,7 +106,7 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 			changed = true
 			delete(s.heard, name)
 			// Omap.All allows delete in the middle of iteration.
-			s.Members.PeerNames.Delkey(name)
+			s.members.PeerNames.Delkey(name)
 		}
 	}
 	return
@@ -117,30 +120,30 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	orig := s.Members.Vers.Version
+	orig := s.members.Vers.Version
 	//vv("Ping called at cliName = '%v', since args = '%v'", s.cliName, args)
-	det, ok := s.Members.PeerNames.Get2(args.Name)
+	det, ok := s.members.PeerNames.Get2(args.Name)
 	if !ok {
 		//vv("args.Name('%v') is new, adding to PeerNames", args.Name)
-		s.Members.PeerNames.Set(args.Name, args)
-		s.Members.Vers.Version++
+		s.members.PeerNames.Set(args.Name, args)
+		s.members.Vers.Version++
 	} else {
 		if detailsChanged(det, args) {
 			//vv("args.Name('%v') details have changed, updating PeerNames", args.Name)
-			s.Members.PeerNames.Set(args.Name, args)
-			s.Members.Vers.Version++
+			s.members.PeerNames.Set(args.Name, args)
+			s.members.Vers.Version++
 		} else {
 			//vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
 		}
 	}
-	*reply = *(s.Members)
+	*reply = *(s.members.Clone())
 
 	s.heard[args.Name] = time.Now()
 	changed := s.expireSilentNodes(true) // true since mut is already locked.
 	if changed {
-		s.Members.Vers.Version++
+		s.members.Vers.Version++
 	}
-	if s.Members.Vers.Version != orig {
+	if s.members.Vers.Version != orig {
 		vv("Czar.Ping: membership has changed, is now: {%v}", s.shortMemberSummary())
 	}
 
@@ -150,10 +153,10 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 }
 
 func (s *Czar) shortMemberSummary() (r string) {
-	n := s.Members.PeerNames.Len()
-	r = fmt.Sprintf("[%v members; Vers:(CzarLeaseEpoch: %v, Version:%v)]{", s.Members.Vers.CzarLeaseEpoch, s.Members.Vers.Version, n)
+	n := s.members.PeerNames.Len()
+	r = fmt.Sprintf("[%v members; Vers:(CzarLeaseEpoch: %v, Version:%v)]{", s.members.Vers.CzarLeaseEpoch, s.members.Vers.Version, n)
 	i := 0
-	for name := range s.Members.PeerNames.All() {
+	for name := range s.members.PeerNames.All() {
 		r += name
 		i++
 		if i < n {
@@ -167,7 +170,7 @@ func (s *Czar) shortMemberSummary() (r string) {
 func NewCzar(cli *tube.TubeNode) *Czar {
 	list := cli.NewReliableMembershipList()
 	return &Czar{
-		Members: list,
+		members: list,
 		heard:   make(map[string]time.Time),
 		t0:      time.Now(),
 	}
@@ -228,7 +231,7 @@ func main() {
 	var cState czarState = unknownCzarState
 
 	czar := NewCzar(cli)
-	czar.cliName = cliName
+	czar.CliName = cliName
 
 	cli.Srv.RegisterName("Czar", czar)
 
@@ -263,7 +266,7 @@ func main() {
 			// we try to write to the "czar" key with a lease.
 			// first one there wins. everyone else reads the winner's URL.
 			czar.mut.Lock()
-			list := czar.Members.Clone()
+			list := czar.members.Clone()
 			czar.mut.Unlock()
 
 			list.CzarName = cliName // if we win the write race, we are the czar.
@@ -288,7 +291,11 @@ func main() {
 				}
 				czar.setVers(vers, list)
 
-				vv("err=nil on lease write. I am czar (cliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'", cliName, vers)
+				czar.mut.Lock()
+				sum := czar.shortMemberSummary()
+				czar.mut.Unlock()
+
+				vv("err=nil on lease write. I am czar (cliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'; czar='%v'", cliName, vers, sum)
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 			} else {
 				cState = notCzar
@@ -319,10 +326,10 @@ func main() {
 
 			case <-renewCzarLeaseCh:
 				czar.mut.Lock()
-				list := czar.Members
+				list := czar.members
 				bts2, err := list.MarshalMsg(nil)
-				panicOn(err)
 				czar.mut.Unlock()
+				panicOn(err)
 
 				czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), writeAttemptDur, tube.ReliableMembershipListType, leaseDurCz)
 				panicOn(err)

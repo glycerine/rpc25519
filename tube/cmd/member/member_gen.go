@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/glycerine/greenpack/msgp"
-	"github.com/glycerine/rpc25519/tube"
 )
 
 // DecodeMsg implements msgp.Decodable
@@ -430,34 +429,11 @@ doneWithStruct6zgensym_d9b7d8dfd82ab2d_7:
 		switch curField6zgensym_d9b7d8dfd82ab2d_7 {
 		// -- templateDecodeMsg ends here --
 
-		case "Members_zid00_ptr":
+		case "CliName_zid00_str":
 			found6zgensym_d9b7d8dfd82ab2d_7[0] = true
-			if dc.IsNil() {
-				err = dc.ReadNil()
-				if err != nil {
-					return
-				}
-
-				if z.Members != nil {
-					dc.PushAlwaysNil()
-					err = z.Members.DecodeMsg(dc)
-					if err != nil {
-						return
-					}
-					dc.PopAlwaysNil()
-				}
-			} else {
-				// not Nil, we have something to read
-
-				if z.Members == nil {
-					z.Members = new(tube.ReliableMembershipList)
-				}
-				dc.DedupIndexEachPtr(z.Members)
-
-				err = z.Members.DecodeMsg(dc)
-				if err != nil {
-					return
-				}
+			z.CliName, err = dc.ReadString()
+			if err != nil {
+				return
 			}
 		default:
 			err = dc.Skip()
@@ -482,7 +458,7 @@ doneWithStruct6zgensym_d9b7d8dfd82ab2d_7:
 }
 
 // fields of Czar
-var decodeMsgFieldOrder6zgensym_d9b7d8dfd82ab2d_7 = []string{"Members_zid00_ptr"}
+var decodeMsgFieldOrder6zgensym_d9b7d8dfd82ab2d_7 = []string{"CliName_zid00_str"}
 
 var decodeMsgFieldSkip6zgensym_d9b7d8dfd82ab2d_7 = []bool{false}
 
@@ -492,7 +468,7 @@ func (z *Czar) fieldsNotEmpty(isempty []bool) uint32 {
 		return 1
 	}
 	var fieldsInUse uint32 = 1
-	isempty[0] = (z.Members == nil) // pointer, omitempty
+	isempty[0] = (len(z.CliName) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
 	}
@@ -527,23 +503,14 @@ func (z *Czar) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_d9b7d8dfd82ab2d_8[0] {
-		// write "Members_zid00_ptr"
-		err = en.Append(0xb1, 0x4d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x70, 0x74, 0x72)
+		// write "CliName_zid00_str"
+		err = en.Append(0xb1, 0x43, 0x6c, 0x69, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		// gPtr.encodeGen():
-
-		if z.Members == nil {
-			err = en.WriteNil()
-			if err != nil {
-				return
-			}
-		} else {
-			err = z.Members.EncodeMsg(en)
-			if err != nil {
-				return
-			}
+		err = en.WriteString(z.CliName)
+		if err != nil {
+			return
 		}
 	}
 
@@ -564,20 +531,9 @@ func (z *Czar) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "Members_zid00_ptr"
-		o = append(o, 0xb1, 0x4d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x70, 0x74, 0x72)
-		// marshalGen.gPtr()
-
-		if z.Members == nil {
-			o = msgp.AppendNil(o)
-		} else {
-			// hmm.. no en, no place to check en.DedupWriteIsDup(z)
-
-			o, err = z.Members.MarshalMsg(o) // not is.iface
-			if err != nil {
-				return
-			}
-		}
+		// string "CliName_zid00_str"
+		o = append(o, 0xb1, 0x43, 0x6c, 0x69, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.CliName)
 	}
 
 	return
@@ -648,35 +604,12 @@ doneWithStruct10zgensym_d9b7d8dfd82ab2d_11:
 		switch curField10zgensym_d9b7d8dfd82ab2d_11 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "Members_zid00_ptr":
+		case "CliName_zid00_str":
 			found10zgensym_d9b7d8dfd82ab2d_11[0] = true
-			// unmarshalGen.gPtr(): we have a BaseElem.
+			z.CliName, bts, err = nbs.ReadStringBytes(bts)
 
-			// unmarshalGen.gPtr(): we have an IDENT:
-
-			if nbs.AlwaysNil {
-				if z.Members != nil {
-					z.Members.UnmarshalMsg(msgp.OnlyNilSlice)
-				}
-			} else {
-				// not nbs.AlwaysNil
-				if msgp.IsNil(bts) {
-					bts = bts[1:]
-					if nil != z.Members {
-						z.Members.UnmarshalMsg(msgp.OnlyNilSlice)
-					}
-				} else {
-					// not nbs.AlwaysNil and not IsNil(bts): have something to read
-
-					if z.Members == nil {
-						z.Members = new(tube.ReliableMembershipList)
-					}
-
-					bts, err = z.Members.UnmarshalMsg(bts)
-					if err != nil {
-						return
-					}
-				}
+			if err != nil {
+				return
 			}
 		default:
 			bts, err = msgp.Skip(bts)
@@ -701,23 +634,18 @@ doneWithStruct10zgensym_d9b7d8dfd82ab2d_11:
 }
 
 // fields of Czar
-var unmarshalMsgFieldOrder10zgensym_d9b7d8dfd82ab2d_11 = []string{"Members_zid00_ptr"}
+var unmarshalMsgFieldOrder10zgensym_d9b7d8dfd82ab2d_11 = []string{"CliName_zid00_str"}
 
 var unmarshalMsgFieldSkip10zgensym_d9b7d8dfd82ab2d_11 = []bool{false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Czar) Msgsize() (s int) {
-	s = 1 + 18
-	if z.Members == nil {
-		s += msgp.NilSize
-	} else {
-		s += z.Members.Msgsize()
-	}
+	s = 1 + 18 + msgp.StringPrefixSize + len(z.CliName)
 	return
 }
 func (z *Czar) Gstring() (r string) {
 	r = "&Czar{\n"
-	r += fmt.Sprintf("Members: %v,\n", z.Members)
+	r += fmt.Sprintf("CliName: \"%v\",\n", z.CliName)
 	r += "}\n"
 	return
 }
