@@ -21,8 +21,10 @@ const tableHermes string = "hermes"
 // the Vtype for the ReliableMembershipList
 // encoded Value payloads.
 // Note: must be different from the type, else
-// the go compiler gets confused!
-const ReliableMembershipListTyp string = "ReliableMembershipListTyp"
+// the go compiler gets confused; i.e. we
+// cannot have this just be ReliableMembershipList
+// as that is the name of the type.
+const ReliableMembershipListType string = "ReliableMembershipListType"
 
 type RMember struct {
 
@@ -147,7 +149,7 @@ func (s *RMember) Start(
 
 	keyCz := "czar"
 	leaseDurCz := time.Minute
-	czarTkt, err := s.sess.Write(ctx0, Key(tableHermes), Key(keyCz), Val(bts2), 0, ReliableMembershipListTyp, leaseDurCz)
+	czarTkt, err := s.sess.Write(ctx0, Key(tableHermes), Key(keyCz), Val(bts2), 0, ReliableMembershipListType, leaseDurCz)
 	panicOn(err)
 	_ = czarTkt
 
@@ -173,8 +175,8 @@ func (s *RMember) Start(
 		// Heartbeat to them regularly that we are online,
 		// and want to participate as a Hermes node.
 
-		if czarTkt.Vtype != ReliableMembershipListTyp {
-			panicf("czarTkt got back Vtype '%v' not '%v'", czarTkt.Vtype, ReliableMembershipListTyp)
+		if czarTkt.Vtype != ReliableMembershipListType {
+			panicf("czarTkt got back Vtype '%v' not '%v'", czarTkt.Vtype, ReliableMembershipListType)
 		}
 		rml := &ReliableMembershipList{}
 		_, err := rml.UnmarshalMsg(czarTkt.Val)
@@ -444,6 +446,20 @@ type ReliableMembershipList struct {
 	PeerNames *Omap[string, *PeerDetail] `msg:"-"`
 
 	SerzPeerDetails []*PeerDetail `zid:"2"`
+}
+
+func (s *ReliableMembershipList) String() (r string) {
+	r = "&ReliableMembershipList{\n"
+	r += fmt.Sprintf(" CzarName: \"%v\",\n", s.CzarName)
+	r += fmt.Sprintf("     Vers: %#v,\n", s.Vers)
+	r += fmt.Sprintf("PeerNames: (%v present)\n", s.PeerNames.Len())
+	i := 0
+	for _, det := range s.PeerNames.All() {
+		r += fmt.Sprintf("[%02d] %v\n", i, det)
+		i++
+	}
+	r += "}\n"
+	return
 }
 
 func (i *RMVersionTuple) VersionGT(j *RMVersionTuple) bool {

@@ -271,3 +271,7 @@ func hasWhiteSpace(name string) bool {
 	}
 	return false
 }
+
+func panicf(format string, a ...interface{}) {
+	panic(fmt.Sprintf(format, a...))
+}

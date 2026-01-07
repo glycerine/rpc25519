@@ -95,7 +95,7 @@ func main() {
 	keyCz := "czar"
 	tableHermes := "hermes"
 	leaseDurCz := time.Minute
-	czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), 0, tube.ReliableMembershipListTyp, leaseDurCz)
+	czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), 0, tube.ReliableMembershipListType, leaseDurCz)
 	_ = czarTkt
 
 	vers := tube.RMVersionTuple{
@@ -103,9 +103,30 @@ func main() {
 		Version:        0,
 	}
 
+	var renewCzarLeaseCh <-chan time.Time
+	renewCzarLeaseDur := leaseDurCz / 2
 	if err == nil {
 		vv("err=nil on lease write. I am czar, send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'", vers)
+		renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 	} else {
-		vv("I am not czar, did not write to key: '%v'; vers='%#v'", err, vers)
+		if czarTkt.Vtype != tube.ReliableMembershipListType {
+			panicf("why not tube.ReliableMembershipListType back? got '%v'", czarTkt.Vtype)
+		}
+		_, err = list.UnmarshalMsg(czarTkt.Val)
+		panicOn(err)
+
+		vv("I am not czar, did not write to key: '%v'; vers='%#v'; list='%v'; \n with list.CzarName='%v'", err, vers, list, list.CzarName)
+		// contact the czar and register ourselves.
+
+	}
+
+	for {
+		select {
+		case <-renewCzarLeaseCh:
+			czarTkt, err = sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), 0, tube.ReliableMembershipListType, leaseDurCz)
+			panicOn(err)
+			vv("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
+			renewCzarLeaseCh = time.After(renewCzarLeaseDur)
+		}
 	}
 }
