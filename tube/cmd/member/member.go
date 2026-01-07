@@ -53,7 +53,10 @@ type Czar struct {
 	Members *tube.ReliableMembershipList `zid:"0"`
 	heard   map[string]time.Time
 	cliName string
+	t0      time.Time
 }
+
+var declaredDeadDur = time.Second * 25
 
 func (s *Czar) expireSilentNodes() (changed bool) {
 	now := time.Now()
@@ -63,13 +66,25 @@ func (s *Czar) expireSilentNodes() (changed bool) {
 			// we don't bother to heartbeat to ourselves.
 			continue
 		}
+		killIt := false
 		lastHeard, ok := s.heard[name]
 		if !ok {
-			panicf("should have a heard entry for '%v'", name)
+			// if we have not been listening for heartbeats
+			// for very long, give them a chance--we may
+			// have just loaded them in from the czar key's value.
+			uptime := time.Since(s.t0)
+			if uptime > declaredDeadDur {
+				killIt = true
+				vv("expiring dead node '%v' -- would upcall membership change too. nothing heard after uptime = '%v'", name, uptime)
+			}
+		} else {
+			been := now.Sub(lastHeard)
+			if been > declaredDeadDur {
+				killIt = true
+				vv("expiring dead node '%v' -- would upcall membership change too. been '%v'", name, been)
+			}
 		}
-		been := now.Sub(lastHeard)
-		if been > time.Second*25 {
-			vv("expiring dead node '%v' --would upcall membership change too. been '%v'", name, been)
+		if killIt {
 			changed = true
 			delete(s.heard, name)
 			// Omap.All allows delete in the middle of iteration.
@@ -111,6 +126,7 @@ func NewCzar(cli *tube.TubeNode) *Czar {
 	return &Czar{
 		Members: list,
 		heard:   make(map[string]time.Time),
+		t0:      time.Now(),
 	}
 }
 
