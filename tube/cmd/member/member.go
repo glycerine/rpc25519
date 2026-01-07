@@ -80,6 +80,11 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 		s.mut.Lock()
 		defer s.mut.Unlock()
 	}
+	defer func() {
+		if changed {
+			s.members.Vers.Version++
+		}
+	}()
 
 	for name := range s.members.PeerNames.All() {
 		if name == s.CliName {
@@ -142,10 +147,7 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 	*reply = *(s.members.Clone())
 
 	s.heard[args.Name] = time.Now()
-	changed := s.expireSilentNodes(true) // true since mut is already locked.
-	if changed {
-		s.members.Vers.Version++
-	}
+	s.expireSilentNodes(true) // true since mut is already locked.
 	if s.members.Vers.Version != orig.Version {
 		vv("Czar.Ping: membership has changed (was %#v; now %#v), is now: {%v}", orig, s.members.Vers, s.shortMemberSummary())
 	}
