@@ -111,7 +111,7 @@ func main() {
 	const useSimNet = false
 	cliCfg, err := tube.LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
 	panicOn(err)
-	vv("cliCfg = '%v'", cliCfg)
+	//vv("cliCfg = '%v'", cliCfg)
 	cliName := cliCfg.MyName
 
 	vv("cliName = '%v'", cliName)
@@ -129,7 +129,7 @@ func main() {
 
 	sess, err := cli.CreateNewSession(ctx, leaderURL)
 	panicOn(err)
-	vv("got sess = '%v'", sess)
+	//vv("got sess = '%v'", sess)
 
 	keyCz := "czar"
 	tableHermes := "hermes"
@@ -146,7 +146,7 @@ func main() {
 	cli.Srv.RegisterName("Czar", czar)
 
 	myDetail := cli.GetMyPeerDetail()
-	vv("myDetail = '%v' for cliName = '%v'", myDetail, cliName)
+	//vv("myDetail = '%v' for cliName = '%v'", myDetail, cliName)
 
 	//var czarURL string
 	//var czarCkt *rpc.Circuit
@@ -155,10 +155,13 @@ func main() {
 
 	var memberHeartBeatCh <-chan time.Time
 	memberHeartBeatDur := time.Second * 10
+	writeAttemptDur := time.Second * 5
 
 	halt := idem.NewHalter()
 	defer halt.Done.Close()
 
+	// TODO: handle needing new session, maybe it times out?
+	// should survive leader change, but needs checking.
 	for {
 		switch cState {
 		case unknownCzarState:
@@ -176,7 +179,7 @@ func main() {
 			bts2, err := list.MarshalMsg(nil)
 			panicOn(err)
 
-			czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), 0, tube.ReliableMembershipListType, leaseDurCz)
+			czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), writeAttemptDur, tube.ReliableMembershipListType, leaseDurCz)
 
 			if err == nil {
 				cState = amCzar
@@ -210,7 +213,7 @@ func main() {
 				bts2, err := list.MarshalMsg(nil)
 				panicOn(err)
 
-				czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), 0, tube.ReliableMembershipListType, leaseDurCz)
+				czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), writeAttemptDur, tube.ReliableMembershipListType, leaseDurCz)
 				panicOn(err)
 				vv("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
