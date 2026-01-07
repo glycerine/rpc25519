@@ -4498,6 +4498,9 @@ type Ticket struct {
 	Applied     bool `zid:"14"`
 	ClientAcked bool `zid:"15"`
 
+	// when we committed, in commitWhatWeCan(),
+	// what was LastApplied? Not sure if on leader for sure(?)
+	// (not written to raft log, obviously).
 	AsOfLogIndex int64 `zid:"16"`
 
 	// who got our ticket and
@@ -4602,12 +4605,12 @@ type Ticket struct {
 	LeaseWriteRaftLogIndex int64         `zid:"68"` // filled on response
 
 	// when actually submitted to raft log in replicateTicket
-	RaftLogEntryTm time.Time
+	RaftLogEntryTm time.Time `zid:"69"`
+
+	// BatchID ? how is batching best implemented (TODO).
 
 	// where in tkthist we were entered locally.
 	localHistIndex int
-
-	// BatchID ? how is batching best implemented (TODO).
 
 	// should we return early and stop waiting
 	// after a preset duration? 0 means wait forever.
