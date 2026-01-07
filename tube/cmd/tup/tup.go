@@ -511,7 +511,7 @@ repl:
 									leaseInfo = fmt.Sprintf(" Leasor:'%v'; LeaseUntilTm='%v'; LeaseEpoch='%v'", leaf.Leasor, nice(leaf.LeaseUntilTm), leaf.LeaseEpoch)
 								}
 
-								fmt.Printf("(from table '%v') read key '%v': %v\n", targetTable, string(k), string(leaf.Value), leaseInfo)
+								fmt.Printf("(from table '%v') read key '%v': %v%v\n", targetTable, string(k), string(leaf.Value), leaseInfo)
 								seen++
 							}
 						} else {
