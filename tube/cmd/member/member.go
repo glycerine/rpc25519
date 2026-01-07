@@ -245,7 +245,7 @@ func main() {
 	tableHermes := "hermes"
 	var renewCzarLeaseCh <-chan time.Time
 
-	leaseDurCz := time.Second * 16
+	leaseDurCz := time.Second * 40
 	renewCzarLeaseDur := leaseDurCz / 2
 
 	var cState czarState = unknownCzarState
@@ -262,6 +262,7 @@ func main() {
 	//var czarCkt *rpc.Circuit
 
 	var rpcClientToCzar *rpc.Client
+	var rpcClientToCzarDoneCh chan struct{}
 	var czarLeaseUntilTm time.Time
 
 	var memberHeartBeatCh <-chan time.Time
@@ -277,6 +278,7 @@ func main() {
 
 	// TODO: handle needing new session, maybe it times out?
 	// should survive leader change, but needs checking.
+looptop:
 	for {
 
 		switch cState {
@@ -388,13 +390,15 @@ func main() {
 					vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
 					rpcClientToCzar.Close()
 					rpcClientToCzar = nil
+					rpcClientToCzarDoneCh = nil
 					cState = unknownCzarState
 
 					waitDur := czarLeaseUntilTm.Sub(time.Now()) + time.Second
 					vv("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
 					time.Sleep(waitDur)
-					continue
+					continue looptop
 				}
+				rpcClientToCzarDoneCh = rpcClientToCzar.GetHostHalter().Done.Chan
 				// TODO: arrange for: defer rpcClientToCzar.Close()
 				//halt.AddChild(rpcClientToCzar.halt) // unexported .halt
 
@@ -403,8 +407,9 @@ func main() {
 				if err != nil {
 					rpcClientToCzar.Close()
 					rpcClientToCzar = nil
+					rpcClientToCzarDoneCh = nil
 					cState = unknownCzarState
-					continue
+					continue looptop
 				}
 				//vv("member(cliName='%v') called to Czar.Ping, got reply='%v'", cliName, reply)
 				// czarCkt, _, _, err = cli.MyPeer.NewCircuitToPeerURL("member-to-czar", czarURL, heartBeatFrag, 0)
@@ -417,6 +422,14 @@ func main() {
 				memberHeartBeatCh = time.After(memberHeartBeatDur)
 			}
 			select {
+			case <-rpcClientToCzarDoneCh:
+				vv("client dropped! rpcClientToCzarDoneCh closed.")
+				rpcClientToCzar.Close()
+				rpcClientToCzar = nil
+				rpcClientToCzarDoneCh = nil
+				cState = unknownCzarState
+				continue looptop
+
 			case <-memberHeartBeatCh:
 
 				reply := &tube.ReliableMembershipList{}
@@ -427,6 +440,7 @@ func main() {
 					vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
 					rpcClientToCzar.Close()
 					rpcClientToCzar = nil
+					rpcClientToCzarDoneCh = nil
 					cState = unknownCzarState
 					continue
 				}
