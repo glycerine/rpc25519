@@ -97,19 +97,19 @@ func (s *Czar) expireSilentNodes() (changed bool) {
 func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.ReliableMembershipList) error {
 
 	orig := s.Members.Vers.Version
-	vv("Ping called at cliName = '%v', since args = '%v'", s.cliName, args)
+	//vv("Ping called at cliName = '%v', since args = '%v'", s.cliName, args)
 	det, ok := s.Members.PeerNames.Get2(args.Name)
 	if !ok {
-		vv("args.Name('%v') is new, adding to PeerNames", args.Name)
+		//vv("args.Name('%v') is new, adding to PeerNames", args.Name)
 		s.Members.PeerNames.Set(args.Name, args)
 		s.Members.Vers.Version++
 	} else {
 		if detailsChanged(det, args) {
-			vv("args.Name('%v') details have changed, updating PeerNames", args.Name)
+			//vv("args.Name('%v') details have changed, updating PeerNames", args.Name)
 			s.Members.PeerNames.Set(args.Name, args)
 			s.Members.Vers.Version++
 		} else {
-			vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
+			//vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
 		}
 	}
 	*reply = *(s.Members)
@@ -335,7 +335,7 @@ func main() {
 				// TODO: arrange for: defer rpcClientToCzar.Close()
 				//halt.AddChild(rpcClientToCzar.halt) // unexported .halt
 
-				vv("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
+				//vv("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
 				err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
 				if err != nil {
 					rpcClientToCzar.Close()
@@ -343,7 +343,7 @@ func main() {
 					cState = unknownCzarState
 					continue
 				}
-				vv("member(cliName='%v') called to Czar.Ping, got reply='%v'", cliName, reply)
+				//vv("member(cliName='%v') called to Czar.Ping, got reply='%v'", cliName, reply)
 				// czarCkt, _, _, err = cli.MyPeer.NewCircuitToPeerURL("member-to-czar", czarURL, heartBeatFrag, 0)
 				// panicOn(err)
 				// vv("got circuit to czar: %v", czarCkt)
