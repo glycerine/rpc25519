@@ -124,7 +124,7 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 	defer s.mut.Unlock()
 
 	orig := s.members.Vers
-	vv("Ping called at cliName = '%v', since args = '%v'; orig='%#v'", s.CliName, args, orig)
+	//vv("Ping called at cliName = '%v', since args = '%v'; orig='%#v'", s.CliName, args, orig)
 	det, ok := s.members.PeerNames.Get2(args.Name)
 	if !ok {
 		//vv("args.Name('%v') is new, adding to PeerNames", args.Name)
