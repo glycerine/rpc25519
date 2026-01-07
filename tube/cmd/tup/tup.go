@@ -584,7 +584,11 @@ repl:
 
 			} else {
 				readVal := tktR.Val
-				fmt.Printf("(from table '%v') read key '%v': %v\n", targetTable, key, string(readVal))
+				var leaseInfo string
+				if tktR.Leasor != "" {
+					leaseInfo = fmt.Sprintf(" Leasor:'%v'; LeaseUntilTm='%v'; LeaseEpoch='%v'; LeaseWriteRaftLogIndex='%v'", tktR.Leasor, nice(tktR.LeaseUntilTm), tktR.LeaseEpoch, tktR.LeaseWriteRaftLogIndex)
+				}
+				fmt.Printf("(from table '%v') read key '%v': %v%v\n", targetTable, key, string(readVal), leaseInfo)
 			}
 		}
 	} // end repl for loop
