@@ -51,8 +51,27 @@ const (
 
 type Czar struct {
 	Members *tube.ReliableMembershipList `zid:"0"`
-
+	heard   map[string]time.Time
 	cliName string
+}
+
+func (s *Czar) expireSilentNodes() (changed bool) {
+	now := time.Now()
+	for name := range s.Members.PeerNames.All() {
+		lastHeard, ok := s.heard[name]
+		if !ok {
+			panicf("should have a heard entry for '%v'", name)
+		}
+		been := now.Sub(lastHeard)
+		if been > time.Second*25 {
+			vv("expiring dead node '%v' --would upcall membership change too. been '%v'", name, been)
+			changed = true
+			delete(s.heard, name)
+			// Omap.All allows delete in the middle of iteration.
+			s.Members.PeerNames.Delkey(name)
+		}
+	}
+	return
 }
 
 func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.ReliableMembershipList) error {
@@ -74,6 +93,9 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 	}
 	*reply = *(s.Members)
 
+	s.heard[args.Name] = time.Now()
+	s.expireSilentNodes()
+
 	vv("Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, reply='%v'", s.cliName, args, reply)
 
 	return nil
@@ -83,6 +105,7 @@ func NewCzar(cli *tube.TubeNode) *Czar {
 	list := cli.NewReliableMembershipList()
 	return &Czar{
 		Members: list,
+		heard:   make(map[string]time.Time),
 	}
 }
 
@@ -152,10 +175,13 @@ func main() {
 	//var czarCkt *rpc.Circuit
 
 	var rpcClientToCzar *rpc.Client
+	var czarLeaseUntilTm time.Time
 
 	var memberHeartBeatCh <-chan time.Time
 	memberHeartBeatDur := time.Second * 10
 	writeAttemptDur := time.Second * 5
+
+	expireCheckCh := time.After(5 * time.Second)
 
 	halt := idem.NewHalter()
 	defer halt.Done.Close()
@@ -163,6 +189,13 @@ func main() {
 	// TODO: handle needing new session, maybe it times out?
 	// should survive leader change, but needs checking.
 	for {
+		select {
+		case <-expireCheckCh:
+			czar.expireSilentNodes()
+			expireCheckCh = time.After(5 * time.Second)
+		default:
+		}
+
 		switch cState {
 		case unknownCzarState:
 
@@ -182,6 +215,7 @@ func main() {
 			czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), writeAttemptDur, tube.ReliableMembershipListType, leaseDurCz)
 
 			if err == nil {
+				czarLeaseUntilTm = czarTkt.LeaseUntilTm
 				cState = amCzar
 				vers := tube.RMVersionTuple{
 					CzarLeaseEpoch: czarTkt.LeaseEpoch,
@@ -192,6 +226,8 @@ func main() {
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 			} else {
 				cState = notCzar
+				czarLeaseUntilTm = czarTkt.LeaseUntilTm
+
 				if czarTkt.Vtype != tube.ReliableMembershipListType {
 					panicf("why not tube.ReliableMembershipListType back? got '%v'", czarTkt.Vtype)
 				}
@@ -216,6 +252,8 @@ func main() {
 				czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), writeAttemptDur, tube.ReliableMembershipListType, leaseDurCz)
 				panicOn(err)
 				vv("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
+				czarLeaseUntilTm = czarTkt.LeaseUntilTm
+
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 			case <-halt.ReqStop.Chan:
 				return
@@ -253,6 +291,10 @@ func main() {
 					rpcClientToCzar.Close()
 					rpcClientToCzar = nil
 					cState = unknownCzarState
+
+					waitDur := czarLeaseUntilTm.Sub(time.Now()) + time.Second
+					vv("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
+					time.Sleep(waitDur)
 					continue
 				}
 				// TODO: arrange for: defer rpcClientToCzar.Close()

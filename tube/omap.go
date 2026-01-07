@@ -232,7 +232,7 @@ func (s *Omap[K, V]) Set(key K, val V) (newlyAdded bool) {
 //	return s.get2(key)
 //}
 
-// all starts an iteration over all elements in
+// All starts an iteration over all elements in
 // the Omap. To allow the user to delete in
 // the middle of iteration, there is no locking
 // internally.
