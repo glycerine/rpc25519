@@ -94,9 +94,8 @@ func main() {
 
 	keyCz := "czar"
 	tableHermes := "hermes"
-	const RML string = "ReliableMembershipList"
 	leaseDurCz := time.Minute
-	czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), 0, RML, leaseDurCz)
+	czarTkt, err := sess.Write(ctx, tube.Key(tableHermes), tube.Key(keyCz), tube.Val(bts2), 0, tube.ReliableMembershipListTyp, leaseDurCz)
 	_ = czarTkt
 
 	vers := tube.RMVersionTuple{

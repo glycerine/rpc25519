@@ -18,6 +18,12 @@ import (
 
 const tableHermes string = "hermes"
 
+// the Vtype for the ReliableMembershipList
+// encoded Value payloads.
+// Note: must be different from the type, else
+// the go compiler gets confused!
+const ReliableMembershipListTyp string = "ReliableMembershipListTyp"
+
 type RMember struct {
 
 	// Cfg would usually be supplied. If not
@@ -99,10 +105,6 @@ func (s *RMember) InitAndStart() error {
 	return nil
 }
 
-// the Vtype for the ReliableMembershipList
-// encoded Value payloads.
-const RML string = "ReliableMembershipList"
-
 func (s *RMember) Start(
 	myPeer *rpc.LocalPeer,
 	ctx0 context.Context,
@@ -145,7 +147,7 @@ func (s *RMember) Start(
 
 	keyCz := "czar"
 	leaseDurCz := time.Minute
-	czarTkt, err := s.sess.Write(ctx0, Key(tableHermes), Key(keyCz), Val(bts2), 0, RML, leaseDurCz)
+	czarTkt, err := s.sess.Write(ctx0, Key(tableHermes), Key(keyCz), Val(bts2), 0, ReliableMembershipListTyp, leaseDurCz)
 	panicOn(err)
 	_ = czarTkt
 
@@ -171,8 +173,8 @@ func (s *RMember) Start(
 		// Heartbeat to them regularly that we are online,
 		// and want to participate as a Hermes node.
 
-		if czarTkt.Vtype != RML {
-			panicf("czarTkt got back Vtype '%v' not '%v'", czarTkt.Vtype, RML)
+		if czarTkt.Vtype != ReliableMembershipListTyp {
+			panicf("czarTkt got back Vtype '%v' not '%v'", czarTkt.Vtype, ReliableMembershipListTyp)
 		}
 		rml := &ReliableMembershipList{}
 		_, err := rml.UnmarshalMsg(czarTkt.Val)
