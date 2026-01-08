@@ -263,12 +263,12 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 //
 // I renew it every 10 seconds or so.
 // The first writer to grab the lease "wins" the election
-// to czar. All members are ready to take over a czar
+// to czar. All members stand ready to take over as czar
 // if the first czar fails. The member also includes the
 // most recent list it has of other members when
 // it writes the czar key.
 //
-// (2) Each Hermes (i.e. the tablespace) node
+// (2) Each Hermes/tablespace member node
 // heartbeats to the Czar saying:
 // "I'm a member, and who else is a member and at what epoch/versionx?"
 // If the epoch or version changes, update the membership list
@@ -292,12 +292,19 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 // The membership list stored under the czar key
 // is not authoritative. It is is probably stale,
 // it cannot be assumed to be the most recent version.
+//
 // It is only written
 // when the current czar renews its lease.
 // The czar must be contacted for the most
 // up-to-date version of the membership.
-// It is just a reasonable place to start; it
-// will likely avoid some membership churn.
+// It is just a reasonable place to start for
+// the new czar--it hopefully avoids some
+// membership churn, but correctness never
+// depends on it, and the written Details.RMVersionTuple
+// will always be incorrect and stale, since
+// we cannot set the lease epoch correctly
+// before actually writing and winning the
+// lease.
 //
 // After the heartbeats are received or not
 // then the membership will converge as
