@@ -11685,9 +11685,12 @@ func (s *PeerDetail) Clone() *PeerDetail {
 func (s *PeerDetail) String() string {
 	now := time.Now()
 	x := ""
-	if gte(now, s.RMemberLeaseUntilTm) {
+	switch {
+	case s.RMemberLeaseUntilTm.IsZero():
+		x = "current czar"
+	case gte(now, s.RMemberLeaseUntilTm):
 		x = "expired"
-	} else {
+	default:
 		x = fmt.Sprintf("%v left", s.RMemberLeaseUntilTm.Sub(now))
 	}
 	return fmt.Sprintf(`PeerDetail{
