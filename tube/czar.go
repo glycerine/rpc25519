@@ -60,6 +60,7 @@ type Czar struct {
 	declaredDeadDur    time.Duration
 	memberHeartBeatDur time.Duration
 	memberLeaseDur     time.Duration
+	clockDriftBound    time.Duration
 }
 
 func (s *Czar) setVers(v RMVersionTuple, list *ReliableMembershipList, t0 time.Time) error {
@@ -128,7 +129,7 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 		}
 	}()
 
-	for name := range s.members.PeerNames.All() {
+	for name, det := range s.members.PeerNames.All() {
 		if name == s.TubeCliName {
 			// we ourselves are obviously alive so
 			// we don't bother to heartbeat to ourselves.
@@ -141,13 +142,19 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 			// for very long, give them a chance--we may
 			// have just loaded them in from the czar key's value.
 			uptime := time.Since(s.t0)
-			if uptime > s.declaredDeadDur {
+			if uptime > s.declaredDeadDur &&
+				!det.RMemberLeaseUntilTm.IsZero() &&
+				now.After(det.RMemberLeaseUntilTm.Add(s.clockDriftBound)) {
+
 				killIt = true
 				//vv("expiring dead node '%v' -- would upcall membership change too. nothing heard after uptime = '%v'", name, uptime)
 			}
 		} else {
 			been := now.Sub(lastHeard)
-			if been > s.declaredDeadDur {
+			if been > s.declaredDeadDur &&
+				!det.RMemberLeaseUntilTm.IsZero() &&
+				now.After(det.RMemberLeaseUntilTm.Add(s.clockDriftBound)) {
+
 				killIt = true
 				//vv("expiring dead node '%v' -- would upcall membership change too. been '%v'", name, been)
 			}
@@ -239,7 +246,7 @@ func (s *Czar) shortRMemberSummary() (r string) {
 	return
 }
 
-func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
+func NewCzar(cli *TubeNode, hbDur, clockDriftBound time.Duration) *Czar {
 	list := cli.NewReliableMembershipList()
 	return &Czar{
 		Halt:                     idem.NewHalter(),
@@ -249,6 +256,7 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 		declaredDeadDur:          hbDur * 3,
 		memberHeartBeatDur:       hbDur,
 		UpcallMembershipChangeCh: make(chan *ReliableMembershipList, 1000),
+		clockDriftBound:          clockDriftBound,
 	}
 }
 
@@ -340,10 +348,9 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 // into a separate tableSpace, if so desired.
 // We have not needed to do so yet.
 //
-// Usage:
-//
 //	func main() {
-//	    mem := tube.NewRMember("hermes")
+//	    clockDriftBound := 20 * time.Millisecond
+//	    mem := tube.NewRMember("hermes", clockDriftBound)
 //	    mem.Start()
 //	    <-mem.Ready
 //	    // ... rest of code here, or just
@@ -370,16 +377,19 @@ type RMember struct {
 	// and the RMember is ready to use (call Start(), then
 	// wait for Ready to be closed).
 	Ready chan struct{}
+
+	clockDriftBound time.Duration
 }
 
 // NewRMember creates a member of the given tableSpace.
 // Users must call Start() and then wait until Ready is closed
 // before accessing UpcallMembershipChangeCh to
 // get membership changes.
-func NewRMember(tableSpace string) *RMember {
+func NewRMember(tableSpace string, clockDriftBound time.Duration) *RMember {
 	return &RMember{
-		TableSpace: tableSpace,
-		Ready:      make(chan struct{}),
+		TableSpace:      tableSpace,
+		Ready:           make(chan struct{}),
+		clockDriftBound: clockDriftBound,
 	}
 }
 
@@ -430,15 +440,15 @@ func (membr *RMember) start() {
 
 	var renewCzarLeaseCh <-chan time.Time
 
-	leaseDurCz := time.Second * 10
-	renewCzarLeaseDur := leaseDurCz / 2
+	leaseDurCzar := time.Second * 10
+	renewCzarLeaseDur := leaseDurCzar / 2
 
 	var cState czarState = unknownCzarState
 
-	memberHeartBeatDur := time.Second * 10
+	memberHeartBeatDur := time.Second * 3
 	writeAttemptDur := time.Second * 5
 
-	czar := NewCzar(cli, memberHeartBeatDur)
+	czar := NewCzar(cli, memberHeartBeatDur, membr.clockDriftBound)
 	czar.TubeCliName = tubeCliName
 
 	cli.Srv.RegisterName("Czar", czar)
@@ -511,7 +521,7 @@ looptop:
 			bts2, err := list.MarshalMsg(nil)
 			panicOn(err)
 
-			czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCz)
+			czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar)
 
 			if err == nil {
 				czarLeaseUntilTm = czarTkt.LeaseUntilTm
@@ -582,7 +592,11 @@ looptop:
 				}
 
 			case dropped := <-funneler.clientDroppedCh:
-				czar.remove(dropped)
+				_ = dropped
+				// for safety we cannot assume this now :(
+				// we must let their lease drain out
+				// and so expireSilentNodes gets all the fun.
+				//czar.remove(dropped)
 
 			case <-expireCheckCh:
 				changed := czar.expireSilentNodes(false)
@@ -599,7 +613,7 @@ looptop:
 				czar.mut.Unlock()
 				panicOn(err)
 
-				czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCz)
+				czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar)
 				panicOn(err)
 				//vv("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
 				czarLeaseUntilTm = czarTkt.LeaseUntilTm
