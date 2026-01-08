@@ -235,10 +235,16 @@ func main() {
 	select {}
 }
 
-type Member struct{}
+//msgp:ignore Member
+type Member struct {
+	Czar  *Czar
+	Ready chan struct{} // closed when Czar is set
+}
 
 func NewMember() *Member {
-	return &Member{}
+	return &Member{
+		Ready: make(chan struct{}),
+	}
 }
 
 func (membr *Member) Start() {
@@ -300,8 +306,11 @@ func (membr *Member) start() {
 	// client comes back, well, we just change
 	// membership again.
 	cli.Srv.NotifyAllNewClients = make(chan *rpc.ConnHalt, 1000)
-	vv("cli.Srv.NotifyAllNewClients = %p", cli.Srv.NotifyAllNewClients)
-	funneler := newFunneler()
+	//vv("cli.Srv.NotifyAllNewClients = %p", cli.Srv.NotifyAllNewClients)
+	funneler := newFunneler(czar.Halt)
+
+	membr.Czar = czar
+	close(membr.Ready)
 
 	myDetail := cli.GetMyPeerDetail()
 	//vv("myDetail = '%v' for cliName = '%v'", myDetail, cliName)
@@ -561,7 +570,7 @@ type funneler struct {
 	clientConnHalt  []*rpc.ConnHalt
 }
 
-func newFunneler() (r *funneler) {
+func newFunneler(halt *idem.Halter) (r *funneler) {
 	newCliCh := make(chan *rpc.ConnHalt)
 	clientDroppedCh := make(chan *rpc.ConnHalt, 1024)
 	r = &funneler{
@@ -569,18 +578,27 @@ func newFunneler() (r *funneler) {
 		clientDroppedCh: clientDroppedCh,
 
 		// add an empty clientConnHalt[0] to keep
-		// aligned with clientConns which always has newCliCh at [0].
-		clientConnHalt: []*rpc.ConnHalt{nil},
+		// aligned with clientConns which always has newCliCh at [0],
+		// (and the halter at [1]).
+		clientConnHalt: []*rpc.ConnHalt{nil, nil},
 	}
 	r.clientConns = append(r.clientConns, reflect.SelectCase{
 		Dir:  reflect.SelectRecv,
 		Chan: reflect.ValueOf(newCliCh),
 	})
+	r.clientConns = append(r.clientConns, reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(halt.ReqStop.Chan),
+	})
 
 	go func() {
 		for {
 			chosen, recv, _ := reflect.Select(r.clientConns)
-			//vv("reflect.Select chosen='%v'", chosen) // seen 0
+			//vv("reflect.Select chosen='%v'", chosen)
+			if chosen == 1 {
+				// halt requested.
+				return
+			}
 			if chosen == 0 {
 				// new client arrives, listen on its Halt.Done.Chan
 				connHalt := recv.Interface().(*rpc.ConnHalt)
