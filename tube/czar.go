@@ -59,6 +59,7 @@ type Czar struct {
 	t0                 time.Time
 	declaredDeadDur    time.Duration
 	memberHeartBeatDur time.Duration
+	memberLeaseDur     time.Duration
 }
 
 func (s *Czar) setVers(v RMVersionTuple, list *ReliableMembershipList, t0 time.Time) error {
@@ -181,6 +182,11 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 		panic("must have rpc.HDRFromContext(ctx) set so we know which tube-client to drop when the rpc.Client drops!")
 	}
 	//vv("Ping called at cliName = '%v', since args = '%v'; orig='%#v'", s.CliName, args, orig)
+
+	now := time.Now()
+	leasedUntilTm := now.Add(s.declaredDeadDur)
+	args.RMemberLeaseUntilTm = leasedUntilTm
+
 	det, ok := s.members.PeerNames.Get2(args.Name)
 	if !ok {
 		//vv("args.Name('%v') is new, adding to PeerNames", args.Name)
@@ -193,6 +199,8 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 			s.members.Vers.Version++
 		} else {
 			//vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
+			det.RMemberLeaseUntilTm = leasedUntilTm
+			// do we want lease-extension to increment the Version?
 		}
 	}
 	*reply = *(s.members.Clone())
