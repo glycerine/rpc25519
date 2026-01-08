@@ -201,6 +201,16 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 			//vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
 			det.RMemberLeaseUntilTm = leasedUntilTm
 			// do we want lease-extension to increment the Version?
+			// I don't think so. This is the most common
+			// failure free path here. On the otherhand, its
+			// hard to know who is most recent and avoid
+			// a late duplicate down-date if we don't increment
+			// Version--besides it is cheap since it is
+			// fully in RAM/memory only. Thus we set a policy
+			// for users: a higher Version may only mean
+			// a later lease duration, not a different
+			// set of members.
+			s.members.Vers.Version++
 		}
 	}
 	*reply = *(s.members.Clone())
@@ -530,14 +540,29 @@ looptop:
 					panicf("why not ReliableMembershipListType back? got '%v'", czarTkt.Vtype)
 				}
 
-				// avoid re-use of prior pointed to values!
 				nonCzarMembers = &ReliableMembershipList{}
 				_, err = nonCzarMembers.UnmarshalMsg(czarTkt.Val)
 				panicOn(err)
-				select {
-				case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
-				default:
+				vers := RMVersionTuple{
+					CzarLeaseEpoch: czarTkt.LeaseEpoch,
+					Version:        0,
 				}
+				if vers.VersionGT(&nonCzarMembers.Vers) {
+					nonCzarMembers.Vers = vers
+				}
+
+				// do the upcall? or should we wait until
+				// we ping the czar for a more reliable/centralized
+				// view? probably more consistent that way,
+				// and less churn--especially since a Ping means
+				// the membership will include us/ourselves, which
+				// is a nice property to have--and a bit awkward
+				// otherwise. "Do something with this group you
+				// are not in..." seems like a non-starter.
+				//select {
+				//case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
+				//default:
+				//}
 
 				//vv("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers)
 				// contact the czar and register ourselves.
