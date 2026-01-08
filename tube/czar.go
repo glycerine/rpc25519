@@ -36,9 +36,9 @@ const (
 )
 
 // Czar is the RAM/memory only maintainer of
-// the Member system of membership. The acting Czar is elected
+// the RMember system of membership. The acting Czar is elected
 // via Raft by writing to the key "czar"
-// in the configured Member.TableSpace.
+// in the configured RMember.TableSpace.
 type Czar struct {
 	mut sync.Mutex
 
@@ -51,7 +51,7 @@ type Czar struct {
 	// this the client of Tube, not rpc.
 	// It represents the TubeNode of the
 	// Czar when it is active as czar (having
-	// won the lease on the hermes.czar key in Tube).
+	// won the lease on the {tableSpace}/czar key in Tube).
 	TubeCliName string `zid:"0"`
 
 	UpcallMembershipChangeCh chan *ReliableMembershipList `msg:"-"`
@@ -200,7 +200,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 	s.heard[args.Name] = time.Now()
 	s.expireSilentNodes(true) // true since mut is already locked.
 	if s.members.Vers.Version != orig.Version {
-		//vv("Czar.Ping: membership has changed (was %#v; now %#v), is now: {%v}", orig, s.members.Vers, s.shortMemberSummary())
+		//vv("Czar.Ping: membership has changed (was %#v; now %#v), is now: {%v}", orig, s.members.Vers, s.shortRMemberSummary())
 	}
 
 	//vv("czar sees Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, czar replies with ='%v'", s.cliName, args, reply)
@@ -208,7 +208,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 	return nil
 }
 
-func (s *Czar) shortMemberSummary() (r string) {
+func (s *Czar) shortRMemberSummary() (r string) {
 	n := s.members.PeerNames.Len()
 	r = fmt.Sprintf("[%v members; Vers:(CzarLeaseEpoch: %v, Version:%v)]{\n", n, s.members.Vers.CzarLeaseEpoch, s.members.Vers.Version)
 	i := 0
@@ -233,9 +233,9 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 	}
 }
 
-//msgp:ignore Member
+//msgp:ignore RMember
 
-// Member provies a ReliableMembership service with these goals:
+// RMember provies a ReliableMembership service with these goals:
 //
 // a) Maintain a current view of who's in the group.
 //
@@ -251,7 +251,7 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 // member can tell us the leader, and the leader
 // can tell us about all cluster nodes if need be.
 //
-// (1) as a Member, I register my name and PeerDetail
+// (1) as a RMember, I register my name and PeerDetail
 // under table:hermes key:czar with a 20 second lease.
 // I renew it every 10 seconds or so.
 // The first writer to grab the lease "wins" the election
@@ -262,7 +262,7 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 //
 // (2) Each Hermes node just heartbeats to the Czar saying:
 // "I'm a member, and who else is a member and at what epoch?"
-// If the epoch changes, update the membership list
+// If the epoch or version changes, update the membership list
 // in the Hermes upcall. The czar regularly scans
 // the list for members that have not sent a heartbeat
 // recently. When discovered, they are removed from the list
@@ -300,9 +300,9 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 // epoch, the RAM-only membership updates are
 // denoted by incrementing the Version number
 // of the RMVersionTuple.
-type Member struct {
+type RMember struct {
 
-	// TableSpace is set by the NewMember() constructor.
+	// TableSpace is set by the NewRMember() constructor.
 	// The "czar" key at the root of this TableSpace
 	// is used to elect/lease out the czar-ship (leader
 	// of the membership who maintains current membership
@@ -315,29 +315,29 @@ type Member struct {
 	UpcallMembershipChangeCh chan *ReliableMembershipList
 
 	// Ready is closed when UpcallMembershipChangeCh is set
-	// and the Member is ready to use (call Start(), then
+	// and the RMember is ready to use (call Start(), then
 	// wait for Ready to be closed).
 	Ready chan struct{}
 }
 
-// NewMember creates a member of the given tableSpace.
+// NewRMember creates a member of the given tableSpace.
 // Users must call Start() and then wait until Ready is closed
 // before accessing UpcallMembershipChangeCh to
 // get membership changes.
-func NewMember(tableSpace string) *Member {
-	return &Member{
+func NewRMember(tableSpace string) *RMember {
+	return &RMember{
 		TableSpace: tableSpace,
 		Ready:      make(chan struct{}),
 	}
 }
 
-// Start elects a Czar and manages the Member's membership
+// Start elects a Czar and manages the RMember's membership
 // in the TableSpace.
-func (membr *Member) Start() {
+func (membr *RMember) Start() {
 	go membr.start()
 }
 
-func (membr *Member) start() {
+func (membr *RMember) start() {
 	tableSpace := membr.TableSpace
 
 	const quiet = false
@@ -474,7 +474,7 @@ looptop:
 				panicOn(err)                       // non monotone version panics
 
 				czar.mut.Lock()
-				sum := czar.shortMemberSummary()
+				sum := czar.shortRMemberSummary()
 				czar.mut.Unlock()
 				_ = sum
 				//vv("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'; czar='%v'", tubeCliName, vers, sum)
@@ -520,7 +520,7 @@ looptop:
 			case <-expireCheckCh:
 				changed := czar.expireSilentNodes(false)
 				if changed {
-					//vv("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortMemberSummary())
+					//vv("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortRMemberSummary())
 				}
 				expireCheckCh = time.After(5 * time.Second)
 
