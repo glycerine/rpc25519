@@ -270,7 +270,7 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 //
 // (2) Each Hermes/tablespace member node
 // heartbeats to the Czar saying:
-// "I'm a member, and who else is a member and at what epoch/versionx?"
+// "I'm a member, and who else is a member and at what epoch/version?"
 // If the epoch or version changes, update the membership list
 // in the Hermes upcall. The czar regularly scans
 // the list for members that have not sent a heartbeat
