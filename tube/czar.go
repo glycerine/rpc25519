@@ -75,7 +75,7 @@ func (s *Czar) setVers(v RMVersionTuple, list *ReliableMembershipList, t0 time.T
 	s.members.Vers = v
 	s.t0 = t0
 
-	vv("end of setVers(v='%#v') s.members is now '%v')", v, s.members)
+	//vv("end of setVers(v='%#v') s.members is now '%v')", v, s.members)
 	select {
 	case s.UpcallMembershipChangeCh <- s.members.Clone():
 	default:
@@ -88,7 +88,7 @@ func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
 	defer s.mut.Unlock()
 	raddr := droppedCli.Conn.RemoteAddr().String()
 
-	vv("Czar.remove() for raddr='%v'", raddr)
+	//vv("Czar.remove() for raddr='%v'", raddr)
 
 	// linear search, for now. TODO: map based lookup?
 	// we could make the name key be the rpc.Client addr
@@ -99,7 +99,7 @@ func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
 		if addr == raddr {
 			s.members.PeerNames.Delkey(name)
 			s.members.Vers.Version++
-			vv("remove dropped client '%v', vers='%#v'", name, s.members.Vers)
+			//vv("remove dropped client '%v', vers='%#v'", name, s.members.Vers)
 			select {
 			case s.UpcallMembershipChangeCh <- s.members.Clone():
 			default:
@@ -107,7 +107,7 @@ func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
 			return
 		}
 	}
-	vv("remove could not find dropped client raddr '%v'", raddr)
+	//vv("remove could not find dropped client raddr '%v'", raddr)
 }
 
 func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
@@ -142,13 +142,13 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 			uptime := time.Since(s.t0)
 			if uptime > s.declaredDeadDur {
 				killIt = true
-				vv("expiring dead node '%v' -- would upcall membership change too. nothing heard after uptime = '%v'", name, uptime)
+				//vv("expiring dead node '%v' -- would upcall membership change too. nothing heard after uptime = '%v'", name, uptime)
 			}
 		} else {
 			been := now.Sub(lastHeard)
 			if been > s.declaredDeadDur {
 				killIt = true
-				vv("expiring dead node '%v' -- would upcall membership change too. been '%v'", name, been)
+				//vv("expiring dead node '%v' -- would upcall membership change too. been '%v'", name, been)
 			}
 		}
 		if killIt {
@@ -200,7 +200,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 	s.heard[args.Name] = time.Now()
 	s.expireSilentNodes(true) // true since mut is already locked.
 	if s.members.Vers.Version != orig.Version {
-		vv("Czar.Ping: membership has changed (was %#v; now %#v), is now: {%v}", orig, s.members.Vers, s.shortMemberSummary())
+		//vv("Czar.Ping: membership has changed (was %#v; now %#v), is now: {%v}", orig, s.members.Vers, s.shortMemberSummary())
 	}
 
 	//vv("czar sees Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, czar replies with ='%v'", s.cliName, args, reply)
@@ -308,7 +308,7 @@ func (membr *Member) start() {
 	//vv("cliCfg = '%v'", cliCfg)
 	tubeCliName := cliCfg.MyName
 
-	vv("tubeCliName = '%v'", tubeCliName)
+	//vv("tubeCliName = '%v'", tubeCliName)
 
 	cli := NewTubeNode(tubeCliName, cliCfg)
 	err = cli.InitAndStart()
@@ -319,8 +319,10 @@ func (membr *Member) start() {
 	var sess *Session
 	for {
 		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(cliCfg, "", false)
+		_ = reallyLeader
+		_ = leaderName
 		panicOn(err)
-		vv("got leaderName = '%v'; leaderURL = '%v'; reallyLeader='%v'", leaderName, leaderURL, reallyLeader)
+		//vv("got leaderName = '%v'; leaderURL = '%v'; reallyLeader='%v'", leaderName, leaderURL, reallyLeader)
 
 		sess, err = cli.CreateNewSession(ctx, leaderURL)
 		//panicOn(err) // panic: hmm. no leader known to me (node 'node_0')
@@ -434,8 +436,8 @@ looptop:
 				czar.mut.Lock()
 				sum := czar.shortMemberSummary()
 				czar.mut.Unlock()
-
-				vv("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'; czar='%v'", tubeCliName, vers, sum)
+				_ = sum
+				//vv("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'; czar='%v'", tubeCliName, vers, sum)
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 			} else {
 				cState = notCzar
@@ -455,7 +457,7 @@ looptop:
 				default:
 				}
 
-				vv("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers)
+				//vv("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers)
 				// contact the czar and register ourselves.
 			}
 
@@ -468,7 +470,7 @@ looptop:
 				select {
 				case funneler.newCliCh <- cliConnHalt:
 				case <-czar.Halt.ReqStop.Chan:
-					vv("czar halt requested. exiting.")
+					//vv("czar halt requested. exiting.")
 					return
 				}
 
@@ -478,7 +480,7 @@ looptop:
 			case <-expireCheckCh:
 				changed := czar.expireSilentNodes(false)
 				if changed {
-					vv("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortMemberSummary())
+					//vv("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortMemberSummary())
 				}
 				expireCheckCh = time.After(5 * time.Second)
 
@@ -495,7 +497,7 @@ looptop:
 
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 			case <-czar.Halt.ReqStop.Chan:
-				vv("czar halt requested. exiting.")
+				//vv("czar halt requested. exiting.")
 				return
 			}
 
@@ -506,7 +508,7 @@ looptop:
 				if !ok {
 					panicf("list with winning czar did not include czar itself?? list='%v'", list)
 				}
-				vv("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetail.URL)
+				//vv("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetail.URL)
 				reply := &ReliableMembershipList{}
 
 				ccfg := *cli.GetConfig().RpcCfg
@@ -516,14 +518,14 @@ looptop:
 				panicOn(err)
 				err = rpcClientToCzar.Start()
 				if err != nil {
-					vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
+					//vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
 					rpcClientToCzar.Close()
 					rpcClientToCzar = nil
 					rpcClientToCzarDoneCh = nil
 					cState = unknownCzarState
 
 					waitDur := czarLeaseUntilTm.Sub(time.Now()) + time.Second
-					vv("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
+					//vv("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
 					time.Sleep(waitDur)
 					continue looptop
 				}
@@ -551,7 +553,7 @@ looptop:
 			}
 			select {
 			case <-rpcClientToCzarDoneCh:
-				vv("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
+				//vv("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
 				rpcClientToCzar.Close()
 				rpcClientToCzar = nil
 				rpcClientToCzarDoneCh = nil
@@ -565,7 +567,7 @@ looptop:
 				err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
 				//vv("member called to Czar.Ping, err='%v'", err)
 				if err != nil {
-					vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
+					//vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
 					rpcClientToCzar.Close()
 					rpcClientToCzar = nil
 					rpcClientToCzarDoneCh = nil
@@ -583,7 +585,7 @@ looptop:
 				memberHeartBeatCh = time.After(memberHeartBeatDur)
 
 			case <-czar.Halt.ReqStop.Chan:
-				vv("czar halt requested. exiting.")
+				//vv("czar halt requested. exiting.")
 				return
 			}
 		}
