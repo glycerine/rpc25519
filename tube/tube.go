@@ -11664,7 +11664,8 @@ type PeerDetail struct {
 	NonVoting bool `zid:"6"`
 
 	// RMembers are granted leases here.
-	RMemberLeaseUntilTm time.Time `zid:"7"`
+	RMemberLeaseUntilTm time.Time     `zid:"7"`
+	RMemberLeaseDur     time.Duration `zid:"8"`
 
 	gcAfterHeartbeatCount int
 }

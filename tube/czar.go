@@ -192,10 +192,13 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 		panic("must have rpc.HDRFromContext(ctx) set so we know which tube-client to drop when the rpc.Client drops!")
 	}
 	//vv("Ping called at cliName = '%v', since args = '%v'; orig='%#v'", s.CliName, args, orig)
-
+	if s.memberLeaseDur < time.Millisecond {
+		panicf("s.memberLeaseDur too small! '%v'", s.memberLeaseDur)
+	}
 	now := time.Now()
 	leasedUntilTm := now.Add(s.memberLeaseDur)
 	args.RMemberLeaseUntilTm = leasedUntilTm
+	args.RMemberLeaseDur = s.memberLeaseDur
 
 	det, ok := s.members.PeerNames.Get2(args.Name)
 	if !ok {
