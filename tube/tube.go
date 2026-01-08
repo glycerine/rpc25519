@@ -11678,10 +11678,18 @@ func (s *PeerDetail) Clone() *PeerDetail {
 		PeerServiceName:        s.PeerServiceName,
 		PeerServiceNameVersion: s.PeerServiceNameVersion,
 		NonVoting:              s.NonVoting,
+		RMemberLeaseUntilTm:    s.RMemberLeaseUntilTm,
 	}
 }
 
 func (s *PeerDetail) String() string {
+	now := time.Now()
+	x := ""
+	if gte(now, s.RMemberLeaseUntilTm) {
+		x = "expired"
+	} else {
+		x = fmt.Sprintf("%v left", now.Sub(s.RMemberLeaseUntilTm))
+	}
 	return fmt.Sprintf(`PeerDetail{
                   Name: %v
                    URL: %v
@@ -11690,9 +11698,10 @@ func (s *PeerDetail) String() string {
        PeerServiceName: %v
 PeerServiceNameVersion: %v
              NonVoting: %v
+   RMemberLeaseUntilTm: %v (%v)
 }`, s.Name, s.URL, s.PeerID, s.Addr,
 		s.PeerServiceName, s.PeerServiceNameVersion,
-		s.NonVoting)
+		s.NonVoting, nice(s.RMemberLeaseUntilTm), x)
 }
 
 // MemberConfig gets stored and saved
