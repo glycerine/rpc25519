@@ -16,8 +16,6 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/glycerine/base58 v0.24.2 h1:y0BddQUzkngZgsO6MrlWB12dezWPHNJK/Qvv2mxd8xE=
 github.com/glycerine/base58 v0.24.2/go.mod h1:NT5W5aZ4AENzJYQ6wp4OvKdOJ01f6BgK8KiG0Q8NTfg=
-github.com/glycerine/bbolt v1.4.4-jea h1:cPRgrTjmZCy9dQJupbAGwCrbe2VflCab6r4Uypdu9+Y=
-github.com/glycerine/bbolt v1.4.4-jea/go.mod h1:9ipkymGLwRZDAAV1ZZXbjooIGQvbG+hWw+yd8WT0yRA=
 github.com/glycerine/blake2b v0.0.0-20151022103502-3c8c640cd7be h1:XBJdPGgA3qqhW+p9CANCAVdF7ZIXdu3pZAkypMkKAjE=
 github.com/glycerine/blake2b v0.0.0-20151022103502-3c8c640cd7be/go.mod h1:OSCrScrFAjcBObrulk6BEQlytA462OkG1UGB5NYj9kE=
 github.com/glycerine/blake3 v1.5.2 h1:lE+WPREJhqdWt5/va+byQccckYQwN41Uu/K+u3KRxdE=
@@ -88,8 +86,6 @@ golang.org/x/crypto v0.45.0 h1:jMBrvKuj23MTlT0bQEOBcAE0mjg8mK9RXFhRH6nyF3Q=
 golang.org/x/crypto v0.45.0/go.mod h1:XTGrrkGJve7CYK7J8PEww4aY7gM3qMCElcJQ8n8JdX4=
 golang.org/x/net v0.47.0 h1:Mx+4dIFzqraBXUugkia1OOvlD6LemFo1ALMHjrXDOhY=
 golang.org/x/net v0.47.0/go.mod h1:/jNxtkgq5yWUGYkaZGqo27cfGZ1c5Nen03aYrrKpVRU=
-golang.org/x/sync v0.17.0 h1:l60nONMj9l5drqw6jlhIELNv9I0A4OFgRsG9k2oT9Ug=
-golang.org/x/sync v0.17.0/go.mod h1:9KTHXmSnoGruLpwFjVSX0lNNA75CykiMECbovNTZqGI=
 golang.org/x/sys v0.6.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.38.0 h1:3yZWxaJjBmCWXqhN1qh02AkOnCQ1poK6oF+a7xWL6Gc=
 golang.org/x/sys v0.38.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=

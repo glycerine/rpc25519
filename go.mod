@@ -10,7 +10,6 @@ require (
 	github.com/cloudflare/circl v1.6.1
 	github.com/cristalhq/base64 v0.1.2
 	github.com/glycerine/base58 v0.24.2
-	github.com/glycerine/bbolt v1.4.4-jea
 	github.com/glycerine/blake3 v1.5.2
 	github.com/glycerine/fisherexact v0.3.6
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
