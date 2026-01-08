@@ -210,14 +210,11 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 
 func (s *Czar) shortMemberSummary() (r string) {
 	n := s.members.PeerNames.Len()
-	r = fmt.Sprintf("[%v members; Vers:(CzarLeaseEpoch: %v, Version:%v)]{", n, s.members.Vers.CzarLeaseEpoch, s.members.Vers.Version)
+	r = fmt.Sprintf("[%v members; Vers:(CzarLeaseEpoch: %v, Version:%v)]{\n", n, s.members.Vers.CzarLeaseEpoch, s.members.Vers.Version)
 	i := 0
-	for name := range s.members.PeerNames.All() {
-		r += name
+	for name, det := range s.members.PeerNames.All() {
+		r += fmt.Sprintf("[%02d] %v: %v\n", i, name, det.URL)
 		i++
-		if i < n {
-			r += ", "
-		}
 	}
 	r += "}"
 	return
@@ -455,7 +452,7 @@ looptop:
 		case amCzar:
 			select {
 			case cliConnHalt := <-cli.Srv.NotifyAllNewClients:
-				vv("czar received on cli.Srv.NotifyAllNewClients, has new client '%v'", cliConnHalt.Conn.RemoteAddr())
+				//vv("czar received on cli.Srv.NotifyAllNewClients, has new client '%v'", cliConnHalt.Conn.RemoteAddr())
 				// tell the funneler to listen for it to drop.
 				// It will notify us on clientDroppedCh below.
 				select {
@@ -483,7 +480,7 @@ looptop:
 
 				czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCz)
 				panicOn(err)
-				vv("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
+				//vv("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
 				czarLeaseUntilTm = czarTkt.LeaseUntilTm
 
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
