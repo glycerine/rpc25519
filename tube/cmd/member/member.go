@@ -378,9 +378,9 @@ looptop:
 					CzarLeaseEpoch: czarTkt.LeaseEpoch,
 					Version:        0,
 				}
-				t0 := time.Now() // since we took over as czar
-				err = czar.setVers(vers, list, t0)
-				panicOn(err) // non monotone versioning
+				t0 := time.Now()                   // since we took over as czar
+				err = czar.setVers(vers, list, t0) // does upcall for us.
+				panicOn(err)                       // non monotone versioning
 
 				czar.mut.Lock()
 				sum := czar.shortMemberSummary()
@@ -401,6 +401,10 @@ looptop:
 				nonCzarMembers = &tube.ReliableMembershipList{}
 				_, err = nonCzarMembers.UnmarshalMsg(czarTkt.Val)
 				panicOn(err)
+				select {
+				case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
+				default:
+				}
 
 				vv("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers)
 				// contact the czar and register ourselves.
@@ -454,13 +458,6 @@ looptop:
 					panicf("list with winning czar did not include czar itself?? list='%v'", list)
 				}
 				vv("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetail.URL)
-				//czarURL = czarDetail.URL
-
-				// heartBeatFrag := cli.MyPeer.NewFragment()
-				// heartBeatFrag.FragOp = tube.ReliableMemberHeartBeatToCzar
-				// heartBeatFrag.FragSubject = "ReliableMemberHeartBeatToCzar"
-				// heartBeatFrag.SetUserArg("URL", myDetail.URL)
-
 				reply := &tube.ReliableMembershipList{}
 
 				ccfg := *cli.GetConfig().RpcCfg
@@ -494,13 +491,14 @@ looptop:
 					cState = unknownCzarState
 					continue looptop
 				}
-				//vv("member(cliName='%v') called to Czar.Ping, got reply='%v'", cliName, reply)
-				// czarCkt, _, _, err = cli.MyPeer.NewCircuitToPeerURL("member-to-czar", czarURL, heartBeatFrag, 0)
-				// panicOn(err)
-				// vv("got circuit to czar: %v", czarCkt)
-				// cli.MyPeer.NewCircuitCh <- czarCkt // needed/desirable?
-				if err == nil {
+				//vv("member(cliName='%v') did rpc.Call to Czar.Ping, got reply='%v'", cliName, reply)
+				// store view of membership as non-czar
+				if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
 					nonCzarMembers = reply
+					select {
+					case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
+					default:
+					}
 				}
 				memberHeartBeatCh = time.After(memberHeartBeatDur)
 			}
@@ -528,10 +526,13 @@ looptop:
 					continue
 				}
 				//vv("member called to Czar.Ping, got reply='%v'", reply)
-				if err == nil {
+				if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
 					nonCzarMembers = reply
+					select {
+					case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
+					default:
+					}
 				}
-
 				memberHeartBeatCh = time.After(memberHeartBeatDur)
 
 			case <-czar.halt.ReqStop.Chan:
