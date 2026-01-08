@@ -244,7 +244,12 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 // c) Ensure all members converge to the same view
 // by providing the RMVersionTuple versioning.
 //
-// The implementation takes the following approach:
+// The implementation takes the following approach.
+// The default test/tablespace is/was called "hermes"
+// because we wrote this with an implementation
+// of the Hermes replication protocol in mind.
+// Hermes must be built atop a reliable membership
+// service. See https://hermes-protocol.com/
 //
 // (0) we must be pre-configured with the raft nodes addresses,
 // so we can bootrstrap from them. Any tube/raft cluster
@@ -252,7 +257,9 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 // can tell us about all cluster nodes if need be.
 //
 // (1) as a RMember, I register my name and PeerDetail
-// under table:hermes key:czar with a 20 second lease.
+// under table:{tableSpace} e.g. "hermes" key:"czar"
+// with a 20 second lease.
+//
 // I renew it every 10 seconds or so.
 // The first writer to grab the lease "wins" the election
 // to czar. All members are ready to take over a czar
@@ -260,8 +267,9 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 // most recent list it has of other members when
 // it writes the czar key.
 //
-// (2) Each Hermes node just heartbeats to the Czar saying:
-// "I'm a member, and who else is a member and at what epoch?"
+// (2) Each Hermes (i.e. the tablespace) node
+// heartbeats to the Czar saying:
+// "I'm a member, and who else is a member and at what epoch/versionx?"
 // If the epoch or version changes, update the membership list
 // in the Hermes upcall. The czar regularly scans
 // the list for members that have not sent a heartbeat
@@ -274,7 +282,7 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 //
 // Repeat until either the current Czar can be reached
 // or a new Czar is elected. Again by contending for
-// table:hermes key:czar.
+// table:hermes(tableSpace) key:czar.
 //
 // Notice that only a single lease is taken out through
 // Raft/Tube, and it only needs updating every 10
@@ -300,6 +308,11 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 // epoch, the RAM-only membership updates are
 // denoted by incrementing the Version number
 // of the RMVersionTuple.
+//
+// To use Tube as a consistent DNS more generally, we
+// could also write our name -> details
+// into a separate tableSpace, if so desired.
+// We have not needed to do so yet.
 type RMember struct {
 
 	// TableSpace is set by the NewRMember() constructor.
