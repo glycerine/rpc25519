@@ -547,7 +547,7 @@ looptop:
 				sum := czar.shortRMemberSummary()
 				czar.mut.Unlock()
 				_ = sum
-				//vv("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'; czar='%v'", tubeCliName, vers, sum)
+				vv("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'; czar='%v'", tubeCliName, vers, sum)
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 			} else {
 				cState = notCzar
@@ -583,7 +583,7 @@ looptop:
 				//default:
 				//}
 
-				//vv("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers)
+				vv("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers)
 				// contact the czar and register ourselves.
 			}
 
@@ -610,9 +610,9 @@ looptop:
 			case <-expireCheckCh:
 				changed := czar.expireSilentNodes(false)
 				if changed {
-					//czar.mut.Lock()
-					//vv("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortRMemberSummary())
-					//czar.mut.Unlock()
+					czar.mut.Lock()
+					vv("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortRMemberSummary())
+					czar.mut.Unlock()
 				}
 				expireCheckCh = time.After(5 * time.Second)
 
@@ -624,7 +624,7 @@ looptop:
 
 				czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar)
 				panicOn(err)
-				//vv("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
+				vv("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
 				czarLeaseUntilTm = czarTkt.LeaseUntilTm
 
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
@@ -640,7 +640,7 @@ looptop:
 				if !ok {
 					panicf("list with winning czar did not include czar itself?? list='%v'", list)
 				}
-				//vv("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetail.URL)
+				vv("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetail.URL)
 				reply := &ReliableMembershipList{}
 
 				ccfg := *cli.GetConfig().RpcCfg
@@ -657,13 +657,13 @@ looptop:
 					cState = unknownCzarState
 
 					waitDur := czarLeaseUntilTm.Sub(time.Now()) + time.Second
-					//vv("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
+					vv("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
 					time.Sleep(waitDur)
 					continue looptop
 				}
 				rpcClientToCzarDoneCh = rpcClientToCzar.GetHostHalter().Done.Chan
 
-				//vv("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
+				vv("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
 				err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
 				if err != nil {
 					rpcClientToCzar.Close()
@@ -672,7 +672,7 @@ looptop:
 					cState = unknownCzarState
 					continue looptop
 				}
-				//vv("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply='%v'", tubeCliName, reply)
+				vv("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply='%v'", tubeCliName, reply)
 				// store view of membership as non-czar
 				if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
 					nonCzarMembers = reply
@@ -686,7 +686,7 @@ looptop:
 			}
 			select {
 			case <-rpcClientToCzarDoneCh:
-				//vv("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
+				vv("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
 				rpcClientToCzar.Close()
 				rpcClientToCzar = nil
 				rpcClientToCzarDoneCh = nil
