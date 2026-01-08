@@ -308,7 +308,7 @@ func (z *RMVersionTuple) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields6zgensym_d4b91a75c2094c05_7 = 2
+	const maxFields6zgensym_d4b91a75c2094c05_7 = 3
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields6zgensym_d4b91a75c2094c05_7 uint32
@@ -369,6 +369,12 @@ doneWithStruct6zgensym_d4b91a75c2094c05_7:
 			if err != nil {
 				return
 			}
+		case "LeaseUpdateCounter_zid02_i64":
+			found6zgensym_d4b91a75c2094c05_7[2] = true
+			z.LeaseUpdateCounter, err = dc.ReadInt64()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -392,22 +398,26 @@ doneWithStruct6zgensym_d4b91a75c2094c05_7:
 }
 
 // fields of RMVersionTuple
-var decodeMsgFieldOrder6zgensym_d4b91a75c2094c05_7 = []string{"CzarLeaseEpoch_zid00_i64", "Version_zid01_i64"}
+var decodeMsgFieldOrder6zgensym_d4b91a75c2094c05_7 = []string{"CzarLeaseEpoch_zid00_i64", "Version_zid01_i64", "LeaseUpdateCounter_zid02_i64"}
 
-var decodeMsgFieldSkip6zgensym_d4b91a75c2094c05_7 = []bool{false, false}
+var decodeMsgFieldSkip6zgensym_d4b91a75c2094c05_7 = []bool{false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *RMVersionTuple) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 2
+		return 3
 	}
-	var fieldsInUse uint32 = 2
+	var fieldsInUse uint32 = 3
 	isempty[0] = (z.CzarLeaseEpoch == 0) // number, omitempty
 	if isempty[0] {
 		fieldsInUse--
 	}
 	isempty[1] = (z.Version == 0) // number, omitempty
 	if isempty[1] {
+		fieldsInUse--
+	}
+	isempty[2] = (z.LeaseUpdateCounter == 0) // number, omitempty
+	if isempty[2] {
 		fieldsInUse--
 	}
 
@@ -421,7 +431,7 @@ func (z *RMVersionTuple) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_d4b91a75c2094c05_8 [2]bool
+	var empty_zgensym_d4b91a75c2094c05_8 [3]bool
 	fieldsInUse_zgensym_d4b91a75c2094c05_9 := z.fieldsNotEmpty(empty_zgensym_d4b91a75c2094c05_8[:])
 
 	// map header
@@ -464,6 +474,18 @@ func (z *RMVersionTuple) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_d4b91a75c2094c05_8[2] {
+		// write "LeaseUpdateCounter_zid02_i64"
+		err = en.Append(0xbc, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
+		if err != nil {
+			return err
+		}
+		err = en.WriteInt64(z.LeaseUpdateCounter)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -476,7 +498,7 @@ func (z *RMVersionTuple) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [2]bool
+	var empty [3]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -490,6 +512,12 @@ func (z *RMVersionTuple) MarshalMsg(b []byte) (o []byte, err error) {
 		// string "Version_zid01_i64"
 		o = append(o, 0xb1, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x36, 0x34)
 		o = msgp.AppendInt64(o, z.Version)
+	}
+
+	if !empty[2] {
+		// string "LeaseUpdateCounter_zid02_i64"
+		o = append(o, 0xbc, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.LeaseUpdateCounter)
 	}
 
 	return
@@ -510,7 +538,7 @@ func (z *RMVersionTuple) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig
 
 	var field []byte
 	_ = field
-	const maxFields10zgensym_d4b91a75c2094c05_11 = 2
+	const maxFields10zgensym_d4b91a75c2094c05_11 = 3
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields10zgensym_d4b91a75c2094c05_11 uint32
@@ -574,6 +602,13 @@ doneWithStruct10zgensym_d4b91a75c2094c05_11:
 			if err != nil {
 				return
 			}
+		case "LeaseUpdateCounter_zid02_i64":
+			found10zgensym_d4b91a75c2094c05_11[2] = true
+			z.LeaseUpdateCounter, bts, err = nbs.ReadInt64Bytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -597,19 +632,20 @@ doneWithStruct10zgensym_d4b91a75c2094c05_11:
 }
 
 // fields of RMVersionTuple
-var unmarshalMsgFieldOrder10zgensym_d4b91a75c2094c05_11 = []string{"CzarLeaseEpoch_zid00_i64", "Version_zid01_i64"}
+var unmarshalMsgFieldOrder10zgensym_d4b91a75c2094c05_11 = []string{"CzarLeaseEpoch_zid00_i64", "Version_zid01_i64", "LeaseUpdateCounter_zid02_i64"}
 
-var unmarshalMsgFieldSkip10zgensym_d4b91a75c2094c05_11 = []bool{false, false}
+var unmarshalMsgFieldSkip10zgensym_d4b91a75c2094c05_11 = []bool{false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RMVersionTuple) Msgsize() (s int) {
-	s = 1 + 25 + msgp.Int64Size + 18 + msgp.Int64Size
+	s = 1 + 25 + msgp.Int64Size + 18 + msgp.Int64Size + 29 + msgp.Int64Size
 	return
 }
 func (z *RMVersionTuple) Gstring() (r string) {
 	r = "&RMVersionTuple{\n"
-	r += fmt.Sprintf("CzarLeaseEpoch: %v,\n", z.CzarLeaseEpoch)
-	r += fmt.Sprintf("       Version: %v,\n", z.Version)
+	r += fmt.Sprintf("    CzarLeaseEpoch: %v,\n", z.CzarLeaseEpoch)
+	r += fmt.Sprintf("           Version: %v,\n", z.Version)
+	r += fmt.Sprintf("LeaseUpdateCounter: %v,\n", z.LeaseUpdateCounter)
 	r += "}\n"
 	return
 }
@@ -686,7 +722,7 @@ doneWithStruct13zgensym_d4b91a75c2094c05_14:
 			}
 		case "Vers_zid01_rct":
 			found13zgensym_d4b91a75c2094c05_14[1] = true
-			const maxFields15zgensym_d4b91a75c2094c05_16 = 2
+			const maxFields15zgensym_d4b91a75c2094c05_16 = 3
 
 			// -- templateDecodeMsg starts here--
 			var totalEncodedFields15zgensym_d4b91a75c2094c05_16 uint32
@@ -744,6 +780,12 @@ doneWithStruct13zgensym_d4b91a75c2094c05_14:
 				case "Version_zid01_i64":
 					found15zgensym_d4b91a75c2094c05_16[1] = true
 					z.Vers.Version, err = dc.ReadInt64()
+					if err != nil {
+						return
+					}
+				case "LeaseUpdateCounter_zid02_i64":
+					found15zgensym_d4b91a75c2094c05_16[2] = true
+					z.Vers.LeaseUpdateCounter, err = dc.ReadInt64()
 					if err != nil {
 						return
 					}
@@ -827,9 +869,9 @@ var decodeMsgFieldOrder13zgensym_d4b91a75c2094c05_14 = []string{"CzarName_zid00_
 var decodeMsgFieldSkip13zgensym_d4b91a75c2094c05_14 = []bool{false, false, false, true}
 
 // fields of RMVersionTuple
-var decodeMsgFieldOrder15zgensym_d4b91a75c2094c05_16 = []string{"CzarLeaseEpoch_zid00_i64", "Version_zid01_i64"}
+var decodeMsgFieldOrder15zgensym_d4b91a75c2094c05_16 = []string{"CzarLeaseEpoch_zid00_i64", "Version_zid01_i64", "LeaseUpdateCounter_zid02_i64"}
 
-var decodeMsgFieldSkip15zgensym_d4b91a75c2094c05_16 = []bool{false, false}
+var decodeMsgFieldSkip15zgensym_d4b91a75c2094c05_16 = []bool{false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *ReliableMembershipList) fieldsNotEmpty(isempty []bool) uint32 {
@@ -899,7 +941,7 @@ func (z *ReliableMembershipList) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 
 		// honor the omitempty tags
-		var empty_zgensym_d4b91a75c2094c05_20 [2]bool
+		var empty_zgensym_d4b91a75c2094c05_20 [3]bool
 		fieldsInUse_zgensym_d4b91a75c2094c05_21 := z.Vers.fieldsNotEmpty(empty_zgensym_d4b91a75c2094c05_20[:])
 
 		// map header
@@ -937,6 +979,18 @@ func (z *ReliableMembershipList) EncodeMsg(en *msgp.Writer) (err error) {
 				return err
 			}
 			err = en.WriteInt64(z.Vers.Version)
+			if err != nil {
+				return
+			}
+		}
+
+		if !empty_zgensym_d4b91a75c2094c05_20[2] {
+			// write "LeaseUpdateCounter_zid02_i64"
+			err = en.Append(0xbc, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
+			if err != nil {
+				return err
+			}
+			err = en.WriteInt64(z.Vers.LeaseUpdateCounter)
 			if err != nil {
 				return
 			}
@@ -998,7 +1052,7 @@ func (z *ReliableMembershipList) MarshalMsg(b []byte) (o []byte, err error) {
 		o = append(o, 0xae, 0x56, 0x65, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x72, 0x63, 0x74)
 
 		// honor the omitempty tags
-		var empty [2]bool
+		var empty [3]bool
 		fieldsInUse := z.Vers.fieldsNotEmpty(empty[:])
 		o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -1012,6 +1066,12 @@ func (z *ReliableMembershipList) MarshalMsg(b []byte) (o []byte, err error) {
 			// string "Version_zid01_i64"
 			o = append(o, 0xb1, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x36, 0x34)
 			o = msgp.AppendInt64(o, z.Vers.Version)
+		}
+
+		if !empty[2] {
+			// string "LeaseUpdateCounter_zid02_i64"
+			o = append(o, 0xbc, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
+			o = msgp.AppendInt64(o, z.Vers.LeaseUpdateCounter)
 		}
 
 	}
@@ -1113,7 +1173,7 @@ doneWithStruct22zgensym_d4b91a75c2094c05_23:
 			}
 		case "Vers_zid01_rct":
 			found22zgensym_d4b91a75c2094c05_23[1] = true
-			const maxFields24zgensym_d4b91a75c2094c05_25 = 2
+			const maxFields24zgensym_d4b91a75c2094c05_25 = 3
 
 			// -- templateUnmarshalMsg starts here--
 			var totalEncodedFields24zgensym_d4b91a75c2094c05_25 uint32
@@ -1173,6 +1233,13 @@ doneWithStruct22zgensym_d4b91a75c2094c05_23:
 				case "Version_zid01_i64":
 					found24zgensym_d4b91a75c2094c05_25[1] = true
 					z.Vers.Version, bts, err = nbs.ReadInt64Bytes(bts)
+
+					if err != nil {
+						return
+					}
+				case "LeaseUpdateCounter_zid02_i64":
+					found24zgensym_d4b91a75c2094c05_25[2] = true
+					z.Vers.LeaseUpdateCounter, bts, err = nbs.ReadInt64Bytes(bts)
 
 					if err != nil {
 						return
@@ -1263,13 +1330,13 @@ var unmarshalMsgFieldOrder22zgensym_d4b91a75c2094c05_23 = []string{"CzarName_zid
 var unmarshalMsgFieldSkip22zgensym_d4b91a75c2094c05_23 = []bool{false, false, false, true}
 
 // fields of RMVersionTuple
-var unmarshalMsgFieldOrder24zgensym_d4b91a75c2094c05_25 = []string{"CzarLeaseEpoch_zid00_i64", "Version_zid01_i64"}
+var unmarshalMsgFieldOrder24zgensym_d4b91a75c2094c05_25 = []string{"CzarLeaseEpoch_zid00_i64", "Version_zid01_i64", "LeaseUpdateCounter_zid02_i64"}
 
-var unmarshalMsgFieldSkip24zgensym_d4b91a75c2094c05_25 = []bool{false, false}
+var unmarshalMsgFieldSkip24zgensym_d4b91a75c2094c05_25 = []bool{false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ReliableMembershipList) Msgsize() (s int) {
-	s = 1 + 19 + msgp.StringPrefixSize + len(z.CzarName) + 15 + 1 + 25 + msgp.Int64Size + 18 + msgp.Int64Size + 26 + msgp.ArrayHeaderSize
+	s = 1 + 19 + msgp.StringPrefixSize + len(z.CzarName) + 15 + 1 + 25 + msgp.Int64Size + 18 + msgp.Int64Size + 29 + msgp.Int64Size + 26 + msgp.ArrayHeaderSize
 	for zgensym_d4b91a75c2094c05_12 := range z.SerzPeerDetails {
 		if z.SerzPeerDetails[zgensym_d4b91a75c2094c05_12] == nil {
 			s += msgp.NilSize

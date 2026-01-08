@@ -210,7 +210,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 			// for users: a higher Version may only mean
 			// a later lease duration, not a different
 			// set of members.
-			s.members.Vers.Version++
+			s.members.Vers.LeaseUpdateCounter++
 		}
 	}
 	*reply = *(s.members.Clone())
@@ -807,8 +807,9 @@ func newFunneler(halt *idem.Halter) (r *funneler) {
 // when per-Czar members are added/lost.
 // Used by cmd/member/member.go.
 type RMVersionTuple struct {
-	CzarLeaseEpoch int64 `zid:"0"`
-	Version        int64 `zid:"1"`
+	CzarLeaseEpoch     int64 `zid:"0"`
+	Version            int64 `zid:"1"`
+	LeaseUpdateCounter int64 `zid:"2"`
 }
 
 // ReliableMembershipList is written under the czar key
@@ -859,6 +860,9 @@ func (i *RMVersionTuple) VersionGT(j *RMVersionTuple) bool {
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
 		return i.Version > j.Version
 	}
+	if i.Version == j.Version {
+		return i.LeaseUpdateCounter > j.LeaseUpdateCounter
+	}
 	return false
 }
 
@@ -868,6 +872,9 @@ func (i *RMVersionTuple) VersionLT(j *RMVersionTuple) bool {
 	}
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
 		return i.Version < j.Version
+	}
+	if i.Version == j.Version {
+		return i.LeaseUpdateCounter < j.LeaseUpdateCounter
 	}
 	return false
 }
@@ -879,6 +886,9 @@ func (i *RMVersionTuple) VersionGTE(j *RMVersionTuple) bool {
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
 		return i.Version >= j.Version
 	}
+	if i.Version == j.Version {
+		return i.LeaseUpdateCounter >= j.LeaseUpdateCounter
+	}
 	return false
 }
 
@@ -889,12 +899,21 @@ func (i *RMVersionTuple) VersionLTE(j *RMVersionTuple) bool {
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
 		return i.Version <= j.Version
 	}
+	if i.Version == j.Version {
+		return i.LeaseUpdateCounter <= j.LeaseUpdateCounter
+	}
 	return false
 }
 
 func (i *RMVersionTuple) VersionEqual(j *RMVersionTuple) bool {
 	return i.CzarLeaseEpoch == j.CzarLeaseEpoch &&
 		i.Version == j.Version
+}
+
+func (i *RMVersionTuple) VersionAndLeaseUpdateEqual(j *RMVersionTuple) bool {
+	return i.CzarLeaseEpoch == j.CzarLeaseEpoch &&
+		i.Version == j.Version &&
+		i.LeaseUpdateCounter == j.LeaseUpdateCounter
 }
 
 func (i *RMVersionTuple) EpochsEqual(j *RMVersionTuple) bool {
