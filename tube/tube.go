@@ -11688,7 +11688,7 @@ func (s *PeerDetail) String() string {
 	if gte(now, s.RMemberLeaseUntilTm) {
 		x = "expired"
 	} else {
-		x = fmt.Sprintf("%v left", now.Sub(s.RMemberLeaseUntilTm))
+		x = fmt.Sprintf("%v left", s.RMemberLeaseUntilTm.Sub(now))
 	}
 	return fmt.Sprintf(`PeerDetail{
                   Name: %v
