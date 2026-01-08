@@ -96,3 +96,63 @@ func (j *HLC) ReceiveMessageWithHLC(m HLC) {
 	}
 	*j = (jLC + jCount)
 }
+
+func (a HLC) GT(b HLC) bool {
+	aLC := a & ^mask48
+	bLC := b & ^mask48
+	if aLC > bLC {
+		return true
+	}
+	if aLC < bLC {
+		return false
+	}
+	// INVAR: aLC == bLC
+	aCount := a & mask48
+	bCount := b & mask48
+	return aCount > bCount
+}
+
+func (a HLC) GTE(b HLC) bool {
+	aLC := a & ^mask48
+	bLC := b & ^mask48
+	if aLC > bLC {
+		return true
+	}
+	if aLC < bLC {
+		return false
+	}
+	// INVAR: aLC == bLC
+	aCount := a & mask48
+	bCount := b & mask48
+	return aCount >= bCount
+}
+
+func (a HLC) LT(b HLC) bool {
+	aLC := a & ^mask48
+	bLC := b & ^mask48
+	if aLC < bLC {
+		return true
+	}
+	if aLC > bLC {
+		return false
+	}
+	// INVAR: aLC == bLC
+	aCount := a & mask48
+	bCount := b & mask48
+	return aCount < bCount
+}
+
+func (a HLC) LTE(b HLC) bool {
+	aLC := a & ^mask48
+	bLC := b & ^mask48
+	if aLC < bLC {
+		return true
+	}
+	if aLC > bLC {
+		return false
+	}
+	// INVAR: aLC == bLC
+	aCount := a & mask48
+	bCount := b & mask48
+	return aCount <= bCount
+}
