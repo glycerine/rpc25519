@@ -321,6 +321,19 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 // could also write our name -> details
 // into a separate tableSpace, if so desired.
 // We have not needed to do so yet.
+//
+// Usage:
+//
+//	func main() {
+//	    mem := tube.NewRMember("hermes")
+//	    mem.Start()
+//	    <-mem.Ready
+//	    // ... rest of code here, or just
+//	    select {}
+//	}
+//
+// See also rpc25519/tube/cmd/member for a simple
+// demonstration program and its example.cfg.
 type RMember struct {
 
 	// TableSpace is set by the NewRMember() constructor.
