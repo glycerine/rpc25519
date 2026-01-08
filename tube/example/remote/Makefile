@@ -6,6 +6,7 @@ beg:
 	cd ../../cmd/tubels; go install
 	cd ../../cmd/tuberm; go install
 	cd ../../cmd/tubeadd; go install
+	cd ../../cmd/member; go install
 	./beg
 	sleep 1
 	grep "remote\ URL" log.*
@@ -30,6 +31,7 @@ build:
 	cd ../../cmd/tubels; go install
 	cd ../../cmd/tuberm; go install
 	cd ../../cmd/tubeadd; go install
+	cd ../../cmd/member; go install
 
 clean:
 	pkill -9 -x tube || true
