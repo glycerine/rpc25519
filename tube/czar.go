@@ -1,23 +1,21 @@
 package tube
 
 import (
-	//"context"
+	"context"
 	"fmt"
-	//"net"
-	//"os"
-	//"strings"
-	//"time"
-	//"github.com/glycerine/idem"
-	//"github.com/glycerine/ipaddr"
-	//rpc "github.com/glycerine/rpc25519"
-	//"github.com/glycerine/rpc25519/tube/art"
+	"reflect"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/glycerine/idem"
+	rpc "github.com/glycerine/rpc25519"
 )
 
 //go:generate greenpack
 
-const tableHermes string = "hermes"
-
-// the Vtype for the ReliableMembershipList
+// ReliableMembershipListType is the
+// Vtype for the ReliableMembershipList
 // encoded Value payloads.
 // Note: must be different from the type, else
 // the go compiler gets confused; i.e. we
@@ -25,406 +23,664 @@ const tableHermes string = "hermes"
 // as that is the name of the type.
 const ReliableMembershipListType string = "ReliableMembershipListType"
 
-/*
-type RMember struct {
+// Czar must have greenpack to use the rpc.Call system.
 
-	// Cfg would usually be supplied. If not
-	// set on Start() will we make our own.
-	// We act as a TUBE_CLIENT and so to do
-	// so will spin up our own TubeNode.
-	Cfg *TubeConfig `msg:"-"`
+//go:generate greenpack
 
-	TubeNode *TubeNode `msg:"-"`
+type czarState int
 
-	MyPeer *rpc.LocalPeer `msg:"-"`
+const (
+	unknownCzarState czarState = 0
+	amCzar           czarState = 1
+	notCzar          czarState = 2
+)
+
+// Czar is the RAM/memory only maintainer of
+// the Member system of membership. The acting Czar is elected
+// via Raft by writing to the key "czar"
+// in the configured Member.TableSpace.
+type Czar struct {
+	mut sync.Mutex
 
 	Halt *idem.Halter `msg:"-"`
 
-	sess *Session
+	members *ReliableMembershipList
+	heard   map[string]time.Time
 
-	name string
-	//serviceName string
-	URL    string
-	PeerID string
+	// something for greenpack to serz
+	// this the client of Tube, not rpc.
+	// It represents the TubeNode of the
+	// Czar when it is active as czar (having
+	// won the lease on the hermes.czar key in Tube).
+	TubeCliName string `zid:"0"`
 
-	amCzar   bool
-	myDetail *PeerDetail
+	UpcallMembershipChangeCh chan *ReliableMembershipList `msg:"-"`
 
-	rml *ReliableMembershipList
-
-	PeerServiceName        string
-	PeerServiceNameVersion string
-
-	Srvname              string
-	Srv                  *rpc.Server `msg:"-"`
-	rpcServerAddr        net.Addr
-	startupNodeUrlSafeCh *idem.IdemCloseChan
+	t0                 time.Time
+	declaredDeadDur    time.Duration
+	memberHeartBeatDur time.Duration
 }
 
-func NewRMember() (m *RMember, err error) {
-	m = &RMember{
-		startupNodeUrlSafeCh: idem.NewIdemCloseChan(),
+func (s *Czar) setVers(v RMVersionTuple, list *ReliableMembershipList, t0 time.Time) error {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	if v.VersionGT(&s.members.Vers) {
+		// okay
+	} else {
+		return fmt.Errorf("error: RMVersionTuple must be monotone increasing, current='%v'; rejecting proposed new Vers '%v'", s.members.Vers, v)
 	}
-	err = m.setupConfigForTube()
-	m.PeerServiceName = "reliable-member"
-	return
-}
 
-// InitAndStart sets everything up and Start()s the node.
-func (s *RMember) InitAndStart() error {
+	s.members = list.Clone()
+	s.members.Vers = v
+	s.t0 = t0
 
-	// start the tube client
-	s.TubeNode.InitAndStart()
-
-	s.Srvname = "reliable_member_srv_" + s.name
-	//s.srvname = s.name
-	s.Srv = rpc.NewServer(s.Srvname, s.Cfg.RpcCfg)
-
-	serverAddr, err := s.Srv.Start()
-	panicOn(err)
-	s.rpcServerAddr = serverAddr
-	vv("%v RMember.InitAndStart() started srv at '%v'", s.name, serverAddr)
-
-	err = s.Srv.PeerAPI.RegisterPeerServiceFunc(string(s.PeerServiceName), s.Start)
-	panicOn(err)
-
-	// coordinated shutdown
-	// try having Cluster own instead?
-	//s.Srv.GetHostHalter().AddChild(s.Halt) // already has parent if cluster owns it
-
-	// racy so try not to touch 's' now, the Start() goro has it!
-	_, err = s.Srv.PeerAPI.StartLocalPeer(context.Background(), string(s.PeerServiceName), s.PeerServiceNameVersion, nil, s.name, true)
-	panicOn(err)
-
-	// to avoid racing on reading s.URL and PeerID to wire
-	// up the grid, wait for startupNodeUrlSafeCh to be closed.
+	vv("end of setVers(v='%#v') s.members is now '%v')", v, s.members)
 	select {
-	case <-s.startupNodeUrlSafeCh.Chan:
-		//vv("TubeNode.InitAndStart end: node '%v' has started, at url '%v'", s.name, s.URL)
-	case <-s.Halt.ReqStop.Chan:
-		return ErrShutDown
+	case s.UpcallMembershipChangeCh <- s.members.Clone():
+	default:
 	}
 	return nil
 }
 
-func (s *RMember) Start(
-	myPeer *rpc.LocalPeer,
-	ctx0 context.Context,
-	newCircuitCh <-chan *rpc.Circuit,
+func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	raddr := droppedCli.Conn.RemoteAddr().String()
 
-) (err0 error) {
-	panic("unfinished draft sketch. see cmd/member/member.go instead")
+	vv("Czar.remove() for raddr='%v'", raddr)
 
-	s.MyPeer = myPeer
-	s.URL = myPeer.URL()
-	s.PeerID = myPeer.PeerID
-	if s.startupNodeUrlSafeCh != nil {
-		s.startupNodeUrlSafeCh.Close()
-	}
-
-	// 0) we must be pre-configured with the raft nodes addresses,
-	//    so we can bootrstrap from them.
-	//
-	s.findMyFriends(ctx0)
-
-	// 1) register my name and PeerDetail under table:hermes key:names/myname
-	// with a 5 minute lease.
-	// renew it every 4 minutes or so.
-	periodicallyRenewNameLeaseCh := s.renewNameLease(ctx0)
-
-	//
-	// 2) Each Hermes node just heartbeats to the Czar saying:
-	// "I'm a member, and who else is a member and at what epoch?"
-	// If the epoch changes, update the membership list
-	// in the Hermes upcall. table:hermes key:czar
-	//
-
-	// find the czar. it might be me.
-	// we try to write to the "czar" key with a lease.
-	// first one there wins. everyone else reads the winner's URL.
-	list := s.TubeNode.NewReliableMembershipList()
-	list.CzarName = s.name // if we win the write race, we are the czar.
-	list.PeerNames.Set(s.name, s.myDetail)
-	bts2, err := list.MarshalMsg(nil)
-	panicOn(err)
-
-	keyCz := "czar"
-	leaseDurCz := time.Minute
-	czarTkt, err := s.sess.Write(ctx0, Key(tableHermes), Key(keyCz), Val(bts2), 0, ReliableMembershipListType, leaseDurCz)
-	panicOn(err)
-	_ = czarTkt
-
-	vers := RMVersionTuple{
-		CzarLeaseEpoch: czarTkt.LeaseEpoch,
-		Version:        0,
-	}
-
-	if err == nil {
-		// I am czar, send heartbeats to tube/raft to re-lease
-		// the hermes/czar key to maintain that status.
-		s.amCzar = true
-
-		// Since I am czar, my main job is to maintain the list
-		// of members, and to update all other members when some
-		// member leaves or a new member joins.
-		list.Vers = vers
-		s.rml = list
-
-	} else {
-		// some other node is czar, contact them.
-		s.amCzar = false
-		// Heartbeat to them regularly that we are online,
-		// and want to participate as a Hermes node.
-
-		if czarTkt.Vtype != ReliableMembershipListType {
-			panicf("czarTkt got back Vtype '%v' not '%v'", czarTkt.Vtype, ReliableMembershipListType)
+	// linear search, for now. TODO: map based lookup?
+	// we could make the name key be the rpc.Client addr
+	// and use PeerNames.Get2()...
+	for name, detail := range s.members.PeerNames.All() {
+		addr := removeTcp(detail.Addr)
+		//vv("checking addr='%v' against raddr='%v'", addr, raddr)
+		if addr == raddr {
+			s.members.PeerNames.Delkey(name)
+			s.members.Vers.Version++
+			vv("remove dropped client '%v', vers='%#v'", name, s.members.Vers)
+			select {
+			case s.UpcallMembershipChangeCh <- s.members.Clone():
+			default:
+			}
+			return
 		}
-		rml := &ReliableMembershipList{}
-		_, err := rml.UnmarshalMsg(czarTkt.Val)
-		panicOn(err)
-		rml.Vers = vers
-		vv("we see that czar is '%v'", rml.CzarName)
-		czarDet, ok := rml.PeerNames.Get2(rml.CzarName)
-		if !ok {
-			panicf("czar '%v' did not include their own contact details", rml.CzarName)
-		}
-		s.rml = rml
-
-		heartBeatFrag := s.TubeNode.newFrag()
-		heartBeatFrag.FragOp = ReliableMemberHeartBeatToCzar
-		heartBeatFrag.FragSubject = "heartbeat Hermes ReliableMember"
-		heartBeatFrag.SetUserArg("URL", s.myDetail.URL)
-		ckt, _, _, err := s.MyPeer.NewCircuitToPeerURL("czar", czarDet.URL, heartBeatFrag, 0)
-		panicOn(err)
-		_ = ckt
 	}
+	vv("remove could not find dropped client raddr '%v'", raddr)
+}
 
-	// 3) If the Czar cannot be reached, in addition to heartbeats,
-	// the Hermes node starts trying to become the Czar by
-	// writing a lease through Raft to a pre-configured "czar" key.
-	// Repeat until either the current Czar can be reached
-	// or a new Czar is elected. /names/hermes/czar/ will be the key.
-	//
-	// Reliable Membership goals:
-	//
-	// a) Maintain a current view of who's in the group
-	// b) Notify members when that view changes
-	// c) Ensure all members converge to the same view
-	//    by providing the RMVersionTuple versioning.
-
+func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
+	now := time.Now()
+	if !skipLock {
+		s.mut.Lock()
+		defer s.mut.Unlock()
+	}
 	defer func() {
-		r := recover()
-		//vv("%v: (%v) end of RMember.Start() inside defer, about to return/finish; recover='%v'", s.me(), myPeer.ServiceName(), r)
-
-		s.TubeNode.Close() // shut down TubeNode TUBE_CLIENT
-
-		s.MyPeer.Close()
-		s.Halt.Done.Close()
-		if r != nil {
-			panic(r)
+		if changed {
+			// just one notifcation for all the deletes we did.
+			s.members.Vers.Version++
+			select {
+			case s.UpcallMembershipChangeCh <- s.members.Clone():
+			default:
+			}
 		}
 	}()
 
-	done0 := ctx0.Done()
-	for i := 0; ; i++ {
-		select {
-		case <-periodicallyRenewNameLeaseCh:
-			// time to renew name lease with Tube
-			periodicallyRenewNameLeaseCh = s.renewNameLease(ctx0)
-
-		case <-s.Halt.ReqStop.Chan:
-			//vv("%v shutdown initiated, s.Halt.ReqStop seen", s.me())
-			//s.shutdown()
-			return rpc.ErrHaltRequested
-
-		case ckt := <-newCircuitCh:
-			_ = ckt
-			//vv("%v ckt := <-newCircuitCh, from ckt.RemotePeerName='%v'; ckt.RemotePeerID='%v'", s.me(), ckt.RemotePeerName, ckt.RemotePeerID)
-			//err := s.handleNewCircuit(ckt, done0, arrivingNetworkFrag, cktHasError, cktHasDied)
-			//if err != nil {
-			//	return err
-			//}
-		case <-done0:
-			//s.ay("%v <-done0", s.me())
-
-			//vv("%v: done0! myPeer closing up b/c context canceled", s.name)
-			return rpc.ErrContextCancelled
-
-		} // end select
-	} // end for i
-	return nil
-}
-
-func (s *RMember) Close() {
-	s.Halt.ReqStop.Close()
-}
-
-func (s *RMember) setupConfigForTube() error {
-
-	// get/create a config
-	dir := GetConfigDir()
-	pathCfg := dir + "/" + "rm.default.config"
-	if fileExists(pathCfg) {
-		vv("rm using config file: '%v'", pathCfg)
-	} else {
-		fd, err := os.Create(pathCfg)
-		panicOn(err)
-		cfg := &TubeConfig{
-			// distinguish multiple tup clients
-			MyName:          "rm_" + CryRand15B(),
-			PeerServiceName: TUBE_CLIENT,
+	for name := range s.members.PeerNames.All() {
+		if name == s.TubeCliName {
+			// we ourselves are obviously alive so
+			// we don't bother to heartbeat to ourselves.
+			continue
 		}
-		fmt.Fprintf(fd, "%v\n", cfg.SexpString(nil))
-		fd.Close()
-		err = fmt.Errorf("rm error: no config file. Created one from template in '%v'. Please complete it.\n", pathCfg)
-		panicOn(err)
-		return err
+		killIt := false
+		lastHeard, ok := s.heard[name]
+		if !ok {
+			// if we have not been listening for heartbeats
+			// for very long, give them a chance--we may
+			// have just loaded them in from the czar key's value.
+			uptime := time.Since(s.t0)
+			if uptime > s.declaredDeadDur {
+				killIt = true
+				vv("expiring dead node '%v' -- would upcall membership change too. nothing heard after uptime = '%v'", name, uptime)
+			}
+		} else {
+			been := now.Sub(lastHeard)
+			if been > s.declaredDeadDur {
+				killIt = true
+				vv("expiring dead node '%v' -- would upcall membership change too. been '%v'", name, been)
+			}
+		}
+		if killIt {
+			changed = true
+			delete(s.heard, name)
+			// Omap.All allows delete in the middle of iteration.
+			s.members.PeerNames.Delkey(name)
+		}
 	}
-	by, err := os.ReadFile(pathCfg)
-	panicOn(err)
-	pp("got by = '%v'", string(by))
-
-	cfg, err := NewTubeConfigFromSexpString(string(by), nil)
-	panicOn(err)
-	// distinguish multiple rm clients
-	s.Cfg = cfg
-	cfg.MyName = "rm_" + CryRand15B()
-	cfg.PeerServiceName = TUBE_CLIENT
-
-	myHost := ipaddr.GetExternalIP()
-	myPort := ipaddr.GetAvailPort()
-	cfg.RpcCfg.ServerAddr = fmt.Sprintf("%v:%v", myHost, myPort)
-
-	// set up our config
-	const quiet = false
-	const isTest = false
-	cfg.Init(quiet, isTest)
-
-	cfg.UseSimNet = false
-
-	cfg.RpcCfg.TCPonly_no_TLS = cfg.TCPonly_no_TLS
-	cfg.RpcCfg.ServerAutoCreateClientsToDialOtherServers = true
-	cfg.RpcCfg.QuietTestMode = true
-
-	cfg.ClientProdConfigSaneOrPanic()
-
-	cfg.ConvertToExternalAddr()
-
-	vv("rm findMyFriends/setupConfig: cfg = '%v'", cfg.ShortSexpString(nil))
-	return nil
-}
-
-func (s *RMember) renewNameLease(ctx0 context.Context) <-chan time.Time {
-	s.name = s.Cfg.MyName
-	key := "names/" + s.name
-	nameLeaseDur := time.Minute * 5
-	nameLeaseRenewDur := time.Minute * 2
-	periodicallyRenewNameLeaseCh := time.After(nameLeaseRenewDur)
-
-	detail := &PeerDetail{
-		Name:                   s.name,
-		URL:                    s.MyPeer.URL(),
-		PeerID:                 s.MyPeer.PeerID,
-		Addr:                   s.MyPeer.BaseServerAddr,
-		PeerServiceName:        s.MyPeer.PeerServiceName,
-		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
-	}
-	s.myDetail = detail
-	detailBits, err := s.myDetail.MarshalMsg(nil)
-	panicOn(err)
-	nameTkt, err := s.sess.Write(ctx0, Key(tableHermes), Key(key), Val(detailBits), 0, "PeerDetail", nameLeaseDur)
-	panicOn(err)
-	_ = nameTkt
-
-	return periodicallyRenewNameLeaseCh
-}
-
-func (s *RMember) findMyFriends(ctx context.Context) (err error) {
-
-	cfg := s.Cfg
-
-	//nodeID := rpc.NewCallID("")
-	name := cfg.MyName
-
-	// maybe we don't need a full tube node?? just
-	// an rpc25519 client might do.
-	node := NewTubeNode(name, cfg)
-
-	// start TUBE_CLIENT TubeNode.
-	err = node.InitAndStart()
-	panicOn(err)
-
-	s.TubeNode = node
-
-	// Use HelperFindLeader for better chance of locating a leader
-
-	// If requireOnlyContact is true,
-	// then HelperFindLeader will
-	// immediately exit(1) if the contactName is
-	// not also the current leader.
-	const requireOnlyContact = false
-	contactName := ""
-	leaderURL, leaderName, _, reallyLeader, _, err := node.HelperFindLeader(cfg, contactName, requireOnlyContact)
-	_ = leaderName
-	panicOn(err)
-
-	if false { // needed?
-		// try to fix the sporadic race where (see 710 client_test:422 )
-		// cli might not have updated its own s.leaderName !?!
-		// and so sends the next Read off into the void at the old dead leader.
-		// getCircuitToLeader sets the updated s.leaderName.
-		//ckt2, onlyPossibleAddr2, _, err2 :=
-		_, _, _, err2 := node.getCircuitToLeader(ctx, leaderURL, nil, false)
-		panicOn(err2)
-	}
-	if !reallyLeader {
-		panicf("could not really find Tube/Raft leader; leaderName='%v'; leaderURL = '%v'; reallyLeader=%v", leaderName, leaderURL, reallyLeader)
-	}
-
-	// note: if we must contact new peers, use this pattern:
-	//s.contactNewPeer(url) // defined below
-
-	if !reallyLeader {
-		panicf("could not really find leader; leaderName='%v'; leaderURL = '%v'", leaderName, leaderURL)
-	}
-
-	// when no leader, we hang, our tkt in awaitingLeader.
-	vv("%v: rm calling node.CreateNewSession(leaderURL = '%v')", cfg.MyName, leaderURL)
-	sess, err := node.CreateNewSession(ctx, leaderURL)
-	panicOn(err)
-	//defer sess.Close()
-	//pp("back from node.CreateNewSession(leaderURL='%v')", leaderURL)
-
-	s.sess = sess
 	return
 }
 
-func (s *RMember) needNewSess(ctx context.Context, sess *Session, leaderURL string, err error) (s2 *Session) {
-	if err == nil {
-		return sess
+func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMembershipList) error {
+
+	// since the rpc system will call us on a
+	// new goroutine, separate from the main goroutine,
+	// we must lock to prevent data races.
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	orig := s.members.Vers
+
+	if hdr, ok := rpc.HDRFromContext(ctx); ok {
+		//vv("Ping, from ctx: hdr.Nc.LocalAddr()='%v'; hdr.Nc.RemoteAddr()='%v'", hdr.Nc.LocalAddr(), hdr.Nc.RemoteAddr()) // we want remote
+		// critical: replace Addr with the rpc.Client of the czar
+		// address, rather than the tube client peer server address.
+		//vv("changing args.Addr from '%v' -> '%v'", args.Addr, hdr.Nc.RemoteAddr())
+		args.Addr = hdr.Nc.RemoteAddr().String()
+	} else {
+		panic("must have rpc.HDRFromContext(ctx) set so we know which tube-client to drop when the rpc.Client drops!")
 	}
-	errs := err.Error()
-	if strings.Contains(errs, "call CreateNewSession first") {
-		sess.Close()
-		s2, err := s.TubeNode.CreateNewSession(ctx, leaderURL)
-		panicOn(err)
-		return s2
+	//vv("Ping called at cliName = '%v', since args = '%v'; orig='%#v'", s.CliName, args, orig)
+	det, ok := s.members.PeerNames.Get2(args.Name)
+	if !ok {
+		//vv("args.Name('%v') is new, adding to PeerNames", args.Name)
+		s.members.PeerNames.Set(args.Name, args)
+		s.members.Vers.Version++
+	} else {
+		if detailsChanged(det, args) {
+			//vv("args.Name('%v') details have changed, updating PeerNames", args.Name)
+			s.members.PeerNames.Set(args.Name, args)
+			s.members.Vers.Version++
+		} else {
+			//vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
+		}
 	}
-	return sess
+	*reply = *(s.members.Clone())
+
+	s.heard[args.Name] = time.Now()
+	s.expireSilentNodes(true) // true since mut is already locked.
+	if s.members.Vers.Version != orig.Version {
+		vv("Czar.Ping: membership has changed (was %#v; now %#v), is now: {%v}", orig, s.members.Vers, s.shortMemberSummary())
+	}
+
+	//vv("czar sees Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, czar replies with ='%v'", s.cliName, args, reply)
+
+	return nil
 }
 
-// note: if we must contact new peers, use this pattern,
-// where saving the ckt is critically important!
-func (s *RMember) contactNewPeer(url string, firstFrag *rpc.Fragment) {
-	ckt, _, _, _ := s.MyPeer.NewCircuitToPeerURL("rm-ckt", url, firstFrag, 0)
-	if ckt != nil {
-		select {
-		case s.MyPeer.NewCircuitCh <- ckt:
-		case <-s.MyPeer.Halt.ReqStop.Chan:
+func (s *Czar) shortMemberSummary() (r string) {
+	n := s.members.PeerNames.Len()
+	r = fmt.Sprintf("[%v members; Vers:(CzarLeaseEpoch: %v, Version:%v)]{", n, s.members.Vers.CzarLeaseEpoch, s.members.Vers.Version)
+	i := 0
+	for name := range s.members.PeerNames.All() {
+		r += name
+		i++
+		if i < n {
+			r += ", "
+		}
+	}
+	r += "}"
+	return
+}
+
+func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
+	list := cli.NewReliableMembershipList()
+	return &Czar{
+		Halt:                     idem.NewHalter(),
+		members:                  list,
+		heard:                    make(map[string]time.Time),
+		t0:                       time.Now(),
+		declaredDeadDur:          hbDur * 3,
+		memberHeartBeatDur:       hbDur,
+		UpcallMembershipChangeCh: make(chan *ReliableMembershipList, 1000),
+	}
+}
+
+//msgp:ignore Member
+
+// Member provies a ReliableMembership service with these goals:
+//
+// a) Maintain a current view of who's in the group
+// b) Notify members when that view changes
+// c) Ensure all members converge to the same view
+//
+//		by providing the RMVersionTuple versioning.
+//
+//	 0. we must be pre-configured with the raft nodes addresses,
+//	    so we can bootrstrap from them.
+//
+// 1) register my name and PeerDetail under table:hermes key:names/myname
+// with a 20 second lease.
+// renew it every 10 seconds or so.
+//
+// 2) Each Hermes node just heartbeats to the Czar saying:
+// "I'm a member, and who else is a member and at what epoch?"
+// If the epoch changes, update the membership list
+// in the Hermes upcall. table:hermes key:czar
+//
+// 3) If the Czar cannot be reached, in addition to heartbeats,
+// the Hermes node starts trying to become the Czar by
+// writing a lease through Raft to a pre-configured "czar" key.
+// Repeat until either the current Czar can be reached
+// or a new Czar is elected. table:hermes key:czar will be the key.
+type Member struct {
+
+	// TableSpace is set by the NewMember() constructor.
+	// The "czar" key at the root of this TableSpace
+	// is used to elect/lease out the czar-ship (leader
+	// of the membership who maintains current membership
+	// in RAM and receives Ping calls from members to
+	// maintain their membership).
+	TableSpace string
+
+	// UpcallMembershipChangeCh tells users about
+	// changes in membership.
+	UpcallMembershipChangeCh chan *ReliableMembershipList
+
+	// Ready is closed when UpcallMembershipChangeCh is set
+	// and the Member is ready to use (call Start(), then
+	// wait for Ready to be closed).
+	Ready chan struct{}
+}
+
+// NewMember creates a member of the given tableSpace.
+// Users must call Start() and then wait until Ready is closed
+// before accessing UpcallMembershipChangeCh to
+// get membership changes.
+func NewMember(tableSpace string) *Member {
+	return &Member{
+		TableSpace: tableSpace,
+		Ready:      make(chan struct{}),
+	}
+}
+
+// Start elects a Czar and manages the Member's membership
+// in the TableSpace.
+func (membr *Member) Start() {
+	go membr.start()
+}
+
+func (membr *Member) start() {
+	tableSpace := membr.TableSpace
+
+	const quiet = false
+	const isTest = false
+	const useSimNet = false
+	cliCfg, err := LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
+	panicOn(err)
+	//vv("cliCfg = '%v'", cliCfg)
+	tubeCliName := cliCfg.MyName
+
+	vv("tubeCliName = '%v'", tubeCliName)
+
+	cli := NewTubeNode(tubeCliName, cliCfg)
+	err = cli.InitAndStart()
+	panicOn(err)
+	defer cli.Close()
+
+	ctx := context.Background()
+	var sess *Session
+	for {
+		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(cliCfg, "", false)
+		panicOn(err)
+		vv("got leaderName = '%v'; leaderURL = '%v'; reallyLeader='%v'", leaderName, leaderURL, reallyLeader)
+
+		sess, err = cli.CreateNewSession(ctx, leaderURL)
+		//panicOn(err) // panic: hmm. no leader known to me (node 'node_0')
+		if err == nil {
+			break
+		}
+		alwaysPrintf("got err from CreateNewSession, sleep 1 sec and try again: '%v'", err)
+		time.Sleep(time.Second)
+	}
+	//vv("got sess = '%v'", sess)
+
+	keyCz := "czar"
+
+	var renewCzarLeaseCh <-chan time.Time
+
+	leaseDurCz := time.Second * 10
+	renewCzarLeaseDur := leaseDurCz / 2
+
+	var cState czarState = unknownCzarState
+
+	memberHeartBeatDur := time.Second * 10
+	writeAttemptDur := time.Second * 5
+
+	czar := NewCzar(cli, memberHeartBeatDur)
+	czar.TubeCliName = tubeCliName
+
+	cli.Srv.RegisterName("Czar", czar)
+
+	// used by czar to notice when client drops
+	// and change membership quickly. If the
+	// client comes back, well, we just change
+	// membership again.
+	cli.Srv.NotifyAllNewClients = make(chan *rpc.ConnHalt, 1000)
+	//vv("cli.Srv.NotifyAllNewClients = %p", cli.Srv.NotifyAllNewClients)
+
+	// funnel all client disconnects down to one channel.
+	funneler := newFunneler(czar.Halt)
+
+	membr.UpcallMembershipChangeCh = czar.UpcallMembershipChangeCh
+
+	// tell user it is safe to listen on
+	// membr.UpcallMembershipChangeCh now.
+	close(membr.Ready)
+
+	myDetail := cli.GetMyPeerDetail()
+	//vv("myDetail = '%v' for tubeCliName = '%v'", myDetail, tubeCliName)
+
+	//var czarURL string
+	//var czarCkt *rpc.Circuit
+
+	var rpcClientToCzar *rpc.Client
+	var rpcClientToCzarDoneCh chan struct{}
+	var czarLeaseUntilTm time.Time
+
+	var memberHeartBeatCh <-chan time.Time
+
+	var expireCheckCh <-chan time.Time
+
+	//halt := idem.NewHalter()
+	//defer halt.Done.Close()
+
+	var nonCzarMembers *ReliableMembershipList
+
+	// TODO: handle needing new session, maybe it times out?
+	// should survive leader change, but needs checking.
+
+looptop:
+	for {
+
+		switch cState {
+		case unknownCzarState:
+
+			// find the czar. it might be me.
+			// we try to write to the "czar" key with a lease.
+			// first one there wins. everyone else reads the winner's URL.
+			czar.mut.Lock()
+			list := czar.members.Clone()
+			czar.mut.Unlock()
+
+			// if we win the write race, we are the czar.
+			list.CzarName = tubeCliName
+			list.PeerNames.Set(tubeCliName, myDetail.Clone())
+
+			bts2, err := list.MarshalMsg(nil)
+			panicOn(err)
+
+			czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCz)
+
+			if err == nil {
+				czarLeaseUntilTm = czarTkt.LeaseUntilTm
+				cState = amCzar
+				expireCheckCh = time.After(5 * time.Second)
+				vers := RMVersionTuple{
+					CzarLeaseEpoch: czarTkt.LeaseEpoch,
+					Version:        0,
+				}
+				t0 := time.Now()                   // since we took over as czar
+				err = czar.setVers(vers, list, t0) // does upcall for us.
+				panicOn(err)                       // non monotone version panics
+
+				czar.mut.Lock()
+				sum := czar.shortMemberSummary()
+				czar.mut.Unlock()
+
+				vv("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'; czar='%v'", tubeCliName, vers, sum)
+				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
+			} else {
+				cState = notCzar
+				czarLeaseUntilTm = czarTkt.LeaseUntilTm
+				expireCheckCh = nil
+
+				if czarTkt.Vtype != ReliableMembershipListType {
+					panicf("why not ReliableMembershipListType back? got '%v'", czarTkt.Vtype)
+				}
+
+				// avoid re-use of prior pointed to values!
+				nonCzarMembers = &ReliableMembershipList{}
+				_, err = nonCzarMembers.UnmarshalMsg(czarTkt.Val)
+				panicOn(err)
+				select {
+				case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
+				default:
+				}
+
+				vv("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers)
+				// contact the czar and register ourselves.
+			}
+
+		case amCzar:
+			select {
+			case cliConnHalt := <-cli.Srv.NotifyAllNewClients:
+				vv("czar received on cli.Srv.NotifyAllNewClients, has new client '%v'", cliConnHalt.Conn.RemoteAddr())
+				// tell the funneler to listen for it to drop.
+				// It will notify us on clientDroppedCh below.
+				select {
+				case funneler.newCliCh <- cliConnHalt:
+				case <-czar.Halt.ReqStop.Chan:
+					vv("czar halt requested. exiting.")
+					return
+				}
+
+			case dropped := <-funneler.clientDroppedCh:
+				czar.remove(dropped)
+
+			case <-expireCheckCh:
+				changed := czar.expireSilentNodes(false)
+				if changed {
+					vv("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortMemberSummary())
+				}
+				expireCheckCh = time.After(5 * time.Second)
+
+			case <-renewCzarLeaseCh:
+				czar.mut.Lock()
+				bts2, err := czar.members.MarshalMsg(nil)
+				czar.mut.Unlock()
+				panicOn(err)
+
+				czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCz)
+				panicOn(err)
+				vv("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
+				czarLeaseUntilTm = czarTkt.LeaseUntilTm
+
+				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
+			case <-czar.Halt.ReqStop.Chan:
+				vv("czar halt requested. exiting.")
+				return
+			}
+
+		case notCzar:
+			if rpcClientToCzar == nil {
+				list := nonCzarMembers
+				czarDetail, ok := list.PeerNames.Get2(list.CzarName)
+				if !ok {
+					panicf("list with winning czar did not include czar itself?? list='%v'", list)
+				}
+				vv("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetail.URL)
+				reply := &ReliableMembershipList{}
+
+				ccfg := *cli.GetConfig().RpcCfg
+				ccfg.ClientDialToHostPort = removeTcp(czarDetail.Addr)
+
+				rpcClientToCzar, err = rpc.NewClient(tubeCliName+"_pinger", &ccfg)
+				panicOn(err)
+				err = rpcClientToCzar.Start()
+				if err != nil {
+					vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
+					rpcClientToCzar.Close()
+					rpcClientToCzar = nil
+					rpcClientToCzarDoneCh = nil
+					cState = unknownCzarState
+
+					waitDur := czarLeaseUntilTm.Sub(time.Now()) + time.Second
+					vv("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
+					time.Sleep(waitDur)
+					continue looptop
+				}
+				rpcClientToCzarDoneCh = rpcClientToCzar.GetHostHalter().Done.Chan
+
+				//vv("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
+				err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
+				if err != nil {
+					rpcClientToCzar.Close()
+					rpcClientToCzar = nil
+					rpcClientToCzarDoneCh = nil
+					cState = unknownCzarState
+					continue looptop
+				}
+				//vv("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply='%v'", tubeCliName, reply)
+				// store view of membership as non-czar
+				if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
+					nonCzarMembers = reply
+					select {
+					case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
+					default:
+					}
+				}
+				memberHeartBeatCh = time.After(memberHeartBeatDur)
+			}
+			select {
+			case <-rpcClientToCzarDoneCh:
+				vv("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
+				rpcClientToCzar.Close()
+				rpcClientToCzar = nil
+				rpcClientToCzarDoneCh = nil
+				cState = unknownCzarState
+				continue looptop
+
+			case <-memberHeartBeatCh:
+
+				reply := &ReliableMembershipList{}
+
+				err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
+				//vv("member called to Czar.Ping, err='%v'", err)
+				if err != nil {
+					vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
+					rpcClientToCzar.Close()
+					rpcClientToCzar = nil
+					rpcClientToCzarDoneCh = nil
+					cState = unknownCzarState
+					continue
+				}
+				//vv("member called to Czar.Ping, got reply='%v'", reply)
+				if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
+					nonCzarMembers = reply
+					select {
+					case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
+					default:
+					}
+				}
+				memberHeartBeatCh = time.After(memberHeartBeatDur)
+
+			case <-czar.Halt.ReqStop.Chan:
+				vv("czar halt requested. exiting.")
+				return
+			}
 		}
 	}
 }
-*/
+
+func removeTcp(s string) string {
+	if strings.HasPrefix(s, "tcp://") {
+		return s[6:]
+	}
+	return s
+}
+func detailsChanged(a, b *PeerDetail) bool {
+	if a.Name != b.Name {
+		return true
+	}
+	if a.URL != b.URL {
+		return true
+	}
+	if a.PeerID != b.PeerID {
+		return true
+	}
+	if a.Addr != b.Addr {
+		return true
+	}
+	if a.PeerServiceName != b.PeerServiceName {
+		return true
+	}
+	if a.PeerServiceNameVersion != b.PeerServiceNameVersion {
+		return true
+	}
+	if a.NonVoting != b.NonVoting {
+		return true
+	}
+	return false
+}
+
+// funneler allows us to listen for up to 65535 clients
+// disconnecting from the czar by monitoring a single
+// clientDroppedCh.
+type funneler struct {
+	newCliCh        chan *rpc.ConnHalt
+	clientDroppedCh chan *rpc.ConnHalt
+	clientConns     []reflect.SelectCase
+	clientConnHalt  []*rpc.ConnHalt
+}
+
+func newFunneler(halt *idem.Halter) (r *funneler) {
+	newCliCh := make(chan *rpc.ConnHalt)
+	clientDroppedCh := make(chan *rpc.ConnHalt, 1024)
+	r = &funneler{
+		newCliCh:        newCliCh,
+		clientDroppedCh: clientDroppedCh,
+
+		// add an empty clientConnHalt[0] to keep
+		// aligned with clientConns which always has newCliCh at [0],
+		// (and the halter at [1]).
+		clientConnHalt: []*rpc.ConnHalt{nil, nil},
+	}
+	r.clientConns = append(r.clientConns, reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(newCliCh),
+	})
+	r.clientConns = append(r.clientConns, reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(halt.ReqStop.Chan),
+	})
+
+	go func() {
+		for {
+			chosen, recv, _ := reflect.Select(r.clientConns)
+			//vv("reflect.Select chosen='%v'", chosen)
+			if chosen == 1 {
+				// halt requested.
+				return
+			}
+			if chosen == 0 {
+				// new client arrives, listen on its Halt.Done.Chan
+				connHalt := recv.Interface().(*rpc.ConnHalt)
+				r.clientConnHalt = append(r.clientConnHalt, connHalt)
+
+				r.clientConns = append(r.clientConns, reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: reflect.ValueOf(connHalt.Halt.Done.Chan),
+				})
+				if len(r.clientConns) > 65536 {
+					panicf("only 65536 recieves supported by reflect.Select!")
+				}
+				continue
+			}
+			// stop listening for it
+			dropped := r.clientConnHalt[chosen]
+			//vv("czar rpc.Client departs: '%v'", dropped.Conn.RemoteAddr())
+			r.clientConnHalt = append(r.clientConnHalt[:chosen], r.clientConnHalt[(chosen+1):]...)
+			r.clientConns = append(r.clientConns[:chosen], r.clientConns[(chosen+1):]...)
+			// notify czar that server noticed a client disconnect.
+			select {
+			case clientDroppedCh <- dropped:
+			default:
+			}
+		}
+	}()
+	return
+}
 
 // RMTuple is the two part Reliable Membership tuple.
 // Compare the CzarLeaseEpoch first, then the Version.
