@@ -57,9 +57,8 @@ type Czar struct {
 	UpcallMembershipChangeCh chan *ReliableMembershipList `msg:"-"`
 
 	t0                 time.Time
-	declaredDeadDur    time.Duration
 	memberHeartBeatDur time.Duration
-	memberLeaseDur     time.Duration
+	memberLeaseDur     time.Duration // used to be called declaredDeadDur
 	clockDriftBound    time.Duration
 }
 
@@ -142,7 +141,7 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 			// for very long, give them a chance--we may
 			// have just loaded them in from the czar key's value.
 			uptime := time.Since(s.t0)
-			if uptime > s.declaredDeadDur &&
+			if uptime > s.memberLeaseDur &&
 				!det.RMemberLeaseUntilTm.IsZero() &&
 				now.After(det.RMemberLeaseUntilTm.Add(s.clockDriftBound)) {
 
@@ -151,7 +150,7 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 			}
 		} else {
 			been := now.Sub(lastHeard)
-			if been > s.declaredDeadDur &&
+			if been > s.memberLeaseDur &&
 				!det.RMemberLeaseUntilTm.IsZero() &&
 				now.After(det.RMemberLeaseUntilTm.Add(s.clockDriftBound)) {
 
@@ -191,7 +190,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 	//vv("Ping called at cliName = '%v', since args = '%v'; orig='%#v'", s.CliName, args, orig)
 
 	now := time.Now()
-	leasedUntilTm := now.Add(s.declaredDeadDur)
+	leasedUntilTm := now.Add(s.memberLeaseDur)
 	args.RMemberLeaseUntilTm = leasedUntilTm
 
 	det, ok := s.members.PeerNames.Get2(args.Name)
@@ -220,6 +219,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 			s.members.Vers.LeaseUpdateCounter++
 		}
 	}
+	s.members.MemberLeaseDur = s.memberLeaseDur
 	*reply = *(s.members.Clone())
 
 	s.heard[args.Name] = time.Now()
@@ -247,13 +247,17 @@ func (s *Czar) shortRMemberSummary() (r string) {
 }
 
 func NewCzar(cli *TubeNode, hbDur, clockDriftBound time.Duration) *Czar {
+
+	memberLeaseDur := hbDur * 3
 	list := cli.NewReliableMembershipList()
+	list.MemberLeaseDur = memberLeaseDur
+
 	return &Czar{
 		Halt:                     idem.NewHalter(),
 		members:                  list,
 		heard:                    make(map[string]time.Time),
 		t0:                       time.Now(),
-		declaredDeadDur:          hbDur * 3,
+		memberLeaseDur:           memberLeaseDur,
 		memberHeartBeatDur:       hbDur,
 		UpcallMembershipChangeCh: make(chan *ReliableMembershipList, 1000),
 		clockDriftBound:          clockDriftBound,
@@ -445,7 +449,7 @@ func (membr *RMember) start() {
 
 	var cState czarState = unknownCzarState
 
-	memberHeartBeatDur := time.Second * 3
+	memberHeartBeatDur := time.Second * 2
 	writeAttemptDur := time.Second * 5
 
 	czar := NewCzar(cli, memberHeartBeatDur, membr.clockDriftBound)
@@ -553,6 +557,7 @@ looptop:
 				nonCzarMembers = &ReliableMembershipList{}
 				_, err = nonCzarMembers.UnmarshalMsg(czarTkt.Val)
 				panicOn(err)
+				nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
 				vers := RMVersionTuple{
 					CzarLeaseEpoch: czarTkt.LeaseEpoch,
 					Version:        0,
@@ -667,6 +672,7 @@ looptop:
 				// store view of membership as non-czar
 				if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
 					nonCzarMembers = reply
+					nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
 					select {
 					case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
 					default:
@@ -700,6 +706,8 @@ looptop:
 				//vv("member called to Czar.Ping, got reply='%v'", reply)
 				if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
 					nonCzarMembers = reply
+					nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
+
 					select {
 					case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
 					default:
@@ -839,6 +847,13 @@ type ReliableMembershipList struct {
 	PeerNames *Omap[string, *PeerDetail] `msg:"-"`
 
 	SerzPeerDetails []*PeerDetail `zid:"2"`
+
+	// members _must_ stop operations
+	// after their lease has expired. It
+	// is this long, and their PeerNames entry
+	// PeerDetail.RMemberLeaseUntilTm
+	// gives the deadline exactly.
+	MemberLeaseDur time.Duration `zid:"3"`
 }
 
 func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {
