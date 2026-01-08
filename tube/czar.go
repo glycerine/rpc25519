@@ -142,7 +142,9 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 			// have just loaded them in from the czar key's value.
 			uptime := time.Since(s.t0)
 			if uptime > s.memberLeaseDur &&
-				!det.RMemberLeaseUntilTm.IsZero() &&
+				// zero time are actually dead former czar,
+				// and we do need to delete those.
+				//!det.RMemberLeaseUntilTm.IsZero() &&
 				now.After(det.RMemberLeaseUntilTm.Add(s.clockDriftBound)) {
 
 				killIt = true
@@ -151,7 +153,7 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 		} else {
 			been := now.Sub(lastHeard)
 			if been > s.memberLeaseDur &&
-				!det.RMemberLeaseUntilTm.IsZero() &&
+				//!det.RMemberLeaseUntilTm.IsZero() &&
 				now.After(det.RMemberLeaseUntilTm.Add(s.clockDriftBound)) {
 
 				killIt = true
