@@ -767,7 +767,7 @@ func newFunneler(halt *idem.Halter) (r *funneler) {
 	return
 }
 
-// RMTuple is the two part Reliable Membership tuple.
+// RMVersionTuple is the two part Reliable Membership tuple.
 // Compare the CzarLeaseEpoch first, then the Version.
 // The CzarLeaseEpoch must go higher when the Czar
 // changes through Raft, and the Version can increment
