@@ -238,7 +238,9 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 // Member provies a ReliableMembership service with these goals:
 //
 // a) Maintain a current view of who's in the group.
+//
 // b) Notify members when that view changes.
+//
 // c) Ensure all members converge to the same view
 // by providing the RMVersionTuple versioning.
 //
