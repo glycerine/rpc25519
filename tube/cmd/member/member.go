@@ -3,11 +3,11 @@ package main
 import (
 	//"bufio"
 	"context"
-	"flag"
+	//"flag"
 	"fmt"
 	"reflect"
 	//"io"
-	"os"
+	//"os"
 	"strings"
 	"sync"
 	//"path/filepath"
@@ -21,27 +21,8 @@ import (
 	//"github.com/glycerine/rpc25519/tube/art"
 )
 
+// Czar must have greenpack to use the rpc.Call system.
 //go:generate greenpack
-
-var sep = string(os.PathSeparator)
-
-type ConfigMember struct {
-	ContactName string // -c name of node to contact
-	Help        bool   // -h for help, false, show this help
-	Verbose     bool   // -v verbose: show config/connection attempts.
-}
-
-func (c *ConfigMember) SetFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.ContactName, "c", "", "name of node to contact (defaults to leader)")
-	fs.BoolVar(&c.Help, "h", false, "show this help")
-	fs.BoolVar(&c.Verbose, "v", false, "verbose diagnostics logging to stdout")
-}
-
-func (c *ConfigMember) FinishConfig(fs *flag.FlagSet) (err error) {
-	return
-}
-
-func (c *ConfigMember) SetDefaults() {}
 
 type czarState int
 
@@ -54,7 +35,7 @@ const (
 type Czar struct {
 	mut sync.Mutex
 
-	halt *idem.Halter
+	Halt *idem.Halter `msg:"-"`
 
 	members *tube.ReliableMembershipList
 	heard   map[string]time.Time
@@ -66,12 +47,12 @@ type Czar struct {
 	// won the lease on the hermes.czar key in Tube).
 	CliName string `zid:"0"`
 
-	UpcallMembershipChangeCh chan *tube.ReliableMembershipList
+	UpcallMembershipChangeCh chan *tube.ReliableMembershipList `msg:"-"`
 
-	t0 time.Time
+	t0                 time.Time
+	declaredDeadDur    time.Duration
+	memberHeartBeatDur time.Duration
 }
-
-var declaredDeadDur = time.Second * 25
 
 func (s *Czar) setVers(v tube.RMVersionTuple, list *tube.ReliableMembershipList, t0 time.Time) error {
 	s.mut.Lock()
@@ -152,13 +133,13 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 			// for very long, give them a chance--we may
 			// have just loaded them in from the czar key's value.
 			uptime := time.Since(s.t0)
-			if uptime > declaredDeadDur {
+			if uptime > s.declaredDeadDur {
 				killIt = true
 				vv("expiring dead node '%v' -- would upcall membership change too. nothing heard after uptime = '%v'", name, uptime)
 			}
 		} else {
 			been := now.Sub(lastHeard)
-			if been > declaredDeadDur {
+			if been > s.declaredDeadDur {
 				killIt = true
 				vv("expiring dead node '%v' -- would upcall membership change too. been '%v'", name, been)
 			}
@@ -235,38 +216,36 @@ func (s *Czar) shortMemberSummary() (r string) {
 	return
 }
 
-func NewCzar(cli *tube.TubeNode) *Czar {
+func NewCzar(cli *tube.TubeNode, hbDur time.Duration) *Czar {
 	list := cli.NewReliableMembershipList()
 	return &Czar{
-		halt:    idem.NewHalter(),
-		members: list,
-		heard:   make(map[string]time.Time),
-		t0:      time.Now(),
-
+		Halt:                     idem.NewHalter(),
+		members:                  list,
+		heard:                    make(map[string]time.Time),
+		t0:                       time.Now(),
+		declaredDeadDur:          hbDur * 3,
+		memberHeartBeatDur:       hbDur,
 		UpcallMembershipChangeCh: make(chan *tube.ReliableMembershipList, 1000),
 	}
 }
 
 func main() {
-	cmdCfg := &ConfigMember{}
+	mem := NewMember()
+	mem.Start()
+	select {}
+}
 
-	fs := flag.NewFlagSet("member", flag.ExitOnError)
-	cmdCfg.SetFlags(fs)
-	fs.Parse(os.Args[1:])
-	cmdCfg.SetDefaults()
-	err := cmdCfg.FinishConfig(fs)
-	panicOn(err)
+type Member struct{}
 
-	if cmdCfg.Verbose {
-		verboseVerbose = true
-		tube.VerboseVerbose.Store(true)
-	}
-	if cmdCfg.Help {
-		fmt.Fprintf(os.Stderr, "member help:\n")
-		fs.PrintDefaults()
-		return
-	}
+func NewMember() *Member {
+	return &Member{}
+}
 
+func (membr *Member) Start() {
+	go membr.start()
+}
+
+func (membr *Member) start() {
 	const quiet = false
 	const isTest = false
 	const useSimNet = false
@@ -308,7 +287,10 @@ func main() {
 
 	var cState czarState = unknownCzarState
 
-	czar := NewCzar(cli)
+	memberHeartBeatDur := time.Second * 10
+	writeAttemptDur := time.Second * 5
+
+	czar := NewCzar(cli, memberHeartBeatDur)
 	czar.CliName = cliName
 
 	cli.Srv.RegisterName("Czar", czar)
@@ -332,9 +314,6 @@ func main() {
 	var czarLeaseUntilTm time.Time
 
 	var memberHeartBeatCh <-chan time.Time
-	memberHeartBeatDur := time.Second * 10
-	writeAttemptDur := time.Second * 5
-	declaredDeadDur = memberHeartBeatDur * 3
 
 	var expireCheckCh <-chan time.Time
 
@@ -380,7 +359,7 @@ looptop:
 				}
 				t0 := time.Now()                   // since we took over as czar
 				err = czar.setVers(vers, list, t0) // does upcall for us.
-				panicOn(err)                       // non monotone versioning
+				panicOn(err)                       // non monotone version panics
 
 				czar.mut.Lock()
 				sum := czar.shortMemberSummary()
@@ -418,7 +397,7 @@ looptop:
 				// It will notify us on clientDroppedCh below.
 				select {
 				case funneler.newCliCh <- cliConnHalt:
-				case <-czar.halt.ReqStop.Chan:
+				case <-czar.Halt.ReqStop.Chan:
 					vv("czar halt requested. exiting.")
 					return
 				}
@@ -445,7 +424,7 @@ looptop:
 				czarLeaseUntilTm = czarTkt.LeaseUntilTm
 
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
-			case <-czar.halt.ReqStop.Chan:
+			case <-czar.Halt.ReqStop.Chan:
 				vv("czar halt requested. exiting.")
 				return
 			}
@@ -479,8 +458,6 @@ looptop:
 					continue looptop
 				}
 				rpcClientToCzarDoneCh = rpcClientToCzar.GetHostHalter().Done.Chan
-				// TODO: arrange for: defer rpcClientToCzar.Close()
-				//halt.AddChild(rpcClientToCzar.halt) // unexported .halt
 
 				//vv("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
 				err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
@@ -535,7 +512,7 @@ looptop:
 				}
 				memberHeartBeatCh = time.After(memberHeartBeatDur)
 
-			case <-czar.halt.ReqStop.Chan:
+			case <-czar.Halt.ReqStop.Chan:
 				vv("czar halt requested. exiting.")
 				return
 			}

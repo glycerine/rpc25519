@@ -10,7 +10,7 @@ import (
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
-func (z *ConfigMember) DecodeMsg(dc *msgp.Reader) (err error) {
+func (z *Czar) DecodeMsg(dc *msgp.Reader) (err error) {
 	var sawTopNil bool
 	if dc.IsNil() {
 		sawTopNil = true
@@ -72,21 +72,9 @@ doneWithStruct0zgensym_d9b7d8dfd82ab2d_1:
 		switch curField0zgensym_d9b7d8dfd82ab2d_1 {
 		// -- templateDecodeMsg ends here --
 
-		case "ContactName__str":
+		case "CliName_zid00_str":
 			found0zgensym_d9b7d8dfd82ab2d_1[0] = true
-			z.ContactName, err = dc.ReadString()
-			if err != nil {
-				return
-			}
-		case "Help__boo":
-			found0zgensym_d9b7d8dfd82ab2d_1[1] = true
-			z.Help, err = dc.ReadBool()
-			if err != nil {
-				return
-			}
-		case "Verbose__boo":
-			found0zgensym_d9b7d8dfd82ab2d_1[2] = true
-			z.Verbose, err = dc.ReadBool()
+			z.CliName, err = dc.ReadString()
 			if err != nil {
 				return
 			}
@@ -112,27 +100,19 @@ doneWithStruct0zgensym_d9b7d8dfd82ab2d_1:
 	return
 }
 
-// fields of ConfigMember
-var decodeMsgFieldOrder0zgensym_d9b7d8dfd82ab2d_1 = []string{"ContactName__str", "Help__boo", "Verbose__boo"}
+// fields of Czar
+var decodeMsgFieldOrder0zgensym_d9b7d8dfd82ab2d_1 = []string{"CliName_zid00_str", "", ""}
 
-var decodeMsgFieldSkip0zgensym_d9b7d8dfd82ab2d_1 = []bool{false, false, false}
+var decodeMsgFieldSkip0zgensym_d9b7d8dfd82ab2d_1 = []bool{false, true, true}
 
 // fieldsNotEmpty supports omitempty tags
-func (z *ConfigMember) fieldsNotEmpty(isempty []bool) uint32 {
+func (z *Czar) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 3
+		return 1
 	}
-	var fieldsInUse uint32 = 3
-	isempty[0] = (len(z.ContactName) == 0) // string, omitempty
+	var fieldsInUse uint32 = 1
+	isempty[0] = (len(z.CliName) == 0) // string, omitempty
 	if isempty[0] {
-		fieldsInUse--
-	}
-	isempty[1] = (!z.Help) // bool, omitempty
-	if isempty[1] {
-		fieldsInUse--
-	}
-	isempty[2] = (!z.Verbose) // bool, omitempty
-	if isempty[2] {
 		fieldsInUse--
 	}
 
@@ -140,7 +120,7 @@ func (z *ConfigMember) fieldsNotEmpty(isempty []bool) uint32 {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z *ConfigMember) EncodeMsg(en *msgp.Writer) (err error) {
+func (z *Czar) EncodeMsg(en *msgp.Writer) (err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -155,47 +135,23 @@ func (z *ConfigMember) EncodeMsg(en *msgp.Writer) (err error) {
 		return err
 	}
 
-	// runtime struct type identification for 'ConfigMember'
+	// runtime struct type identification for 'Czar'
 	err = en.Append(0xa1, 0x40)
 	if err != nil {
 		return err
 	}
-	err = en.WriteStringFromBytes([]byte{0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x4d, 0x65, 0x6d, 0x62, 0x65, 0x72})
+	err = en.WriteStringFromBytes([]byte{0x43, 0x7a, 0x61, 0x72})
 	if err != nil {
 		return err
 	}
 
 	if !empty_zgensym_d9b7d8dfd82ab2d_2[0] {
-		// write "ContactName__str"
-		err = en.Append(0xb0, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x63, 0x74, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x5f, 0x73, 0x74, 0x72)
+		// write "CliName_zid00_str"
+		err = en.Append(0xb1, 0x43, 0x6c, 0x69, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		err = en.WriteString(z.ContactName)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_d9b7d8dfd82ab2d_2[1] {
-		// write "Help__boo"
-		err = en.Append(0xa9, 0x48, 0x65, 0x6c, 0x70, 0x5f, 0x5f, 0x62, 0x6f, 0x6f)
-		if err != nil {
-			return err
-		}
-		err = en.WriteBool(z.Help)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_d9b7d8dfd82ab2d_2[2] {
-		// write "Verbose__boo"
-		err = en.Append(0xac, 0x56, 0x65, 0x72, 0x62, 0x6f, 0x73, 0x65, 0x5f, 0x5f, 0x62, 0x6f, 0x6f)
-		if err != nil {
-			return err
-		}
-		err = en.WriteBool(z.Verbose)
+		err = en.WriteString(z.CliName)
 		if err != nil {
 			return
 		}
@@ -205,7 +161,7 @@ func (z *ConfigMember) EncodeMsg(en *msgp.Writer) (err error) {
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z *ConfigMember) MarshalMsg(b []byte) (o []byte, err error) {
+func (z *Czar) MarshalMsg(b []byte) (o []byte, err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -218,31 +174,19 @@ func (z *ConfigMember) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "ContactName__str"
-		o = append(o, 0xb0, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x63, 0x74, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.ContactName)
-	}
-
-	if !empty[1] {
-		// string "Help__boo"
-		o = append(o, 0xa9, 0x48, 0x65, 0x6c, 0x70, 0x5f, 0x5f, 0x62, 0x6f, 0x6f)
-		o = msgp.AppendBool(o, z.Help)
-	}
-
-	if !empty[2] {
-		// string "Verbose__boo"
-		o = append(o, 0xac, 0x56, 0x65, 0x72, 0x62, 0x6f, 0x73, 0x65, 0x5f, 0x5f, 0x62, 0x6f, 0x6f)
-		o = msgp.AppendBool(o, z.Verbose)
+		// string "CliName_zid00_str"
+		o = append(o, 0xb1, 0x43, 0x6c, 0x69, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.CliName)
 	}
 
 	return
 }
 
 // UnmarshalMsg implements msgp.Unmarshaler
-func (z *ConfigMember) UnmarshalMsg(bts []byte) (o []byte, err error) {
+func (z *Czar) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	return z.UnmarshalMsgWithCfg(bts, nil)
 }
-func (z *ConfigMember) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
+func (z *Czar) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
 	var nbs msgp.NilBitsStack
 	nbs.Init(cfg)
 	var sawTopNil bool
@@ -303,23 +247,9 @@ doneWithStruct4zgensym_d9b7d8dfd82ab2d_5:
 		switch curField4zgensym_d9b7d8dfd82ab2d_5 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "ContactName__str":
+		case "CliName_zid00_str":
 			found4zgensym_d9b7d8dfd82ab2d_5[0] = true
-			z.ContactName, bts, err = nbs.ReadStringBytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "Help__boo":
-			found4zgensym_d9b7d8dfd82ab2d_5[1] = true
-			z.Help, bts, err = nbs.ReadBoolBytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "Verbose__boo":
-			found4zgensym_d9b7d8dfd82ab2d_5[2] = true
-			z.Verbose, bts, err = nbs.ReadBoolBytes(bts)
+			z.CliName, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
@@ -346,297 +276,10 @@ doneWithStruct4zgensym_d9b7d8dfd82ab2d_5:
 	return
 }
 
-// fields of ConfigMember
-var unmarshalMsgFieldOrder4zgensym_d9b7d8dfd82ab2d_5 = []string{"ContactName__str", "Help__boo", "Verbose__boo"}
-
-var unmarshalMsgFieldSkip4zgensym_d9b7d8dfd82ab2d_5 = []bool{false, false, false}
-
-// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z *ConfigMember) Msgsize() (s int) {
-	s = 1 + 17 + msgp.StringPrefixSize + len(z.ContactName) + 10 + msgp.BoolSize + 13 + msgp.BoolSize
-	return
-}
-func (z *ConfigMember) Gstring() (r string) {
-	r = "&ConfigMember{\n"
-	r += fmt.Sprintf("ContactName: \"%v\",\n", z.ContactName)
-	r += fmt.Sprintf("       Help: %v,\n", z.Help)
-	r += fmt.Sprintf("    Verbose: %v,\n", z.Verbose)
-	r += "}\n"
-	return
-}
-
-// DecodeMsg implements msgp.Decodable
-// We treat empty fields as if we read a Nil from the wire.
-func (z *Czar) DecodeMsg(dc *msgp.Reader) (err error) {
-	var sawTopNil bool
-	if dc.IsNil() {
-		sawTopNil = true
-		err = dc.ReadNil()
-		if err != nil {
-			return
-		}
-		dc.PushAlwaysNil()
-	}
-
-	var field []byte
-	_ = field
-	const maxFields6zgensym_d9b7d8dfd82ab2d_7 = 1
-
-	// -- templateDecodeMsg starts here--
-	var totalEncodedFields6zgensym_d9b7d8dfd82ab2d_7 uint32
-	totalEncodedFields6zgensym_d9b7d8dfd82ab2d_7, err = dc.ReadMapHeader()
-	if err != nil {
-		return
-	}
-	encodedFieldsLeft6zgensym_d9b7d8dfd82ab2d_7 := totalEncodedFields6zgensym_d9b7d8dfd82ab2d_7
-	missingFieldsLeft6zgensym_d9b7d8dfd82ab2d_7 := maxFields6zgensym_d9b7d8dfd82ab2d_7 - totalEncodedFields6zgensym_d9b7d8dfd82ab2d_7
-
-	var nextMiss6zgensym_d9b7d8dfd82ab2d_7 int32 = -1
-	var found6zgensym_d9b7d8dfd82ab2d_7 [maxFields6zgensym_d9b7d8dfd82ab2d_7]bool
-	var curField6zgensym_d9b7d8dfd82ab2d_7 string
-
-doneWithStruct6zgensym_d9b7d8dfd82ab2d_7:
-	// First fill all the encoded fields, then
-	// treat the remaining, missing fields, as Nil.
-	for encodedFieldsLeft6zgensym_d9b7d8dfd82ab2d_7 > 0 || missingFieldsLeft6zgensym_d9b7d8dfd82ab2d_7 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft6zgensym_d9b7d8dfd82ab2d_7, missingFieldsLeft6zgensym_d9b7d8dfd82ab2d_7, msgp.ShowFound(found6zgensym_d9b7d8dfd82ab2d_7[:]), decodeMsgFieldOrder6zgensym_d9b7d8dfd82ab2d_7)
-		if encodedFieldsLeft6zgensym_d9b7d8dfd82ab2d_7 > 0 {
-			encodedFieldsLeft6zgensym_d9b7d8dfd82ab2d_7--
-			field, err = dc.ReadMapKeyPtr()
-			if err != nil {
-				return
-			}
-			curField6zgensym_d9b7d8dfd82ab2d_7 = msgp.UnsafeString(field)
-		} else {
-			//missing fields need handling
-			if nextMiss6zgensym_d9b7d8dfd82ab2d_7 < 0 {
-				// tell the reader to only give us Nils
-				// until further notice.
-				dc.PushAlwaysNil()
-				nextMiss6zgensym_d9b7d8dfd82ab2d_7 = 0
-			}
-			for nextMiss6zgensym_d9b7d8dfd82ab2d_7 < maxFields6zgensym_d9b7d8dfd82ab2d_7 && (found6zgensym_d9b7d8dfd82ab2d_7[nextMiss6zgensym_d9b7d8dfd82ab2d_7] || decodeMsgFieldSkip6zgensym_d9b7d8dfd82ab2d_7[nextMiss6zgensym_d9b7d8dfd82ab2d_7]) {
-				nextMiss6zgensym_d9b7d8dfd82ab2d_7++
-			}
-			if nextMiss6zgensym_d9b7d8dfd82ab2d_7 == maxFields6zgensym_d9b7d8dfd82ab2d_7 {
-				// filled all the empty fields!
-				break doneWithStruct6zgensym_d9b7d8dfd82ab2d_7
-			}
-			missingFieldsLeft6zgensym_d9b7d8dfd82ab2d_7--
-			curField6zgensym_d9b7d8dfd82ab2d_7 = decodeMsgFieldOrder6zgensym_d9b7d8dfd82ab2d_7[nextMiss6zgensym_d9b7d8dfd82ab2d_7]
-		}
-		//fmt.Printf("switching on curField: '%v'\n", curField6zgensym_d9b7d8dfd82ab2d_7)
-		switch curField6zgensym_d9b7d8dfd82ab2d_7 {
-		// -- templateDecodeMsg ends here --
-
-		case "CliName_zid00_str":
-			found6zgensym_d9b7d8dfd82ab2d_7[0] = true
-			z.CliName, err = dc.ReadString()
-			if err != nil {
-				return
-			}
-		default:
-			err = dc.Skip()
-			if err != nil {
-				return
-			}
-		}
-	}
-	if nextMiss6zgensym_d9b7d8dfd82ab2d_7 != -1 {
-		dc.PopAlwaysNil()
-	}
-
-	if sawTopNil {
-		dc.PopAlwaysNil()
-	}
-
-	if p, ok := interface{}(z).(msgp.PostLoad); ok {
-		p.PostLoadHook()
-	}
-
-	return
-}
-
 // fields of Czar
-var decodeMsgFieldOrder6zgensym_d9b7d8dfd82ab2d_7 = []string{"CliName_zid00_str"}
+var unmarshalMsgFieldOrder4zgensym_d9b7d8dfd82ab2d_5 = []string{"CliName_zid00_str", "", ""}
 
-var decodeMsgFieldSkip6zgensym_d9b7d8dfd82ab2d_7 = []bool{false}
-
-// fieldsNotEmpty supports omitempty tags
-func (z *Czar) fieldsNotEmpty(isempty []bool) uint32 {
-	if len(isempty) == 0 {
-		return 1
-	}
-	var fieldsInUse uint32 = 1
-	isempty[0] = (len(z.CliName) == 0) // string, omitempty
-	if isempty[0] {
-		fieldsInUse--
-	}
-
-	return fieldsInUse
-}
-
-// EncodeMsg implements msgp.Encodable
-func (z *Czar) EncodeMsg(en *msgp.Writer) (err error) {
-	if p, ok := interface{}(z).(msgp.PreSave); ok {
-		p.PreSaveHook()
-	}
-
-	// honor the omitempty tags
-	var empty_zgensym_d9b7d8dfd82ab2d_8 [1]bool
-	fieldsInUse_zgensym_d9b7d8dfd82ab2d_9 := z.fieldsNotEmpty(empty_zgensym_d9b7d8dfd82ab2d_8[:])
-
-	// map header
-	err = en.WriteMapHeader(fieldsInUse_zgensym_d9b7d8dfd82ab2d_9 + 1)
-	if err != nil {
-		return err
-	}
-
-	// runtime struct type identification for 'Czar'
-	err = en.Append(0xa1, 0x40)
-	if err != nil {
-		return err
-	}
-	err = en.WriteStringFromBytes([]byte{0x43, 0x7a, 0x61, 0x72})
-	if err != nil {
-		return err
-	}
-
-	if !empty_zgensym_d9b7d8dfd82ab2d_8[0] {
-		// write "CliName_zid00_str"
-		err = en.Append(0xb1, 0x43, 0x6c, 0x69, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x74, 0x72)
-		if err != nil {
-			return err
-		}
-		err = en.WriteString(z.CliName)
-		if err != nil {
-			return
-		}
-	}
-
-	return
-}
-
-// MarshalMsg implements msgp.Marshaler
-func (z *Czar) MarshalMsg(b []byte) (o []byte, err error) {
-	if p, ok := interface{}(z).(msgp.PreSave); ok {
-		p.PreSaveHook()
-	}
-
-	o = msgp.Require(b, z.Msgsize())
-
-	// honor the omitempty tags
-	var empty [1]bool
-	fieldsInUse := z.fieldsNotEmpty(empty[:])
-	o = msgp.AppendMapHeader(o, fieldsInUse)
-
-	if !empty[0] {
-		// string "CliName_zid00_str"
-		o = append(o, 0xb1, 0x43, 0x6c, 0x69, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.CliName)
-	}
-
-	return
-}
-
-// UnmarshalMsg implements msgp.Unmarshaler
-func (z *Czar) UnmarshalMsg(bts []byte) (o []byte, err error) {
-	return z.UnmarshalMsgWithCfg(bts, nil)
-}
-func (z *Czar) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
-	var nbs msgp.NilBitsStack
-	nbs.Init(cfg)
-	var sawTopNil bool
-	if msgp.IsNil(bts) {
-		sawTopNil = true
-		bts = nbs.PushAlwaysNil(bts[1:])
-	}
-
-	var field []byte
-	_ = field
-	const maxFields10zgensym_d9b7d8dfd82ab2d_11 = 1
-
-	// -- templateUnmarshalMsg starts here--
-	var totalEncodedFields10zgensym_d9b7d8dfd82ab2d_11 uint32
-	if !nbs.AlwaysNil {
-		totalEncodedFields10zgensym_d9b7d8dfd82ab2d_11, bts, err = nbs.ReadMapHeaderBytes(bts)
-		if err != nil {
-			return
-		}
-	}
-	encodedFieldsLeft10zgensym_d9b7d8dfd82ab2d_11 := totalEncodedFields10zgensym_d9b7d8dfd82ab2d_11
-	missingFieldsLeft10zgensym_d9b7d8dfd82ab2d_11 := maxFields10zgensym_d9b7d8dfd82ab2d_11 - totalEncodedFields10zgensym_d9b7d8dfd82ab2d_11
-
-	var nextMiss10zgensym_d9b7d8dfd82ab2d_11 int32 = -1
-	var found10zgensym_d9b7d8dfd82ab2d_11 [maxFields10zgensym_d9b7d8dfd82ab2d_11]bool
-	var curField10zgensym_d9b7d8dfd82ab2d_11 string
-
-doneWithStruct10zgensym_d9b7d8dfd82ab2d_11:
-	// First fill all the encoded fields, then
-	// treat the remaining, missing fields, as Nil.
-	for encodedFieldsLeft10zgensym_d9b7d8dfd82ab2d_11 > 0 || missingFieldsLeft10zgensym_d9b7d8dfd82ab2d_11 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft10zgensym_d9b7d8dfd82ab2d_11, missingFieldsLeft10zgensym_d9b7d8dfd82ab2d_11, msgp.ShowFound(found10zgensym_d9b7d8dfd82ab2d_11[:]), unmarshalMsgFieldOrder10zgensym_d9b7d8dfd82ab2d_11)
-		if encodedFieldsLeft10zgensym_d9b7d8dfd82ab2d_11 > 0 {
-			encodedFieldsLeft10zgensym_d9b7d8dfd82ab2d_11--
-			field, bts, err = nbs.ReadMapKeyZC(bts)
-			if err != nil {
-				return
-			}
-			curField10zgensym_d9b7d8dfd82ab2d_11 = msgp.UnsafeString(field)
-		} else {
-			//missing fields need handling
-			if nextMiss10zgensym_d9b7d8dfd82ab2d_11 < 0 {
-				// set bts to contain just mnil (0xc0)
-				bts = nbs.PushAlwaysNil(bts)
-				nextMiss10zgensym_d9b7d8dfd82ab2d_11 = 0
-			}
-			for nextMiss10zgensym_d9b7d8dfd82ab2d_11 < maxFields10zgensym_d9b7d8dfd82ab2d_11 && (found10zgensym_d9b7d8dfd82ab2d_11[nextMiss10zgensym_d9b7d8dfd82ab2d_11] || unmarshalMsgFieldSkip10zgensym_d9b7d8dfd82ab2d_11[nextMiss10zgensym_d9b7d8dfd82ab2d_11]) {
-				nextMiss10zgensym_d9b7d8dfd82ab2d_11++
-			}
-			if nextMiss10zgensym_d9b7d8dfd82ab2d_11 == maxFields10zgensym_d9b7d8dfd82ab2d_11 {
-				// filled all the empty fields!
-				break doneWithStruct10zgensym_d9b7d8dfd82ab2d_11
-			}
-			missingFieldsLeft10zgensym_d9b7d8dfd82ab2d_11--
-			curField10zgensym_d9b7d8dfd82ab2d_11 = unmarshalMsgFieldOrder10zgensym_d9b7d8dfd82ab2d_11[nextMiss10zgensym_d9b7d8dfd82ab2d_11]
-		}
-		//fmt.Printf("switching on curField: '%v'\n", curField10zgensym_d9b7d8dfd82ab2d_11)
-		switch curField10zgensym_d9b7d8dfd82ab2d_11 {
-		// -- templateUnmarshalMsg ends here --
-
-		case "CliName_zid00_str":
-			found10zgensym_d9b7d8dfd82ab2d_11[0] = true
-			z.CliName, bts, err = nbs.ReadStringBytes(bts)
-
-			if err != nil {
-				return
-			}
-		default:
-			bts, err = msgp.Skip(bts)
-			if err != nil {
-				return
-			}
-		}
-	}
-	if nextMiss10zgensym_d9b7d8dfd82ab2d_11 != -1 {
-		bts = nbs.PopAlwaysNil()
-	}
-
-	if sawTopNil {
-		bts = nbs.PopAlwaysNil()
-	}
-	o = bts
-	if p, ok := interface{}(z).(msgp.PostLoad); ok {
-		p.PostLoadHook()
-	}
-
-	return
-}
-
-// fields of Czar
-var unmarshalMsgFieldOrder10zgensym_d9b7d8dfd82ab2d_11 = []string{"CliName_zid00_str"}
-
-var unmarshalMsgFieldSkip10zgensym_d9b7d8dfd82ab2d_11 = []bool{false}
+var unmarshalMsgFieldSkip4zgensym_d9b7d8dfd82ab2d_5 = []bool{false, true, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Czar) Msgsize() (s int) {
