@@ -400,6 +400,16 @@ looptop:
 			list := czar.members.Clone()
 			czar.mut.Unlock()
 
+			// start with the highest version list we can find.
+			if nonCzarMembers != nil && nonCzarMembers.Vers.VersionGT(&list.Vers) {
+				list = nonCzarMembers.Clone()
+
+				// the lease czar key Vers version is garbage and
+				// always overwritten
+				// anyway with the LeaseEpoch -- used to create a new version,
+				// so there is no need to bother to update it in the raft log.
+			}
+
 			// if we win the write race, we are the czar.
 			list.CzarName = tubeCliName
 			list.PeerNames.Set(tubeCliName, myDetail.Clone())
