@@ -63,3 +63,16 @@ func LoadFromDiskTubeConfig(configName string, quiet, useSimNet, isTest bool) (c
 
 	return
 }
+
+const mask48 = int64(1<<48) - 1
+
+// hybrid-logical-clocks (HLC) want to
+// round up at the 48th bit.
+// Here we use a common bit-manipulation trick.
+// By adding mask (all 1s in lower 48 bits),
+// we increment the 48th bit if any lower
+// bits were set. We then mask away the
+// lower 48 bits.
+func roundUpTo48Bits(pt int64) int64 {
+	return (pt + mask48) & ^mask48
+}
