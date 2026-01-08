@@ -237,29 +237,67 @@ func NewCzar(cli *TubeNode, hbDur time.Duration) *Czar {
 
 // Member provies a ReliableMembership service with these goals:
 //
-// a) Maintain a current view of who's in the group
-// b) Notify members when that view changes
+// a) Maintain a current view of who's in the group.
+// b) Notify members when that view changes.
 // c) Ensure all members converge to the same view
+// by providing the RMVersionTuple versioning.
 //
-//		by providing the RMVersionTuple versioning.
+// The implementation takes the following approach:
 //
-//	 0. we must be pre-configured with the raft nodes addresses,
-//	    so we can bootrstrap from them.
+// (0) we must be pre-configured with the raft nodes addresses,
+// so we can bootrstrap from them. Any tube/raft cluster
+// member can tell us the leader, and the leader
+// can tell us about all cluster nodes if need be.
 //
-// 1) register my name and PeerDetail under table:hermes key:names/myname
-// with a 20 second lease.
-// renew it every 10 seconds or so.
+// (1) as a Member, I register my name and PeerDetail
+// under table:hermes key:czar with a 20 second lease.
+// I renew it every 10 seconds or so.
+// The first writer to grab the lease "wins" the election
+// to czar. All members are ready to take over a czar
+// if the first czar fails. The member also includes the
+// most recent list it has of other members when
+// it writes the czar key.
 //
-// 2) Each Hermes node just heartbeats to the Czar saying:
+// (2) Each Hermes node just heartbeats to the Czar saying:
 // "I'm a member, and who else is a member and at what epoch?"
 // If the epoch changes, update the membership list
-// in the Hermes upcall. table:hermes key:czar
+// in the Hermes upcall. The czar regularly scans
+// the list for members that have not sent a heartbeat
+// recently. When discovered, they are removed from the list
+// and an upcall to update membership is made.
 //
-// 3) If the Czar cannot be reached, in addition to heartbeats,
+// (3) If the Czar cannot be reached,
 // the Hermes node starts trying to become the Czar by
 // writing a lease through Raft to a pre-configured "czar" key.
+//
 // Repeat until either the current Czar can be reached
-// or a new Czar is elected. table:hermes key:czar will be the key.
+// or a new Czar is elected. Again by contending for
+// table:hermes key:czar.
+//
+// Notice that only a single lease is taken out through
+// Raft/Tube, and it only needs updating every 10
+// seconds or so.
+//
+// The membership list stored under the czar key
+// is not authoritative. It is is probably stale,
+// it cannot be assumed to be the most recent version.
+// It is only written
+// when the current czar renews its lease.
+// The czar must be contacted for the most
+// up-to-date version of the membership.
+// It is just a reasonable place to start; it
+// will likely avoid some membership churn.
+//
+// After the heartbeats are received or not
+// then the membership will converge as
+// stale nodes are pruned.
+//
+// Each new czar starts a new CzarLeaseEpoch based
+// on the consensus LeaseEpoch obtained when
+// write is put through Raft. Within each
+// epoch, the RAM-only membership updates are
+// denoted by incrementing the Version number
+// of the RMVersionTuple.
 type Member struct {
 
 	// TableSpace is set by the NewMember() constructor.
@@ -830,6 +868,7 @@ WDAG 1996: Workshop on Distributed Algorithms, Bologna, Italy
 
 In a fault-tolerant system leases must be granted and renewed by running consensus. If this much use of consensus is still too expensive, the solution is hierarchical leases. Run consensus once to elect a czar C and give C a lease on a large part of the state. Now C gives out sub-leases on x and y to masters. Each master controls its own re- sources. The masters renew their sub-leases with the czar. This is cheap since it doesn’t require any coordination. The czar renews its lease by consensus. This costs more, but there’s only one czar lease. Also, the czar can be simple and less likely to fail, so a longer lease may be acceptable.
 Hierarchical leases are commonly used in replicated file systems and in clusters.
+
 By combining the ideas of consensus, leases, and hierarchy, it’s possible to build highly available systems that are also highly efficient.
 """
 
