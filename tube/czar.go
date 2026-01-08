@@ -200,6 +200,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 	s.heard[args.Name] = time.Now()
 	s.expireSilentNodes(true) // true since mut is already locked.
 	if s.members.Vers.Version != orig.Version {
+		// mut is already held.
 		//vv("Czar.Ping: membership has changed (was %#v; now %#v), is now: {%v}", orig, s.members.Vers, s.shortRMemberSummary())
 	}
 
@@ -533,7 +534,9 @@ looptop:
 			case <-expireCheckCh:
 				changed := czar.expireSilentNodes(false)
 				if changed {
+					//czar.mut.Lock()
 					//vv("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortRMemberSummary())
+					//czar.mut.Unlock()
 				}
 				expireCheckCh = time.After(5 * time.Second)
 

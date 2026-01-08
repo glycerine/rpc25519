@@ -5,7 +5,7 @@ import (
 )
 
 func main() {
-	mem := tube.NewMember("hermes")
+	mem := tube.NewRMember("hermes")
 	mem.Start()
 	<-mem.Ready
 	select {}
