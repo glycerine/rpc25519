@@ -141,23 +141,25 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 			// for very long, give them a chance--we may
 			// have just loaded them in from the czar key's value.
 			uptime := time.Since(s.t0)
-			if uptime > s.memberLeaseDur &&
-				// zero time are actually dead former czar,
-				// and we do need to delete those.
-				//!det.RMemberLeaseUntilTm.IsZero() &&
-				now.After(det.RMemberLeaseUntilTm.Add(s.clockDriftBound)) {
+			if det.RMemberLeaseUntilTm.IsZero() ||
+				(uptime > s.memberLeaseDur &&
+					// zero time are actually dead former czar,
+					// and we do need to delete those.
+					//!det.RMemberLeaseUntilTm.IsZero() &&
+					now.After(det.RMemberLeaseUntilTm.Add(s.clockDriftBound))) {
 
 				killIt = true
-				//vv("expiring dead node '%v' -- would upcall membership change too. nothing heard after uptime = '%v'", name, uptime)
+				vv("expiring dead node '%v' -- would upcall membership change too. nothing heard after uptime = '%v'", name, uptime)
 			}
 		} else {
 			been := now.Sub(lastHeard)
-			if been > s.memberLeaseDur &&
-				//!det.RMemberLeaseUntilTm.IsZero() &&
-				now.After(det.RMemberLeaseUntilTm.Add(s.clockDriftBound)) {
+			if det.RMemberLeaseUntilTm.IsZero() ||
+				(been > s.memberLeaseDur &&
+					//!det.RMemberLeaseUntilTm.IsZero() &&
+					now.After(det.RMemberLeaseUntilTm.Add(s.clockDriftBound))) {
 
 				killIt = true
-				//vv("expiring dead node '%v' -- would upcall membership change too. been '%v'", name, been)
+				vv("expiring dead node '%v' -- would upcall membership change too. been '%v'", name, been)
 			}
 		}
 		if killIt {
