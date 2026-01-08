@@ -54,6 +54,8 @@ const (
 type Czar struct {
 	mut sync.Mutex
 
+	halt *idem.Halter
+
 	members *tube.ReliableMembershipList
 	heard   map[string]time.Time
 
@@ -63,6 +65,8 @@ type Czar struct {
 	// Czar when it is active as czar (having
 	// won the lease on the hermes.czar key in Tube).
 	CliName string `zid:"0"`
+
+	UpcallMembershipChangeCh chan *tube.ReliableMembershipList
 
 	t0 time.Time
 }
@@ -84,6 +88,10 @@ func (s *Czar) setVers(v tube.RMVersionTuple, list *tube.ReliableMembershipList,
 	s.t0 = t0
 
 	vv("end of setVers(v='%#v') s.members is now '%v')", v, s.members)
+	select {
+	case s.UpcallMembershipChangeCh <- s.members.Clone():
+	default:
+	}
 	return nil
 }
 
@@ -95,17 +103,23 @@ func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
 	vv("Czar.remove() for raddr='%v'", raddr)
 
 	// linear search, for now. TODO: map based lookup?
+	// we could make the name key be the rpc.Client addr
+	// and use PeerNames.Get2()...
 	for name, detail := range s.members.PeerNames.All() {
 		addr := removeTcp(detail.Addr)
-		vv("checking addr='%v' against raddr='%v'", addr, raddr)
+		//vv("checking addr='%v' against raddr='%v'", addr, raddr)
 		if addr == raddr {
 			s.members.PeerNames.Delkey(name)
 			s.members.Vers.Version++
 			vv("remove dropped client '%v', vers='%#v'", name, s.members.Vers)
+			select {
+			case s.UpcallMembershipChangeCh <- s.members.Clone():
+			default:
+			}
 			return
 		}
 	}
-	vv("remove could not find client '%v'", raddr)
+	vv("remove could not find dropped client raddr '%v'", raddr)
 }
 
 func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
@@ -116,7 +130,12 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 	}
 	defer func() {
 		if changed {
+			// just one notifcation for all the deletes we did.
 			s.members.Vers.Version++
+			select {
+			case s.UpcallMembershipChangeCh <- s.members.Clone():
+			default:
+			}
 		}
 	}()
 
@@ -163,6 +182,16 @@ func (s *Czar) Ping(ctx context.Context, args *tube.PeerDetail, reply *tube.Reli
 	defer s.mut.Unlock()
 
 	orig := s.members.Vers
+
+	if hdr, ok := rpc.HDRFromContext(ctx); ok {
+		//vv("Ping, from ctx: hdr.Nc.LocalAddr()='%v'; hdr.Nc.RemoteAddr()='%v'", hdr.Nc.LocalAddr(), hdr.Nc.RemoteAddr()) // we want remote
+		// critical: replace Addr with the rpc.Client of the czar
+		// address, rather than the tube client peer server address.
+		//vv("changing args.Addr from '%v' -> '%v'", args.Addr, hdr.Nc.RemoteAddr())
+		args.Addr = hdr.Nc.RemoteAddr().String()
+	} else {
+		panic("must have rpc.HDRFromContext(ctx) set so we know which tube-client to drop when the rpc.Client drops!")
+	}
 	//vv("Ping called at cliName = '%v', since args = '%v'; orig='%#v'", s.CliName, args, orig)
 	det, ok := s.members.PeerNames.Get2(args.Name)
 	if !ok {
@@ -209,9 +238,12 @@ func (s *Czar) shortMemberSummary() (r string) {
 func NewCzar(cli *tube.TubeNode) *Czar {
 	list := cli.NewReliableMembershipList()
 	return &Czar{
+		halt:    idem.NewHalter(),
 		members: list,
 		heard:   make(map[string]time.Time),
 		t0:      time.Now(),
+
+		UpcallMembershipChangeCh: make(chan *tube.ReliableMembershipList, 1000),
 	}
 }
 
@@ -271,7 +303,7 @@ func main() {
 	tableHermes := "hermes"
 	var renewCzarLeaseCh <-chan time.Time
 
-	leaseDurCz := time.Second * 40
+	leaseDurCz := time.Second * 10
 	renewCzarLeaseDur := leaseDurCz / 2
 
 	var cState czarState = unknownCzarState
@@ -302,16 +334,18 @@ func main() {
 	var memberHeartBeatCh <-chan time.Time
 	memberHeartBeatDur := time.Second * 10
 	writeAttemptDur := time.Second * 5
+	declaredDeadDur = memberHeartBeatDur * 3
 
 	var expireCheckCh <-chan time.Time
 
-	halt := idem.NewHalter()
-	defer halt.Done.Close()
+	//halt := idem.NewHalter()
+	//defer halt.Done.Close()
 
 	var nonCzarMembers *tube.ReliableMembershipList
 
 	// TODO: handle needing new session, maybe it times out?
 	// should survive leader change, but needs checking.
+
 looptop:
 	for {
 
@@ -380,7 +414,8 @@ looptop:
 				// It will notify us on clientDroppedCh below.
 				select {
 				case funneler.newCliCh <- cliConnHalt:
-				case <-halt.ReqStop.Chan:
+				case <-czar.halt.ReqStop.Chan:
+					vv("czar halt requested. exiting.")
 					return
 				}
 
@@ -406,7 +441,8 @@ looptop:
 				czarLeaseUntilTm = czarTkt.LeaseUntilTm
 
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
-			case <-halt.ReqStop.Chan:
+			case <-czar.halt.ReqStop.Chan:
+				vv("czar halt requested. exiting.")
 				return
 			}
 
@@ -498,7 +534,8 @@ looptop:
 
 				memberHeartBeatCh = time.After(memberHeartBeatDur)
 
-			case <-halt.ReqStop.Chan:
+			case <-czar.halt.ReqStop.Chan:
+				vv("czar halt requested. exiting.")
 				return
 			}
 		}
@@ -565,7 +602,7 @@ func newFunneler() (r *funneler) {
 	go func() {
 		for {
 			chosen, recv, _ := reflect.Select(r.clientConns)
-			vv("reflect.Select chosen='%v'", chosen) // seen 0
+			//vv("reflect.Select chosen='%v'", chosen) // seen 0
 			if chosen == 0 {
 				// new client arrives, listen on its Halt.Done.Chan
 				connHalt := recv.Interface().(*rpc.ConnHalt)
@@ -582,7 +619,7 @@ func newFunneler() (r *funneler) {
 			}
 			// stop listening for it
 			dropped := r.clientConnHalt[chosen]
-			vv("client departs: '%v'", dropped.Conn.RemoteAddr())
+			//vv("czar rpc.Client departs: '%v'", dropped.Conn.RemoteAddr())
 			r.clientConnHalt = append(r.clientConnHalt[:chosen], r.clientConnHalt[(chosen+1):]...)
 			r.clientConns = append(r.clientConns[:chosen], r.clientConns[(chosen+1):]...)
 			// notify czar that server noticed a client disconnect.
