@@ -6,6 +6,7 @@ all:
 	cd cmd/tubels; go install
 	cd cmd/tuberm; go install
 	cd cmd/tubeadd; go install
+	cd cmd/member; go install
 
 wasm:
 	GOTRACEBACK=all GOEXPERIMENT=synctest GOOS=wasip1 GOARCH=wasm  goj test -c -o tube.test.wasm -tags goj
