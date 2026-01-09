@@ -4507,31 +4507,31 @@ type Ticket struct {
 	T0  time.Time `zid:"1"`
 
 	// the HLC when NewTicket was called locally.
-	CreateHLC HLC `zid:"70"`
+	CreateHLC HLC `zid:"2"`
 
-	Key                      Key    `zid:"2"`
-	Val                      Val    `zid:"3"`  // Read/Write. For CAS: new value.
-	Table                    Key    `zid:"47"` // like a database table, a namespace.
-	OldVal                   Val    `zid:"48"` // For CAS: old value (tested for).
-	CASwapped                bool   `zid:"49"`
-	CASRejectedBecauseCurVal Val    `zid:"50"`
-	NewTableName             Key    `zid:"51"`
-	Vtype                    string `zid:"62"`
+	Key                      Key    `zid:"3"`
+	Val                      Val    `zid:"4"` // Read/Write. For CAS: new value.
+	Table                    Key    `zid:"5"` // like a database table, a namespace.
+	OldVal                   Val    `zid:"6"` // For CAS: old value (tested for).
+	CASwapped                bool   `zid:"7"`
+	CASRejectedBecauseCurVal Val    `zid:"8"`
+	NewTableName             Key    `zid:"9"`
+	Vtype                    string `zid:"10"`
 
-	FromID    string `zid:"4"`
-	FromName  string `zid:"5"` // tell old leader (or client) from new
-	ClusterID string `zid:"6"`
+	FromID    string `zid:"11"`
+	FromName  string `zid:"12"` // tell old leader (or client) from new
+	ClusterID string `zid:"13"`
 
 	// regular code should use this, not Errs.
 	Err error `msg:"-"`
 	// version of Err for transport only
 	// (since the error interface does not serialize well).
-	Errs string `zid:"7"`
+	Errs string `zid:"14"`
 
 	// TicketID is a unique identifier for each Ticket.
-	TicketID string `zid:"8"`
+	TicketID string `zid:"15"`
 
-	Op TicketOp `zid:"9"`
+	Op TicketOp `zid:"16"`
 
 	// with client retries this might be needed?
 	Done *idem.IdemCloseChan `msg:"-"`
@@ -4540,127 +4540,127 @@ type Ticket struct {
 	// can act as a fencing token for external
 	// services to avoid consistency issues due to
 	// client processes being paused.
-	LogIndex int64 `zid:"10"` // where we are logged to.
-	Term     int64 `zid:"11"` // where we are logged to.
+	LogIndex int64 `zid:"17"` // where we are logged to.
+	Term     int64 `zid:"18"` // where we are logged to.
 
 	// short description of transaction to make
 	// debugging easier. Optional but recommended.
-	Desc string `zid:"12"`
+	Desc string `zid:"19"`
 
 	// easy to display tick status in debug prints
-	Committed   bool `zid:"13"`
-	Applied     bool `zid:"14"`
-	ClientAcked bool `zid:"15"`
+	Committed   bool `zid:"20"`
+	Applied     bool `zid:"21"`
+	ClientAcked bool `zid:"22"`
 
 	// when we committed, in commitWhatWeCan(),
 	// what was LastApplied? Not sure if on leader for sure(?)
 	// (not written to raft log, obviously).
-	AsOfLogIndex int64 `zid:"16"`
+	AsOfLogIndex int64 `zid:"23"`
 
 	// who got our ticket and
 	// assigned the LogIndex.
 	// These are more for diagnostics than
 	// any necessary part of the protocol.
 	// They are assigned in replicateTicket().
-	LeaderID      string `zid:"17"`
-	LeaderName    string `zid:"18"`
-	LeaderURL     string `zid:"19"`
-	LeaderStampSN int64  `zid:"20"`
+	LeaderID      string `zid:"24"`
+	LeaderName    string `zid:"25"`
+	LeaderURL     string `zid:"26"`
+	LeaderStampSN int64  `zid:"27"`
 
-	SessionID             string `zid:"21"`
-	SessionSerial         int64  `zid:"22"`
-	SessionLastKnownIndex int64  `zid:"56"`
+	SessionID             string `zid:"28"`
+	SessionSerial         int64  `zid:"29"`
+	SessionLastKnownIndex int64  `zid:"30"`
 
-	Stage string `zid:"23"`
+	Stage string `zid:"31"`
 
-	DoneClosedOnPeerID string `zid:"24"`
+	DoneClosedOnPeerID string `zid:"32"`
 
 	// =======  MEMBERSHIP_SET_UPDATE  ===========
 	// IN: only one Add or Remove can be set:
-	AddPeerName               string `zid:"25"`
-	AddPeerID                 string `zid:"26"`
-	AddPeerServiceName        string `zid:"27"`
-	AddPeerServiceNameVersion string `zid:"57"`
-	AddPeerBaseServerHostPort string `zid:"28"`
+	AddPeerName               string `zid:"33"`
+	AddPeerID                 string `zid:"34"`
+	AddPeerServiceName        string `zid:"35"`
+	AddPeerServiceNameVersion string `zid:"36"`
+	AddPeerBaseServerHostPort string `zid:"37"`
 
-	RemovePeerName               string `zid:"29"`
-	RemovePeerID                 string `zid:"30"`
-	RemovePeerServiceName        string `zid:"31"`
-	RemovePeerServiceNameVersion string `zid:"58"`
-	RemovePeerBaseServerHostPort string `zid:"32"`
+	RemovePeerName               string `zid:"38"`
+	RemovePeerID                 string `zid:"39"`
+	RemovePeerServiceName        string `zid:"40"`
+	RemovePeerServiceNameVersion string `zid:"41"`
+	RemovePeerBaseServerHostPort string `zid:"42"`
 
 	// provided by SingleUpdateClusterMemberConfig to let
 	// the node find the cluster.
-	GuessLeaderURL string `zid:"33"`
+	GuessLeaderURL string `zid:"43"`
 
 	// OUT:
 	// Insp=optional inspection. MEMBERSHIP_SET_UPDATE
 	// always returns it, other Ops not atm,
 	// but can in the future if desired.
-	Insp *Inspection `zid:"34"`
+	Insp *Inspection `zid:"44"`
 
 	// internal use: caller need not/should not set this.
 	// note that the tickets in the wal show very
 	// out of date MC and we don't pull MC from the wal
 	// only the state on disk now.
-	MC *MemberConfig `zid:"35"`
+	MC *MemberConfig `zid:"45"`
 
 	// =======  end MEMBERSHIP_SET_UPDATE  ===========
 
 	// =======  begin CLIENT LINEARIZABILITY HELP (Chapter 6)
 
-	LeaderGotTicketTm        time.Time `zid:"36"`
-	LeaderLocalReadGoodUntil time.Time `zid:"37"`
-	LeaderLocalReadAtTm      time.Time `zid:"38"`
-	LeaderLocalReadHLC       HLC       `zid:"71"`
+	LeaderGotTicketTm        time.Time `zid:"46"`
+	LeaderLocalReadGoodUntil time.Time `zid:"47"`
+	LeaderLocalReadAtTm      time.Time `zid:"48"`
+	LeaderLocalReadHLC       HLC       `zid:"49"`
 
-	ClientLocalSubmitTm   time.Time `zid:"39"`
-	ClientLocalResponseTm time.Time `zid:"40"`
+	ClientLocalSubmitTm   time.Time `zid:"50"`
+	ClientLocalResponseTm time.Time `zid:"51"`
 
 	// leader should reject if they have not seen this log index.
-	ClientHighestLogIndexSeen int64 `zid:"41"`
+	ClientHighestLogIndexSeen int64 `zid:"52"`
 	// -- see above for
 	// FromName (above)
 	// SessionID (above)
 	// SessionSerial (above)
 	// -- which are also essential for client linz.
 
-	NewSessReq                  *Session `zid:"42"`
-	NewSessReply                *Session `zid:"43"`
-	DupDetected                 bool     `zid:"44"`
-	MinSessSerialWaiting        int64    `zid:"45"`
-	EndSessReq_SessionID        string   `zid:"46"`
-	HighestSerialSeenFromClient int64    `zid:"66"`
+	NewSessReq                  *Session `zid:"53"`
+	NewSessReply                *Session `zid:"54"`
+	DupDetected                 bool     `zid:"55"`
+	MinSessSerialWaiting        int64    `zid:"56"`
+	EndSessReq_SessionID        string   `zid:"57"`
+	HighestSerialSeenFromClient int64    `zid:"58"`
 
 	// =======  end CLIENT LINEARIZABILITY HELP  ===========
 
 	// state snapshot transfer for new joiners
-	StateSnapshot *RaftState `zid:"52"`
+	StateSnapshot *RaftState `zid:"59"`
 
 	// key range scan input
-	KeyEndx     Key  `zid:"53"`
-	ScanDescend bool `zid:"54"` // default ascending
+	KeyEndx     Key  `zid:"60"`
+	ScanDescend bool `zid:"61"` // default ascending
 	// key range scan output
-	KeyValRangeScan *art.Tree `zid:"55"`
+	KeyValRangeScan *art.Tree `zid:"62"`
 
-	UserDefinedOpCode int64 `zid:"59"`
+	UserDefinedOpCode int64 `zid:"63"`
 
 	// let clients/tests 402/403 tell
 	// AddPeerIDToCluster how long to
 	// await leader.
-	WaitLeaderDeadline time.Time `zid:"60"`
+	WaitLeaderDeadline time.Time `zid:"64"`
 
-	ForceChangeMC bool `zid:"61"`
+	ForceChangeMC bool `zid:"65"`
 
 	// lease on writing to table:key
-	LeaseRequestDur        time.Duration `zid:"63"` // optional on WRITE
-	Leasor                 string        `zid:"64"` // optional on WRITE
-	LeaseUntilTm           time.Time     `zid:"65"`
-	LeaseEpoch             int64         `zid:"67"` // filled on response
-	LeaseWriteRaftLogIndex int64         `zid:"68"` // filled on response
+	LeaseRequestDur        time.Duration `zid:"66"` // optional on WRITE
+	Leasor                 string        `zid:"67"` // optional on WRITE
+	LeaseUntilTm           time.Time     `zid:"68"`
+	LeaseEpoch             int64         `zid:"69"` // filled on response
+	LeaseWriteRaftLogIndex int64         `zid:"70"` // filled on response
 
 	// when actually submitted to raft log in replicateTicket
-	RaftLogEntryTm time.Time `zid:"69"`
+	RaftLogEntryTm time.Time `zid:"71"`
 
 	// BatchID ? how is batching best implemented (TODO).
 
