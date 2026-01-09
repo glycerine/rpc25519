@@ -1,6 +1,7 @@
 package tube
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -12,26 +13,42 @@ import (
 // Madeppa, Bharadwaj Avva, and Marcelo Leone.
 type HLC int64
 
-const mask48 = HLC(1<<48) - 1
+const mask16 HLC = HLC(1<<16) - 1 // low 16 bits are 1
+const unmask16 HLC = ^mask16      // low 16 bits are 0
 
 func (hlc HLC) LC() int64 {
-	return int64(hlc & ^mask48)
+	return int64(hlc & unmask16)
 
 }
 func (hlc HLC) Count() int64 {
-	return int64(hlc & mask48)
+	return int64(hlc & mask16)
+}
+
+func (hlc HLC) String() string {
+	lc := hlc.LC()
+	count := hlc.Count()
+	return fmt.Sprintf("HLC{Count: %v, LC:%v (%v)}", count, lc, time.Unix(0, lc).Format(rfc3339MsecTz0))
+}
+
+// AseembleHLC does the simple addition,
+// but takes care of the type converstion too.
+// For safety, it masks off the low 16 bits
+// of lc that should always be 0 anyway before
+// doing the addition.
+func AssembleHLC(lc int64, count int64) HLC {
+	return HLC(lc)&unmask16 + HLC(count)
 }
 
 // Here we use a bit-manipulation trick.
-// By adding mask (all 1s in lower 48 bits),
-// we increment the 48th bit if any lower
+// By adding mask (all 1s in lower 16 bits),
+// we increment the 16th bit if any lower
 // bits were set. We then mask away the
-// lower 48 bits.
-//func roundUpTo48Bits(pt int64) int64 {
-//	return (pt + mask48) & ^mask48
+// lower 16 bits.
+//func roundUpTo16Bits(pt int64) int64 {
+//	return (pt + mask16) & unmask16
 //}
 
-// PhysicalTime48 rounds up to the 48th
+// PhysicalTime48 rounds up to the 16th
 // bit the UnixNano() of the current time,
 // as requested by the Hybrid-Logical-Clock
 // algorithm. The low order 16 bits are
@@ -43,7 +60,7 @@ func PhysicalTime48() HLC {
 
 	// hybrid-logical-clocks (HLC) wants to
 	// round up at the 48th bit.
-	return (pt + mask48) & ^mask48
+	return (pt + mask16) & unmask16
 }
 
 // CreateSendOrLocalEvent
@@ -52,16 +69,17 @@ func PhysicalTime48() HLC {
 func (j *HLC) CreateSendOrLocalEvent() {
 
 	ptj := PhysicalTime48()
-	jLC := *j & ^mask48
-	jCount := *j & mask48
+	jLC := *j & unmask16
+	jCount := *j & mask16
 
-	if jLC == ptj {
+	jLC1 := jLC
+	if ptj > jLC {
+		jLC = ptj
+	}
+	if jLC == jLC1 {
 		jCount++
 	} else {
 		jCount = 0
-		if ptj > jLC {
-			jLC = ptj
-		}
 	}
 	*j = (jLC + jCount)
 }
@@ -71,12 +89,12 @@ func (j *HLC) CreateSendOrLocalEvent() {
 // received message m's hybrid clock.
 func (j *HLC) ReceiveMessageWithHLC(m HLC) {
 
-	jLC := *j & ^mask48
-	jCount := *j & mask48
+	jLC := *j & unmask16
+	jCount := *j & mask16
 	jlcOrig := jLC
 
-	mLC := m & ^mask48
-	mCount := m & mask48
+	mLC := m & unmask16
+	mCount := m & mask16
 
 	ptj := PhysicalTime48()
 	if ptj > jLC {
@@ -98,8 +116,8 @@ func (j *HLC) ReceiveMessageWithHLC(m HLC) {
 }
 
 func (a HLC) GT(b HLC) bool {
-	aLC := a & ^mask48
-	bLC := b & ^mask48
+	aLC := a & unmask16
+	bLC := b & unmask16
 	if aLC > bLC {
 		return true
 	}
@@ -107,14 +125,14 @@ func (a HLC) GT(b HLC) bool {
 		return false
 	}
 	// INVAR: aLC == bLC
-	aCount := a & mask48
-	bCount := b & mask48
+	aCount := a & mask16
+	bCount := b & mask16
 	return aCount > bCount
 }
 
 func (a HLC) GTE(b HLC) bool {
-	aLC := a & ^mask48
-	bLC := b & ^mask48
+	aLC := a & unmask16
+	bLC := b & unmask16
 	if aLC > bLC {
 		return true
 	}
@@ -122,14 +140,14 @@ func (a HLC) GTE(b HLC) bool {
 		return false
 	}
 	// INVAR: aLC == bLC
-	aCount := a & mask48
-	bCount := b & mask48
+	aCount := a & mask16
+	bCount := b & mask16
 	return aCount >= bCount
 }
 
 func (a HLC) LT(b HLC) bool {
-	aLC := a & ^mask48
-	bLC := b & ^mask48
+	aLC := a & unmask16
+	bLC := b & unmask16
 	if aLC < bLC {
 		return true
 	}
@@ -137,14 +155,14 @@ func (a HLC) LT(b HLC) bool {
 		return false
 	}
 	// INVAR: aLC == bLC
-	aCount := a & mask48
-	bCount := b & mask48
+	aCount := a & mask16
+	bCount := b & mask16
 	return aCount < bCount
 }
 
 func (a HLC) LTE(b HLC) bool {
-	aLC := a & ^mask48
-	bLC := b & ^mask48
+	aLC := a & unmask16
+	bLC := b & unmask16
 	if aLC < bLC {
 		return true
 	}
@@ -152,7 +170,7 @@ func (a HLC) LTE(b HLC) bool {
 		return false
 	}
 	// INVAR: aLC == bLC
-	aCount := a & mask48
-	bCount := b & mask48
+	aCount := a & mask16
+	bCount := b & mask16
 	return aCount <= bCount
 }
