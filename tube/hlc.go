@@ -14,17 +14,19 @@ import (
 // Madeppa, Bharadwaj Avva, and Marcelo Leone.
 //
 // Its physical clock resolution (the upper
-// 48 bits) is in ~ 0.1 msec or 100 microseconds.
-// The logical counter part (the lower 16 bits)
-// keeps a logical clock counter. The paper's
+// 48 bits) is in ~ 0.1 msec or about 100 microseconds.
+// The lower 16 bits of this int64
+// keep a logical clock counter. The paper's
 // experiments observed counter values up to 10,
 // nowhere near the 2^16-1 == 65535 maximum.
+//
 // Indeed one would have to execute one clock
 // query every nanosecond for 65536 times in
 // a row -- in a single contiguous execution --
 // to overflow the counter. This seems unlikely
 // with current technology where a PhysicalTime48()
-// call takes ~66 nanoseconds.
+// call takes ~66 nanoseconds and there is rarely
+// a requirement for 65K timestamps in a row.
 //
 // See also: the use of hybrid logical clocks in
 // CockroachDB, and Demirbas and Kulkarni's
@@ -51,7 +53,8 @@ func (hlc HLC) Count() int64 {
 func (hlc HLC) String() string {
 	lc := hlc.LC()
 	count := hlc.Count()
-	return fmt.Sprintf("HLC{Count: %v, LC:%v (%v)}", count, lc, time.Unix(0, lc).Format(rfc3339MsecTz0))
+	return fmt.Sprintf("HLC{Count: %v, LC:%v (%v)}",
+		count, lc, time.Unix(0, lc).Format(rfc3339MsecTz0))
 }
 
 // AseembleHLC does the simple addition,
