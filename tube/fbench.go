@@ -23,6 +23,9 @@ func DetermineOptimalFsync() (float64, int) {
 
 	// Ensure the file is on disk
 	f.Sync()
+	if isDarwin {
+		actuallyFsyncOnDarwin(f)
+	}
 
 	bufferSizes := []int{
 		//4 * 1024,          // 4KB
@@ -69,6 +72,9 @@ func DetermineOptimalFsync() (float64, int) {
 				fmt.Printf("Sync error: %v\n", err)
 				break
 			}
+			if isDarwin {
+				actuallyFsyncOnDarwin(f)
+			}
 			fsyncCount++
 		}
 
@@ -98,29 +104,31 @@ func DetermineOptimalFsync() (float64, int) {
 	return optimalFsyncsPerSec, optimalBufSize
 }
 
-/* mac book pro SSD (are we sure this is fsyncing??)
+/* mac book pro SSD (are we sure this is fsyncing?? nope, it was not!!!)
 
-GOEXPERIMENT=synctest go test -v -count=1 -run=TestFsyncBenchmark
-=== RUN   TestFsyncBenchmark at 2 seconds per setting
+Now with the added actuallyFsyncOnDarwin() call.
+
+=== RUN   TestFsyncBenchmark
 Benchmarking fsync bandwidth...
 Buffer Size     Bandwidth       Fsyncs/Sec
 ------------------------------------------------
-262144          11.16      MB/s   44.64
-1048576         39.86      MB/s   39.86
-4194304         138.15     MB/s   34.54
-16777216        420.76     MB/s   26.30
-33554432        715.55     MB/s   22.36
-67108864        1084.57    MB/s   16.95
-134217728       1553.25    MB/s   12.13
-256 MB          1985.94    MB/s   7.76  <<< resonable approx of peak
-536870912       2100.41    MB/s   4.10
-1073741824      2136.01    MB/s   2.09  <<<<<<<< peak
+262144          10.16      MB/s   40.66
+1048576         37.89      MB/s   37.89
+4194304         133.17     MB/s   33.29
+16777216        404.14     MB/s   25.26
+33554432        661.25     MB/s   20.66
+67108864        1011.61    MB/s   15.81
+134217728       1447.85    MB/s   11.31
+256MB           1910.00    MB/s   7.46  << might approximate peak
+536870912       2081.12    MB/s   4.06
+1073741824      2311.88    MB/s   2.26  << peak
 ------------------------------------------------
 
-Optimal Fsync Rate: 2.09 fsyncs/sec at Buffer Size: 1073741824 bytes
---- PASS: TestFsyncBenchmark (21.13s)
+Optimal Fsync Rate: 2.26 fsyncs/sec at Buffer Size: 1073741824 bytes
+--- PASS: TestFsyncBenchmark (101.02s)
 
-mac book pro but now 10 seconds per setting:
+
+Old (Bad) mac book pro, 10 seconds per setting, not really fsync-ing!
 
 Buffer Size     Bandwidth       Fsyncs/Sec
 ------------------------------------------------
@@ -135,6 +143,8 @@ Buffer Size     Bandwidth       Fsyncs/Sec
 536870912       2164.22    MB/s   4.23
 1073741824      2303.77    MB/s   2.25 << peak
 ------------------------------------------------
+
+
 
 older linux box, rog.
 Western Digital Black NVME drive SN850 2TB
