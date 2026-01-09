@@ -31,6 +31,7 @@ build:
 	cd ../../cmd/tubels; go install
 	cd ../../cmd/tuberm; go install
 	cd ../../cmd/tubeadd; go install
+	cd ../../cmd/member; go install
 
 clean:
 	pkill -9 -x tube || true
