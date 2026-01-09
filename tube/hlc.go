@@ -181,6 +181,20 @@ func (hlc *HLC) ReceiveMessageWithHLC(m HLC) (r HLC) {
 	return
 }
 
+// ToTime returns the Count as the nanoseconds.
+func (hlc HLC) ToTime() time.Time {
+	return time.Unix(0, int64(hlc))
+}
+
+// ToTime48 returns only the LC in the upper 48 bits
+// of hlc; the lower 16 bits of r.UnixNano() will be all 0.
+// See ToTime to include the Count as well.
+func (hlc HLC) ToTime48() (r time.Time) {
+	lc := int64(hlc & getLC)
+	r = time.Unix(0, int64(lc))
+	return
+}
+
 // GT returns (hlc > b), in the hybrid
 // logical clock math.
 // PRE: b must not be concurrently modified

@@ -4610,6 +4610,7 @@ type Ticket struct {
 	LeaderGotTicketTm        time.Time `zid:"36"`
 	LeaderLocalReadGoodUntil time.Time `zid:"37"`
 	LeaderLocalReadAtTm      time.Time `zid:"38"`
+	LeaderLocalReadHLC       HLC       `zid:"71"`
 
 	ClientLocalSubmitTm   time.Time `zid:"39"`
 	ClientLocalResponseTm time.Time `zid:"40"`
@@ -4818,7 +4819,6 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.Applied = tkt.Applied
 		prior.LogIndex = tkt.LogIndex
 		prior.Term = tkt.Term
-		prior.AsOfLogIndex = tkt.AsOfLogIndex // LastApplied when we committed.
 		prior.LeaderName = tkt.LeaderName
 		prior.LeaderURL = tkt.LeaderURL
 		prior.LeaderStampSN = tkt.LeaderStampSN
@@ -4829,6 +4829,11 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.LeaseEpoch = tkt.LeaseEpoch
 		prior.LeaseWriteRaftLogIndex = tkt.LeaseWriteRaftLogIndex
 		prior.MC = tkt.MC
+
+		prior.AsOfLogIndex = tkt.AsOfLogIndex // LastApplied when we committed.
+		prior.LeaderLocalReadGoodUntil = tkt.LeaderLocalReadGoodUntil
+		prior.LeaderLocalReadAtTm = tkt.LeaderLocalReadAtTm
+		prior.LeaderLocalReadHLC = tkt.LeaderLocalReadHLC
 
 		prior.Stage += ":FinishTicket_prior_Val_written"
 		if prior.Done != nil {
@@ -9704,7 +9709,6 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	}
 	question.MC = answer.MC
 	question.answer = answer
-	question.AsOfLogIndex = answer.AsOfLogIndex
 	question.DupDetected = answer.DupDetected
 	question.LogIndex = answer.LogIndex
 	question.Term = answer.Term
@@ -9719,6 +9723,11 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 
 	question.Err = answer.Err
 	question.StateSnapshot = answer.StateSnapshot
+
+	question.AsOfLogIndex = answer.AsOfLogIndex
+	question.LeaderLocalReadGoodUntil = answer.LeaderLocalReadGoodUntil
+	question.LeaderLocalReadAtTm = answer.LeaderLocalReadAtTm
+	question.LeaderLocalReadHLC = answer.LeaderLocalReadHLC
 
 	question.Stage += ":answerToQuestionTicket_append_answer" + answer.Stage
 }
@@ -10531,7 +10540,9 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 	}
 	tkt.AsOfLogIndex = s.state.LastApplied
 	tkt.LeaderLocalReadGoodUntil = untilTm
-	tkt.LeaderLocalReadAtTm = time.Now()
+	hlc := s.hlc.CreateSendOrLocalEvent()
+	tkt.LeaderLocalReadAtTm = hlc.ToTime()
+	tkt.LeaderLocalReadHLC = hlc
 
 	s.localReadCount++
 
@@ -14348,7 +14359,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 		switch priorTkt.Op {
 		case READ, READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
 			// return the previous read, to preserve linz.
-			tkt.AsOfLogIndex = priorTkt.AsOfLogIndex
+
 			// READ and SHOW_KEYS:
 			tkt.Val = priorTkt.Val
 			tkt.Vtype = priorTkt.Vtype
@@ -14357,6 +14368,11 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 			tkt.LeaseEpoch = priorTkt.LeaseEpoch
 			tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
 			tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
+
+			// tkt.AsOfLogIndex below, for all.
+			tkt.LeaderLocalReadGoodUntil = priorTkt.LeaderLocalReadGoodUntil
+			tkt.LeaderLocalReadAtTm = priorTkt.LeaderLocalReadAtTm
+			tkt.LeaderLocalReadHLC = priorTkt.LeaderLocalReadHLC
 
 			// READ_KEYRANGE, READ_PREFIX_RANGE:
 			tkt.KeyValRangeScan = priorTkt.KeyValRangeScan
