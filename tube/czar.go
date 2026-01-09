@@ -472,6 +472,14 @@ func (membr *RMember) start() {
 	cli.Srv.NotifyAllNewClients = make(chan *rpc.ConnHalt, 1000)
 	//vv("cli.Srv.NotifyAllNewClients = %p", cli.Srv.NotifyAllNewClients)
 
+	// Update: turns out for hermes's Reliable Membership
+	// requirements, we cannot use TCP disconnects to
+	// eliminate dead members from the membership. Instead
+	// we must wait out their lease every time. Hence
+	// funneler is not helpful after all. We keep it wired
+	// in place in case it becomes useful to display
+	// "suspected" drops in the future.
+	//
 	// funnel all client disconnects down to one channel.
 	funneler := newFunneler(czar.Halt)
 
