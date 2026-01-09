@@ -11,6 +11,19 @@ import (
 // Snapshots in Globally Distributed Databases"
 // by Sandeep Kulkarni, Murat Demirbas, Deepak
 // Madeppa, Bharadwaj Avva, and Marcelo Leone.
+//
+// Its physical clock resolution (the upper
+// 48 bits) is in ~ 0.1 msec or 100 microseconds.
+// The logical counter part (the lower 16 bits)
+// keeps a logical clock counter. The paper's
+// experiments observed counter values up to 10,
+// nowhere near the 2^16-1 == 65535 maximum.
+// Indeed one would have to execute one clock
+// query every nanosecond 65535 times in
+// a single contiguous execution span of time
+// to overflow the counter. This seems unlikely
+// with current technology where a time.Now()
+// call takes ~10 nanoseconds.
 type HLC int64
 
 const mask16 HLC = HLC(1<<16) - 1 // low 16 bits are 1

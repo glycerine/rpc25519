@@ -32,6 +32,17 @@ func Test_HLC_Monotonicity(t *testing.T) {
 		var j HLC
 		j.CreateSendOrLocalEvent()
 
+		// test HLC.String() method.
+		s := j.String()
+		fmt.Printf("j is '%v'\n", s)
+		fmt.Printf("mask16 is '%X'\n", int64(mask16))
+
+		if faketime {
+			expect := "HLC{Count: 0, LC:946684800000000000 (2000-01-01T00:00:00.000Z)}"
+			if s != expect {
+				panicf("HLC.String() test failed: expected '%v' but got '%v'", expect, s)
+			}
+		}
 		for i := 0; i < 1000; i++ {
 			prev := j
 			j.CreateSendOrLocalEvent()
