@@ -230,7 +230,7 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 		return nil, err
 	}
 	if isDarwin {
-		actuallyFsyncOnDarwin(fd)
+		panicOn(actuallyFsyncOnDarwin(fd))
 	}
 
 	var parlog *parLog
@@ -350,7 +350,7 @@ func (s *raftWriteAheadLog) sync() error {
 	err := s.fd.Sync()
 	panicOn(err)
 	if isDarwin {
-		actuallyFsyncOnDarwin(s.fd)
+		panicOn(actuallyFsyncOnDarwin(s.fd))
 	}
 
 	// need to sync parent directory for durability too.
@@ -358,7 +358,7 @@ func (s *raftWriteAheadLog) sync() error {
 		err = s.parentDirFd.Sync()
 		panicOn(err)
 		if isDarwin {
-			actuallyFsyncOnDarwin(s.parentDirFd)
+			panicOn(actuallyFsyncOnDarwin(s.parentDirFd))
 		}
 	}
 	return nil

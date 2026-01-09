@@ -71,7 +71,7 @@ func newParLog(path string, nodisk bool) (s *parLog, err error) {
 		err = fd.Sync()
 		panicOn(err)
 		if isDarwin {
-			actuallyFsyncOnDarwin(fd)
+			panicOn(actuallyFsyncOnDarwin(fd))
 		}
 
 		if err != nil {
@@ -205,7 +205,7 @@ func (s *parLog) sync() error {
 	err := s.fd.Sync()
 	panicOn(err)
 	if isDarwin {
-		actuallyFsyncOnDarwin(s.fd)
+		panicOn(actuallyFsyncOnDarwin(s.fd))
 	}
 
 	return nil
