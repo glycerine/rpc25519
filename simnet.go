@@ -1164,14 +1164,15 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 			for _, node := range []*simnode{basesrv, srvnode} {
 				for _, fault := range node.allNewCircuitsInjectFault {
 					vv("applying allNewCircuitsInjectFault to new auto-cli '%v' to node '%v'; fault = '%v'", clinode.name, node.name, fault)
-					cp := *fault
-					fault2 := &cp
+					//cp := *fault
+					//fault2 := &cp
 					//fault2.hostName = clinode.name
 					//fault2.hostName = node.name
 					faultop := &mop{
-						hostFault: fault2,
-						sn:        s.simnetNextMopSn("hostFault"),
-						kind:      FAULT_HOST,
+						hostFault: fault,
+						//hostFault: fault2,
+						sn:   s.simnetNextMopSn("hostFault"),
+						kind: FAULT_HOST,
 						// allow release() to run without crashing:
 						proceed: make(chan time.Duration, 1),
 					}
