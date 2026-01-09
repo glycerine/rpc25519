@@ -2132,13 +2132,12 @@ type RaftNodeInfo struct {
 	LastFullPong      Pong      `zid:"10"` // a complete round trip, end
 	LastHeardAnything time.Time `zid:"11"`
 
-	LargestCommonRaftIndex int64 `zid:"12"`
+	LargestCommonRaftIndex int64 `zid:"12"` // becomes MatchIndex for quorum
 
 	// guard against unique local configuration changes
 	MinElectionTimeoutDur time.Duration `zid:"13"`
-	PreVoteOn             bool          `zid:"14"`
 
-	MC *MemberConfig `zid:"15"`
+	MC *MemberConfig `zid:"14"`
 }
 
 type LogEntrySpan struct {
@@ -3053,7 +3052,7 @@ type AppendEntriesAck struct {
 	// LargestCommonRaftIndex
 	// enables matching logs with minimal network traffic.
 	// this is the longest common prefix of the
-	// leader and this follwer's log.
+	// leader and this follower's log.
 	// Mind the gap, though. (See rle.go)
 	LargestCommonRaftIndex int64 `zid:"8"`
 
@@ -3094,7 +3093,6 @@ type AppendEntriesAck struct {
 	RejectReason    string    `zid:"29"`
 	AEID            string    `zid:"30"`
 
-	PreVoteOn             bool          `zid:"31"`
 	MinElectionTimeoutDur time.Duration `zid:"32"`
 	SpanMatching          *LogEntrySpan `zid:"33"`
 
@@ -3105,7 +3103,7 @@ type AppendEntriesAck struct {
 	NeedSnapshotGap                    bool  `zid:"37"`
 	SuppliedLeaderCommitIndexEntryTerm int64 `zid:"38"`
 	SuppliedCompactIndex               int64 `zid:"39"`
-	SuppliedCompactTerm                int64 `zid:"40"`
+	SuppliedCompactTerm                int64 `zid:"31"`
 }
 
 func (ack *AppendEntriesAck) clone() (p *AppendEntriesAck) {
@@ -8599,7 +8597,7 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 		// the most essential thing: longest common prefix
 		// lets us know exactly what they need.
 		foll.LargestCommonRaftIndex = ack.LargestCommonRaftIndex
-		foll.PreVoteOn = ack.PreVoteOn
+
 		foll.MinElectionTimeoutDur = ack.MinElectionTimeoutDur
 		if ack.MinElectionTimeoutDur == 0 {
 			panic(fmt.Sprintf("%v bad peer: MinElectionTimeoutDur == 0?? peer='%v'; stack=\n%v", s.me(), rpc.AliasDecode(ack.FromPeerID), stack()))
