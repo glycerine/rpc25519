@@ -2,7 +2,7 @@ package tube
 
 import (
 	"fmt"
-	"sync"
+	//"sync"
 	"time"
 )
 
@@ -37,31 +37,41 @@ import (
 // "Beyond TrueTime: Using AugmentedTime for Improving Spanner"
 // https://cse.buffalo.edu/~demirbas/publications/augmentedTime.pdf
 // https://github.com/AugmentedTimeProject/AugmentedTimeProject
+//
+// Currently there is no mutual exclusion / synchronization
+// provided, and the user must arrange for that separately if
+// required.
 // .
-type HLC int64
+// defined in tube.go now for greenpack serz purposes,
+// rather than in hlc.go
+//type HLC int64
 
-var hlcMut sync.Mutex
+// the single hlcMut lock, at least for now, avoids
+// the deadlock risk inherent in having
+// two un-ordered locking operations needed
+// in the comparisons GTE/LTE/GT/LT.
+//var hlcMut sync.Mutex
 
 const getCount HLC = HLC(1<<16) - 1 // low 16 bits are 1
 const getLC HLC = ^getCount         // low 16 bits are 0
 
 func (hlc *HLC) LC() int64 {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
+	//hlcMut.Lock()
+	////defer hlcMut.Unlock()
 	r := *hlc
 	return int64(r & getLC)
 }
 
 func (hlc *HLC) Count() int64 {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
+	//hlcMut.Lock()
+	//defer hlcMut.Unlock()
 	r := *hlc
 	return int64(r & getCount)
 }
 
 func (hlc *HLC) String() string {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
+	//hlcMut.Lock()
+	//defer hlcMut.Unlock()
 	r := *hlc
 
 	lc := int64(r & getLC)
@@ -109,8 +119,8 @@ func PhysicalTime48() HLC {
 // POST: r == *hlc
 func (hlc *HLC) CreateSendOrLocalEvent() (r HLC) {
 
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
+	//hlcMut.Lock()
+	//defer hlcMut.Unlock()
 
 	j := *hlc
 
@@ -138,8 +148,8 @@ func (hlc *HLC) CreateSendOrLocalEvent() (r HLC) {
 // POST: r == *hlc
 func (hlc *HLC) ReceiveMessageWithHLC(m HLC) (r HLC) {
 
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
+	//hlcMut.Lock()
+	//defer hlcMut.Unlock()
 
 	j := *hlc
 
@@ -177,8 +187,8 @@ func (hlc *HLC) ReceiveMessageWithHLC(m HLC) (r HLC) {
 // during our execution. Only hlc
 // is accessed atomically. Use LT if need be.
 func (hlc *HLC) GT(b HLC) bool {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
+	//hlcMut.Lock()
+	//defer hlcMut.Unlock()
 	a := *hlc
 
 	aLC := a & getLC
@@ -201,8 +211,8 @@ func (hlc *HLC) GT(b HLC) bool {
 // during our execution. Only hlc
 // is accessed atomically. Use LTE if need be.
 func (hlc *HLC) GTE(b HLC) bool {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
+	//hlcMut.Lock()
+	//defer hlcMut.Unlock()
 	a := *hlc
 
 	aLC := a & getLC
@@ -225,8 +235,8 @@ func (hlc *HLC) GTE(b HLC) bool {
 // during our execution. Only hlc
 // is accessed atomically. Use GT if need be.
 func (hlc *HLC) LT(b HLC) bool {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
+	//hlcMut.Lock()
+	//defer hlcMut.Unlock()
 	a := *hlc
 
 	aLC := a & getLC
@@ -249,8 +259,8 @@ func (hlc *HLC) LT(b HLC) bool {
 // during our execution. Only hlc
 // is accessed atomically. Use GTE if need be.
 func (hlc *HLC) LTE(b HLC) bool {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
+	//hlcMut.Lock()
+	//defer hlcMut.Unlock()
 	a := *hlc
 
 	aLC := a & getLC
