@@ -132,7 +132,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 					panic("grid is connected, why no snapshotter?")
 				}
 			}
-			str := c.Snap.GetSimnetSnapshot()
+			str := c.Snap.GetSimnetSnapshot(false)
 			vv("simnet = '%v'", str)
 		}
 	}

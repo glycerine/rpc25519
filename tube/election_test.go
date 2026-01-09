@@ -81,7 +81,7 @@ func Test020_election_on_sim_net(t *testing.T) {
 						panic("grid is connected, why no snapshotter?")
 					}
 				}
-				str := cluster.Snap.GetSimnetSnapshot()
+				str := cluster.Snap.GetSimnetSnapshot(false)
 				vv("simnet = '%v'", str)
 			}
 

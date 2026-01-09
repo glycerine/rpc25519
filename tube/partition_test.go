@@ -377,7 +377,7 @@ func Test052_partition_leader_away_and_rejoin(t *testing.T) {
 			// but no applying allNewCircuitsInjectFault to new auto-cli
 			// because the fault is on the other end of the connection.
 
-			//vv("after 10 minutes of sleep, simnet is now: %v", c.SimnetSnapshot())
+			vv("after 10 minutes of sleep, simnet is now: %v", c.SimnetSnapshot(true))
 
 			// leader should have stepped down <- no longer true??
 
@@ -440,7 +440,7 @@ func Test052_partition_leader_away_and_rejoin(t *testing.T) {
 			const deliverDroppedSends = false // works
 			c.AllHealthyAndPowerOn(deliverDroppedSends)
 
-			vv("c.AllHealthyAndPowerOn(deliverDroppedSends=%v), simnet is now: %v", deliverDroppedSends, c.SimnetSnapshot().HealthSummary())
+			vv("c.AllHealthyAndPowerOn(deliverDroppedSends=%v), simnet is now: %v", deliverDroppedSends, c.SimnetSnapshot(true).HealthSummary())
 
 			time.Sleep(time.Second * 10)
 

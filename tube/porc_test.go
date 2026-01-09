@@ -247,7 +247,7 @@ func Test016_tube_parallel_linz(t *testing.T) {
 				// well, but from the above, we know they are empty!
 
 				fmt.Printf("where is lost read? allstacks:\n %v \n", allstacks())
-				vv("simnet = '%v'", c.SimnetSnapshot().LongString())
+				vv("simnet = '%v'", c.SimnetSnapshot(false).LongString())
 
 				time.Sleep(time.Second)
 				panic("where is lost read?")

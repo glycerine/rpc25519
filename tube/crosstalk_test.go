@@ -35,7 +35,7 @@ func Test056_no_crosstalk_dropdeaf_to_other_queues(t *testing.T) {
 
 			time.Sleep(time.Second * 50)
 
-			snap := c.SimnetSnapshot()
+			snap := c.SimnetSnapshot(false)
 			//vv("50 seconds after crashing the leader") // , snap = '%v'", snap.LongString())
 
 			for i, peer := range snap.Peer {

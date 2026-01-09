@@ -380,7 +380,7 @@ func Test402_build_up_a_cluster_from_one_node(t *testing.T) {
 					panic("grid is connected, why no snapshotter?")
 				}
 			}
-			snp := c.Snap.GetSimnetSnapshot()
+			snp := c.Snap.GetSimnetSnapshot(false)
 			//vv("at end, simnet = '%v'", snp.LongString())
 			//vv("at end, simnet.Peer = '%v'", snp.Peer)
 			//vv("at end, simnet.DNS = '%#v'", snp.DNS)
@@ -553,7 +553,7 @@ func Test403_reduce_a_cluster_down_to_one_node(t *testing.T) {
 					panic("grid is connected, why no snapshotter?")
 				}
 			}
-			snp := c.Snap.GetSimnetSnapshot()
+			snp := c.Snap.GetSimnetSnapshot(false)
 			//vv("at end, simnet = '%v'", snp.LongString())
 			//vv("at end, simnet.Peer = '%v'", snp.Peer)
 			//vv("at end, simnet.DNS = '%#v'", snp.DNS)
@@ -651,7 +651,7 @@ func Test403_reduce_a_cluster_down_to_one_node(t *testing.T) {
 					panic("grid is connected, why no snapshotter?")
 				}
 			}
-			snp := c.Snap.GetSimnetSnapshot()
+			snp := c.Snap.GetSimnetSnapshot(false)
 			//vv("at end, simnet = '%v'", snp.LongString())
 			//vv("at end, simnet.Peer = '%v'", snp.Peer)
 			//vv("at end, simnet.DNS = '%#v'", snp.DNS)

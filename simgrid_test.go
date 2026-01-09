@@ -759,7 +759,7 @@ func Test709_simnet_determinism(t *testing.T) {
 				}
 			}
 
-			snap = c.net.GetSimnetSnapshot()
+			snap = c.net.GetSimnetSnapshot(false)
 			//vv("snap.Xfinorder len = '%v'; Xhash='%v'", len(snap.Xfinorder), snap.Xhash) // 53343
 			snap.ToFile(xorderPath)
 		}) // end bubbleOrNot

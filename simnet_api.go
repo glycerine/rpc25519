@@ -1042,6 +1042,7 @@ type SimnetPeerStatus struct {
 // and gives a picture of the
 // simulated network at a moment in time.
 type SimnetSnapshot struct {
+	SkipTraffic        bool
 	Asof               time.Time
 	Loopi              int64
 	NetClosed          bool
@@ -1099,12 +1100,13 @@ type SimnetSnapshot struct {
 	where   string
 }
 
-func (s *Simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
+func (s *Simnet) GetSimnetSnapshot(skipTraffic bool) (snap *SimnetSnapshot) {
 	snap = &SimnetSnapshot{
-		reqtm:   time.Now(),
-		proceed: make(chan time.Duration, 1),
-		who:     goID(),
-		where:   fileLine(2),
+		SkipTraffic: skipTraffic,
+		reqtm:       time.Now(),
+		proceed:     make(chan time.Duration, 1),
+		who:         goID(),
+		where:       fileLine(2),
 	}
 	select {
 	case s.simnetSnapshotRequestCh <- snap:
@@ -1124,8 +1126,8 @@ type SimnetSnapshotter struct {
 	simnet *Simnet
 }
 
-func (s *SimnetSnapshotter) GetSimnetSnapshot() *SimnetSnapshot {
-	return s.simnet.GetSimnetSnapshot()
+func (s *SimnetSnapshotter) GetSimnetSnapshot(skipTraffic bool) *SimnetSnapshot {
+	return s.simnet.GetSimnetSnapshot(skipTraffic)
 }
 
 // SimnetBatch is a proposed design for

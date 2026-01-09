@@ -408,7 +408,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 			t.Fatalf("write a:'%v' to node0, but cli session read back from leader the value: '%v'", string(v), string(vj))
 		}
 
-		snap0 := c.SimnetSnapshot()
+		snap0 := c.SimnetSnapshot(false)
 		vv("before crashing the leader, snap0 = '%v'", snap0) // .LongString())
 
 		// now change leaders, new leader will not know about the
@@ -418,7 +418,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 
 		time.Sleep(time.Second * 50)
 
-		snap := c.SimnetSnapshot()
+		snap := c.SimnetSnapshot(false)
 		vv("50 seconds after crashing the leader, snap = '%v'", snap) // .LongString())
 
 		vv("try 2nd read from the session, after leader change; current cli.leaderName = '%v'", cli.leaderName)

@@ -3270,7 +3270,7 @@ func (s *TubeCluster) AllHealthyAndPowerOn(deliverDroppedSends bool) {
 	s.AllHealthy(true, deliverDroppedSends)
 }
 
-func (s *TubeCluster) SimnetSnapshot() *rpc.SimnetSnapshot {
+func (s *TubeCluster) SimnetSnapshot(skipTraffic bool) *rpc.SimnetSnapshot {
 	if !s.Cfg.UseSimNet {
 		panic("simnet not in use!")
 		return nil
@@ -3278,7 +3278,7 @@ func (s *TubeCluster) SimnetSnapshot() *rpc.SimnetSnapshot {
 	if s.Snap == nil {
 		s.Snap = s.Cfg.RpcCfg.GetSimnetSnapshotter()
 	}
-	return s.Snap.GetSimnetSnapshot()
+	return s.Snap.GetSimnetSnapshot(skipTraffic)
 }
 
 func (s *TubeCluster) NoisyNothing(oldval, newval bool) (swapped bool) {
@@ -13791,7 +13791,7 @@ func (c *TubeCluster) showClusterGrid(assertFullConnectedNodeName string, expect
 				panic("grid is connected, why no snapshotter?")
 			}
 		}
-		snp := c.Snap.GetSimnetSnapshot()
+		snp := c.Snap.GetSimnetSnapshot(false)
 		//vv("at end, simnet = '%v'", snp.LongString())
 		//vv("at end, simnet.Peer = '%v'", snp.Peer)
 		//vv("at end, simnet.DNS = '%#v'", snp.DNS)

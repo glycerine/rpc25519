@@ -181,7 +181,7 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 
 			//time.Sleep(time.Second * 10)
 
-			snap := c.SimnetSnapshot()
+			snap := c.SimnetSnapshot(false)
 			vv("snap = '%v'", snap) // .LongString())
 
 			haveLeader := false

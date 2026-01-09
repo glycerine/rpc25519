@@ -3461,14 +3461,16 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 					// specific faults on the connection
 					DeafReadProb: conn.deafRead,
 					DropSendProb: conn.dropSend,
+				}
+				if !req.SkipTraffic {
 					// readQ, preArrQ, etc in summary string form.
-					Qs: origin.String(),
+					connsum.Qs = origin.String()
 					// origin queues
-					DroppedSendQ: origin.droppedSendQ.deepclone(),
-					DeafReadQ:    origin.deafReadQ.deepclone(),
-					ReadQ:        origin.readQ.deepclone(),
-					PreArrQ:      origin.preArrQ.deepclone(),
-					TimerQ:       origin.timerQ.deepclone(),
+					connsum.DroppedSendQ = origin.droppedSendQ.deepclone()
+					connsum.DeafReadQ = origin.deafReadQ.deepclone()
+					connsum.ReadQ = origin.readQ.deepclone()
+					connsum.PreArrQ = origin.preArrQ.deepclone()
+					connsum.TimerQ = origin.timerQ.deepclone()
 				}
 				sps.Conn = append(sps.Conn, connsum)
 				sps.ConnmapOrigin[origin.name] = connsum
@@ -3511,14 +3513,16 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 					// specific faults on the connection
 					DeafReadProb: conn.deafRead,
 					DropSendProb: conn.dropSend,
+				}
+				if !req.SkipTraffic {
 					// readQ, preArrQ, etc in summary string form.
-					Qs: origin.String(),
+					connsum.Qs = origin.String()
 					// origin queues
-					DroppedSendQ: origin.droppedSendQ.deepclone(),
-					DeafReadQ:    origin.deafReadQ.deepclone(),
-					ReadQ:        origin.readQ.deepclone(),
-					PreArrQ:      origin.preArrQ.deepclone(),
-					TimerQ:       origin.timerQ.deepclone(),
+					connsum.DroppedSendQ = origin.droppedSendQ.deepclone()
+					connsum.DeafReadQ = origin.deafReadQ.deepclone()
+					connsum.ReadQ = origin.readQ.deepclone()
+					connsum.PreArrQ = origin.preArrQ.deepclone()
+					connsum.TimerQ = origin.timerQ.deepclone()
 				}
 				// not really a peer but meh. not worth its
 				// own separate struct.

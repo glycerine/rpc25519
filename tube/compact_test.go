@@ -217,7 +217,7 @@ func Test059_new_node_joins_after_compaction(t *testing.T) {
 						// PeerID.
 						vv("bad! will panic! node j=%v had %v CktReplicaByName, not numNodes=%v", j, n, numNodes)
 
-						snap := c.SimnetSnapshot()
+						snap := c.SimnetSnapshot(false)
 						vv("pre-panic snap = '%v'", snap)
 						panic("fix the above lack of CktReplicaByName entries!")
 					}
