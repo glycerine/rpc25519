@@ -94,8 +94,8 @@ func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
 	// linear search, for now. TODO: map based lookup?
 	// we could make the name key be the rpc.Client addr
 	// and use PeerNames.Get2()...
-	for name, detail := range s.members.PeerNames.All() {
-		addr := removeTcp(detail.Addr)
+	for name, plus := range s.members.PeerNames.All() {
+		addr := removeTcp(plus.Det.Addr)
 		//vv("checking addr='%v' against raddr='%v'", addr, raddr)
 		if addr == raddr {
 			s.members.PeerNames.Delkey(name)
@@ -128,7 +128,7 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 		}
 	}()
 
-	for name, det := range s.members.PeerNames.All() {
+	for name, plus := range s.members.PeerNames.All() {
 		if name == s.TubeCliName {
 			// we ourselves are obviously alive so
 			// we don't bother to heartbeat to ourselves.
@@ -141,25 +141,26 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 			// for very long, give them a chance--we may
 			// have just loaded them in from the czar key's value.
 			uptime := time.Since(s.t0)
-			if det.RMemberLeaseUntilTm.IsZero() ||
+			if plus.RMemberLeaseUntilTm.IsZero() ||
 				(uptime > s.memberLeaseDur &&
 					// zero time are actually dead former czar,
 					// and we do need to delete those.
-					//!det.RMemberLeaseUntilTm.IsZero() &&
-					now.After(det.RMemberLeaseUntilTm.Add(s.clockDriftBound))) {
+					// Immediate deletion is safe since Tube's
+					// write lease mechansim insists on expiry
+					// before any new write can succeed.
+					now.After(plus.RMemberLeaseUntilTm.Add(s.clockDriftBound))) {
 
 				killIt = true
-				vv("expiring dead node '%v' -- would upcall membership change too. nothing heard after uptime = '%v'", name, uptime)
+				vv("expiring dead node '%v' -- would upcall membership change too. either dead former czar or nothing heard after uptime = '%v'", name, uptime)
 			}
 		} else {
 			been := now.Sub(lastHeard)
-			if det.RMemberLeaseUntilTm.IsZero() ||
+			if plus.RMemberLeaseUntilTm.IsZero() ||
 				(been > s.memberLeaseDur &&
-					//!det.RMemberLeaseUntilTm.IsZero() &&
-					now.After(det.RMemberLeaseUntilTm.Add(s.clockDriftBound))) {
+					now.After(plus.RMemberLeaseUntilTm.Add(s.clockDriftBound))) {
 
 				killIt = true
-				vv("expiring dead node '%v' -- would upcall membership change too. been '%v'", name, been)
+				vv("expiring dead node '%v' -- would upcall membership change too. either dead former czar or been '%v'", name, been)
 			}
 		}
 		if killIt {
@@ -172,7 +173,7 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 	return
 }
 
-func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMembershipList) error {
+func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMembershipList) error {
 
 	// since the rpc system will call us on a
 	// new goroutine, separate from the main goroutine,
@@ -187,7 +188,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 		// critical: replace Addr with the rpc.Client of the czar
 		// address, rather than the tube client peer server address.
 		//vv("changing args.Addr from '%v' -> '%v'", args.Addr, hdr.Nc.RemoteAddr())
-		args.Addr = hdr.Nc.RemoteAddr().String()
+		args.Det.Addr = hdr.Nc.RemoteAddr().String()
 	} else {
 		panic("must have rpc.HDRFromContext(ctx) set so we know which tube-client to drop when the rpc.Client drops!")
 	}
@@ -200,15 +201,15 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 	args.RMemberLeaseUntilTm = leasedUntilTm
 	args.RMemberLeaseDur = s.memberLeaseDur
 
-	det, ok := s.members.PeerNames.Get2(args.Name)
+	det, ok := s.members.PeerNames.Get2(args.Det.Name)
 	if !ok {
 		//vv("args.Name('%v') is new, adding to PeerNames", args.Name)
-		s.members.PeerNames.Set(args.Name, args)
+		s.members.PeerNames.Set(args.Det.Name, args)
 		s.members.Vers.Version++
 	} else {
-		if detailsChanged(det, args) {
+		if detailsChanged(det.Det, args.Det) {
 			//vv("args.Name('%v') details have changed, updating PeerNames", args.Name)
-			s.members.PeerNames.Set(args.Name, args)
+			s.members.PeerNames.Set(args.Det.Name, args)
 			s.members.Vers.Version++
 		} else {
 			//vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
@@ -229,7 +230,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetail, reply *ReliableMember
 	s.members.MemberLeaseDur = s.memberLeaseDur
 	*reply = *(s.members.Clone())
 
-	s.heard[args.Name] = time.Now()
+	s.heard[args.Det.Name] = time.Now()
 	s.expireSilentNodes(true) // true since mut is already locked.
 	if s.members.Vers.Version != orig.Version {
 		// mut is already held.
@@ -245,8 +246,8 @@ func (s *Czar) shortRMemberSummary() (r string) {
 	n := s.members.PeerNames.Len()
 	r = fmt.Sprintf("[%v members; Vers:(CzarLeaseEpoch: %v, Version:%v)]{\n", n, s.members.Vers.CzarLeaseEpoch, s.members.Vers.Version)
 	i := 0
-	for name, det := range s.members.PeerNames.All() {
-		r += fmt.Sprintf("[%02d] %v: %v\n", i, name, det.URL)
+	for name, plus := range s.members.PeerNames.All() {
+		r += fmt.Sprintf("[%02d] %v: %v\n", i, name, plus.Det.URL)
 		i++
 	}
 	r += "}"
@@ -480,7 +481,9 @@ func (membr *RMember) start() {
 	// membr.UpcallMembershipChangeCh now.
 	close(membr.Ready)
 
-	myDetail := cli.GetMyPeerDetail()
+	myDetail := &PeerDetailPlus{
+		Det: cli.GetMyPeerDetail(),
+	}
 	//vv("myDetail = '%v' for tubeCliName = '%v'", myDetail, tubeCliName)
 
 	//var czarURL string
@@ -639,15 +642,15 @@ looptop:
 		case notCzar:
 			if rpcClientToCzar == nil {
 				list := nonCzarMembers
-				czarDetail, ok := list.PeerNames.Get2(list.CzarName)
+				czarDetPlus, ok := list.PeerNames.Get2(list.CzarName)
 				if !ok {
 					panicf("list with winning czar did not include czar itself?? list='%v'", list)
 				}
-				vv("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetail.URL)
+				vv("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetPlus.Det.URL)
 				reply := &ReliableMembershipList{}
 
 				ccfg := *cli.GetConfig().RpcCfg
-				ccfg.ClientDialToHostPort = removeTcp(czarDetail.Addr)
+				ccfg.ClientDialToHostPort = removeTcp(czarDetPlus.Det.Addr)
 
 				rpcClientToCzar, err = rpc.NewClient(tubeCliName+"_pinger", &ccfg)
 				panicOn(err)
@@ -710,7 +713,7 @@ looptop:
 					cState = unknownCzarState
 					continue
 				}
-				//vv("member called to Czar.Ping, got reply='%v'", reply)
+				vv("member called to Czar.Ping, got reply='%v'", reply)
 				if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
 					nonCzarMembers = reply
 					nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
@@ -841,6 +844,51 @@ type RMVersionTuple struct {
 	LeaseUpdateCounter int64 `zid:"2"`
 }
 
+type PeerDetailPlus struct {
+	Det *PeerDetail `zid:"0"`
+
+	// RMembers are granted leases here.
+	RMemberLeaseUntilTm time.Time     `zid:"1"`
+	RMemberLeaseDur     time.Duration `zid:"2"`
+}
+
+func (s *PeerDetailPlus) Clone() *PeerDetailPlus {
+	return &PeerDetailPlus{
+		Det:                 s.Det.Clone(),
+		RMemberLeaseUntilTm: s.RMemberLeaseUntilTm,
+		RMemberLeaseDur:     s.RMemberLeaseDur,
+	}
+}
+
+func (s *PeerDetailPlus) String() string {
+	now := time.Now()
+	x := ""
+	switch {
+	case s.RMemberLeaseUntilTm.IsZero():
+		x = "current czar"
+	case gte(now, s.RMemberLeaseUntilTm):
+		x = "expired"
+	default:
+		x = fmt.Sprintf("%v left", s.RMemberLeaseUntilTm.Sub(now))
+	}
+	d := s.Det
+	return fmt.Sprintf(`PeerDetailPlus{
+                  Name: %v
+                   URL: %v
+                PeerID: %v
+                  Addr: %v
+       PeerServiceName: %v
+PeerServiceNameVersion: %v
+             NonVoting: %v
+       RMemberLeaseDur: %v
+   RMemberLeaseUntilTm: %v (%v)
+}`, d.Name, d.URL, d.PeerID, d.Addr,
+		d.PeerServiceName, d.PeerServiceNameVersion,
+		d.NonVoting,
+		s.RMemberLeaseDur,
+		nice(s.RMemberLeaseUntilTm), x)
+}
+
 // ReliableMembershipList is written under the czar key
 // in Tube (Raft). Tube must set the Vers.CzarLeaseEpoch
 // when it is written for us, since the submitting
@@ -851,9 +899,9 @@ type ReliableMembershipList struct {
 	CzarName string         `zid:"0"`
 	Vers     RMVersionTuple `zid:"1"`
 
-	PeerNames *Omap[string, *PeerDetail] `msg:"-"`
+	PeerNames *Omap[string, *PeerDetailPlus] `msg:"-"`
 
-	SerzPeerDetails []*PeerDetail `zid:"2"`
+	SerzPeerDetails []*PeerDetailPlus `zid:"2"`
 
 	// members _must_ stop operations
 	// after their lease has expired. It
@@ -867,7 +915,7 @@ func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {
 	r = &ReliableMembershipList{
 		CzarName:  s.CzarName,
 		Vers:      s.Vers,
-		PeerNames: NewOmap[string, *PeerDetail](),
+		PeerNames: NewOmap[string, *PeerDetailPlus](),
 	}
 	for name, det := range s.PeerNames.All() {
 		r.PeerNames.Set(name, det.Clone())
@@ -881,8 +929,8 @@ func (s *ReliableMembershipList) String() (r string) {
 	r += fmt.Sprintf("     Vers: %#v,\n", s.Vers)
 	r += fmt.Sprintf("PeerNames: (%v present)\n", s.PeerNames.Len())
 	i := 0
-	for _, det := range s.PeerNames.All() {
-		r += fmt.Sprintf("[%02d] %v\n", i, det)
+	for _, plus := range s.PeerNames.All() {
+		r += fmt.Sprintf("[%02d] %v\n", i, plus)
 		i++
 	}
 	r += "}\n"
@@ -967,16 +1015,16 @@ func (s *ReliableMembershipList) PreSaveHook() {
 }
 
 func (s *ReliableMembershipList) PostLoadHook() {
-	s.PeerNames = NewOmap[string, *PeerDetail]()
+	s.PeerNames = NewOmap[string, *PeerDetailPlus]()
 	for _, d := range s.SerzPeerDetails {
-		s.PeerNames.Set(d.Name, d)
+		s.PeerNames.Set(d.Det.Name, d)
 	}
 	s.SerzPeerDetails = s.SerzPeerDetails[:0]
 }
 
 func (s *TubeNode) NewReliableMembershipList() *ReliableMembershipList {
 	r := &ReliableMembershipList{
-		PeerNames: NewOmap[string, *PeerDetail](),
+		PeerNames: NewOmap[string, *PeerDetailPlus](),
 	}
 	if s == nil {
 		panic("s cannot be nil")

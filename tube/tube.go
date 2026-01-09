@@ -11663,10 +11663,6 @@ type PeerDetail struct {
 
 	NonVoting bool `zid:"6"`
 
-	// RMembers are granted leases here.
-	RMemberLeaseUntilTm time.Time     `zid:"7"`
-	RMemberLeaseDur     time.Duration `zid:"8"`
-
 	gcAfterHeartbeatCount int
 }
 
@@ -11679,21 +11675,10 @@ func (s *PeerDetail) Clone() *PeerDetail {
 		PeerServiceName:        s.PeerServiceName,
 		PeerServiceNameVersion: s.PeerServiceNameVersion,
 		NonVoting:              s.NonVoting,
-		RMemberLeaseUntilTm:    s.RMemberLeaseUntilTm,
 	}
 }
 
 func (s *PeerDetail) String() string {
-	now := time.Now()
-	x := ""
-	switch {
-	case s.RMemberLeaseUntilTm.IsZero():
-		x = "current czar"
-	case gte(now, s.RMemberLeaseUntilTm):
-		x = "expired"
-	default:
-		x = fmt.Sprintf("%v left", s.RMemberLeaseUntilTm.Sub(now))
-	}
 	return fmt.Sprintf(`PeerDetail{
                   Name: %v
                    URL: %v
@@ -11702,10 +11687,9 @@ func (s *PeerDetail) String() string {
        PeerServiceName: %v
 PeerServiceNameVersion: %v
              NonVoting: %v
-   RMemberLeaseUntilTm: %v (%v)
 }`, s.Name, s.URL, s.PeerID, s.Addr,
 		s.PeerServiceName, s.PeerServiceNameVersion,
-		s.NonVoting, nice(s.RMemberLeaseUntilTm), x)
+		s.NonVoting)
 }
 
 // MemberConfig gets stored and saved
