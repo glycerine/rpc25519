@@ -7,6 +7,7 @@ import (
 
 // HLC is a hybrid logical/physical clock, based
 // on the 2014 paper
+//
 // "Logical Physical Clocks and Consistent
 // Snapshots in Globally Distributed Databases"
 // by Sandeep Kulkarni, Murat Demirbas, Deepak
@@ -20,10 +21,20 @@ import (
 // nowhere near the 2^16-1 == 65535 maximum.
 // Indeed one would have to execute one clock
 // query every nanosecond for 65536 times in
-// a row -- in single contiguous execution --
+// a row -- in a single contiguous execution --
 // to overflow the counter. This seems unlikely
 // with current technology where a PhysicalTime48()
 // call takes ~66 nanoseconds.
+//
+// See also: the use of hybrid logical clocks in
+// CockroachDB, and Demirbas and Kulkarni's
+// paper on using them to solve the consistent
+// snapshot problem in Spanner. The naming has evolved;
+// in that paper the approach was called "Augmented Time".
+// "Beyond TrueTime: Using AugmentedTime for Improving Spanner"
+// https://cse.buffalo.edu/~demirbas/publications/augmentedTime.pdf
+// https://github.com/AugmentedTimeProject/AugmentedTimeProject
+// .
 type HLC int64
 
 const mask16 HLC = HLC(1<<16) - 1 // low 16 bits are 1
