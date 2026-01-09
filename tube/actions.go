@@ -119,7 +119,7 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 }
 
 // Compare and Swap
-func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string, leaseDur time.Duration) (tkt *Ticket, err error) {
+func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string, leaseDur time.Duration, oldVersion int64) (tkt *Ticket, err error) {
 
 	if leaseDur != 0 {
 		// sanity check
@@ -138,6 +138,7 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 	tkt = s.NewTicket(desc, table, key, newval, s.PeerID, s.name, CAS, waitForDur, ctx)
 	tkt.OldVal = oldval
 	tkt.Vtype = newVtype
+	tkt.OldVersionCAS = oldVersion
 	if leaseDur > 0 {
 		tkt.LeaseRequestDur = leaseDur
 		tkt.Leasor = s.name
@@ -491,6 +492,7 @@ func (s *RaftState) kvstoreWouldWriteLease(tkt *Ticket, clockDriftBound time.Dur
 			tkt.LeaseUntilTm = leaf.LeaseUntilTm
 			tkt.LeaseEpoch = leaf.LeaseEpoch
 			tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
+			tkt.VersionRead = leaf.Version
 
 			return false
 		}
@@ -522,6 +524,7 @@ func (s *RaftState) kvstoreWouldWriteLease(tkt *Ticket, clockDriftBound time.Dur
 	tkt.LeaseUntilTm = leaf.LeaseUntilTm
 	tkt.LeaseEpoch = leaf.LeaseEpoch
 	tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
+	tkt.VersionRead = leaf.Version
 
 	//vv("%v kvstoreWouldWriteLease: reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, tkt.Leasor, s.KVstore.Len())
 	return false
@@ -563,6 +566,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
 		leaf.LeaseEpoch = 1
+		leaf.Version = 1
 
 		tkt.LeaseEpoch = leaf.LeaseEpoch
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
@@ -590,6 +594,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
 		leaf.LeaseEpoch++
+		leaf.Version++
 
 		tkt.LeaseEpoch = leaf.LeaseEpoch
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
@@ -617,6 +622,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 			leaf.LeaseUntilTm = tkt.LeaseUntilTm
 			leaf.WriteRaftLogIndex = tkt.LogIndex
 			// leave this the same! no epoch change! leaf.LeaseEpoch
+			leaf.Version++
 
 			tkt.LeaseEpoch = leaf.LeaseEpoch
 			tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
@@ -639,6 +645,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
 		leaf.LeaseEpoch++
+		leaf.Version++
 
 		tkt.LeaseEpoch = leaf.LeaseEpoch
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
@@ -659,6 +666,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 	tkt.LeaseUntilTm = leaf.LeaseUntilTm
 	tkt.LeaseEpoch = leaf.LeaseEpoch
 	tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
+	tkt.VersionRead = leaf.Version
 
 	//vv("%v reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, tkt.Leasor, s.KVstore.Len())
 }
@@ -986,7 +994,7 @@ func (s *TubeNode) doShowKeys(tkt *Ticket) {
 }
 
 // if ctx is nill we will use s.ctx
-func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, waitForDur time.Duration, newVtype string, leaseDur time.Duration) (tkt *Ticket, err error) {
+func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, waitForDur time.Duration, newVtype string, leaseDur time.Duration, oldVersion int64) (tkt *Ticket, err error) {
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.Write: cli is nil, Session.Errs='%v'", s.Errs)
 	}
@@ -994,7 +1002,7 @@ func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, w
 	if ctx == nil {
 		ctx = s.ctx
 	}
-	return s.cli.CAS(ctx, table, key, oldVal, newVal, waitForDur, s, newVtype, leaseDur)
+	return s.cli.CAS(ctx, table, key, oldVal, newVal, waitForDur, s, newVtype, leaseDur, oldVersion)
 }
 
 // if ctx is nill we will use s.ctx

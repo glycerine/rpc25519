@@ -79,14 +79,17 @@ type Leaf struct {
 	Key   Key    `zid:"0"`
 	Value []byte `zid:"1"`
 
+	// version for CAS on version support
+	Version int64 `zid:"2"`
+
 	// optional type/description of the type of Value.
-	Vtype string `zid:"2"`
+	Vtype string `zid:"3"`
 
 	// optional metadata
-	Leasor            string    `zid:"3"`
-	LeaseUntilTm      time.Time `zid:"4"`
-	WriteRaftLogIndex int64     `zid:"5"`
-	LeaseEpoch        int64     `zid:"6"`
+	Leasor            string    `zid:"4"`
+	LeaseUntilTm      time.Time `zid:"5"`
+	WriteRaftLogIndex int64     `zid:"6"`
+	LeaseEpoch        int64     `zid:"7"`
 }
 
 func (s *Leaf) Clone() (r *Leaf) {
@@ -98,6 +101,7 @@ func (s *Leaf) Clone() (r *Leaf) {
 		LeaseUntilTm:      s.LeaseUntilTm,
 		WriteRaftLogIndex: s.WriteRaftLogIndex,
 		LeaseEpoch:        s.LeaseEpoch,
+		Version:           s.Version,
 	}
 	return
 }

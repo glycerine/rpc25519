@@ -4662,6 +4662,9 @@ type Ticket struct {
 	// when actually submitted to raft log in replicateTicket
 	RaftLogEntryTm time.Time `zid:"71"`
 
+	OldVersionCAS int64 `zid:"72"` // For CAS: old version (tested for).
+	VersionRead   int64 `zid:"73"` // version of key that we read.
+
 	// BatchID ? how is batching best implemented (TODO).
 
 	// where in tkthist we were entered locally.
@@ -4829,6 +4832,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.Leasor = tkt.Leasor
 		prior.LeaseUntilTm = tkt.LeaseUntilTm
 		prior.LeaseEpoch = tkt.LeaseEpoch
+		prior.VersionRead = tkt.VersionRead
 		prior.LeaseWriteRaftLogIndex = tkt.LeaseWriteRaftLogIndex
 		prior.MC = tkt.MC
 
@@ -9302,7 +9306,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 		s.state.MC.CommitIndexEntryTerm = s.state.CommitIndexEntryTerm
 	}
 	if s.state.LastApplied > origLastApplied {
-		// need to persist LastApplied
+		// need to persist LastApplied (and any kvstore changes).
 		s.saver.save(s.state)
 	}
 	// end of commitWhatWeCan(). Just some notes follow:
@@ -9718,6 +9722,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.LeaseRequestDur = answer.LeaseRequestDur
 	question.Leasor = answer.Leasor
 	question.LeaseEpoch = answer.LeaseEpoch
+	question.VersionRead = answer.VersionRead
 	question.LeaseWriteRaftLogIndex = answer.LeaseWriteRaftLogIndex
 	question.LeaseUntilTm = answer.LeaseUntilTm
 	question.Vtype = answer.Vtype
@@ -10471,6 +10476,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 				tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
 				tkt.Leasor = priorTkt.Leasor
 				tkt.LeaseEpoch = priorTkt.LeaseEpoch
+				tkt.VersionRead = priorTkt.VersionRead
 				tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
 				tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
 
@@ -10572,6 +10578,10 @@ func (s *TubeNode) doWrite(tkt *Ticket) {
 
 func (s *TubeNode) doCAS(tkt *Ticket) {
 	if s.state.KVstore == nil {
+		if tkt.OldVersionCAS > 0 {
+			tkt.Err = ErrKeyNotFound
+			return
+		}
 		if len(tkt.OldVal) > 0 {
 			tkt.Err = ErrKeyNotFound
 			return
@@ -10584,6 +10594,10 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	}
 	table, ok := s.state.KVstore.m[tkt.Table]
 	if !ok {
+		if tkt.OldVersionCAS > 0 {
+			tkt.Err = ErrKeyNotFound
+			return
+		}
 		if len(tkt.OldVal) == 0 {
 			// request to start a key from scratch
 			s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
@@ -10595,6 +10609,10 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	}
 	leaf, _, found := table.Tree.Find(art.Exact, art.Key(tkt.Key))
 	if !found {
+		if tkt.OldVersionCAS > 0 {
+			tkt.Err = ErrKeyNotFound
+			return
+		}
 		if len(tkt.OldVal) == 0 {
 			// request to start a key from scratch
 			s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
@@ -10604,6 +10622,12 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
+	if tkt.OldVersionCAS > 0 && tkt.OldVersionCAS != leaf.Version {
+		tkt.Err = fmt.Errorf("CAS rejected on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
+		tkt.CASwapped = false
+		return
+	}
+
 	curVal := leaf.Value
 	//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), bytes.Equal(curVal, tkt.OldVal), string(tkt.Val))
 
@@ -10631,6 +10655,7 @@ func (s *TubeNode) doReadKey(tkt *Ticket) {
 		tkt.LeaseUntilTm = leaf.LeaseUntilTm
 		tkt.LeaseEpoch = leaf.LeaseEpoch
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
+		tkt.VersionRead = leaf.Version
 	}
 }
 
