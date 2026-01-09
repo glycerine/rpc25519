@@ -48,7 +48,7 @@ func DetermineOptimalFsync() (float64, int) {
 	fmt.Println("------------------------------------------------")
 
 	for _, size := range bufferSizes {
-		duration := 2 * time.Second
+		duration := 10 * time.Second
 		start := time.Now()
 		bytesWritten := 0
 		fsyncCount := 0
@@ -101,7 +101,7 @@ func DetermineOptimalFsync() (float64, int) {
 /* mac book pro SSD:
 
 GOEXPERIMENT=synctest go test -v -count=1 -run=TestFsyncBenchmark
-=== RUN   TestFsyncBenchmark
+=== RUN   TestFsyncBenchmark at 2 seconds per setting
 Benchmarking fsync bandwidth...
 Buffer Size     Bandwidth       Fsyncs/Sec
 ------------------------------------------------
@@ -124,7 +124,7 @@ older linux box, rog.
 Western Digital Black NVME drive SN850 2TB
 
 go test -v -run Fsync
-=== RUN   TestFsyncBenchmark
+=== RUN   TestFsyncBenchmark  at 2 seconds
 Benchmarking fsync bandwidth...
 Buffer Size     Bandwidth       Fsyncs/Sec
 ------------------------------------------------
@@ -142,5 +142,65 @@ Buffer Size     Bandwidth       Fsyncs/Sec
 
 Optimal Fsync Rate: 7.45 fsyncs/sec at Buffer Size: 134217728 bytes
 --- PASS: TestFsyncBenchmark (23.95s)
+
+rog with 10 seconds per setting:
+
+Buffer Size     Bandwidth       Fsyncs/Sec
+------------------------------------------------
+262144          289.09     MB/s   1156.35
+1048576         498.81     MB/s   498.81
+4194304         634.36     MB/s   158.59
+16 MB           789.75     MB/s   49.36 << peak
+33554432        693.71     MB/s   21.68
+67108864        569.00     MB/s   8.89
+134217728       617.10     MB/s   4.82
+268435456       612.89     MB/s   2.39
+536870912       733.50     MB/s   1.43
+1073741824      786.52     MB/s   0.77
+------------------------------------------------
+
+
+aorus: hard drive? apparently smaller SD of same model
+WD_BLACK SN850 1TB
+
+=== RUN   TestFsyncBenchmark at 2 sec per setting
+Benchmarking fsync bandwidth...
+Buffer Size     Bandwidth       Fsyncs/Sec
+------------------------------------------------
+262144          0.25       MB/s   1.02
+1048576         1.01       MB/s   1.01
+4194304         2.73       MB/s   0.68
+16777216        12.06      MB/s   0.75
+33554432        21.01      MB/s   0.66
+67108864        28.70      MB/s   0.45
+134217728       1979.04    MB/s   15.46
+268435456       2096.97    MB/s   8.19
+536870912       2157.38    MB/s   4.21
+1073741824      2022.83    MB/s   1.98
+------------------------------------------------
+
+Optimal Fsync Rate: 4.21 fsyncs/sec at Buffer Size: 536870912 bytes
+--- PASS: TestFsyncBenchmark (25.22s)
+
+At 10 second per setting (not understampling now):
+
+Benchmarking fsync bandwidth...
+Buffer Size     Bandwidth       Fsyncs/Sec
+------------------------------------------------
+262144          392.58     MB/s   1570.31
+1048576         979.65     MB/s   979.65
+4194304         1448.52    MB/s   362.13
+16 MB           1918.62    MB/s   119.91 << peak
+33554432        730.35     MB/s   22.82
+67108864        785.65     MB/s   12.28
+134217728       505.86     MB/s   3.95
+268435456       524.39     MB/s   2.05
+536870912       624.46     MB/s   1.22
+1073741824      409.16     MB/s   0.40
+------------------------------------------------
+
+Optimal Fsync Rate: 119.91 fsyncs/sec at Buffer Size: 16777216 bytes
+--- PASS: TestFsyncBenchmark (104.20s)
+
 
 */
