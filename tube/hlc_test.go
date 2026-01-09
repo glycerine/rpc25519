@@ -239,3 +239,33 @@ func Test_HLC_Comparison(t *testing.T) {
 		}
 	})
 }
+
+func Benchmark_HLC_PhysicalTime48(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		PhysicalTime48()
+	}
+}
+
+func Test_HLC_AssembleHLC(t *testing.T) {
+	bubbleOrNot(t, func(t *testing.T) {
+		pt := PhysicalTime48()
+		lc := pt.LC()
+		count := int64(300)
+
+		h := AssembleHLC(lc, count)
+		if h.LC() != lc {
+			t.Errorf("AssembleHLC Should preserve LC. expected %v, got %v", lc, h.LC())
+		}
+		if h.Count() != count {
+			t.Errorf("AssembleHLC Should preserve Count. expected %v, got %v", count, h.Count())
+		}
+
+		// Test masking
+		// Pass an LC that has bits in the lower 16
+		lcWithNoise := lc | 0xF
+		h2 := AssembleHLC(lcWithNoise, count)
+		if h2.LC() != lc {
+			t.Errorf("AssembleHLC Should mask LC input. expected %v, got %v", lc, h2.LC())
+		}
+	})
+}

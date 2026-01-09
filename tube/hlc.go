@@ -19,11 +19,11 @@ import (
 // experiments observed counter values up to 10,
 // nowhere near the 2^16-1 == 65535 maximum.
 // Indeed one would have to execute one clock
-// query every nanosecond 65535 times in
-// a single contiguous execution span of time
+// query every nanosecond for 65536 times in
+// a row -- in single contiguous execution --
 // to overflow the counter. This seems unlikely
-// with current technology where a time.Now()
-// call takes ~10 nanoseconds.
+// with current technology where a PhysicalTime48()
+// call takes ~66 nanoseconds.
 type HLC int64
 
 const mask16 HLC = HLC(1<<16) - 1 // low 16 bits are 1
