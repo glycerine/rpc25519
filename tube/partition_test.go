@@ -349,7 +349,7 @@ func Test052_partition_leader_away_and_rejoin(t *testing.T) {
 			// after detecting node failures, those newly made
 			// connections do not have the deaf/drop applied!
 			// so ISOLATE host instead!
-			if true {
+			if false { // true {
 				c.IsolateNode(0)
 			} else {
 				deafProb := map[int]float64{0: 1.0}
@@ -368,6 +368,16 @@ func Test052_partition_leader_away_and_rejoin(t *testing.T) {
 			vv("what does the minority do? during this 10 minutes? with {1,2} isolated from {0} and 0 was the leader") // nothing would be good as far as term increments.
 			time.Sleep(time.Minute * 10)
 			vv("done with 10 minutes of sleep")
+
+			// arg. we see
+			//simnet.go:1133 2000-01-01 00:00:05.235000000 +0000 UTC registering new client 'auto-cli-from-srv_node_1-to-srv_node_0___YoPR6t-ckJ91C7mcXJO9'
+			// simnet.go:1151 2000-01-01 00:00:05.901000000 +0000 UTC cli is auto-cli of basesrv='srv_node_1'
+			//simnet.go:1133 2000-01-01 00:00:05.722000000 +0000 UTC registering new client 'auto-cli-from-srv_node_2-to-srv_node_0___fMKt1BfLmaBbUmG3cLz_'
+			//simnet.go:1151 2000-01-01 00:00:06.221000000 +0000 UTC cli is auto-cli of basesrv='srv_node_2'
+			// but no applying allNewCircuitsInjectFault to new auto-cli
+			// because the fault is on the other end of the connection.
+
+			//vv("after 10 minutes of sleep, simnet is now: %v", c.SimnetSnapshot())
 
 			// leader should have stepped down <- no longer true??
 

@@ -261,6 +261,14 @@ func (s *fuzzNemesis) makeTrouble() {
 	case fuzz_PAUSE:
 	case fuzz_CRASH:
 	case fuzz_PARTITON:
+
+		// remember this problem: now that we try to make NEW connections
+		// after detecting node failures, those newly made
+		// connections do not have the deaf/drop applied!
+		// so ISOLATE host instead!
+		// maybe we need a faul mode were all connections
+		// from (or to) have the deaf/drop probs applied.
+		// (Or not if we want to model faulty middle boxes? rare, skip for now)
 		s.clus.IsolateNode(node)
 
 		//s.clus.DeafDrop(deaf, drop map[int]float64)

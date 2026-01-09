@@ -951,6 +951,17 @@ type simnode struct {
 	droppedSendDueToProb int64
 	deafReadDueToProb    int64
 	okReadDueToProb      int64
+
+	// problem with injecting a circuitFault: it used
+	// to not apply to new circuits. Problem was,
+	// on retry we establish a NEW circuit, and then
+	// that was not also faulty! to model network
+	// card issues where all connections through
+	// that card should have the same fault
+	// probabilities, we note here if we need to
+	// apply a circuitFault to new circuits as well.
+	// healing needs to nil this now too.
+	allNewCircuitsInjectFault []*hostFault
 }
 
 func (s *simnode) newGoro(purpose string) {
@@ -1119,6 +1130,8 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	s.dns[clinode.name] = clinode
 	s.dnsOrdered.set(clinode.name, clinode)
 
+	vv("registering new client '%v'", clinode.name)
+
 	regop.origin = clinode
 
 	// add simnode to graph
@@ -1135,10 +1148,35 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	if reg.serverBaseID != "" {
 		basesrv, ok := s.servers[reg.serverBaseID]
 		if ok {
-			//vv("cli is auto-cli of basesrv='%v'", basesrv.name)
+			vv("cli is auto-cli of basesrv='%v'", basesrv.name)
 			s.node2server[clinode] = basesrv
 			basesrv.autocli[clinode] = c2s
 			basesrv.allnode[clinode] = true
+
+			// Check allNewCircuitsInjectFault. This is to
+			// try to prevent any new auto-cli from magically
+			// working around our model of a faulty network card
+			// at the server.
+			// Technically there could be a series of faults
+			// applied, so TODO turn this into a slice of faults
+			// and apply them all. We just want to get one
+			// of them preserved at first, for now.
+			for _, node := range []*simnode{basesrv, srvnode} {
+				for _, fault := range node.allNewCircuitsInjectFault {
+					vv("applying allNewCircuitsInjectFault to new auto-cli '%v' to node '%v'; fault = '%v'", clinode.name, node.name, fault)
+					cp := *fault
+					fault2 := &cp
+					fault2.hostName = clinode.name
+					faultop := &mop{
+						hostFault: fault2,
+						sn:        s.simnetNextMopSn("hostFault"),
+						kind:      FAULT_HOST,
+						// allow release() to run without crashing:
+						proceed: make(chan time.Duration, 1),
+					}
+					s.injectHostFault(faultop)
+				}
+			}
 		} else {
 			//vv("cli is orphan")
 			s.orphans[clinode] = true
@@ -1635,6 +1673,7 @@ func (s *Simnet) markNotFaulty(simnode *simnode) (was Faultstate) {
 	case FAULTY:
 		//vv("markNotFaulty going from FAULTY to HEALTHY")
 		simnode.state = HEALTHY
+		simnode.allNewCircuitsInjectFault = nil
 	case ISOLATED:
 		// no-op
 	case HEALTHY:
@@ -1651,6 +1690,7 @@ func (s *Simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 	case ISOLATED:
 		simnode.state = HEALTHY
 		undo = ISOLATE
+		simnode.allNewCircuitsInjectFault = nil
 	case FAULTY_ISOLATED:
 		simnode.state = FAULTY
 		undo = ISOLATE
@@ -3388,13 +3428,14 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 			}
 		}
 		sps := &SimnetPeerStatus{
-			Name:          srvnode.name,
-			ServerState:   health,
-			Poweroff:      srvnode.powerOff,
-			LC:            srvnode.lc,
-			ServerBaseID:  srvnode.serverBaseID,
-			ConnmapOrigin: make(map[string]*SimnetConnSummary),
-			ConnmapTarget: make(map[string]*SimnetConnSummary),
+			Name:                         srvnode.name,
+			ServerState:                  health,
+			Poweroff:                     srvnode.powerOff,
+			LC:                           srvnode.lc,
+			ServerBaseID:                 srvnode.serverBaseID,
+			ConnmapOrigin:                make(map[string]*SimnetConnSummary),
+			ConnmapTarget:                make(map[string]*SimnetConnSummary),
+			HasAllNewCircuitsInjectFault: len(srvnode.allNewCircuitsInjectFault) > 0,
 		}
 		req.Peer = append(req.Peer, sps)
 		req.Peermap[srvnode.name] = sps
@@ -3482,15 +3523,16 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 				// not really a peer but meh. not worth its
 				// own separate struct.
 				sps := &SimnetPeerStatus{
-					Name:          origin.name,
-					ServerState:   origin.state,
-					Poweroff:      origin.powerOff,
-					LC:            origin.lc,
-					ServerBaseID:  origin.serverBaseID,
-					Conn:          []*SimnetConnSummary{connsum},
-					ConnmapOrigin: map[string]*SimnetConnSummary{origin.name: connsum},
-					ConnmapTarget: map[string]*SimnetConnSummary{target.name: connsum},
-					IsLoneCli:     true,
+					Name:                         origin.name,
+					ServerState:                  origin.state,
+					Poweroff:                     origin.powerOff,
+					LC:                           origin.lc,
+					ServerBaseID:                 origin.serverBaseID,
+					Conn:                         []*SimnetConnSummary{connsum},
+					ConnmapOrigin:                map[string]*SimnetConnSummary{origin.name: connsum},
+					ConnmapTarget:                map[string]*SimnetConnSummary{target.name: connsum},
+					IsLoneCli:                    true,
+					HasAllNewCircuitsInjectFault: len(origin.allNewCircuitsInjectFault) > 0,
 				}
 				_, impos := req.LoneCli[origin.name]
 				if impos {

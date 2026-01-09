@@ -1549,7 +1549,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					panic("wrong ClusterID")
 					continue // drop
 				}
-				//vv("%v sees RequestPreVote '%v'", s.me(), reqPreVote)
+				vv("%v sees RequestPreVote '%v'", s.me(), reqPreVote)
 				s.handleRequestPreVote(reqPreVote, fragCkt.ckt)
 
 			case PreVoteMsg:
@@ -6119,7 +6119,7 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 }
 
 func (s *TubeNode) becomeLeader() {
-	//vv("%v becomeLeader top", s.me())
+	vv("%v becomeLeader top", s.me())
 	//defer func() {
 	//	vv("%v end of becomeLeader", s.me())
 	//}()

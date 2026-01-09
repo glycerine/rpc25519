@@ -1033,6 +1033,8 @@ type SimnetPeerStatus struct {
 	LC            int64
 	ServerBaseID  string
 	IsLoneCli     bool // and not really a peer server with auto-cli
+
+	HasAllNewCircuitsInjectFault bool
 }
 
 // SimnetSnapshot is returned by

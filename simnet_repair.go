@@ -217,6 +217,17 @@ func (s *Simnet) injectHostFault(faultop *mop) (err error) {
 		cktFaultOp := s.newCktFaultMop(cktFault)
 		s.injectCircuitFault(cktFaultOp, false)
 	}
+	// try to get fault applied to all new connections as well,
+	// modeling a network card fault on a server rather than
+	// a single network path with a faulty middlebox that always
+	// gets circumvented on a new TCP connection...
+	basesrv, ok := s.node2server[origin]
+	if !ok {
+		// lone client, e.g. Test1001_simnetonly_drop_prob
+		origin.allNewCircuitsInjectFault = append(origin.allNewCircuitsInjectFault, fault)
+	} else {
+		basesrv.allNewCircuitsInjectFault = append(basesrv.allNewCircuitsInjectFault, fault)
+	}
 	return
 }
 
@@ -351,6 +362,8 @@ func (s *Simnet) repairAllCircuitFaults(simnode *simnode) {
 	//defer func() {
 	//	//vv("end of repairAllCircuitFaults, simnode = '%v'; state = %v", simnode.name, simnode.state)
 	//}()
+
+	simnode.allNewCircuitsInjectFault = nil
 
 	switch simnode.state {
 	case HEALTHY:

@@ -263,7 +263,7 @@ func (z *DropDeafSpec) String() (r string) {
 func (z *hostFault) String() (r string) {
 	r = "&hostFault{\n"
 	r += fmt.Sprintf("    hostName: %v\n", z.hostName)
-	r += fmt.Sprintf("DropDeafSpec: %v\n", z.DropDeafSpec)
+	r += fmt.Sprintf("DropDeafSpec: %v\n", z.DropDeafSpec.String())
 	r += fmt.Sprintf("          sn: %v\n", z.sn)
 	r += fmt.Sprintf("         err: %v\n", z.err)
 	r += fmt.Sprintf("         who: %v\n", z.who)
@@ -503,6 +503,9 @@ func (z *SimnetPeerStatus) String() (r string) {
 	if z.IsLoneCli {
 		r += fmt.Sprintf("   IsLoneCli: %v\n", z.IsLoneCli)
 	}
+	r += fmt.Sprintf("HasAllNewCircuitsInjectFault: %v\n",
+		z.HasAllNewCircuitsInjectFault)
+
 	// distracting, but might need it later.
 	//r += fmt.Sprintf("ServerBaseID: %v\n", z.ServerBaseID)
 	if !z.IsLoneCli {
