@@ -1619,7 +1619,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					continue
 				}
 
-				s.hlc.ReceiveMessageWithHLC(answer.HLC)
+				s.hlc.ReceiveMessageWithHLC(answer.CreateHLC)
 
 				// note now that when the "client" is also a
 				// peer, it will have closed done and continued
@@ -1667,7 +1667,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					panic("wrong ClusterID")
 					continue
 				}
-				s.hlc.ReceiveMessageWithHLC(tkt.HLC)
+				s.hlc.ReceiveMessageWithHLC(tkt.CreateHLC)
 
 				// in case RedirectTicketToLeaderMsg
 				if s.bootstrappedOrForcedMembership(tkt) {
@@ -4505,7 +4505,9 @@ type Ticket struct {
 
 	TSN int64     `zid:"0"`
 	T0  time.Time `zid:"1"`
-	HLC HLC       `zid:"70"`
+
+	// the HLC when NewTicket was called locally.
+	CreateHLC HLC `zid:"70"`
 
 	Key                      Key    `zid:"2"`
 	Val                      Val    `zid:"3"`  // Read/Write. For CAS: new value.
@@ -5022,11 +5024,12 @@ func (s *TubeNode) NewTicket(
 
 ) (tkt *Ticket) {
 
+	hlc, t0 := s.hlc.CreateAndNow()
 	tkt = &Ticket{
 		Desc:         desc,
 		TSN:          atomic.AddInt64(&debugNextTSN, 1),
-		T0:           time.Now(), // for gc of abandonded tickets.
-		HLC:          s.hlc.CreateSendOrLocalEvent(),
+		T0:           t0, // for gc of abandonded tickets.
+		CreateHLC:    hlc,
 		Op:           op,
 		Table:        table,
 		Key:          key,

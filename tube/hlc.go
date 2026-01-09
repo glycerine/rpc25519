@@ -142,6 +142,38 @@ func (hlc *HLC) CreateSendOrLocalEvent() (r HLC) {
 	return
 }
 
+// CreateAndNow is the same as CreateSendOrLocalEvent
+// but also returns the raw time.Time before
+// hlc conversion of the low 16 bits.
+func (hlc *HLC) CreateAndNow() (r HLC, now time.Time) {
+
+	//hlcMut.Lock()
+	//defer hlcMut.Unlock()
+
+	j := *hlc
+
+	//inlined ptj := PhysicalTime48()
+	now = time.Now()
+	pt := now.UnixNano()
+	ptj := (HLC(pt) + getCount) & getLC
+
+	jLC := j & getLC
+	jCount := j & getCount
+
+	jLC1 := jLC
+	if ptj > jLC {
+		jLC = ptj
+	}
+	if jLC == jLC1 {
+		jCount++
+	} else {
+		jCount = 0
+	}
+	r = (jLC + jCount)
+	*hlc = r
+	return
+}
+
 // ReceiveMessageWithHLC
 // updates the local hybrid clock j based on the
 // received message m's hybrid clock.
