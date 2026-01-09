@@ -98,7 +98,7 @@ func DetermineOptimalFsync() (float64, int) {
 	return optimalFsyncsPerSec, optimalBufSize
 }
 
-/* mac book pro SSD:
+/* mac book pro SSD (are we sure this is fsyncing??)
 
 GOEXPERIMENT=synctest go test -v -count=1 -run=TestFsyncBenchmark
 === RUN   TestFsyncBenchmark at 2 seconds per setting
@@ -119,6 +119,22 @@ Buffer Size     Bandwidth       Fsyncs/Sec
 
 Optimal Fsync Rate: 2.09 fsyncs/sec at Buffer Size: 1073741824 bytes
 --- PASS: TestFsyncBenchmark (21.13s)
+
+mac book pro but now 10 seconds per setting:
+
+Buffer Size     Bandwidth       Fsyncs/Sec
+------------------------------------------------
+262144          11.49      MB/s   45.96
+1048576         38.46      MB/s   38.46
+4194304         140.57     MB/s   35.14
+16777216        419.70     MB/s   26.23
+33554432        676.85     MB/s   21.15
+67108864        1048.61    MB/s   16.38
+134217728       1477.86    MB/s   11.55
+256 MB          2002.49    MB/s   7.82 << might approx peak
+536870912       2164.22    MB/s   4.23
+1073741824      2303.77    MB/s   2.25 << peak
+------------------------------------------------
 
 older linux box, rog.
 Western Digital Black NVME drive SN850 2TB
@@ -159,8 +175,8 @@ Buffer Size     Bandwidth       Fsyncs/Sec
 1073741824      786.52     MB/s   0.77
 ------------------------------------------------
 
-
 aorus: hard drive? apparently smaller SD of same model
+
 WD_BLACK SN850 1TB
 
 === RUN   TestFsyncBenchmark at 2 sec per setting
@@ -182,7 +198,7 @@ Buffer Size     Bandwidth       Fsyncs/Sec
 Optimal Fsync Rate: 4.21 fsyncs/sec at Buffer Size: 536870912 bytes
 --- PASS: TestFsyncBenchmark (25.22s)
 
-At 10 second per setting (not understampling now):
+Aorus at 10 second per setting (not understampling now):
 
 Benchmarking fsync bandwidth...
 Buffer Size     Bandwidth       Fsyncs/Sec
@@ -201,6 +217,5 @@ Buffer Size     Bandwidth       Fsyncs/Sec
 
 Optimal Fsync Rate: 119.91 fsyncs/sec at Buffer Size: 16777216 bytes
 --- PASS: TestFsyncBenchmark (104.20s)
-
 
 */
