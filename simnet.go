@@ -1161,22 +1161,25 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 			// applied, so TODO turn this into a slice of faults
 			// and apply them all. We just want to get one
 			// of them preserved at first, for now.
-			for _, node := range []*simnode{basesrv, srvnode} {
-				for _, fault := range node.allNewCircuitsInjectFault {
-					vv("applying allNewCircuitsInjectFault to new auto-cli '%v' to node '%v'; fault = '%v'", clinode.name, node.name, fault)
-					cp := *fault
-					fault2 := &cp
-					fault2.hostName = clinode.name
-					faultop := &mop{
-						hostFault: fault2,
-						sn:        s.simnetNextMopSn("hostFault"),
-						kind:      FAULT_HOST,
-						// allow release() to run without crashing:
-						proceed: make(chan time.Duration, 1),
+			defer func(slc []*simnode) {
+				for _, node := range slc {
+					for _, fault := range node.allNewCircuitsInjectFault {
+						vv("applying allNewCircuitsInjectFault to new auto-cli '%v' to node '%v'; fault = '%v'", clinode.name, node.name, fault)
+						cp := *fault
+						fault2 := &cp
+						//fault2.hostName = clinode.name
+						//fault2.hostName = node.name
+						faultop := &mop{
+							hostFault: fault2,
+							sn:        s.simnetNextMopSn("hostFault"),
+							kind:      FAULT_HOST,
+							// allow release() to run without crashing:
+							proceed: make(chan time.Duration, 1),
+						}
+						s.injectHostFault(faultop)
 					}
-					s.injectHostFault(faultop)
 				}
-			}
+			}([]*simnode{basesrv, srvnode})
 		} else {
 			//vv("cli is orphan")
 			s.orphans[clinode] = true
