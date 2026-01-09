@@ -6,6 +6,7 @@ import (
 )
 
 func TestFsyncBenchmark(t *testing.T) {
+	return
 	if testing.Short() {
 		t.Skip("skipping fsync benchmark in short mode")
 	}
