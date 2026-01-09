@@ -334,7 +334,7 @@ import (
 // Currently there is no mutual exclusion / synchronization
 // provided, and the user must arrange for that separately if
 // required.
-// .
+//
 // defined in tube.go now for greenpack serz purposes,
 // rather than in hlc.go
 type HLC int64
@@ -1618,6 +1618,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					alwaysPrintf("%v wrong ClusterID answer.ClusterID='%v' vs s.ClusterID='%v'", s.me(), answer.ClusterID, s.ClusterID)
 					continue
 				}
+
+				s.hlc.ReceiveMessageWithHLC(answer.HLC)
 
 				// note now that when the "client" is also a
 				// peer, it will have closed done and continued
@@ -5858,6 +5860,8 @@ func (s *TubeNode) votesString(votes map[string]bool) (r string) {
 func (s *TubeNode) tallyPreVote(vote *Vote) {
 	//vv("%v \n-------->>>    tally PreVote()  <<<--------\n vote = %v", s.me(), vote)
 
+	s.hlc.ReceiveMessageWithHLC(vote.SenderHLC)
+
 	// update lastContactTm
 	cktP, ok := s.cktall[vote.FromPeerID]
 	if ok {
@@ -6013,6 +6017,8 @@ func (s *TubeNode) tallyPreVote(vote *Vote) {
 
 func (s *TubeNode) tallyVote(vote *Vote) {
 	//vv("%v \n-------->>>    tally Vote()  <<<--------\n cur votes = %v \n vote = %v", s.me(), s.votesString(s.votes), vote)
+
+	s.hlc.ReceiveMessageWithHLC(vote.SenderHLC)
 
 	// As an extra safety precaution, let's be sure
 	// all the votes are from unique peers, _and_ that
@@ -14441,15 +14447,6 @@ func (s *TubeNode) handleObserveMembershipChange(
 	//vv("%v sees handleObserveMembershipChange() mc='%v'", s.name, mc)
 }
 
-/*
-func (s *TubeNode) handleReliableMemberHeartBeatToCzar(
-	frag *rpc.Fragment,
-	ckt *rpc.Circuit,
-) {
-	vv("%v sees handleReliableMemberHeartBeatToCzar()", s.name)
-
-}
-*/
 // starting is not modified, read-only.
 func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, atRaftLogIndex int64) (newConfig *MemberConfig) {
 
