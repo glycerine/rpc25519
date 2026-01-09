@@ -35,7 +35,7 @@ func Test_HLC_Monotonicity(t *testing.T) {
 		// test HLC.String() method.
 		s := j.String()
 		fmt.Printf("j is '%v'\n", s)
-		fmt.Printf("mask16 is '%X'\n", int64(mask16))
+		fmt.Printf("getCount is '%X'\n", int64(getCount))
 
 		if faketime {
 			expect := "HLC{Count: 0, LC:946684800000000000 (2000-01-01T00:00:00.000Z)}"
@@ -70,13 +70,13 @@ func Test_HLC_ClockRegression(t *testing.T) {
 
 		// Create a "future" time.
 		// We want j.LC > PhysicalTime48().
-		// PhysicalTime48() rounds UP to the next mask16 boundary possibly?
+		// PhysicalTime48() rounds UP to the next getCount boundary possibly?
 		// No, it just takes Now() and masks off lower bits.
-		// Wait, PhysicalTime48 implementation: return (pt + mask16) & ^mask16
-		// This actually rounds UP to the next multiple of (mask16+1).
+		// Wait, PhysicalTime48 implementation: return (pt + getCount) & ^getCount
+		// This actually rounds UP to the next multiple of (getCount+1).
 
 		// Let's force j to be well ahead.
-		futurePt := PhysicalTime48() + HLC(100*(mask16+1))
+		futurePt := PhysicalTime48() + HLC(100*(getCount+1))
 		j = futurePt
 
 		// Now call CreateSendOrLocalEvent. Local physical time is way behind 'j'.
@@ -140,7 +140,7 @@ func Test_HLC_ReceiveMessage(t *testing.T) {
 				name: "Receive Future Message",
 				// j is now, m is far future.
 				initialJ:  PhysicalTime48(),
-				receivedM: PhysicalTime48() + HLC(50*(mask16+1)),
+				receivedM: PhysicalTime48() + HLC(50*(getCount+1)),
 				check: func(oldJ, newJ, m HLC) error {
 					if newJ.LC() < m.LC() {
 						return fmt.Errorf("newJ LC should catch up to m LC")
@@ -152,12 +152,12 @@ func Test_HLC_ReceiveMessage(t *testing.T) {
 				name: "Receive Equal Logic Different Count",
 				// j and m have same LC, likely from same physical tick.
 				// m has higher count. j should take m's count + 1.
-				initialJ:  (PhysicalTime48() & ^mask16) | 5,  // Count 5
-				receivedM: (PhysicalTime48() & ^mask16) | 10, // Count 10
+				initialJ:  (PhysicalTime48() & ^getCount) | 5,  // Count 5
+				receivedM: (PhysicalTime48() & ^getCount) | 10, // Count 10
 				check: func(oldJ, newJ, m HLC) error {
 					// note: physical time might have advanced during this test setup,
 					// complicating "Same LC" assumption if we use live time.
-					// However, PhysicalTick is coarse (via mask16), so it's stable-ish.
+					// However, PhysicalTick is coarse (via getCount), so it's stable-ish.
 
 					// If LC is still stable:
 					if newJ.LC() == oldJ.LC() {
@@ -195,7 +195,7 @@ func Test_HLC_Comparison(t *testing.T) {
 		base := PhysicalTime48()
 
 		makeHLC := func(lcOffset int, count int) HLC {
-			lc := (base & ^mask16) + HLC(int64(lcOffset)*int64(mask16+1))
+			lc := (base & ^getCount) + HLC(int64(lcOffset)*int64(getCount+1))
 			return lc | HLC(count)
 		}
 

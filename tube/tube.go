@@ -1625,6 +1625,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					panic("wrong ClusterID")
 					continue
 				}
+				s.hlc.ReceiveMessageWithHLC(tkt.HLC)
 
 				// in case RedirectTicketToLeaderMsg
 				if s.bootstrappedOrForcedMembership(tkt) {
@@ -2750,6 +2751,8 @@ type TubeNode struct {
 	// the leader, since only s.becomeLeader()
 	// sets it.
 	lastBecomeLeaderTerm int64
+
+	hlc HLC
 }
 
 // tuber uses to read the DataDir in use.
@@ -3005,6 +3008,8 @@ type AppendEntries struct {
 
 	LeaderCompactIndex int64 `zid:"21"`
 	LeaderCompactTerm  int64 `zid:"22"`
+
+	LeaderHLC HLC `zid:"23"`
 }
 
 func (ae *AppendEntries) clone() (p *AppendEntries) {
@@ -3104,6 +3109,7 @@ type AppendEntriesAck struct {
 	SuppliedLeaderCommitIndexEntryTerm int64 `zid:"38"`
 	SuppliedCompactIndex               int64 `zid:"39"`
 	SuppliedCompactTerm                int64 `zid:"31"`
+	FollowerHLC                        HLC   `zid:"32"`
 }
 
 func (ack *AppendEntriesAck) clone() (p *AppendEntriesAck) {
@@ -3695,6 +3701,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		parked:           newParkedTree(),
 		sessByExpiry:     newSessTableByExpiry(),
 	}
+	s.hlc.CreateSendOrLocalEvent()
 	s.cfg.MyName = name
 	// non-testing default is talk to ourselves.
 	// simae_test will switch this to its TubeSim instance.
@@ -4452,6 +4459,7 @@ type Ticket struct {
 
 	TSN int64     `zid:"0"`
 	T0  time.Time `zid:"1"`
+	HLC HLC       `zid:"70"`
 
 	Key                      Key    `zid:"2"`
 	Val                      Val    `zid:"3"`  // Read/Write. For CAS: new value.
@@ -4967,6 +4975,7 @@ func (s *TubeNode) NewTicket(
 		Desc:         desc,
 		TSN:          atomic.AddInt64(&debugNextTSN, 1),
 		T0:           time.Now(), // for gc of abandonded tickets.
+		HLC:          s.hlc.CreateSendOrLocalEvent(),
 		Op:           op,
 		Table:        table,
 		Key:          key,
@@ -6648,6 +6657,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	var extends, needSnapshot bool
 	var largestCommonRaftIndex int64
 
+	s.hlc.ReceiveMessageWithHLC(ae.LeaderHLC)
+
 	chatty802 := false
 	s.testAEchoices = nil
 	if false {
@@ -6881,7 +6892,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		SuppliedLeaderLLI:                  ae.LeaderLLI,
 		SuppliedLeaderLLT:                  ae.LeaderLLT,
 
-		PeerMC: s.state.MC,
+		PeerMC:      s.state.MC,
+		FollowerHLC: s.hlc.ReceiveMessageWithHLC(ae.LeaderHLC),
 	}
 	// report on past compations too.
 	compactedTo := s.state.CompactionDiscardedLast.Index
@@ -7646,6 +7658,7 @@ func (s *TubeNode) newAE() (ae *AppendEntries) {
 		PeerID2LastHeard:           make(map[string]time.Time),
 		LeaderCompactIndex:         s.wal.logIndex.BaseC,
 		LeaderCompactTerm:          s.wal.logIndex.CompactTerm,
+		LeaderHLC:                  s.hlc.CreateSendOrLocalEvent(),
 	}
 	// assert agreement, so it does not matter which we
 	// write to LeaderCompactIndex/Term
@@ -10681,6 +10694,11 @@ func (s *TubeNode) leaderCanServeReadsLocally() (canServe bool, untilTm time.Tim
 		//vv("%v leaderCanServeReadsLocally: insufficient quorum", s.name)
 		return
 	}
+
+	// not really a part of local-only reads
+	// section 6.4 "Processing read-only queries more efficiently"
+	// but not sure where to implement it yet...
+	s.readIndexOptim = s.state.CommitIndex
 
 	// Require at least 80% of the read lease to still
 	// be left (since election >= 10 * heartbeat).

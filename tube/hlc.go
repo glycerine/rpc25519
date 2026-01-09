@@ -2,6 +2,7 @@ package tube
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -39,31 +40,43 @@ import (
 // .
 type HLC int64
 
-const mask16 HLC = HLC(1<<16) - 1 // low 16 bits are 1
-const unmask16 HLC = ^mask16      // low 16 bits are 0
+var hlcMut sync.Mutex
 
-func (hlc HLC) LC() int64 {
-	return int64(hlc & unmask16)
+const getCount HLC = HLC(1<<16) - 1 // low 16 bits are 1
+const getLC HLC = ^getCount         // low 16 bits are 0
 
+func (hlc *HLC) LC() int64 {
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
+	r := *hlc
+	return int64(r & getLC)
 }
-func (hlc HLC) Count() int64 {
-	return int64(hlc & mask16)
+
+func (hlc *HLC) Count() int64 {
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
+	r := *hlc
+	return int64(r & getCount)
 }
 
-func (hlc HLC) String() string {
-	lc := hlc.LC()
-	count := hlc.Count()
+func (hlc *HLC) String() string {
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
+	r := *hlc
+
+	lc := int64(r & getLC)
+	count := int64(r & getCount)
 	return fmt.Sprintf("HLC{Count: %v, LC:%v (%v)}",
 		count, lc, time.Unix(0, lc).Format(rfc3339MsecTz0))
 }
 
-// AseembleHLC does the simple addition,
+// AssembleHLC does the simple addition,
 // but takes care of the type converstion too.
 // For safety, it masks off the low 16 bits
 // of lc that should always be 0 anyway before
 // doing the addition.
 func AssembleHLC(lc int64, count int64) HLC {
-	return HLC(lc)&unmask16 + HLC(count)
+	return HLC(lc)&getLC + HLC(count)
 }
 
 // Here we use a bit-manipulation trick.
@@ -72,7 +85,7 @@ func AssembleHLC(lc int64, count int64) HLC {
 // bits were set. We then mask away the
 // lower 16 bits.
 //func roundUpTo16Bits(pt int64) int64 {
-//	return (pt + mask16) & unmask16
+//	return (pt + getCount) & getLC
 //}
 
 // PhysicalTime48 rounds up to the 16th
@@ -83,21 +96,27 @@ func AssembleHLC(lc int64, count int64) HLC {
 // nanoseconds. The low 16 bits are always zero
 // on return from this function.
 func PhysicalTime48() HLC {
-	pt := HLC(time.Now().UnixNano())
+	pt := time.Now().UnixNano()
 
 	// hybrid-logical-clocks (HLC) wants to
 	// round up at the 48th bit.
-	return (pt + mask16) & unmask16
+	return (HLC(pt) + getCount) & getLC
 }
 
 // CreateSendOrLocalEvent
 // updates the local hybrid clock j
 // based on PhysicalTime48.
-func (j *HLC) CreateSendOrLocalEvent() {
+// POST: r == *hlc
+func (hlc *HLC) CreateSendOrLocalEvent() (r HLC) {
+
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
+
+	j := *hlc
 
 	ptj := PhysicalTime48()
-	jLC := *j & unmask16
-	jCount := *j & mask16
+	jLC := j & getLC
+	jCount := j & getCount
 
 	jLC1 := jLC
 	if ptj > jLC {
@@ -108,20 +127,28 @@ func (j *HLC) CreateSendOrLocalEvent() {
 	} else {
 		jCount = 0
 	}
-	*j = (jLC + jCount)
+	r = (jLC + jCount)
+	*hlc = r
+	return
 }
 
 // ReceiveMessageWithHLC
 // updates the local hybrid clock j based on the
 // received message m's hybrid clock.
-func (j *HLC) ReceiveMessageWithHLC(m HLC) {
+// POST: r == *hlc
+func (hlc *HLC) ReceiveMessageWithHLC(m HLC) (r HLC) {
 
-	jLC := *j & unmask16
-	jCount := *j & mask16
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
+
+	j := *hlc
+
+	jLC := j & getLC
+	jCount := j & getCount
 	jlcOrig := jLC
 
-	mLC := m & unmask16
-	mCount := m & mask16
+	mLC := m & getLC
+	mCount := m & getCount
 
 	ptj := PhysicalTime48()
 	if ptj > jLC {
@@ -139,12 +166,23 @@ func (j *HLC) ReceiveMessageWithHLC(m HLC) {
 	} else {
 		jCount = 0
 	}
-	*j = (jLC + jCount)
+	r = (jLC + jCount)
+	*hlc = r
+	return
 }
 
-func (a HLC) GT(b HLC) bool {
-	aLC := a & unmask16
-	bLC := b & unmask16
+// GT returns (hlc > b), in the hybrid
+// logical clock math.
+// PRE: b must not be concurrently modified
+// during our execution. Only hlc
+// is accessed atomically. Use LT if need be.
+func (hlc *HLC) GT(b HLC) bool {
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
+	a := *hlc
+
+	aLC := a & getLC
+	bLC := b & getLC
 	if aLC > bLC {
 		return true
 	}
@@ -152,14 +190,23 @@ func (a HLC) GT(b HLC) bool {
 		return false
 	}
 	// INVAR: aLC == bLC
-	aCount := a & mask16
-	bCount := b & mask16
+	aCount := a & getCount
+	bCount := b & getCount
 	return aCount > bCount
 }
 
-func (a HLC) GTE(b HLC) bool {
-	aLC := a & unmask16
-	bLC := b & unmask16
+// GTE returns (hlc >= b), in the hybrid
+// logical clock math.
+// PRE: b must not be concurrently modified
+// during our execution. Only hlc
+// is accessed atomically. Use LTE if need be.
+func (hlc *HLC) GTE(b HLC) bool {
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
+	a := *hlc
+
+	aLC := a & getLC
+	bLC := b & getLC
 	if aLC > bLC {
 		return true
 	}
@@ -167,14 +214,23 @@ func (a HLC) GTE(b HLC) bool {
 		return false
 	}
 	// INVAR: aLC == bLC
-	aCount := a & mask16
-	bCount := b & mask16
+	aCount := a & getCount
+	bCount := b & getCount
 	return aCount >= bCount
 }
 
-func (a HLC) LT(b HLC) bool {
-	aLC := a & unmask16
-	bLC := b & unmask16
+// LT returns (hlc < b), in the hybrid
+// logical clock math.
+// PRE: b must not be concurrently modified
+// during our execution. Only hlc
+// is accessed atomically. Use GT if need be.
+func (hlc *HLC) LT(b HLC) bool {
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
+	a := *hlc
+
+	aLC := a & getLC
+	bLC := b & getLC
 	if aLC < bLC {
 		return true
 	}
@@ -182,14 +238,23 @@ func (a HLC) LT(b HLC) bool {
 		return false
 	}
 	// INVAR: aLC == bLC
-	aCount := a & mask16
-	bCount := b & mask16
+	aCount := a & getCount
+	bCount := b & getCount
 	return aCount < bCount
 }
 
-func (a HLC) LTE(b HLC) bool {
-	aLC := a & unmask16
-	bLC := b & unmask16
+// LTE returns (hlc <= b), in the hybrid
+// logical clock math.
+// PRE: b must not be concurrently modified
+// during our execution. Only hlc
+// is accessed atomically. Use GTE if need be.
+func (hlc *HLC) LTE(b HLC) bool {
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
+	a := *hlc
+
+	aLC := a & getLC
+	bLC := b & getLC
 	if aLC < bLC {
 		return true
 	}
@@ -197,7 +262,7 @@ func (a HLC) LTE(b HLC) bool {
 		return false
 	}
 	// INVAR: aLC == bLC
-	aCount := a & mask16
-	bCount := b & mask16
+	aCount := a & getCount
+	bCount := b & getCount
 	return aCount <= bCount
 }
