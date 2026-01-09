@@ -13974,8 +13974,36 @@ type Session struct {
 	// end initial response ====================
 
 	// subsequent sess use must set.
-	SessionSerial        int64 `zid:"16"` // gapless inside a SessionID
-	LastKnownIndex       int64 `zid:"17"` // adjust on each use
+	SessionSerial int64 `zid:"16"` // monotone inside a SessionID
+
+	// LastKnownIndex is a session causality token to provide
+	// sequential consistency even if clocks misbehave
+	// (see the Raft dissertation, p75, section 6.4.1).
+	//
+	// Misbehavior of leases based on clocks could
+	// occur due to long pauses such
+	// as scheduling pauses, garbage collection pauses,
+	// virtual machine migrations, or clock rate adjustments
+	// for time synchronization. Even a slow network path
+	// could create issues.
+	//
+	// LastKnownIndex is first set in the leader's replicateTicket() call
+	// (see tkt.NewSessReq.SessionAssignedIndex = idx; at tube.go:5345)
+	// as the raft log index assigned to the log entry
+	// that creates the session.
+	//
+	// LastKnownIndex is copied to tkt.SessionLastKnownIndex
+	// when a new Ticket is created for any session operation
+	// by the client, and thus re-conveyed to the
+	// Tube cluster in its role of causality token (a logical clock).
+	//
+	// If tkt.SessionLastKnownIndex > s.state.LastApplied
+	// then an error is thrown at tube.go:14307 in
+	// leaderDoneEarlyOnSessionStuff() to preserve causality
+	// even if timing/clock/pause badness violates the
+	// leasing time-based logic.
+	LastKnownIndex int64 `zid:"17"` // adjust on each use
+
 	MinSessSerialWaiting int64 `zid:"18"`
 
 	readyCh chan struct{}
