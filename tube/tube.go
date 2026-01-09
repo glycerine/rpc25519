@@ -3197,6 +3197,8 @@ type RequestVote struct {
 	Weight float64 `zid:"11"` // TODO: implement vote weighting
 
 	MC *MemberConfig `zid:"12"`
+
+	SenderHLC HLC `zid:"13"`
 }
 
 // Vote is the response to RequestVote.
@@ -3228,6 +3230,8 @@ type Vote struct {
 	Reason string `zid:"13"`
 
 	MC *MemberConfig `zid:"14"`
+
+	SenderHLC HLC `zid:"15"`
 }
 
 func (s *RequestVote) String() (r string) {
@@ -5723,6 +5727,7 @@ func (s *TubeNode) beginElection() {
 		LastLogIndex:        lastLogIndex,
 		LastLogTerm:         lastLogTerm,
 		MC:                  s.state.MC,
+		SenderHLC:           s.hlc.CreateSendOrLocalEvent(),
 	}
 
 	// we only vote for ourselves if we are in current MC
@@ -5742,6 +5747,7 @@ func (s *TubeNode) beginElection() {
 				CandidatesTerm:      s.state.CurrentTerm,
 				VoteGranted:         true,
 				MC:                  s.state.MC,
+				SenderHLC:           s.hlc.CreateSendOrLocalEvent(),
 			}
 			if selfVote.MC == nil {
 				panic("fix this")
@@ -9825,6 +9831,7 @@ func (s *TubeNode) beginPreVote() {
 		LastLogTerm:         s.lastLogTerm(),
 		IsPreVote:           true,
 		MC:                  s.state.MC,
+		SenderHLC:           s.hlc.CreateSendOrLocalEvent(),
 	}
 
 	// we only vote for ourselves if we are in current MC
@@ -9845,6 +9852,7 @@ func (s *TubeNode) beginPreVote() {
 				VoteGranted:         true,
 				IsPreVote:           true,
 				MC:                  s.state.MC,
+				SenderHLC:           s.hlc.CreateSendOrLocalEvent(),
 			}
 			if selfVote.MC == nil {
 				panic("fix this")
@@ -9896,6 +9904,8 @@ func (s *TubeNode) handleRequestVote(reqVote *RequestVote, ckt0 *rpc.Circuit) {
 
 	//vv("%v \n-------->>>    handle Request Vote( IsPreVote = %v )  <<<--------\n reqVote = %v\n votedStatus='%v'", s.me(), reqVote.IsPreVote, reqVote, s.state.votedStatus())
 
+	s.hlc.ReceiveMessageWithHLC(reqVote.SenderHLC)
+
 	// should NEVER be IsPreVote here, as we kept them
 	// totally separate from regular votes to preserve
 	// the ability to turn off the pre-vote if we want;
@@ -9925,6 +9935,7 @@ func (s *TubeNode) handleRequestVote(reqVote *RequestVote, ckt0 *rpc.Circuit) {
 		// for the most important info, send it!
 		PeerLogTermsRLE: s.wal.getTermsRLE(),
 		MC:              s.state.MC,
+		SenderHLC:       s.hlc.CreateSendOrLocalEvent(),
 	}
 
 	// save on fsyncs
@@ -10149,6 +10160,8 @@ func (s *TubeNode) handleRequestPreVote(reqPreVote *RequestVote, ckt0 *rpc.Circu
 
 	// adopt their MC? wait for ae from leader; we
 	// don't want to adopt a stray zombie's MC by mistake.
+
+	s.hlc.ReceiveMessageWithHLC(reqPreVote.SenderHLC)
 
 	// short-circuit once decision made.
 	done := false
