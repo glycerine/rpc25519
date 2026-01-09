@@ -112,11 +112,35 @@ Buffer Size     Bandwidth       Fsyncs/Sec
 33554432        715.55     MB/s   22.36
 67108864        1084.57    MB/s   16.95
 134217728       1553.25    MB/s   12.13
-268435456       1985.94    MB/s   7.76
+256 MB          1985.94    MB/s   7.76  <<< resonable approx of peak
 536870912       2100.41    MB/s   4.10
-1073741824      2136.01    MB/s   2.09
+1073741824      2136.01    MB/s   2.09  <<<<<<<< peak
 ------------------------------------------------
 
 Optimal Fsync Rate: 2.09 fsyncs/sec at Buffer Size: 1073741824 bytes
 --- PASS: TestFsyncBenchmark (21.13s)
+
+older linux box, rog.
+Western Digital Black NVME drive SN850 2TB
+
+go test -v -run Fsync
+=== RUN   TestFsyncBenchmark
+Benchmarking fsync bandwidth...
+Buffer Size     Bandwidth       Fsyncs/Sec
+------------------------------------------------
+262144          288.65     MB/s   1154.59
+1048576         498.92     MB/s   498.92
+4194304         641.31     MB/s   160.33
+16777216        839.17     MB/s   52.45
+33554432        911.76     MB/s   28.49
+67108864        950.55     MB/s   14.85
+128 MB          953.49     MB/s   7.45  <<<<<<<< peak
+268435456       850.95     MB/s   3.32
+536870912       883.37     MB/s   1.73
+1073741824      794.11     MB/s   0.78
+------------------------------------------------
+
+Optimal Fsync Rate: 7.45 fsyncs/sec at Buffer Size: 134217728 bytes
+--- PASS: TestFsyncBenchmark (23.95s)
+
 */
