@@ -79,10 +79,7 @@ func (s *Simnet) injectCircuitFault(faultop *mop, closeProceed bool) (err error)
 	}
 
 	now := time.Now() // TODO thread from caller in.
-	vv("about to applyFaultsToPQ; origin='%v'; fault.targetName='%v'", origin.name, fault.targetName)
-	beg := time.Now()
 	s.applyFaultsToPQ(now, origin, target, fault.DropDeafSpec)
-	vv("back from applyFaultsToPQ, took '%v'", time.Since(beg))
 	//vv("after injectCircuitFault '%v', simnet: '%v'", fault.String(), s.schedulerReport())
 	return
 }

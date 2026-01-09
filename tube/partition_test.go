@@ -348,8 +348,11 @@ func Test052_partition_leader_away_and_rejoin(t *testing.T) {
 			// problem: now that we try to make NEW connections
 			// after detecting node failures, those newly made
 			// connections do not have the deaf/drop applied!
-			// so ISOLATE host instead!
-			if false { // true {
+			// so ISOLATE host instead! Update: fixed now.
+			// See also fuzz_test.go:272.
+			if false { // true { // 4.1 sec vs 4.7-5.1 sec,
+				// so it is a bit faster to isolate,
+				// but then that does not test that our DropDeaf is working.
 				c.IsolateNode(0)
 			} else {
 				deafProb := map[int]float64{0: 1.0}
@@ -377,7 +380,7 @@ func Test052_partition_leader_away_and_rejoin(t *testing.T) {
 			// but no applying allNewCircuitsInjectFault to new auto-cli
 			// because the fault is on the other end of the connection.
 
-			vv("after 10 minutes of sleep, simnet is now: %v", c.SimnetSnapshot(true))
+			//vv("after 10 minutes of sleep, simnet is now: %v", c.SimnetSnapshot(true))
 
 			// leader should have stepped down <- no longer true??
 

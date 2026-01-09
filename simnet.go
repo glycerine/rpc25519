@@ -1130,7 +1130,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	s.dns[clinode.name] = clinode
 	s.dnsOrdered.set(clinode.name, clinode)
 
-	vv("registering new client '%v'", clinode.name)
+	//vv("registering new client '%v'", clinode.name)
 
 	regop.origin = clinode
 
@@ -1148,7 +1148,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	if reg.serverBaseID != "" {
 		basesrv, ok := s.servers[reg.serverBaseID]
 		if ok {
-			vv("cli is auto-cli of basesrv='%v'", basesrv.name)
+			//vv("cli is auto-cli of basesrv='%v'", basesrv.name)
 			s.node2server[clinode] = basesrv
 			basesrv.autocli[clinode] = c2s
 			basesrv.allnode[clinode] = true
