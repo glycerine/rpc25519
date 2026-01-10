@@ -105,6 +105,7 @@ func (s *Leaf) Clone() (r *Leaf) {
 		WriteRaftLogIndex: s.WriteRaftLogIndex,
 		LeaseEpoch:        s.LeaseEpoch,
 		Version:           s.Version,
+		AutoDelete:        s.AutoDelete,
 	}
 	return
 }
