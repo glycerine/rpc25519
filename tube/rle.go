@@ -972,6 +972,11 @@ func (s *TermsRLE) getTermIndexStartingAt(idx int64) iter.Seq2[int64, int64] {
 	base := s.BaseC
 	if idx < base || idx > s.Endi {
 		panic(fmt.Sprintf("don't have it/don't know; idx=%v; s=%v", idx, s))
+		// panic: don't have it/don't know; idx=3;
+		// s=[BaseC: 635[CompactTerm: 2]|logical len 270; (635:905]
+		// TermsRLE{ Base: 635, Endi: 905, Runs:
+		//	&tube.TermRLE{Term:2, Count:270}
+		// }
 	}
 	return func(yield func(int64, int64) bool) {
 		nextIdx := idx

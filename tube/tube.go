@@ -6586,7 +6586,7 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 		if true && lli >= ae.PrevLogIndex+1 {
 			// fine grain checking, redundant with Extends?
 			j := 0
-			for fTerm, fIndex := range s.wal.logIndex.getTermIndexStartingAt(ae.PrevLogTerm + 1) {
+			for fTerm, fIndex := range s.wal.logIndex.getTermIndexStartingAt(ae.PrevLogIndex + 1) {
 				e := ae.Entries[j]
 				if e.Index != fIndex {
 					panicf("bad internal logic here, we should have "+
