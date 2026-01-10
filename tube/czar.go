@@ -504,7 +504,7 @@ func (membr *RMember) start() {
 	myDetailBytes, err := myDetail.MarshalMsg(nil)
 	panicOn(err)
 
-	vv("myDetail = '%v' for tubeCliName = '%v'; myDetailBytes len %v", myDetail, tubeCliName, myDetailBytes)
+	vv("myDetail = '%v' for tubeCliName = '%v'; myDetailBytes len %v", myDetail, tubeCliName, len(myDetailBytes))
 
 	//var czarURL string
 	//var czarCkt *rpc.Circuit
