@@ -1087,6 +1087,7 @@ func StringFromVtype(val Val, vtyp string) string {
 		rm.UnmarshalMsg(val)
 		return rm.String()
 	case PeerDetailType:
+		vv("attempting to unmarshal into PeerDetail len %v bytes: '%v'", len(val), string(val))
 		det := &PeerDetail{}
 		det.UnmarshalMsg(val)
 		return det.String()

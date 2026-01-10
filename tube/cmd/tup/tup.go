@@ -613,6 +613,8 @@ repl:
 						Leasor:       tktR.Leasor,
 						LeaseEpoch:   tktR.LeaseEpoch,
 						LeaseUntilTm: tktR.LeaseUntilTm,
+						Version:      tktR.VersionRead,
+						AutoDelete:   tktR.LeaseAutoDel,
 					}
 					leaseInfo = leaseInfoFromLeaf(leaf)
 				}
@@ -645,5 +647,5 @@ func leaseInfoFromLeaf(leaf *art.Leaf) string {
 	} else {
 		lefts = fmt.Sprintf("(%v left)", left)
 	}
-	return fmt.Sprintf(" Leasor:'%v'; LeaseEpoch='%v'; LeaseUntilTm='%v' %v (leaf.Version='%v')", leaf.Leasor, leaf.LeaseEpoch, nice(leaf.LeaseUntilTm), lefts, leaf.Version)
+	return fmt.Sprintf(" Leasor:'%v'; LeaseEpoch='%v'; LeaseUntilTm='%v' %v (leaf.Version='%v'; auto-delete: %v)", leaf.Leasor, leaf.LeaseEpoch, nice(leaf.LeaseUntilTm), lefts, leaf.Version, leaf.AutoDelete)
 }
