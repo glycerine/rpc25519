@@ -15070,7 +15070,7 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 		if tkt.Leasor != "" && tkt.LeaseRequestDur > 0 &&
 			s.leaderServedLocalRead(tkt, true) {
 
-			vv("%v failed lease write turned into local fast read", s.name)
+			//vv("%v failed lease write turned into local fast read", s.name)
 			tkt.Stage += ":RedirectTicketToLeaderMsg_leaderServedLocalRead_true_failed_lease_write"
 			return
 		}
