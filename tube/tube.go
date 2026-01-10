@@ -1870,7 +1870,7 @@ func (s *TubeNode) handleNewCircuit(
 	if ckt.RemotePeerID == "" {
 		panic(fmt.Sprintf("cannot have ckt.RemotePeerID empty: ckt='%v'", ckt))
 	}
-	//vv("%v top handleNewCircuit ckt from '%v'", s.name, ckt.RemotePeerName)
+	vv("%v top handleNewCircuit ckt from '%v'", s.name, ckt.RemotePeerName)
 
 	// below we work hard to distinguish
 	// replicas (that participate as Raft nodes)
