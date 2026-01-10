@@ -123,9 +123,10 @@ func main() {
 	// immediately exit(1) if the contactName is
 	// not also the current leader.
 	const requireOnlyContact = false
+	const keepCktUp = true
 
 	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-	leaderURL, leaderName, _, reallyLeader, _, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact)
+	leaderURL, leaderName, _, reallyLeader, _, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact, keepCktUp)
 	canc()
 	panicOn(err)
 	if !reallyLeader {

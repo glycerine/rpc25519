@@ -431,8 +431,10 @@ func (membr *RMember) start() {
 
 	ctx := context.Background()
 	var sess *Session
+	const requireOnlyContact = false
+	const keepCktUp = false
 	for {
-		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", false)
+		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp)
 		_ = reallyLeader
 		_ = leaderName
 		panicOn(err)

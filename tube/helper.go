@@ -43,7 +43,10 @@ type set struct {
 // If requireOnlyContact is true, then
 // HelperFindLeader will immediately exit(1) if
 // the contactName is not also the current leader.
-func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool, contacted []*Inspection, err0 error) {
+// If keepCktUp then we will leave the circuit
+// to the leader we established up; otherwise
+// we will close it before returning.
+func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, contactName string, requireOnlyContact, keepCktUp bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool, contacted []*Inspection, err0 error) {
 
 	if node.name != cfg.MyName {
 		panicf("must have consistent node.name('%v') == cfg.MyName('%v')", node.name, cfg.MyName)
@@ -95,9 +98,15 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 				//	vv("\n just before sending to '%v', stacks = '%v'", remoteName, allstacks())
 				//}
 			}
+			var ckt *rpc.Circuit
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-			_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
+			_, insp, leaderURL, leaderName, _, ckt, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
 			canc5()
+			if ckt != nil {
+				if !keepCktUp { // without this, client_test 710 red, so add keepCktUp.
+					ckt.Close(nil)
+				}
+			}
 			if err == nil && insp != nil {
 				contacted = append(contacted, insp)
 				if verbose {
@@ -220,11 +229,15 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 		var insp *Inspection
 		var leaderURL, leaderName string
 		var err error
+		var ckt *rpc.Circuit
 
 		ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-		_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, xname)
+		_, insp, leaderURL, leaderName, _, ckt, err = node.GetPeerListFrom(ctx5sec, url, xname)
 		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
 		canc5()
+		if ckt != nil {
+			ckt.Close(nil)
+		}
 		if err == nil && insp != nil {
 			contacted = append(contacted, insp)
 		}

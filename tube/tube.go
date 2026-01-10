@@ -1946,7 +1946,7 @@ func (s *TubeNode) handleNewCircuit(
 		//vv("%v: (ckt '%v') got incoming ckt: '%v'", s.name, ckt.Name, ckt)
 
 		defer func() {
-			//vv("%v: (ckt '%v') defer running! finishing RemotePeer goro. stack = ''", s.name, ckt.RemotePeerName) // , stack())
+			vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.RemotePeerName) // , stack())
 			ckt.Close(err0)
 			// subtract from peers, avoid race by using peerLeftCh.
 			//vv("%v reduce s.ckt peer set since peer went away: '%v'", s.me(), ckt.RemotePeerID)
@@ -11323,7 +11323,7 @@ func (s *TubeNode) UseLeaderURL(ctx context.Context, leaderURL string) (onlyPoss
 // exclude those. A dropped reply makes tubels appear as if
 // a replica node is down even though it is not. We
 // should send on the package but without the payload?
-func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName string) (mc *MemberConfig, insp *Inspection, actualLeaderURL, actualLeaderName string, onlyPossibleAddr string, err error) {
+func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName string) (mc *MemberConfig, insp *Inspection, actualLeaderURL, actualLeaderName string, onlyPossibleAddr string, ckt *rpc.Circuit, err error) {
 
 	_, _, peerID, _, err := rpc.ParsePeerURL(leaderURL)
 	panicOn(err)
@@ -11334,13 +11334,13 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName st
 		panic("ugh. self-circuit? TODO figure out self-circuit or what?")
 	}
 
-	var ckt *rpc.Circuit
 	ckt, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderURL, nil, false)
 
 	if err != nil {
 		//vv("%v GetPeerListFrom got error from getCircuitToLeader('%v') err='%v'; s.electionTimeoutCh='%p', s.nextElection in '%v'", s.me(), leaderURL, err, s.electionTimeoutCh, time.Until(s.nextElection))
-		return nil, nil, "", "", onlyPossibleAddr, err
+		return nil, nil, "", "", onlyPossibleAddr, nil, err
 	}
+
 	//actualLeaderName = ckt.RemotePeerName
 
 	itkt := s.newRemoteInspectionTicket(ckt)

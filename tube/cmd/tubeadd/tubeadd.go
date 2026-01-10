@@ -205,9 +205,11 @@ if it comes to that.
 	err = node.InitAndStart()
 	panicOn(err)
 	defer node.Close()
+	const requireOnlyContact = true
+	const keepCktUp = false
 
 	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, true)
+	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact, keepCktUp)
 	canc()
 	_ = reallyLeader
 	panicOn(err)
