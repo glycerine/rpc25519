@@ -525,7 +525,7 @@ func (membr *RMember) start() {
 	// TODO: handle needing new session, maybe it times out?
 	// should survive leader change, but needs checking.
 
-	refreshMembersCh := time.After(refreshMembersDur)
+	var refreshMembersCh <-chan time.Time
 	refreshMemberInTube := func() {
 
 		_, err := sess.Write(ctx, Key("members"), Key(tubeCliName), Val(myDetailBytes), writeAttemptDur, PeerDetailPlusType, membersLeaseDur, leaseAutoDelTrue)
@@ -533,6 +533,7 @@ func (membr *RMember) start() {
 
 		refreshMembersCh = time.After(refreshMembersDur)
 	}
+	refreshMemberInTube()
 
 looptop:
 	for {
