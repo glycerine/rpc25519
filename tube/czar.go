@@ -534,6 +534,7 @@ func (membr *RMember) start() {
 		refreshMembersCh = time.After(refreshMembersDur)
 	}
 	refreshMemberInTube()
+	vv("begin main loop at looptop")
 
 looptop:
 	for {
