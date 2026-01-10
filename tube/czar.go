@@ -927,11 +927,13 @@ func (s *PeerDetailPlus) String() string {
        PeerServiceName: %v
 PeerServiceNameVersion: %v
              NonVoting: %v
+                   PID: %v
        RMemberLeaseDur: %v
    RMemberLeaseUntilTm: %v (%v)
 }`, d.Name, d.URL, d.PeerID, d.Addr,
 		d.PeerServiceName, d.PeerServiceNameVersion,
 		d.NonVoting,
+		d.PID,
 		s.RMemberLeaseDur,
 		nice(s.RMemberLeaseUntilTm), x)
 }

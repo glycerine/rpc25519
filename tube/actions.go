@@ -699,10 +699,10 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 
 				deadzone.Tree.InsertLeaf(lf)
 				table.Tree.Remove(art.Key(key))
-				vv("Descend did auto-delete of table '%v'/key '%v'", tktTable, tktKey)
+				//vv("Descend did auto-delete of table '%v'/key '%v'", tktTable, tktKey)
 				continue
 			}
-			vv("Descend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
+			//vv("Descend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
 			// make copies.
 			//key2 := append([]byte{}, key...)
 			//val2 := append([]byte{}, lf.Value...)
