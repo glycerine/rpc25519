@@ -272,7 +272,7 @@ func main() {
 	defer node.Close()
 
 	const requireOnlyContact = false
-	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
+	ctx5, canc := context.WithTimeout(ctx, time.Second*50)
 	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact)
 	canc()
 	_ = reallyLeader // leaderName will be empty so maybe not needed?
