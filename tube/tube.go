@@ -9273,6 +9273,11 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 			if tkt.SessionSerial > ste.MaxAppliedSerial {
 				//vv("%v: updating ste.MaxAppliedSerial to higher tkt.SessionSerial: %v -> %v; on tkt.SessionID = '%v'", s.name, ste.MaxAppliedSerial, tkt.SessionSerial, tkt.SessionID)
 				ste.MaxAppliedSerial = tkt.SessionSerial
+
+				// leader calls in the pre-replication checks,
+				// but followers cleanup does not happen unless
+				// we do it on them too, like here.
+				s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
 			}
 
 			// by using do.Tm below, we gain that
