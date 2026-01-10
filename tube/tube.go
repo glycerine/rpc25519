@@ -9572,7 +9572,7 @@ func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
 		if !ok {
 			// still nope
 
-			alwaysPrintf("%v in respondToClientTicketApplied: loss of ticket... don't know how to contact tkt.FromID='%v' (tkt.FromName='%v') (!= s.PeerID='%v'/'%v') to fwd tkt in respondToClientTicketApplied. Assuming they died. tkt=%v; s.cktall='%v'", s.me(), alias(tkt.FromID), tkt.FromName, alias(s.PeerID), s.PeerID, tkt, s.cktall2string())
+			alwaysPrintf("%v in respondToClientTicketApplied: loss of ticket... don't know how to contact tkt.FromID='%v' (tkt.FromName='%v') (!= s.PeerID='%v'/'%v') to fwd tkt in respondToClientTicketApplied. Assuming they died. tkt=%v; s.cktall='%v'", s.me(), tkt.FromID, tkt.FromName, alias(s.PeerID), s.PeerID, tkt, s.cktall2string())
 
 			tkt.Stage += "__cannot_find_ckt_for_client_lose_ticket"
 			// TODO: add to dead letter?
