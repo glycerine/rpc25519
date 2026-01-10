@@ -1870,7 +1870,7 @@ func (s *TubeNode) handleNewCircuit(
 	if ckt.RemotePeerID == "" {
 		panic(fmt.Sprintf("cannot have ckt.RemotePeerID empty: ckt='%v'", ckt))
 	}
-	vv("%v top handleNewCircuit ckt from '%v'", s.name, ckt.RemotePeerName)
+	//vv("%v top handleNewCircuit ckt from '%v'", s.name, ckt.RemotePeerName)
 
 	// below we work hard to distinguish
 	// replicas (that participate as Raft nodes)
@@ -1946,7 +1946,7 @@ func (s *TubeNode) handleNewCircuit(
 		//vv("%v: (ckt '%v') got incoming ckt: '%v'", s.name, ckt.Name, ckt)
 
 		defer func() {
-			vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.RemotePeerName) // , stack())
+			//vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.RemotePeerName) // , stack())
 			ckt.Close(err0)
 			// subtract from peers, avoid race by using peerLeftCh.
 			//vv("%v reduce s.ckt peer set since peer went away: '%v'", s.me(), ckt.RemotePeerID)
