@@ -636,11 +636,17 @@ looptop:
 				czar.mut.Unlock()
 				panicOn(err)
 
-				czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar)
-				panicOn(err)
-				pp("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
-				czarLeaseUntilTm = czarTkt.LeaseUntilTm
-
+				// hung here on cluster leader bounce, write
+				// has failed.
+				ctx5, canc := context.WithTimeout(ctx, time.Minute*5)
+				czarTkt, err := sess.Write(ctx5, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar)
+				canc()
+				if err != nil {
+					vv("renewCzarLeaseCh attempt to renew lease with Write to '%v' failed: err='%v'", keyCz, err)
+				} else {
+					pp("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
+					czarLeaseUntilTm = czarTkt.LeaseUntilTm
+				}
 				renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 			case <-czar.Halt.ReqStop.Chan:
 				//vv("czar halt requested. exiting.")
