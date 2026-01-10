@@ -233,7 +233,7 @@ func Test401_add_node(t *testing.T) {
 			// know who the leader is(!)
 			_, err = node4.UseLeaderURL(bkg, leaderURL)
 			panicOn(err)
-			tkt, err := node4.Write(bkg, "", "xmem", xmem.SerzBytes(), 0, nil, "", 0)
+			tkt, err := node4.Write(bkg, "", "xmem", xmem.SerzBytes(), 0, nil, "", 0, leaseAutoDelFalse)
 			panicOn(err)
 			vv("tkt = '%v'", tkt)
 

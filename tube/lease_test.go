@@ -70,7 +70,7 @@ func Test079_lease_from_leader(t *testing.T) {
 		leaseVal := Val("leaseValA")
 		leaseVtype := "lease"
 		leaseRequestDur := time.Minute
-		leaseTkt, err := sess.Write(ctx, leaseTable, leaseKey, leaseVal, 0, leaseVtype, leaseRequestDur)
+		leaseTkt, err := sess.Write(ctx, leaseTable, leaseKey, leaseVal, 0, leaseVtype, leaseRequestDur, leaseAutoDelFalse)
 		panicOn(err)
 		now := time.Now()
 		until := leaseTkt.LeaseUntilTm
@@ -85,7 +85,7 @@ func Test079_lease_from_leader(t *testing.T) {
 
 		time.Sleep(15 * time.Second)
 		sess2, err := nodes[2].CreateNewSession(ctx, leader.URL)
-		leaseTkt2, err2 := sess2.Write(ctx, leaseTable, leaseKey, leaseVal, 0, leaseVtype, leaseRequestDur)
+		leaseTkt2, err2 := sess2.Write(ctx, leaseTable, leaseKey, leaseVal, 0, leaseVtype, leaseRequestDur, leaseAutoDelFalse)
 		if leaseTkt2.Err == nil || err2 == nil {
 			panic("expected error from re-lease attempt")
 		}
@@ -97,7 +97,7 @@ func Test079_lease_from_leader(t *testing.T) {
 		// original leasor should be allowed to extend before expiry.
 		time.Sleep(15 * time.Second)
 
-		leaseTkt, err = sess.Write(ctx, leaseTable, leaseKey, leaseVal, 0, leaseVtype, leaseRequestDur)
+		leaseTkt, err = sess.Write(ctx, leaseTable, leaseKey, leaseVal, 0, leaseVtype, leaseRequestDur, leaseAutoDelFalse)
 		panicOn(err)
 		now = time.Now()
 		until = leaseTkt.LeaseUntilTm

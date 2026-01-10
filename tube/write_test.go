@@ -32,7 +32,7 @@ func Test002_tube_write_new_value(t *testing.T) {
 			// Write
 			v = []byte(fmt.Sprintf("%v", i))
 			//vv("about to write '%v'", string(v))
-			txtW, err := nodes[0].Write(bkg, "", "a", v, 0, nil, "", 0)
+			txtW, err := nodes[0].Write(bkg, "", "a", v, 0, nil, "", 0, leaseAutoDelFalse)
 			panicOn(err)
 			_ = txtW
 

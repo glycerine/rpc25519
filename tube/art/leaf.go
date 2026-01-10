@@ -90,6 +90,9 @@ type Leaf struct {
 	LeaseUntilTm      time.Time `zid:"5"`
 	WriteRaftLogIndex int64     `zid:"6"`
 	LeaseEpoch        int64     `zid:"7"`
+
+	// if lease goes stale then move this to the /deadzone table.
+	AutoDelete bool `zid:"8"`
 }
 
 func (s *Leaf) Clone() (r *Leaf) {

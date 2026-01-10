@@ -274,6 +274,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -4662,12 +4663,13 @@ type Ticket struct {
 	LeaseUntilTm           time.Time     `zid:"68"`
 	LeaseEpoch             int64         `zid:"69"` // filled on response
 	LeaseWriteRaftLogIndex int64         `zid:"70"` // filled on response
+	LeaseAutoDel           bool          `zid:"71"`
 
 	// when actually submitted to raft log in replicateTicket
-	RaftLogEntryTm time.Time `zid:"71"`
+	RaftLogEntryTm time.Time `zid:"72"`
 
-	OldVersionCAS int64 `zid:"72"` // For CAS: old version (tested for).
-	VersionRead   int64 `zid:"73"` // version of key that we read.
+	OldVersionCAS int64 `zid:"73"` // For CAS: old version (tested for).
+	VersionRead   int64 `zid:"74"` // version of key that we read.
 
 	// BatchID ? how is batching best implemented (TODO).
 
@@ -4836,6 +4838,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.Leasor = tkt.Leasor
 		prior.LeaseUntilTm = tkt.LeaseUntilTm
 		prior.LeaseEpoch = tkt.LeaseEpoch
+		prior.LeaseAutoDel = tkt.LeaseAutoDel
 		prior.VersionRead = tkt.VersionRead
 		prior.LeaseWriteRaftLogIndex = tkt.LeaseWriteRaftLogIndex
 		prior.MC = tkt.MC
@@ -4945,6 +4948,7 @@ finishTicketCalled: %v,
              Leasor: "%v"
        LeaseUntilTm: %v
          LeaseEpoch: %v
+       LeaseAutoDel: %v
 LeaseWriteRaftLogIndex: %v
    --------  Ticket membership updates  ---------
        AddPeerName: %v
@@ -4988,6 +4992,7 @@ DoneClosedOnPeerID: "%v",
 		t.Leasor,
 		leaseUntilTmStr,
 		t.LeaseEpoch,
+		t.LeaseAutoDel,
 		t.LeaseWriteRaftLogIndex,
 		t.AddPeerName,
 		t.RemovePeerName,
@@ -9750,6 +9755,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.LeaseRequestDur = answer.LeaseRequestDur
 	question.Leasor = answer.Leasor
 	question.LeaseEpoch = answer.LeaseEpoch
+	question.LeaseAutoDel = answer.LeaseAutoDel
 	question.VersionRead = answer.VersionRead
 	question.LeaseWriteRaftLogIndex = answer.LeaseWriteRaftLogIndex
 	question.LeaseUntilTm = answer.LeaseUntilTm
@@ -10504,6 +10510,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 				tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
 				tkt.Leasor = priorTkt.Leasor
 				tkt.LeaseEpoch = priorTkt.LeaseEpoch
+				tkt.LeaseAutoDel = priorTkt.LeaseAutoDel
 				tkt.VersionRead = priorTkt.VersionRead
 				tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
 				tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
@@ -10682,6 +10689,7 @@ func (s *TubeNode) doReadKey(tkt *Ticket) {
 		tkt.Leasor = leaf.Leasor
 		tkt.LeaseUntilTm = leaf.LeaseUntilTm
 		tkt.LeaseEpoch = leaf.LeaseEpoch
+		tkt.LeaseAutoDel = leaf.AutoDelete
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 		tkt.VersionRead = leaf.Version
 	}
@@ -11806,7 +11814,8 @@ type PeerDetail struct {
 	PeerServiceName        string `zid:"4"`
 	PeerServiceNameVersion string `zid:"5"`
 
-	NonVoting bool `zid:"6"`
+	NonVoting bool  `zid:"6"`
+	PID       int64 `zid:"7"`
 
 	gcAfterHeartbeatCount int
 }
@@ -11832,9 +11841,10 @@ func (s *PeerDetail) String() string {
        PeerServiceName: %v
 PeerServiceNameVersion: %v
              NonVoting: %v
+                   PID: %v
 }`, s.Name, s.URL, s.PeerID, s.Addr,
 		s.PeerServiceName, s.PeerServiceNameVersion,
-		s.NonVoting)
+		s.NonVoting, s.PID)
 }
 
 // MemberConfig gets stored and saved
@@ -14450,6 +14460,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 			tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
 			tkt.Leasor = priorTkt.Leasor
 			tkt.LeaseEpoch = priorTkt.LeaseEpoch
+			tkt.LeaseAutoDel = priorTkt.LeaseAutoDel
 			tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
 			tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
 
@@ -16222,5 +16233,6 @@ func (s *TubeNode) GetMyPeerDetail() *PeerDetail {
 		Addr:                   s.MyPeer.BaseServerAddr,
 		PeerServiceName:        s.MyPeer.PeerServiceName,
 		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
+		PID:                    int64(os.Getpid()),
 	}
 }

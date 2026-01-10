@@ -120,7 +120,7 @@ func (s *fuzzUser) Write(key string, writeMe int) {
 	vv("about to write at node 0, v = writeMe = %v: '%v'", writeMe, string(v))
 
 	// WRITE
-	tktW, err := s.clus.Nodes[0].Write(bkg, "", Key(key), v, 0, nil, "", 0)
+	tktW, err := s.clus.Nodes[0].Write(bkg, "", Key(key), v, 0, nil, "", 0, leaseAutoDelFalse)
 
 	switch err {
 	case ErrShutDown, rpc.ErrShutdown2,

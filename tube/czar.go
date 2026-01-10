@@ -23,6 +23,9 @@ import (
 // as that is the name of the type.
 const ReliableMembershipListType string = "ReliableMembershipListType"
 
+const leaseAutoDelFalse = false
+const leaseAutoDelTrue = true
+
 // Czar must have greenpack to use the rpc.Call system.
 
 //go:generate greenpack
@@ -545,7 +548,8 @@ looptop:
 			bts2, err := list.MarshalMsg(nil)
 			panicOn(err)
 
-			czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar)
+			const leaseAutoDelFalse = false
+			czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar, leaseAutoDelFalse)
 
 			if err == nil {
 				czarLeaseUntilTm = czarTkt.LeaseUntilTm
@@ -641,7 +645,7 @@ looptop:
 				// hung here on cluster leader bounce, write
 				// has failed.
 				ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-				czarTkt, err := sess.Write(ctx5, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar)
+				czarTkt, err := sess.Write(ctx5, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar, leaseAutoDelFalse)
 				canc()
 				if err != nil {
 					vv("renewCzarLeaseCh attempt to renew lease with Write to '%v' failed: err='%v'", keyCz, err)

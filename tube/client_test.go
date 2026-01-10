@@ -60,7 +60,7 @@ func Test707_client_linz_semantics(t *testing.T) {
 			v = []byte(fmt.Sprintf("%v", i))
 			vv("707 about to sess.Write '%v'; sess.SessionSerial=%v", string(v), sess.SessionSerial) // not seen.
 			// sess.Write automatically does sess.SessionSerial++ for us.
-			txtW, err := sess.Write(bkg, "", "a", v, 0, "", 0)
+			txtW, err := sess.Write(bkg, "", "a", v, 0, "", 0, leaseAutoDelFalse)
 			panicOn(err)
 
 			vv("good, past sess.Write at i = %v; now sess.SessionSerial = %v", i, sess.SessionSerial)
@@ -160,7 +160,7 @@ func Test708_client_linz_SessionSerial_gap_caught(t *testing.T) {
 				// the raft log any length.
 				sess.SessionSerial--
 			}
-			tktW, err := sess.Write(bkg, "", "a", v, 0, "", 0)
+			tktW, err := sess.Write(bkg, "", "a", v, 0, "", 0, leaseAutoDelFalse)
 			if i == itargetSkip {
 				// see test 710:
 				// our new understanding is that gaps do need
@@ -201,7 +201,7 @@ func Test708_client_linz_SessionSerial_gap_caught(t *testing.T) {
 			if i == 2 {
 				// using cli.Write means no automatic increment
 				// of sess.SessionSerial
-				tktW, err := cli.Write(bkg, "", "a", v, 0, sess, "", 0)
+				tktW, err := cli.Write(bkg, "", "a", v, 0, sess, "", 0, leaseAutoDelFalse)
 				panicOn(err)
 				if !tktW.DupDetected {
 					panic("expected to see DupDetected")
@@ -390,7 +390,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 		// Write
 		v = []byte(fmt.Sprintf("%v", 99))
 		//vv("about to write '%v'", string(v))
-		tktW, err := sess.Write(bkg, "", "a", v, 0, "", 0)
+		tktW, err := sess.Write(bkg, "", "a", v, 0, "", 0, leaseAutoDelFalse)
 		panicOn(err)
 		_ = tktW
 

@@ -109,7 +109,7 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 
 				// Write
 				v = []byte(fmt.Sprintf("%v", i))
-				_, err := c.Nodes[0].Write(bkg, "", "a", v, 0, nil, "", 0)
+				_, err := c.Nodes[0].Write(bkg, "", "a", v, 0, nil, "", 0, leaseAutoDelFalse)
 				panicOn(err)
 
 				vv("good, past Write at i = %v", i)
@@ -221,7 +221,7 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 
 				// Write
 				v = []byte(fmt.Sprintf("%v", i))
-				_, err := c.Nodes[0].Write(bkg, "", "a", v, 0, nil, "", 0)
+				_, err := c.Nodes[0].Write(bkg, "", "a", v, 0, nil, "", 0, leaseAutoDelFalse)
 				panicOn(err)
 
 				vv("good, past Write at i = %v", i)

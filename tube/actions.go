@@ -50,7 +50,7 @@ import (
 // This provides the strongest and most intuitive
 // consistency. It also gives us composability --
 // a synonym for ease of use.
-func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, sess *Session, vtype string, leaseDur time.Duration) (tkt *Ticket, err error) {
+func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, sess *Session, vtype string, leaseDur time.Duration, leaseAutoDel bool) (tkt *Ticket, err error) {
 
 	if leaseDur != 0 {
 		// sanity check
@@ -67,7 +67,7 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 		desc += fmt.Sprintf("; vtype='%v'", vtype)
 	}
 	if leaseDur > 0 {
-		desc += fmt.Sprintf("; leaseDur='%v' requested for Leasor '%v'", leaseDur, s.name)
+		desc += fmt.Sprintf("; leaseDur='%v' requested for Leasor '%v' (autoDel: %v)", leaseDur, s.name, leaseAutoDel)
 	}
 	tkt = s.NewTicket(desc, table, key, val, s.PeerID, s.name, WRITE, waitForDur, ctx)
 	tkt.Vtype = vtype
@@ -76,6 +76,7 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 		// let leader set this using tkt.RaftLogEntryTm.Add(tkt.LeaseRequestDur)
 		//tkt.LeaseUntilTm // set at tube.go:5282 in replicateTicket().
 		tkt.Leasor = s.name
+		tkt.LeaseAutoDel = leaseAutoDel
 	}
 	if sess != nil {
 		tkt.SessionID = sess.SessionID
@@ -567,6 +568,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.WriteRaftLogIndex = tkt.LogIndex
 		leaf.LeaseEpoch = 1
 		leaf.Version = 1
+		leaf.AutoDelete = tkt.LeaseAutoDel
 
 		tkt.LeaseEpoch = leaf.LeaseEpoch
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
@@ -595,6 +597,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.WriteRaftLogIndex = tkt.LogIndex
 		leaf.LeaseEpoch++
 		leaf.Version++
+		leaf.AutoDelete = tkt.LeaseAutoDel
 
 		tkt.LeaseEpoch = leaf.LeaseEpoch
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
@@ -623,6 +626,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 			leaf.WriteRaftLogIndex = tkt.LogIndex
 			// leave this the same! no epoch change! leaf.LeaseEpoch
 			leaf.Version++
+			leaf.AutoDelete = tkt.LeaseAutoDel
 
 			tkt.LeaseEpoch = leaf.LeaseEpoch
 			tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
@@ -646,6 +650,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.WriteRaftLogIndex = tkt.LogIndex
 		leaf.LeaseEpoch++
 		leaf.Version++
+		leaf.AutoDelete = tkt.LeaseAutoDel
 
 		tkt.LeaseEpoch = leaf.LeaseEpoch
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
@@ -676,6 +681,10 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 	if !ok {
 		return nil, ErrKeyNotFound
 	}
+
+	deadzone := s.ensureDeadzone()
+	now := time.Now()
+
 	//vv("%v kvstoreRangeScan table='%v', key='%v', keyEndx='%v'; descend=%v", s.name, tktTable, tktKey, tktKeyEndx, descend)
 	results = art.NewArtTree()
 	results.SkipLocking = true
@@ -683,6 +692,15 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 		// note this is correct, the endx comes first in art.Descend.
 		for key, lf := range art.Descend(table.Tree, art.Key(tktKeyEndx), art.Key(tktKey)) {
 			_ = key
+			// implement AutoDelete
+			if lf.AutoDelete && tktTable != "deadzone" &&
+				lf.Leasor != "" &&
+				lf.LeaseUntilTm.Before(now) {
+
+				deadzone.Tree.InsertLeaf(lf)
+				table.Tree.Remove(art.Key(key))
+				continue
+			}
 			//vv("Descend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
 			// make copies.
 			//key2 := append([]byte{}, key...)
@@ -694,6 +712,15 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 	} else {
 		for key, lf := range art.Ascend(table.Tree, art.Key(tktKey), art.Key(tktKeyEndx)) {
 			_ = key
+			// implement AutoDelete
+			if lf.AutoDelete && tktTable != "deadzone" &&
+				lf.Leasor != "" &&
+				lf.LeaseUntilTm.Before(now) {
+
+				deadzone.Tree.InsertLeaf(lf)
+				table.Tree.Remove(art.Key(key))
+				continue
+			}
 			//vv("Ascend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
 			// make copies.
 			//key2 := append([]byte{}, key...)
@@ -706,15 +733,34 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 	return
 }
 
+func (s *RaftState) ensureDeadzone() (deadzone *ArtTable) {
+	deadzone, ok := s.KVstore.m["deadzone"]
+	if !ok {
+		deadzone = newArtTable()
+		s.KVstore.m["deadzone"] = deadzone
+	}
+	return deadzone
+}
+
 func (s *RaftState) KVStoreRead(tktTable, tktKey Key) ([]byte, string, error) {
 	table, ok := s.KVstore.m[tktTable]
 	if !ok {
 		return nil, "", ErrKeyNotFound
 	}
-	val, idx, ok, vtyp := table.Tree.FindExact(art.Key(tktKey))
-	_ = idx
+	lf, _, ok := table.Tree.Find(art.Exact, art.Key(tktKey))
 	if ok {
-		return val, vtyp, nil
+		// implement AutoDelete
+		if lf.AutoDelete && tktTable != "deadzone" &&
+			lf.Leasor != "" &&
+			lf.LeaseUntilTm.Before(time.Now()) {
+
+			deadzone := s.ensureDeadzone()
+			deadzone.Tree.InsertLeaf(lf)
+			table.Tree.Remove(art.Key(tktKey))
+			return nil, "", ErrKeyNotFound
+		}
+
+		return lf.Value, lf.Vtype, nil
 	}
 	return nil, "", ErrKeyNotFound
 }
@@ -724,9 +770,19 @@ func (s *RaftState) KVStoreReadLeaf(tktTable, tktKey Key) (*art.Leaf, error) {
 	if !ok {
 		return nil, ErrKeyNotFound
 	}
-	leaf, _, ok := table.Tree.Find(art.Exact, art.Key(tktKey))
+	lf, _, ok := table.Tree.Find(art.Exact, art.Key(tktKey))
 	if ok {
-		return leaf, nil
+		// implement AutoDelete
+		if lf.AutoDelete && tktTable != "deadzone" &&
+			lf.Leasor != "" &&
+			lf.LeaseUntilTm.Before(time.Now()) {
+
+			deadzone := s.ensureDeadzone()
+			deadzone.Tree.InsertLeaf(lf)
+			table.Tree.Remove(art.Key(tktKey))
+			return nil, ErrKeyNotFound
+		}
+		return lf, nil
 	}
 	return nil, ErrKeyNotFound
 }
@@ -1006,7 +1062,7 @@ func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, w
 }
 
 // if ctx is nill we will use s.ctx
-func (s *Session) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, vtype string, leaseDur time.Duration) (tkt *Ticket, err error) {
+func (s *Session) Write(ctx context.Context, table, key Key, val Val, waitForDur time.Duration, vtype string, leaseDur time.Duration, leaseAutoDel bool) (tkt *Ticket, err error) {
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.Write: cli is nil, Session.Errs='%v'", s.Errs)
 	}
@@ -1015,7 +1071,7 @@ func (s *Session) Write(ctx context.Context, table, key Key, val Val, waitForDur
 		ctx = s.ctx
 	}
 	//vv("submitting write with s.SessionSerial = %v", s.SessionSerial)
-	return s.cli.Write(ctx, table, key, val, waitForDur, s, vtype, leaseDur)
+	return s.cli.Write(ctx, table, key, val, waitForDur, s, vtype, leaseDur, leaseAutoDel)
 }
 
 func (s *Session) RenameTable(ctx context.Context, table, newTableName Key, waitForDur time.Duration) (tkt *Ticket, err error) {
