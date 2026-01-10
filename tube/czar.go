@@ -727,7 +727,9 @@ looptop:
 					cState = unknownCzarState
 					continue
 				}
-				pp("member called to Czar.Ping, got reply='%v'", reply)
+				if reply != nil && reply.PeerNames != nil {
+					pp("member called to Czar.Ping, got reply with member count='%v'", reply.PeerNames.Len())
+				}
 				if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
 					nonCzarMembers = reply
 					nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
