@@ -70,9 +70,6 @@ func newParLog(path string, nodisk bool) (s *parLog, err error) {
 		// same as in wal.go:182, per tigerbeetle, we want to sync before reading.
 		err = fd.Sync()
 		panicOn(err)
-		if isDarwin {
-			panicOn(actuallyFsyncOnDarwin(fd))
-		}
 
 		if err != nil {
 			return nil, err
@@ -204,9 +201,6 @@ func (s *parLog) sync() error {
 	}
 	err := s.fd.Sync()
 	panicOn(err)
-	if isDarwin {
-		panicOn(actuallyFsyncOnDarwin(s.fd))
-	}
 
 	return nil
 }

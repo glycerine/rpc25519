@@ -102,15 +102,9 @@ func (s *raftStatePersistor) sync() error {
 	}
 	err := s.fd.Sync()
 	panicOn(err)
-	if isDarwin {
-		panicOn(actuallyFsyncOnDarwin(s.fd))
-	}
 
 	err = s.parentDirFd.Sync()
 	panicOn(err)
-	if isDarwin {
-		panicOn(actuallyFsyncOnDarwin(s.parentDirFd))
-	}
 
 	return nil
 }
@@ -152,9 +146,6 @@ func (s *raftStatePersistor) save(state *RaftState) (nw int64, err error) {
 	panicOn(err)
 	err = s.parentDirFd.Sync()
 	panicOn(err)
-	if isDarwin {
-		panicOn(actuallyFsyncOnDarwin(s.parentDirFd))
-	}
 	return
 }
 

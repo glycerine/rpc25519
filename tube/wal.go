@@ -7,27 +7,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/blake3"
 	"github.com/glycerine/greenpack/msgp"
 	rpc "github.com/glycerine/rpc25519"
-	"golang.org/x/sys/unix"
 )
-
-var isDarwin = runtime.GOOS == "darwin"
-
-// Necessary to fsync on macOS.
-func actuallyFsyncOnDarwin(f *os.File) error {
-	// F_FULLFSYNC is a macOS-specific command to flush drive hardware caches.
-	// In other words, darwin lies about fsync, and you must use this
-	// instead to actually fsync data safely onto disk and survive
-	// power failure.
-	_, err := unix.FcntlInt(f.Fd(), unix.F_FULLFSYNC, 0)
-	return err
-}
 
 type raftWriteAheadLog struct {
 	path        string
@@ -229,9 +215,6 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 	if err != nil {
 		return nil, err
 	}
-	if isDarwin {
-		panicOn(actuallyFsyncOnDarwin(fd))
-	}
 
 	var parlog *parLog
 	if !readOnly {
@@ -349,17 +332,11 @@ func (s *raftWriteAheadLog) close() (err error) {
 func (s *raftWriteAheadLog) sync() error {
 	err := s.fd.Sync()
 	panicOn(err)
-	if isDarwin {
-		panicOn(actuallyFsyncOnDarwin(s.fd))
-	}
 
 	// need to sync parent directory for durability too.
 	if s.parentDirFd != nil {
 		err = s.parentDirFd.Sync()
 		panicOn(err)
-		if isDarwin {
-			panicOn(actuallyFsyncOnDarwin(s.parentDirFd))
-		}
 	}
 	return nil
 }

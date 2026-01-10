@@ -23,9 +23,6 @@ func DetermineOptimalFsync() (float64, int) {
 
 	// Ensure the file is on disk
 	f.Sync()
-	if isDarwin {
-		panicOn(actuallyFsyncOnDarwin(f))
-	}
 
 	bufferSizes := []int{
 		//4 * 1024,          // 4KB
@@ -71,9 +68,6 @@ func DetermineOptimalFsync() (float64, int) {
 			if err != nil {
 				fmt.Printf("Sync error: %v\n", err)
 				break
-			}
-			if isDarwin {
-				panicOn(actuallyFsyncOnDarwin(f))
 			}
 			fsyncCount++
 		}
