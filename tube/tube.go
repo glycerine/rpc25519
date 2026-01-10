@@ -7933,6 +7933,25 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 	if ckt != nil {
 		if peer != ckt.RemotePeerID {
 			panic(fmt.Sprintf("sanity check failed, frag should be from ckt. frag.FromPeerID='%v' but ckt.RemotePeerID='%v'", peer, ckt.RemotePeerID))
+			// wtf. how did this happen???
+			/*
+				panic: sanity check failed, frag should be from ckt. frag.FromPeerID='CSVruwG6F6Z1sPs4hCJHgG6Xtige' but ckt.RemotePeerID='EK5_4sQPPAcbr5Rq0yE20Ub2cBP0' [recovered, repanicked]
+
+				goroutine 26 [running]:
+				github.com/glycerine/rpc25519/tube.(*TubeNode).Start.func1()
+					/home/jaten/rpc25519/tube/tube.go:729 +0xf5
+				panic({0xcab940?, 0xc3c937cb90?})
+					/mnt/oldrog/usr/local/go1.25.3/src/runtime/panic.go:783 +0x132
+				github.com/glycerine/rpc25519/tube.(*TubeNode).peerJoin(0xc0004b3c08, 0xc27e77d8c0, 0xc0371faea0)
+					/home/jaten/rpc25519/tube/tube.go:7935 +0x5d4
+				github.com/glycerine/rpc25519/tube.(*TubeNode).Start(0xc0004b3c08, 0xc0001faa50, {0xf2f2e0, 0xc0001db9a0}, 0xc0004ce700)
+					/home/jaten/rpc25519/tube/tube.go:1524 +0x2cda
+				github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer.func1()
+					/home/jaten/rpc25519/ckt.go:1449 +0x109
+				created by github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer in goroutine 1
+					/home/jaten/rpc25519/ckt.go:1443 +0x659
+
+			*/
 		}
 	}
 
