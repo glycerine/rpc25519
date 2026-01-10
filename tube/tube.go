@@ -14492,7 +14492,7 @@ func (s *TubeNode) cleanupAcked(ste *SessionTableEntry, deleteBelow int64) {
 	}
 	for ser, tkt := range ste.Serial2Ticket.All() {
 		if ser < deleteBelow {
-			//vv("%v deleting acked SessionSerial %v in SessionID '%v'", s.name, ser, tkt.SessionID)
+			vv("%v cleanupAcked: deleting acked SessionSerial %v in SessionID '%v'", s.name, ser, tkt.SessionID)
 			delete(ste.ticketID2tkt, tkt.TicketID)
 			ste.Serial2Ticket.Delkey(ser)
 		} else {
