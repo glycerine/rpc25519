@@ -127,7 +127,7 @@ func main() {
 	leaderURL, leaderName, _, reallyLeader, _, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, requireOnlyContact)
 	panicOn(err)
 	if !reallyLeader {
-		panic("could not find leader")
+		panicf("could not find leader")
 	}
 
 	// when no leader, we hang, our tkt in awaitingLeader.

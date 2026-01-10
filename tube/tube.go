@@ -11692,6 +11692,7 @@ func (s *TubeNode) peerListRequestHandler(frag *rpc.Fragment, ckt *rpc.Circuit) 
 		// all the dead clients from membership attempts
 		// whose processes are very short lived! The
 		// inspection thus gets too large (3MB).
+		fmt.Printf("problem insp is: '%v'", insp.String())
 		panicf("problem! our peer list reply (%v) is over maxMessage(%v)", len(bts), rpc.UserMaxPayload)
 	}
 
@@ -14496,7 +14497,7 @@ func (s *TubeNode) cleanupAcked(ste *SessionTableEntry, deleteBelow int64) {
 	}
 	for ser, tkt := range ste.Serial2Ticket.All() {
 		if ser < deleteBelow {
-			vv("%v cleanupAcked: deleting acked SessionSerial %v in SessionID '%v'", s.name, ser, tkt.SessionID)
+			//vv("%v cleanupAcked: deleting acked SessionSerial %v in SessionID '%v'", s.name, ser, tkt.SessionID)
 			delete(ste.ticketID2tkt, tkt.TicketID)
 			ste.Serial2Ticket.Delkey(ser)
 		} else {
