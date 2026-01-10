@@ -638,7 +638,7 @@ looptop:
 
 				// hung here on cluster leader bounce, write
 				// has failed.
-				ctx5, canc := context.WithTimeout(ctx, time.Minute*5)
+				ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 				czarTkt, err := sess.Write(ctx5, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar)
 				canc()
 				if err != nil {
