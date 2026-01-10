@@ -719,7 +719,7 @@ looptop:
 					cState = unknownCzarState
 					continue looptop
 				}
-				pp("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply='%v'", tubeCliName, reply)
+				pp("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply of %v nodes", tubeCliName, reply.PeerNames.Len())
 				// store view of membership as non-czar
 				if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
 					nonCzarMembers = reply
