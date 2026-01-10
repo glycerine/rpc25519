@@ -98,9 +98,7 @@ func DetermineOptimalFsync() (float64, int) {
 	return optimalFsyncsPerSec, optimalBufSize
 }
 
-/* mac book pro SSD (are we sure this is fsyncing?? nope, it was not!!!)
-
-Now with the added actuallyFsyncOnDarwin() call.
+/* mac book pro SSD (are we sure this is fsyncing? yes, it is/was.)
 
 === RUN   TestFsyncBenchmark
 Benchmarking fsync bandwidth...
@@ -122,7 +120,7 @@ Optimal Fsync Rate: 2.26 fsyncs/sec at Buffer Size: 1073741824 bytes
 --- PASS: TestFsyncBenchmark (101.02s)
 
 
-Old (Bad) mac book pro, 10 seconds per setting, not really fsync-ing!
+previous measurments
 
 Buffer Size     Bandwidth       Fsyncs/Sec
 ------------------------------------------------
