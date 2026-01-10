@@ -4060,6 +4060,9 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 
 	for id, cktP := range s.cktReplica {
 		ckt := cktP.ckt
+		if minimize && cktP.PeerServiceName == TUBE_CLIENT {
+			continue
+		}
 		ins.CktReplica[id] = ckt.RemoteCircuitURL() // inspection copy
 		//vv("%v inspectHandler(): setting CktReplica['%v'] = '%v'", s.name, id, ckt.RemoteCircuitURL())
 	}
