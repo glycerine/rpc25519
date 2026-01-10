@@ -1589,7 +1589,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					panic("wrong ClusterID")
 					continue // drop
 				}
-				vv("%v sees RequestPreVote '%v'", s.me(), reqPreVote)
+				//vv("%v sees RequestPreVote '%v'", s.me(), reqPreVote)
 				s.handleRequestPreVote(reqPreVote, fragCkt.ckt)
 
 			case PreVoteMsg:
