@@ -70,11 +70,31 @@ type iterator struct {
 	cursor    []byte
 	terminate []byte
 
-	reverse bool
-
 	begIdx int // corresponding to initial key
 	curIdx int // corresponding to current key after the first Next()
 	//endxIdx int // corresponding to 1 past the last key
+
+	// current:
+	key   []byte
+	value []byte
+	leaf  *Leaf
+}
+
+type revIterator struct {
+	tree *Tree
+
+	treeVersion int64
+
+	initDone bool
+	closed   bool
+
+	start     []byte
+	cursor    []byte
+	terminate []byte
+
+	begIdx  int // corresponding to initial key
+	curIdx  int // corresponding to current key after the first Next()
+	endxIdx int // corresponding to 1 past the last key
 
 	// current:
 	key   []byte
@@ -190,10 +210,10 @@ func (t *Tree) Iter(start, end []byte) (iter *iterator) {
 // allows for single goroutine code that deletes from
 // (or inserts into) the tree during the iteration,
 // which is not an uncommon need.
-func (t *Tree) RevIter(end, start []byte) (iter *iterator) {
+func (t *Tree) RevIter(end, start []byte) (iter *revIterator) {
 
 	if t.root == nil || t.size < 1 {
-		return &iterator{
+		return &revIterator{
 			initDone: true,
 			closed:   true,
 		}
@@ -203,37 +223,37 @@ func (t *Tree) RevIter(end, start []byte) (iter *iterator) {
 	_, begIdx, ok := t.find_unlocked(LTE, start)
 	if !ok {
 		//vv("FindLTE start found nothing!")
-		return &iterator{
+		return &revIterator{
 			initDone: true,
 			closed:   true,
 		}
 	}
+	//vv("begIdx = %v", begIdx)
 
 	gtLeaf, endIdx, ok := t.find_unlocked(GT, end)
 	_ = gtLeaf
-	_ = endIdx // might need in future, not used atm.
 	if !ok {
 		//vv("in revIt: FindGT(end='%v') got ok=false, endIdx = %v; gtLeaf='%v'", string(end), endIdx, gtLeaf)
 		// this is okay if end is nil, of course
 
 		//vv("FindGT end found nothing! end='%v'", string(end))
-		return &iterator{
+		return &revIterator{
 			initDone: true,
 			closed:   true,
 		}
 	}
+	//vv("endIdx = %v; gtLeaf='%v'", endIdx, gtLeaf)
 
 	//vv("revIt starting cursor=start='%v'", string(start))
-	return &iterator{
+	return &revIterator{
 		tree:        t,
 		treeVersion: t.treeVersion,
-		reverse:     true,
 		start:       start,
 		cursor:      start,
 		terminate:   end,
 		begIdx:      begIdx,
 		curIdx:      begIdx + 1,
-		//endxIdx:     endIdx - 1,
+		endxIdx:     endIdx - 1,
 	}
 }
 
@@ -258,9 +278,6 @@ func (i *iterator) Next() (ok bool) {
 		//vv("tree modified, reseting iterator state")
 
 		smod := GT
-		if i.reverse {
-			smod = LT
-		}
 		leaf, idx, ok := i.tree.find_unlocked(smod, i.cursor)
 		if !ok {
 			//vv("ugh. could not find successor to i.cursor '%v'. terminating iteration", string(i.cursor))
@@ -282,18 +299,17 @@ func (i *iterator) Next() (ok bool) {
 		// let re-init code below start the stack again.
 
 	} else {
-		// no change in treeVersion
-		if i.reverse {
-			i.curIdx--
-		} else {
-			//vv("incrementing i.curIdx to %v", i.curIdx+1)
-			i.curIdx++
-		}
+		//vv("no change in treeVersion; i.curIdx=%v", i.curIdx)
+
+		//vv("incrementing i.curIdx to %v", i.curIdx+1)
+		i.curIdx++
 	}
+	//vv("i.curIdx = %v", i.curIdx)
 
 	if i.stack == nil {
 		// initialize iterator
 		if exit, next := i.init(); exit {
+			//vv("i.stack was nil, exit true, next='%v'", next)
 			return next
 		}
 	}
@@ -313,6 +329,78 @@ func (i *iterator) Next() (ok bool) {
 	// 		}
 	// 	}
 	// }
+	return
+}
+
+func (i *revIterator) Key() Key {
+	return i.key
+}
+
+func (i *revIterator) Leaf() *Leaf {
+	return i.leaf
+}
+
+func (i *revIterator) Value() []byte {
+	return i.value
+}
+
+func (i *revIterator) Index() int {
+	return i.curIdx
+}
+
+func (i *revIterator) Next() (ok bool) {
+	if i.closed {
+		return false
+	}
+	if i.treeVersion != i.tree.treeVersion {
+		// there has been a modification
+		// to the tree, reset the stack and
+		// indexes. Proceed from the
+		// last provided key+1 (-1 for reverse).
+		//vv("tree modified, reseting iterator state")
+
+		leaf, idx, ok := i.tree.find_unlocked(LT, i.cursor)
+		if !ok {
+			//vv("ugh. could not find successor to i.cursor '%v'. terminating iteration", string(i.cursor))
+
+			// user modification may have deleted all further keys,
+			// so terminate the iteration.
+			i.closed = true
+			return false
+		}
+		i.curIdx = idx
+		i.leaf = leaf
+		i.key = leaf.Key
+		i.value = leaf.Value
+		i.treeVersion = i.tree.treeVersion
+
+		// reset the stack from scratch
+		i.cursor = leaf.Key
+		// let re-init code below start the stack again.
+
+	} else {
+		//vv("no change in treeVersion; i.curIdx=%v", i.curIdx)
+		//vv("decrementing i.curIdx to %v", i.curIdx-1)
+		i.curIdx--
+	}
+	//vv("i.curIdx = %v", i.curIdx)
+
+	if i.curIdx == i.endxIdx {
+		i.closed = true
+		return false
+	}
+
+	lf, ok := i.tree.at_unlocked(i.curIdx)
+	if !ok {
+		// should never get here
+		i.closed = true
+		return false
+	}
+	i.leaf = lf
+	i.key = lf.Key
+	i.value = lf.Value
+	i.cursor = lf.Key
+
 	return
 }
 
@@ -410,10 +498,10 @@ func (i *iterator) next(n *inner, curkey *byte) (keyb byte, b *bnode) {
 	//defer func() {
 	//	vv("it.next returning keyb='%v', b='%v'", string(keyb), b.String())
 	//}()
-	if !i.reverse {
-		return n.Node.next(curkey)
-	}
-	return n.Node.prev(curkey)
+	//if !i.reverse {
+	return n.Node.next(curkey)
+	//}
+	//return n.Node.prev(curkey)
 }
 
 func (i *iterator) Leaf() *Leaf {
@@ -448,9 +536,10 @@ func (i *iterator) inRange(key []byte) (inside bool) {
 	//defer func() {
 	//vv("inRange returns inside=%v; reverse is %v; key='%v'; cursor='%v; terminate='%v'", inside, i.reverse, string(key), string(i.cursor), string(i.terminate))
 	//}()
-	if i.reverse {
-		return (bytes.Compare(key, i.cursor) <= 0 || len(i.cursor) == 0) && (len(i.terminate) == 0 || bytes.Compare(key, i.terminate) > 0)
-	}
+	//vv("inRange called: (bytes.Compare(key='%v', i.cursor='%v') = %v", string(key), i.cursor, bytes.Compare(key, i.cursor))
+	//if i.reverse {
+	//	return (bytes.Compare(key, i.cursor) <= 0 || len(i.cursor) == 0) && (len(i.terminate) == 0 || bytes.Compare(key, i.terminate) > 0)
+	//}
 	// forward iteration:
 	return bytes.Compare(key, i.cursor) >= 0 && (len(i.terminate) == 0 || bytes.Compare(key, i.terminate) < 0)
 }

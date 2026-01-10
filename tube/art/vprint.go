@@ -253,3 +253,7 @@ func assert(b bool) {
 		panic("assert panics on false")
 	}
 }
+
+func panicf(format string, a ...interface{}) {
+	panic(fmt.Sprintf(format, a...))
+}
