@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/glycerine/rpc25519/tube"
@@ -8,6 +10,7 @@ import (
 
 func main() {
 	tube.VerboseVerbose.Store(true)
+	fmt.Printf("pid = %v\n", os.Getpid())
 
 	clockDriftBound := 20 * time.Millisecond
 	tableSpace := "hermes"

@@ -82,6 +82,7 @@ func (c *ConfigTubeCli) SetDefaults() {}
 
 func main() {
 	showBinaryVersion("tube")
+	fmt.Printf("pid = %v\n", os.Getpid())
 
 	cmdCfg := &ConfigTubeCli{}
 
