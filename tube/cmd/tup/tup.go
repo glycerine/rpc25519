@@ -511,7 +511,7 @@ repl:
 									leaseInfo = leaseInfoFromLeaf(leaf)
 								}
 
-								fmt.Printf("(from table '%v') read key '%v' of type '%v': %v%v\n", targetTable, string(k), leaf.Vtype, stringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
+								fmt.Printf("(from table '%v') read key '%v' (version: %v) of type '%v': %v%v\n", targetTable, string(k), leaf.Version, leaf.Vtype, stringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
 								seen++
 							}
 						} else {
@@ -521,7 +521,7 @@ repl:
 									leaseInfo = leaseInfoFromLeaf(leaf)
 								}
 
-								fmt.Printf("(from table '%v') read key '%v' of type '%v': %v%v\n", targetTable, string(k), leaf.Vtype, stringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
+								fmt.Printf("(from table '%v') read key '%v' (version %v) of type '%v': %v%v\n", targetTable, string(k), leaf.Version, leaf.Vtype, stringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
 								seen++
 							}
 						}
@@ -612,7 +612,7 @@ repl:
 					}
 					leaseInfo = leaseInfoFromLeaf(leaf)
 				}
-				fmt.Printf("(from table '%v') read key '%v' of type '%v': %v%v\n", targetTable, key, tktR.Vtype, stringFromVtype(readVal, tktR.Vtype), leaseInfo)
+				fmt.Printf("(from table '%v') read key '%v' (version %v) of type '%v': %v%v\n", targetTable, key, tktR.VersionRead, tktR.Vtype, stringFromVtype(readVal, tktR.Vtype), leaseInfo)
 			}
 		}
 	} // end repl for loop

@@ -248,7 +248,7 @@ func main() {
 						} else {
 							extra = fmt.Sprintf("[Leasor:'%v'; until '%v' (in %v)] ", leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(time.Now()))
 						}
-						fmt.Printf("       key: '%v': %v%v\n", key, extra, string(leaf.Value))
+						fmt.Printf("       key: '%v' (version %v): %v%v\n", key, leaf.Version, extra, stringFromVtype(leaf.Value, leaf.Vtype))
 					}
 				}
 			} else {
@@ -450,7 +450,7 @@ func showArchive(path string) (exitCode int) {
 		for table, tab := range state.KVstore.All() {
 			fmt.Printf("    table '%v' (len %v):\n", table, tab.Len())
 			for key, leaf := range tab.All() {
-				fmt.Printf("       key: '%v': %v\n", key, string(leaf.Value))
+				fmt.Printf("       key: '%v': %v\n", key, stringFromVtype(leaf.Value, leaf.Vtype))
 			}
 		}
 	} else {
@@ -481,4 +481,14 @@ func showBinaryVersion(program string) {
 	// for _, dep := range info.Deps {
 	// 	fmt.Printf("- %s: %s\n", dep.Path, dep.Version)
 	// }
+}
+
+func stringFromVtype(val tube.Val, vtyp string) string {
+	switch vtyp {
+	case tube.ReliableMembershipListType:
+		rm := &tube.ReliableMembershipList{}
+		rm.UnmarshalMsg(val)
+		return rm.String()
+	}
+	return string(val)
 }
