@@ -442,7 +442,7 @@ repl:
 					if tkt.CASwapped {
 						fmt.Printf("cas accepted: %v <- %v\n", key, string(newval))
 					} else {
-						fmt.Printf("cas rejected, cur val: %v\n", stringFromVtype(tkt.CASRejectedBecauseCurVal, tkt.Vtype))
+						fmt.Printf("cas rejected, cur val: %v\n", tube.StringFromVtype(tkt.CASRejectedBecauseCurVal, tkt.Vtype))
 					}
 				}
 			default:
@@ -473,7 +473,7 @@ repl:
 								if leaf.Leasor != "" {
 									leaseInfo = leaseInfoFromLeaf(leaf)
 								}
-								fmt.Printf("(from table '%v') read key '%v' of type '%v': %v%v\n", targetTable, string(k), leaf.Vtype, stringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
+								fmt.Printf("(from table '%v') read key '%v' of type '%v': %v%v\n", targetTable, string(k), leaf.Vtype, tube.StringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
 								seen++
 							}
 						} else {
@@ -483,7 +483,7 @@ repl:
 									leaseInfo = leaseInfoFromLeaf(leaf)
 								}
 
-								fmt.Printf("(from table '%v') read key '%v' of type '%v': %v%v\n", targetTable, string(k), leaf.Vtype, stringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
+								fmt.Printf("(from table '%v') read key '%v' of type '%v': %v%v\n", targetTable, string(k), leaf.Vtype, tube.StringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
 								seen++
 							}
 						}
@@ -514,7 +514,7 @@ repl:
 									leaseInfo = leaseInfoFromLeaf(leaf)
 								}
 
-								fmt.Printf("(from table '%v') read key '%v' (version: %v) of type '%v': %v%v\n", targetTable, string(k), leaf.Version, leaf.Vtype, stringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
+								fmt.Printf("(from table '%v') read key '%v' (version: %v) of type '%v': %v%v\n", targetTable, string(k), leaf.Version, leaf.Vtype, tube.StringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
 								seen++
 							}
 						} else {
@@ -524,7 +524,7 @@ repl:
 									leaseInfo = leaseInfoFromLeaf(leaf)
 								}
 
-								fmt.Printf("(from table '%v') read key '%v' (version %v) of type '%v': %v%v\n", targetTable, string(k), leaf.Version, leaf.Vtype, stringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
+								fmt.Printf("(from table '%v') read key '%v' (version %v) of type '%v': %v%v\n", targetTable, string(k), leaf.Version, leaf.Vtype, tube.StringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
 								seen++
 							}
 						}
@@ -585,7 +585,8 @@ repl:
 				}
 			}
 		case isSet:
-			_, err := sess.Write(ctx, tube.Key(targetTable), tube.Key(key), tube.Val(value), 0, "", leaseDur)
+			const leaseAutoDelFalse = false
+			_, err := sess.Write(ctx, tube.Key(targetTable), tube.Key(key), tube.Val(value), 0, "", leaseDur, leaseAutoDelFalse)
 			if err != nil {
 				fmt.Printf("error: %v\n", err)
 				sess = needNewSess(sess, err)
@@ -615,7 +616,7 @@ repl:
 					}
 					leaseInfo = leaseInfoFromLeaf(leaf)
 				}
-				fmt.Printf("(from table '%v') read key '%v' (version %v) of type '%v': %v%v\n", targetTable, key, tktR.VersionRead, tktR.Vtype, stringFromVtype(readVal, tktR.Vtype), leaseInfo)
+				fmt.Printf("(from table '%v') read key '%v' (version %v) of type '%v': %v%v\n", targetTable, key, tktR.VersionRead, tktR.Vtype, tube.StringFromVtype(readVal, tktR.Vtype), leaseInfo)
 			}
 		}
 	} // end repl for loop
@@ -645,14 +646,4 @@ func leaseInfoFromLeaf(leaf *art.Leaf) string {
 		lefts = fmt.Sprintf("(%v left)", left)
 	}
 	return fmt.Sprintf(" Leasor:'%v'; LeaseEpoch='%v'; LeaseUntilTm='%v' %v (leaf.Version='%v')", leaf.Leasor, leaf.LeaseEpoch, nice(leaf.LeaseUntilTm), lefts, leaf.Version)
-}
-
-func stringFromVtype(val tube.Val, vtyp string) string {
-	switch vtyp {
-	case tube.ReliableMembershipListType:
-		rm := &tube.ReliableMembershipList{}
-		rm.UnmarshalMsg(val)
-		return rm.String()
-	}
-	return string(val)
 }

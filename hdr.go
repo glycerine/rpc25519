@@ -472,8 +472,11 @@ func NewCallID(name string) (cid string) {
 		chacha8randMut.Unlock()
 		cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
 	} else {
-		// incredibly, we saw a collision which made us suspect
-		// the above, so for good measure:
+		// incredibly, we saw a collision CallID
+		// using the not crypto random with 200 real processes,
+		// which made us suspect
+		// the above, so for good measure when NOT under synctest/faketime
+		// we truly randomize the CallIDs.
 		cid = NewCryRandCallID()
 	}
 	if name != "" { // traditional CallID won't have.

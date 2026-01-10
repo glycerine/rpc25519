@@ -23,6 +23,7 @@ import (
 // as that is the name of the type.
 const ReliableMembershipListType string = "ReliableMembershipListType"
 
+const PeerDetailType string = "PeerDetailType"
 const leaseAutoDelFalse = false
 const leaseAutoDelTrue = true
 
@@ -465,6 +466,9 @@ func (membr *RMember) start() {
 	memberHeartBeatDur := time.Second * 2
 	writeAttemptDur := time.Second * 5
 
+	membersLeaseDur := time.Second * 30
+	refreshMembersDur := membersLeaseDur / 3
+
 	czar := NewCzar(cli, memberHeartBeatDur, membr.clockDriftBound)
 	czar.TubeCliName = tubeCliName
 
@@ -497,6 +501,9 @@ func (membr *RMember) start() {
 	myDetail := &PeerDetailPlus{
 		Det: cli.GetMyPeerDetail(),
 	}
+	myDetailBytes, err := myDetail.MarshalMsg(nil)
+	panicOn(err)
+
 	//vv("myDetail = '%v' for tubeCliName = '%v'", myDetail, tubeCliName)
 
 	//var czarURL string
@@ -517,6 +524,15 @@ func (membr *RMember) start() {
 
 	// TODO: handle needing new session, maybe it times out?
 	// should survive leader change, but needs checking.
+
+	refreshMembersCh := time.After(refreshMembersDur)
+	refreshMemberInTube := func() {
+
+		_, err := sess.Write(ctx, Key("members"), Key(tubeCliName), Val(myDetailBytes), writeAttemptDur, PeerDetailType, membersLeaseDur, leaseAutoDelTrue)
+		vv("member refresh attempt done. err = '%v'", err)
+
+		refreshMembersCh = time.After(refreshMembersDur)
+	}
 
 looptop:
 	for {
@@ -609,6 +625,9 @@ looptop:
 
 		case amCzar:
 			select {
+			case <-refreshMembersCh:
+				refreshMemberInTube()
+
 			case cliConnHalt := <-cli.Srv.NotifyAllNewClients:
 				//vv("czar received on cli.Srv.NotifyAllNewClients, has new client '%v'", cliConnHalt.Conn.RemoteAddr())
 				// tell the funneler to listen for it to drop.
@@ -709,8 +728,14 @@ looptop:
 					}
 				}
 				memberHeartBeatCh = time.After(memberHeartBeatDur)
-			}
+			} // end if rpcClientToCzar == nil
+
+			// INVAR: rpcClientToCzar != nil
+
 			select {
+			case <-refreshMembersCh:
+				refreshMemberInTube()
+
 			case <-rpcClientToCzarDoneCh:
 				pp("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
 				rpcClientToCzar.Close()
@@ -1052,6 +1077,22 @@ func (s *TubeNode) NewReliableMembershipList() *ReliableMembershipList {
 		panic("s cannot be nil")
 	}
 	return r
+}
+
+// allow tup and tube to display values better.
+func StringFromVtype(val Val, vtyp string) string {
+	switch vtyp {
+	case ReliableMembershipListType:
+		rm := &ReliableMembershipList{}
+		rm.UnmarshalMsg(val)
+		return rm.String()
+	case PeerDetailType:
+		det := &PeerDetail{}
+		det.UnmarshalMsg(val)
+		return det.String()
+	}
+
+	return string(val)
 }
 
 /*
