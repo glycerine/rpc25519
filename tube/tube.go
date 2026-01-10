@@ -4019,45 +4019,46 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 
 	ins.ElectionCount = s.countElections
 	ins.LastLeaderActiveStepDown = s.lastLeaderActiveStepDown
-	ins.State = s.getStateSnapshot()
+	if !minimize {
+		ins.State = s.getStateSnapshot()
+	}
 	ins.Role = s.role
 	if !minimize {
 		for _, tkt := range s.tkthist {
 			ins.Tkthist = append(ins.Tkthist, tkt.clone())
 		}
-	}
 
-	for id, info := range s.peers {
-		if minimize && info.PeerServiceName == TUBE_CLIENT {
-			continue
+		for id, info := range s.peers {
+			if minimize && info.PeerServiceName == TUBE_CLIENT {
+				continue
+			}
+			infoClone := info.clone()
+			ins.Peers[id] = infoClone
+			cktP, ok := s.cktall[id]
+			if !ok {
+				// our ckt died after 055 node_0 reboot, we
+				// could have a pending reconnect? but why
+				// in peers if it died?
+				// maybe they should not be in peers yet? just ckt?
+				// not sure why 055 was hitting this.
+				//panic(fmt.Sprintf("%v in peers but not in cktall?? id='%v'; info='%#v'", s.name, id, info))
+				alwaysPrintf("%v warning: in peers but not in cktall?? id='%v'; info='%#v'", s.name, id, info)
+			} else {
+				ckt := cktP.ckt
+				infoClone.PeerURL = ckt.RemoteCircuitURL()
+				infoClone.RemoteBaseServerAddr = cktP.PeerBaseServerAddr
+			}
+			//vv("we set infoClone.PeerURL = '%v'", infoClone.PeerURL)
 		}
-		infoClone := info.clone()
-		ins.Peers[id] = infoClone
-		cktP, ok := s.cktall[id]
-		if !ok {
-			// our ckt died after 055 node_0 reboot, we
-			// could have a pending reconnect? but why
-			// in peers if it died?
-			// maybe they should not be in peers yet? just ckt?
-			// not sure why 055 was hitting this.
-			//panic(fmt.Sprintf("%v in peers but not in cktall?? id='%v'; info='%#v'", s.name, id, info))
-			alwaysPrintf("%v warning: in peers but not in cktall?? id='%v'; info='%#v'", s.name, id, info)
-		} else {
-			ckt := cktP.ckt
-			infoClone.PeerURL = ckt.RemoteCircuitURL()
-			infoClone.RemoteBaseServerAddr = cktP.PeerBaseServerAddr
+		// since peers does not include ourselves, add ourselves too.
+		ins.Peers[s.PeerID] = &RaftNodeInfo{
+			PeerName:             s.name,
+			PeerURL:              s.URL,
+			IsInspectResponder:   true,
+			MC:                   s.state.MC.Clone(),
+			RemoteBaseServerAddr: s.MyPeer.BaseServerAddr,
 		}
-		//vv("we set infoClone.PeerURL = '%v'", infoClone.PeerURL)
 	}
-	// since peers does not include ourselves, add ourselves too.
-	ins.Peers[s.PeerID] = &RaftNodeInfo{
-		PeerName:             s.name,
-		PeerURL:              s.URL,
-		IsInspectResponder:   true,
-		MC:                   s.state.MC.Clone(),
-		RemoteBaseServerAddr: s.MyPeer.BaseServerAddr,
-	}
-
 	for id, cktP := range s.cktReplica {
 		ckt := cktP.ckt
 		if minimize && cktP.PeerServiceName == TUBE_CLIENT {
