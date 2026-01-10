@@ -465,11 +465,17 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 }
 
 func NewCallID(name string) (cid string) {
-	var pseudo [21]byte // not cryptographically random.
-	chacha8randMut.Lock()
-	chacha8rand.Read(pseudo[:])
-	chacha8randMut.Unlock()
-	cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
+	if faketime {
+		var pseudo [21]byte // not cryptographically random.
+		chacha8randMut.Lock()
+		chacha8rand.Read(pseudo[:])
+		chacha8randMut.Unlock()
+		cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
+	} else {
+		// incredibly, we saw a collision which made us suspect
+		// the above, so for good measure:
+		cid = NewCryRandCallID()
+	}
 	if name != "" { // traditional CallID won't have.
 		AliasRegister(cid, cid+" ("+name+")")
 	}
@@ -477,7 +483,7 @@ func NewCallID(name string) (cid string) {
 }
 
 func NewCryRandCallID() (cid string) {
-	var random [21]byte
+	var random [33]byte
 	cryrand.Read(random[:])
 	cid = cristalbase64.URLEncoding.EncodeToString(random[:])
 	return
