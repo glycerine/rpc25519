@@ -643,7 +643,7 @@ func leaseInfoFromLeaf(leaf *art.Leaf) string {
 	} else {
 		lefts = fmt.Sprintf("(%v left)", left)
 	}
-	return fmt.Sprintf(" Leasor:'%v'; LeaseEpoch='%v'; LeaseUntilTm='%v' %v", leaf.Leasor, leaf.LeaseEpoch, nice(leaf.LeaseUntilTm), lefts)
+	return fmt.Sprintf(" Leasor:'%v'; LeaseEpoch='%v'; LeaseUntilTm='%v' %v (leaf.Version='%v')", leaf.Leasor, leaf.LeaseEpoch, nice(leaf.LeaseUntilTm), lefts, leaf.Version)
 }
 
 func stringFromVtype(val tube.Val, vtyp string) string {
