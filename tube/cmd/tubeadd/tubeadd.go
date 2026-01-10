@@ -206,7 +206,9 @@ if it comes to that.
 	panicOn(err)
 	defer node.Close()
 
-	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, true)
+	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
+	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, true)
+	canc()
 	_ = reallyLeader
 	panicOn(err)
 	if true {

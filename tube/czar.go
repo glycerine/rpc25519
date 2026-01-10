@@ -432,7 +432,7 @@ func (membr *RMember) start() {
 	ctx := context.Background()
 	var sess *Session
 	for {
-		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(cliCfg, "", false)
+		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", false)
 		_ = reallyLeader
 		_ = leaderName
 		panicOn(err)

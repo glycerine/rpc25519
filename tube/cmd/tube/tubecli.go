@@ -272,7 +272,9 @@ func main() {
 	defer node.Close()
 
 	const requireOnlyContact = false
-	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, requireOnlyContact)
+	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
+	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact)
+	canc()
 	_ = reallyLeader // leaderName will be empty so maybe not needed?
 	if err != nil {
 		// this is fine... expected under example/remote

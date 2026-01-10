@@ -157,7 +157,9 @@ func main() {
 	panicOn(err)
 	defer node.Close()
 
-	leaderURL, leaderName, insp, reallyLeader, contacted, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, true)
+	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
+	leaderURL, leaderName, insp, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, true)
+	canc()
 	_ = reallyLeader
 	panicOn(err)
 
@@ -254,9 +256,11 @@ func main() {
 		panicOn(err)
 	}
 
-	//errWriteDur := time.Second * 20
-	var errWriteDur time.Duration
-	insp2, _, err := node.RemovePeerIDFromCluster(ctx, force, cmdCfg.NonVotingShadowFollower, target, targetPeerID, tube.TUBE_REPLICA, "", leaderURL, errWriteDur)
+	errWriteDur := time.Second * 5
+	//var errWriteDur time.Duration
+	ctx5, canc = context.WithTimeout(ctx, time.Second*5)
+	insp2, _, err := node.RemovePeerIDFromCluster(ctx5, force, cmdCfg.NonVotingShadowFollower, target, targetPeerID, tube.TUBE_REPLICA, "", leaderURL, errWriteDur)
+	canc()
 	panicOn(err)
 
 	if insp2 == nil ||

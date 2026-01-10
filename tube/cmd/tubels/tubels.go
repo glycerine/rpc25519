@@ -6,15 +6,14 @@ package main
 // find the cluster.
 
 import (
-	//"context"
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	//"sort"
-	//"time"
+	"time"
 
 	"github.com/glycerine/ipaddr"
 	//rpc "github.com/glycerine/rpc25519"
@@ -129,8 +128,10 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	panicOn(err)
 	defer node.Close()
 
-	leaderURL, leaderName, insp, reallyLeader, contacted, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, false)
-
+	ctx5, canc := context.WithTimeout(context.Background(), time.Second*5)
+	leaderURL, leaderName, insp, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, false)
+	canc()
+	panicOn(err)
 	fmt.Printf("contacted:\n")
 	for _, insp := range sortByName(contacted) {
 		fmt.Printf(`%v %v  (lead: '%v')

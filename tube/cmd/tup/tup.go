@@ -124,7 +124,9 @@ func main() {
 	// not also the current leader.
 	const requireOnlyContact = false
 
-	leaderURL, leaderName, _, reallyLeader, _, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, requireOnlyContact)
+	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
+	leaderURL, leaderName, _, reallyLeader, _, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact)
+	canc()
 	panicOn(err)
 	if !reallyLeader {
 		panic("could not find leader")

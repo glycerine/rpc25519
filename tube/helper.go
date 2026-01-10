@@ -43,7 +43,7 @@ type set struct {
 // If requireOnlyContact is true, then
 // HelperFindLeader will immediately exit(1) if
 // the contactName is not also the current leader.
-func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool, contacted []*Inspection, err0 error) {
+func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool, contacted []*Inspection, err0 error) {
 
 	if node.name != cfg.MyName {
 		panicf("must have consistent node.name('%v') == cfg.MyName('%v')", node.name, cfg.MyName)
@@ -51,8 +51,6 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 
 	// contact everyone, get their idea of who is leader
 	leaders := make(map[string]*set)
-
-	ctx := context.Background()
 
 	selfSurelyNotLeader := false
 
