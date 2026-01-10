@@ -23,7 +23,7 @@ import (
 // as that is the name of the type.
 const ReliableMembershipListType string = "ReliableMembershipListType"
 
-const PeerDetailType string = "PeerDetailType"
+const PeerDetailPlusType string = "PeerDetailPlusType"
 const leaseAutoDelFalse = false
 const leaseAutoDelTrue = true
 
@@ -528,7 +528,7 @@ func (membr *RMember) start() {
 	refreshMembersCh := time.After(refreshMembersDur)
 	refreshMemberInTube := func() {
 
-		_, err := sess.Write(ctx, Key("members"), Key(tubeCliName), Val(myDetailBytes), writeAttemptDur, PeerDetailType, membersLeaseDur, leaseAutoDelTrue)
+		_, err := sess.Write(ctx, Key("members"), Key(tubeCliName), Val(myDetailBytes), writeAttemptDur, PeerDetailPlusType, membersLeaseDur, leaseAutoDelTrue)
 		vv("member refresh attempt done. err = '%v'", err)
 
 		refreshMembersCh = time.After(refreshMembersDur)
@@ -1086,11 +1086,11 @@ func StringFromVtype(val Val, vtyp string) string {
 		rm := &ReliableMembershipList{}
 		rm.UnmarshalMsg(val)
 		return rm.String()
-	case PeerDetailType:
-		vv("attempting to unmarshal into PeerDetail len %v bytes: '%v'", len(val), string(val))
-		det := &PeerDetail{}
+	case PeerDetailPlusType:
+		//vv("attempting to unmarshal into PeerDetailPlus len %v bytes: '%v'", len(val), string(val))
+		det := &PeerDetailPlus{}
 		det.UnmarshalMsg(val)
-		vv("after UnmarshalMsg, det = '%#v'", det)
+		//vv("after UnmarshalMsg, det = '%#v'", det)
 		return det.String()
 	}
 
