@@ -14098,7 +14098,6 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderURL string) (r *S
 	var onlyPossibleAddr string
 	if leaderURL != "" {
 		ckt, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderURL, reqClusterInfoFrag, false)
-		panicOn(err)
 		if err != nil {
 			return
 		}
