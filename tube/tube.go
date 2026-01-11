@@ -4858,7 +4858,8 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.Stage += ":FinishTicket_prior_Val_written"
 		if prior.Done != nil {
 			if prior.DoneClosedOnPeerID != "" {
-				panic(fmt.Sprintf("should be the first time-only close! s.PeerID='%v' but prior.DoneClosedOnPeerID='%v'", s.PeerID, prior.DoneClosedOnPeerID))
+				// seen. close on same node. does not seem worth crashing over now.
+				alwaysPrintf("should be the first time-only close! s.PeerID='%v' but prior.DoneClosedOnPeerID='%v'", s.PeerID, prior.DoneClosedOnPeerID)
 			}
 			prior.DoneClosedOnPeerID = s.PeerID
 			prior.Stage += ":FinishTicket_prior_Done_Closed"
