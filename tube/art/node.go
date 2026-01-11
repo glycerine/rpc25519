@@ -59,7 +59,7 @@ type bnode struct {
 	// pren is a cache of the sum of
 	// the SubN counts for all children
 	// earlier to us in our n4/n16/n48/n256 node.
-	// Found to be ssential to avoid very expensive
+	// Found to be essential to avoid very expensive
 	// summing on the fly of SubN counts
 	// during find/get/gte/lte. It allows
 	// the LeafIndex functionality to work and be fast.
