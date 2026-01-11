@@ -645,3 +645,23 @@ func (t *Tree) CompressedStats() (cs map[int]int, bytesSaved int) {
 	}
 	return
 }
+
+func (t *Tree) Clone() (r *Tree) {
+	if t == nil {
+		return
+	}
+	if !t.SkipLocking {
+		t.RWmut.RLock()
+		defer t.RWmut.RUnlock()
+	}
+	r = &Tree{
+		SkipLocking: true,
+	}
+	for _, lf := range Ascend(t, nil, nil) {
+		lf2 := lf.Clone()
+		r.InsertLeaf(lf2)
+	}
+	r.SkipLocking = t.SkipLocking
+	return
+
+}
