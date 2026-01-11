@@ -59,7 +59,8 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 
 	//vv("runClientMain called. caller = '%v'", stack())
 	defer func() {
-		vv("runClientMain defer: serverAddr='%v'; end for goro = %v; closing c.halt=%p", serverAddr, GoroNumber(), c.halt)
+		r := recover()
+		vv("runClientMain defer: serverAddr='%v'; end for goro = %v; recover='%v'", serverAddr, GoroNumber(), r)
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 
@@ -68,6 +69,9 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		c.mut.Unlock()
 		if doClean {
 			c.netRpcShutdownCleanup(ErrShutdown())
+		}
+		if r != nil {
+			panic(r)
 		}
 	}()
 
