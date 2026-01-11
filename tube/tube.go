@@ -12690,6 +12690,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		}
 	}
 	if s.weAreMemberOfCurrentMC() {
+		vv("weAreMemberOfCurrentMC true: ")
 		// update/add self
 		det := &PeerDetail{
 			Name:   s.name,
@@ -13466,13 +13467,13 @@ func (s *TubeNode) connectToMC(origin string) {
 // to indicate start of the attempt.
 func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 	from := origin + "|" + fileLine(2)
-	//vv("%v connectInBackgroundIfNoCircuitTo from='%v'", s.me(), from)
 	if s.cfg.NoBackgroundConnect {
 		return // this feature is off
 	}
 	if peerName == s.name {
 		return // already connected to self.
 	}
+	vv("%v connectInBackgroundIfNoCircuitTo from='%v' peerName='%v'", s.me(), from, peerName)
 	//vv("%v top connectInBackgroundIfNoCircuitTo '%v'", s.me(), peerName) // seen in 059
 
 	var url, peerID, netAddr string
@@ -14733,6 +14734,9 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 	// adding to ctkall and cktAllByName first (just above),
 	// and only afterwards starting the watchdog.
 	//vv("%v we have added cktP.PeerName='%v' to cktAllByName (and ctkall); calling startWatchdog in addToCktall on cktP=%p for '%v'", s.me(), cktP.PeerName, cktP, cktP.PeerName)
+
+	// maybe we do not want to do this for all the clients!??
+	vv("%v cktP.PeerServiceName='%v' calling startWatchdog!", s.me(), cktP.PeerServiceName)
 	cktP.startWatchdog()    // ckt non-nil means isUp=true
 	cktP.seen(nil, 0, 0, 0) // in addToCktall
 

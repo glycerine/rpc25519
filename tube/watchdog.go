@@ -329,7 +329,7 @@ func (c *cktPlus) startWatchdog() {
 }
 
 // internal goro helper for startWatchdog.
-// We have to be sure to tear any extant
+// We have to be sure to tear down any extant
 // client/connection first or else simnet
 // will bark at us about re-used names: the
 // "client name already taken" error.
