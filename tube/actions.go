@@ -685,7 +685,7 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 	deadzone := s.ensureDeadzone()
 	now := time.Now()
 
-	vv("%v kvstoreRangeScan table='%v', key='%v', keyEndx='%v'; descend=%v", s.name, tktTable, tktKey, tktKeyEndx, descend)
+	//vv("%v kvstoreRangeScan table='%v', key='%v', keyEndx='%v'; descend=%v", s.name, tktTable, tktKey, tktKeyEndx, descend)
 	results = art.NewArtTree()
 	results.SkipLocking = true
 	if descend {
