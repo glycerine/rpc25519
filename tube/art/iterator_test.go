@@ -660,15 +660,15 @@ func TestAscendAndDescendIteration(t *testing.T) {
 	copy(reversed, keys)
 	sort.Sort(sort.Reverse(sort.StringSlice(reversed)))
 
-	vv("forward sorted = '%#v'", sorted)
+	//vv("forward sorted = '%#v'", sorted)
 
-	vv("reversed = '%#v'", reversed)
+	//vv("reversed = '%#v'", reversed)
 
 	tree := NewArtTree()
 	for _, key := range keys {
 		tree.Insert([]byte(key), nil, "")
 	}
-	vv("tree = '%v'", tree)
+	//vv("tree = '%v'", tree)
 
 	i := 0
 	if false {
