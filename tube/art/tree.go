@@ -572,8 +572,8 @@ func (t *Tree) at_unlocked(i int) (lf *Leaf, ok bool) {
 	// GOEXPERIMENT=synctest go test -v -count=1 -run Test620_unlocked_read_comparison
 	// === RUN   Test620_unlocked_read_comparison
 	//
-	// tree.At(i) reads 10000000 keys: elapsed 597.897109ms (59ns/op) *** 5.5x
-	// tree.At(i) reads from 10: 9999990 keys: elapsed 544.235204ms (54ns/op) **
+	// tree.At(i) reads 10000000 keys: elapsed 597.897109ms (59ns/op) *** 4.6x
+	// tree.At(i) reads from 10: 9999990 keys: elapsed 544.235204ms (54ns/op) ** 4.9x
 	// tree.Atfar(i) reads 10000000 keys: elapsed 2.64323583s (264ns/op)
 	//
 	// --- PASS: Test620_unlocked_read_comparison (35.17s)
