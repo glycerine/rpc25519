@@ -806,7 +806,118 @@ func TestFindAndAtInverses(t *testing.T) {
 			lfkey2 := string(lf2.Key)
 			if lfkey2 != lfkey0 {
 				panicf("find LT (skey='%v') gave back idx and leaf that do not correspond! idx='%v'; leaf='%v'; but at(idx=%v) -> lf2='%v'", skey, idx, lfkey0, idx, lfkey2)
+				// bug uncovered!
+				// panic: find LT (skey='member_55BFGyQSf7h6_88eeb6h') gave back idx and leaf that do not correspond! idx='13'; leaf='member_4vgH-iStQh29oYdCHwz8'; but at(idx=13) -> lf2='member_4J8GA4BKESllXNH9oKe5' [recovered, repanicked]
 			}
 		}
 	}
 }
+
+/* buggy test run transcript
+
+-*- mode: compilation; default-directory: "~/rpc25519/tube/art/" -*-
+Compilation started at Sat Jan 10 21:55:55
+
+GOEXPERIMENT=synctest go test -v -count=1 -run TestFindAndAtInverses
+=== RUN   TestFindAndAtInverses
+
+iterator_test.go:772 2026-01-10 18:55:55.892 -0600 CST forward sorted = '[]string{"member_-1edUtuyHCPBstGobzJE", "member_-78B0K04ju0mfbX1MWww", "member_-SK5-j0ts4TZ2Fdelq07", "member_-eoXzbpz4qW0Ag8U3iNU", "member_-sReAjJ-7SiiTuFegyGl", "member_-t-DFBVVn1JfnaE9Wy5Y", "member_-tWIrOIRW_K9nKMJ1uk5", "member_0MTkiems5W3X8y9R0B8_", "member_2FWEydbAjl7xhvLTEZPG", "member_2SyZXJJsmtagaWHXqzlE", "member_2WwNPC3x57Vn_y8CT7sn", "member_2egkGSbmDD7utBHjtALy", "member_38cuzVH2qCNohKi_i4UI", "member_4J8GA4BKESllXNH9oKe5", "member_4vgH-iStQh29oYdCHwz8", "member_55BFGyQSf7h6_88eeb6h", "member_5bJZ9CTuJaGTcLPF-PVD", "member_6RIb5ClaFCleukwcEZQU"}'
+
+iterator_test.go:774 2026-01-10 18:55:55.892 -0600 CST reversed = '[]string{"member_6RIb5ClaFCleukwcEZQU", "member_5bJZ9CTuJaGTcLPF-PVD", "member_55BFGyQSf7h6_88eeb6h", "member_4vgH-iStQh29oYdCHwz8", "member_4J8GA4BKESllXNH9oKe5", "member_38cuzVH2qCNohKi_i4UI", "member_2egkGSbmDD7utBHjtALy", "member_2WwNPC3x57Vn_y8CT7sn", "member_2SyZXJJsmtagaWHXqzlE", "member_2FWEydbAjl7xhvLTEZPG", "member_0MTkiems5W3X8y9R0B8_", "member_-tWIrOIRW_K9nKMJ1uk5", "member_-t-DFBVVn1JfnaE9Wy5Y", "member_-sReAjJ-7SiiTuFegyGl", "member_-eoXzbpz4qW0Ag8U3iNU", "member_-SK5-j0ts4TZ2Fdelq07", "member_-78B0K04ju0mfbX1MWww", "member_-1edUtuyHCPBstGobzJE"}'
+
+iterator_test.go:780 2026-01-10 18:55:55.919 -0600 CST tree = 'tree of size 18:  0xc000036b80 node16, key '(zero)' childkeys: ['-', '0', '2', '3', '4', '5', '6'] (treedepth 0) compressed='member_' path='(paths commented out atm)' (subN: 18; pren: 0)
+     0xc000036c00 node16, key '-' childkeys: ['1', '7', 'S', 'e', 's', 't'] (treedepth 1) compressed='' path='(paths commented out atm)' (subN: 7; pren: 0)
+         0xc00014a2d0 leaf: key 'member_-1edUtuyHCPBstGobzJE' (len 27)
+         0xc00014a360 leaf: key 'member_-78B0K04ju0mfbX1MWww' (len 27)
+         0xc00014a3f0 leaf: key 'member_-SK5-j0ts4TZ2Fdelq07' (len 27)
+         0xc00014a480 leaf: key 'member_-eoXzbpz4qW0Ag8U3iNU' (len 27)
+         0xc00014a510 leaf: key 'member_-sReAjJ-7SiiTuFegyGl' (len 27)
+         0xc000036bc0 node4, key 't' childkeys: ['-', 'W'] (treedepth 2) compressed='' path='(paths commented out atm)' (subN: 2; pren: 0)
+             0xc00014a5a0 leaf: key 'member_-t-DFBVVn1JfnaE9Wy5Y' (len 27)
+             0xc00014a630 leaf: key 'member_-tWIrOIRW_K9nKMJ1uk5' (len 27)
+     0xc00014a6c0 leaf: key 'member_0MTkiems5W3X8y9R0B8_' (len 27)
+     0xc000036c40 node4, key '2' childkeys: ['F', 'S', 'W', 'e'] (treedepth 1) compressed='' path='(paths commented out atm)' (subN: 4; pren: 0)
+         0xc00014a750 leaf: key 'member_2FWEydbAjl7xhvLTEZPG' (len 27)
+         0xc00014a7e0 leaf: key 'member_2SyZXJJsmtagaWHXqzlE' (len 27)
+         0xc00014a870 leaf: key 'member_2WwNPC3x57Vn_y8CT7sn' (len 27)
+         0xc00014a900 leaf: key 'member_2egkGSbmDD7utBHjtALy' (len 27)
+     0xc00014a990 leaf: key 'member_38cuzVH2qCNohKi_i4UI' (len 27)
+     0xc000036c80 node4, key '4' childkeys: ['J', 'v'] (treedepth 1) compressed='' path='(paths commented out atm)' (subN: 2; pren: 0)
+         0xc00014aa20 leaf: key 'member_4J8GA4BKESllXNH9oKe5' (len 27)
+         0xc00014aab0 leaf: key 'member_4vgH-iStQh29oYdCHwz8' (len 27)
+     0xc000036cc0 node4, key '5' childkeys: ['5', 'b'] (treedepth 1) compressed='' path='(paths commented out atm)' (subN: 2; pren: 0)
+         0xc00014ab40 leaf: key 'member_55BFGyQSf7h6_88eeb6h' (len 27)
+         0xc00014abd0 leaf: key 'member_5bJZ9CTuJaGTcLPF-PVD' (len 27)
+     0xc00014ac60 leaf: key 'member_6RIb5ClaFCleukwcEZQU' (len 27)
+'
+
+iterator_test.go:788 2026-01-10 18:55:55.975 -0600 CST after removing 'member_6RIb5ClaFCleukwcEZQU', tree='tree of size 17:  0xc000036b80 node16, key '(zero)' childkeys: ['-', '0', '2', '3', '4', '5'] (treedepth 0) compressed='member_' path='(paths commented out atm)' (subN: 17; pren: 0)
+     0xc000036c00 node16, key '-' childkeys: ['1', '7', 'S', 'e', 's', 't'] (treedepth 1) compressed='' path='(paths commented out atm)' (subN: 7; pren: 0)
+         0xc00014a2d0 leaf: key 'member_-1edUtuyHCPBstGobzJE' (len 27)
+         0xc00014a360 leaf: key 'member_-78B0K04ju0mfbX1MWww' (len 27)
+         0xc00014a3f0 leaf: key 'member_-SK5-j0ts4TZ2Fdelq07' (len 27)
+         0xc00014a480 leaf: key 'member_-eoXzbpz4qW0Ag8U3iNU' (len 27)
+         0xc00014a510 leaf: key 'member_-sReAjJ-7SiiTuFegyGl' (len 27)
+         0xc000036bc0 node4, key 't' childkeys: ['-', 'W'] (treedepth 2) compressed='' path='(paths commented out atm)' (subN: 2; pren: 0)
+             0xc00014a5a0 leaf: key 'member_-t-DFBVVn1JfnaE9Wy5Y' (len 27)
+             0xc00014a630 leaf: key 'member_-tWIrOIRW_K9nKMJ1uk5' (len 27)
+     0xc00014a6c0 leaf: key 'member_0MTkiems5W3X8y9R0B8_' (len 27)
+     0xc000036c40 node4, key '2' childkeys: ['F', 'S', 'W', 'e'] (treedepth 1) compressed='' path='(paths commented out atm)' (subN: 4; pren: 0)
+         0xc00014a750 leaf: key 'member_2FWEydbAjl7xhvLTEZPG' (len 27)
+         0xc00014a7e0 leaf: key 'member_2SyZXJJsmtagaWHXqzlE' (len 27)
+         0xc00014a870 leaf: key 'member_2WwNPC3x57Vn_y8CT7sn' (len 27)
+         0xc00014a900 leaf: key 'member_2egkGSbmDD7utBHjtALy' (len 27)
+     0xc00014a990 leaf: key 'member_38cuzVH2qCNohKi_i4UI' (len 27)
+     0xc000036c80 node4, key '4' childkeys: ['J', 'v'] (treedepth 1) compressed='' path='(paths commented out atm)' (subN: 2; pren: 0)
+         0xc00014aa20 leaf: key 'member_4J8GA4BKESllXNH9oKe5' (len 27)
+         0xc00014aab0 leaf: key 'member_4vgH-iStQh29oYdCHwz8' (len 27)
+     0xc000036cc0 node4, key '5' childkeys: ['5', 'b'] (treedepth 1) compressed='' path='(paths commented out atm)' (subN: 2; pren: 0)
+         0xc00014ab40 leaf: key 'member_55BFGyQSf7h6_88eeb6h' (len 27)
+         0xc00014abd0 leaf: key 'member_5bJZ9CTuJaGTcLPF-PVD' (len 27)
+'
+
+iterator_test.go:788 2026-01-10 18:55:56.028 -0600 CST after removing 'member_55BFGyQSf7h6_88eeb6h', tree='tree of size 16:  0xc000036b80 node16, key '(zero)' childkeys: ['-', '0', '2', '3', '4', '5'] (treedepth 0) compressed='member_' path='(paths commented out atm)' (subN: 16; pren: 0)
+     0xc000036c00 node16, key '-' childkeys: ['1', '7', 'S', 'e', 's', 't'] (treedepth 1) compressed='' path='(paths commented out atm)' (subN: 7; pren: 0)
+         0xc00014a2d0 leaf: key 'member_-1edUtuyHCPBstGobzJE' (len 27)
+         0xc00014a360 leaf: key 'member_-78B0K04ju0mfbX1MWww' (len 27)
+         0xc00014a3f0 leaf: key 'member_-SK5-j0ts4TZ2Fdelq07' (len 27)
+         0xc00014a480 leaf: key 'member_-eoXzbpz4qW0Ag8U3iNU' (len 27)
+         0xc00014a510 leaf: key 'member_-sReAjJ-7SiiTuFegyGl' (len 27)
+         0xc000036bc0 node4, key 't' childkeys: ['-', 'W'] (treedepth 2) compressed='' path='(paths commented out atm)' (subN: 2; pren: 5)
+             0xc00014a5a0 leaf: key 'member_-t-DFBVVn1JfnaE9Wy5Y' (len 27)
+             0xc00014a630 leaf: key 'member_-tWIrOIRW_K9nKMJ1uk5' (len 27)
+     0xc00014a6c0 leaf: key 'member_0MTkiems5W3X8y9R0B8_' (len 27)
+     0xc000036c40 node4, key '2' childkeys: ['F', 'S', 'W', 'e'] (treedepth 1) compressed='' path='(paths commented out atm)' (subN: 4; pren: 8)
+         0xc00014a750 leaf: key 'member_2FWEydbAjl7xhvLTEZPG' (len 27)
+         0xc00014a7e0 leaf: key 'member_2SyZXJJsmtagaWHXqzlE' (len 27)
+         0xc00014a870 leaf: key 'member_2WwNPC3x57Vn_y8CT7sn' (len 27)
+         0xc00014a900 leaf: key 'member_2egkGSbmDD7utBHjtALy' (len 27)
+     0xc00014a990 leaf: key 'member_38cuzVH2qCNohKi_i4UI' (len 27)
+     0xc000036c80 node4, key '4' childkeys: ['J', 'v'] (treedepth 1) compressed='' path='(paths commented out atm)' (subN: 2; pren: 13)
+         0xc00014aa20 leaf: key 'member_4J8GA4BKESllXNH9oKe5' (len 27)
+         0xc00014aab0 leaf: key 'member_4vgH-iStQh29oYdCHwz8' (len 27)
+     0xc00014abd0 leaf: key 'member_5bJZ9CTuJaGTcLPF-PVD' (len 27)
+'
+--- FAIL: TestFindAndAtInverses (0.19s)
+panic: find LT (skey='member_55BFGyQSf7h6_88eeb6h') gave back idx and leaf that do not correspond! idx='13'; leaf='member_4vgH-iStQh29oYdCHwz8'; but at(idx=13) -> lf2='member_4J8GA4BKESllXNH9oKe5' [recovered, repanicked]
+
+goroutine 8 [running]:
+testing.tRunner.func1.2({0xc5e90e0, 0xc0000927e0})
+	/usr/local/go/src/testing/testing.go:1872 +0x237
+testing.tRunner.func1()
+	/usr/local/go/src/testing/testing.go:1875 +0x35b
+panic({0xc5e90e0?, 0xc0000927e0?})
+	/usr/local/go/src/runtime/panic.go:783 +0x132
+github.com/glycerine/rpc25519/tube/art.panicf(...)
+	/Users/jaten/rpc25519/tube/art/vprint.go:258
+github.com/glycerine/rpc25519/tube/art.TestFindAndAtInverses(0xc000003c00?)
+	/Users/jaten/rpc25519/tube/art/iterator_test.go:808 +0x639
+testing.tRunner(0xc000003c00, 0xc650c98)
+	/usr/local/go/src/testing/testing.go:1934 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:1997 +0x465
+exit status 2
+FAIL	github.com/glycerine/rpc25519/tube/art	0.242s
+
+Compilation exited abnormally with code 1 at Sat Jan 10 21:55:56
+*/
