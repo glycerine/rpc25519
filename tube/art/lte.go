@@ -109,6 +109,7 @@ func (n *inner) getLTE(
 	case 1:
 		dir = needNextLeaf
 		value, _ = n.recursiveLast()
+		id = n.SubN - 1
 		return
 	case -1:
 		dir = needPrevLeaf

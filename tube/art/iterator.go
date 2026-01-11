@@ -224,7 +224,7 @@ func (t *Tree) riHelp(end, start []byte, smod SearchModifier) (iter *revIterator
 	}
 
 	// get the integer range [endIdx, begIdx]
-	begLeaf, begIdx, ok := t.find_unlocked(smod, start) // was LTE
+	_, begIdx, ok := t.find_unlocked(smod, start) // was LTE
 	if !ok {
 		//vv("Find (%v) start found nothing!", smod)
 		return &revIterator{
@@ -233,12 +233,12 @@ func (t *Tree) riHelp(end, start []byte, smod SearchModifier) (iter *revIterator
 		}
 	}
 	// sanity check
-	lf2, ok2 := t.at_unlocked(begIdx)
-	if lf2 != begLeaf {
-		vv("smod=%v, begIdx=%v, why did at_unlocked not return the same as find_unlocked? start='%v'; ok=true, ok2=%v; begLeaf='%v'; lf2='%v'", smod, begIdx, string(start), ok2, begLeaf, lf2)
-		// because begIdx is wrong?
-	}
-	vv("smod=%v riHelp found begIdx=%v, begLeaf='%v'", smod, begLeaf, begIdx)
+	//lf2, ok2 := t.at_unlocked(begIdx)
+	//if lf2 != begLeaf {
+	//panicf("smod=%v, begIdx=%v, why did at_unlocked not return the same as find_unlocked? start='%v'; ok=true, ok2=%v; begLeaf='%v'; lf2='%v'", smod, begIdx, string(start), ok2, begLeaf, lf2)
+	// because begIdx is wrong?
+	//}
+	//vv("smod=%v riHelp found begIdx=%v, begLeaf='%v'", smod, begLeaf, begIdx)
 
 	gtLeaf, endIdx, ok := t.find_unlocked(GT, end)
 	_ = gtLeaf
@@ -252,10 +252,10 @@ func (t *Tree) riHelp(end, start []byte, smod SearchModifier) (iter *revIterator
 			closed:   true,
 		}
 	}
-	vv("RevIter: endIdx = %v; gtLeaf='%v'", endIdx, gtLeaf)
+	//vv("RevIter: endIdx = %v; gtLeaf='%v'", endIdx, gtLeaf)
 
 	//cur := begIdx + 1
-	vv("revIt starting with begIdx=%v, curIdx=%v, start=cursor='%v'; begLeaf='%v'", begIdx, begIdx+1, string(start), string(begLeaf.Key))
+	//vv("revIt starting with begIdx=%v, curIdx=%v, start=cursor='%v'; begLeaf='%v'", begIdx, begIdx+1, string(start), string(begLeaf.Key))
 
 	return &revIterator{
 		tree:        t,
@@ -369,33 +369,33 @@ func (i *revIterator) Next() (ok bool) {
 		// to the tree, reset the stack and
 		// indexes. Proceed from the
 		// last provided key-1 (for reverse).
-		vv("tree modified, reseting iterator state; i.terminate='%v'; i.cursor='%v'", string(i.terminate), string(i.cursor))
+		//vv("tree modified, reseting iterator state; i.terminate='%v'; i.cursor='%v'", string(i.terminate), string(i.cursor))
 
 		i2 := i.tree.riHelp(i.terminate, i.cursor, LT)
 		if i2.closed {
-			vv("i2 was closed")
+			//vv("i2 was closed")
 			i.closed = true
 			return false
 		}
 		*i = *i2
-		vv("after resetting with new RevIter, curIdx=%v, i.terminate='%v'; i.cursor='%v'", i.curIdx, string(i.terminate), string(i.cursor))
+		//vv("after resetting with new RevIter, curIdx=%v, i.terminate='%v'; i.cursor='%v'", i.curIdx, string(i.terminate), string(i.cursor))
 		i.curIdx--
 	} else {
-		vv("no change in treeVersion; i.curIdx=%v", i.curIdx)
-		vv("decrementing i.curIdx to %v", i.curIdx-1)
+		//vv("no change in treeVersion; i.curIdx=%v", i.curIdx)
+		//vv("decrementing i.curIdx to %v", i.curIdx-1)
 		i.curIdx--
 	}
-	vv("i.curIdx = %v; i.endxIdx = %v", i.curIdx, i.endxIdx)
+	//vv("i.curIdx = %v; i.endxIdx = %v", i.curIdx, i.endxIdx)
 
 	if i.curIdx == i.endxIdx {
-		vv("curIdx reached endxIdx %v", i.endxIdx)
+		//vv("curIdx reached endxIdx %v", i.endxIdx)
 		i.closed = true
 		return false
 	}
 
 	lf, ok := i.tree.at_unlocked(i.curIdx)
 	if !ok {
-		vv("should never get here")
+		panic("should never get here")
 		i.closed = true
 		return false
 	}
