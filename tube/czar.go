@@ -670,6 +670,9 @@ looptop:
 				canc()
 				if err != nil {
 					vv("renewCzarLeaseCh attempt to renew lease with Write to '%v' failed: err='%v'", keyCz, err)
+
+					cState = unknownCzarState
+					continue looptop
 				} else {
 					pp("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
 					czarLeaseUntilTm = czarTkt.LeaseUntilTm
