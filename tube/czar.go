@@ -585,7 +585,11 @@ fullRestart:
 					}
 					t0 := time.Now()                   // since we took over as czar
 					err = czar.setVers(vers, list, t0) // does upcall for us.
-					panicOn(err)                       // non monotone version panics
+					if err != nil {
+						// non-monotone error on tube servers restart hmm...
+						vv("see err = '%v', doing full restart")
+						continue fullRestart
+					}
 
 					czar.mut.Lock()
 					sum := czar.shortRMemberSummary()
