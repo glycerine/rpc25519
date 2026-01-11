@@ -466,6 +466,9 @@ func (cfg *TubeConfig) ProdConfigSaneOrPanic(isReplica bool) {
 		if cfg.MinElectionDur < cfg.HeartbeatDur*5 {
 			panic("cfg.MinElectionDur must be >= cfg.HeartbeatDur * 5")
 		}
+		if cfg.MinElectionDur <= cfg.ClockDriftBound*2 {
+			panic("cfg.MinElectionDur must be > cfg.ClockDriftBound * 2")
+		}
 	}
 	if cfg.RpcCfg != nil {
 		//if cfg.RpcCfg.QuietTestMode {

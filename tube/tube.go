@@ -540,8 +540,8 @@ type TubeConfig struct {
 	// Default: 10 * the HeartbeatDur.
 	// Hence if both HeartbeatDur and MinElectionDur
 	// are unset, they will default to a
-	// HeartbeatDur of 50 msec,
-	// and an MinElectionDur of 500 msec.
+	// HeartbeatDur of 90 msec,
+	// and an MinElectionDur of 1000 msec.
 	MinElectionDur time.Duration `zid:"8"`
 
 	// Cluster size is the number of
@@ -2075,7 +2075,7 @@ func newTubeConfig(clusterSize int, clusterID string, useSimNet, isTest bool) (c
 		TCPonly_no_TLS:  isTest,
 		NoDisk:          isTest,
 		HeartbeatDur:    time.Millisecond * 200,
-		MinElectionDur:  time.Millisecond * 1000,
+		MinElectionDur:  time.Millisecond * 1200,
 		UseSimNet:       useSimNet,
 		ClockDriftBound: time.Millisecond * 500,
 
@@ -10812,7 +10812,7 @@ func (s *TubeNode) leaderCanServeReadsLocally() (canServe bool, untilTm time.Tim
 		//vv("%v leaderCanServeReadsLocally ClusterSize <= 1", s.me())
 		window := (s.cfg.MinElectionDur / 2) - s.cfg.ClockDriftBound
 		if window <= 5*time.Millisecond {
-			panicf("window must be >= 5 msec duration, not: %v", window)
+			panicf("window must be >= 5 msec duration, not: %v; s.cfg.MinElectionDur / 2=%v", window, s.cfg.MinElectionDur/2)
 		}
 		untilTm = time.Now().Add(window)
 		return true, untilTm
