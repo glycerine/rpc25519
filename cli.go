@@ -57,6 +57,9 @@ var sep = string(os.PathSeparator)
 // serverAddr = "192.168.254.151:8443"
 func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string) {
 
+	// let Close know that waiting for c.halt.Done is viable.
+	c.startCalled.Store(true)
+
 	//vv("runClientMain called. caller = '%v'", stack())
 	defer func() {
 		r := recover()
@@ -1399,6 +1402,11 @@ type Client struct {
 	// keep-alive ping.
 	epochV       EpochVers
 	keepAliveMsg Message
+
+	// if Start is not called, the Close should
+	// not wait on c.halt.Done since the background
+	// goroutine was never started.
+	startCalled atomic.Bool
 }
 
 var ErrNoSimconnAvail = fmt.Errorf("rpc25519.Client error: no simconn available")
@@ -1867,7 +1875,9 @@ func (c *Client) Close() error {
 	//c.cfg.simnetRendezvous.singleSimnetMut.Unlock()
 
 	// ask any sub components (peer pump loops) to stop.
-	c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
+	// lots of stalling on this...hmm.
+	//c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
+	c.halt.ReqStop.Close()
 
 	if c.cfg.UseQUIC {
 		if c.isQUIC && c.quicConn != nil {
@@ -1891,7 +1901,9 @@ func (c *Client) Close() error {
 		c.cfg.shared.mut.Unlock()
 	}
 	c.halt.ReqStop.Close()
-	<-c.halt.Done.Chan
+	if c.startCalled.Load() {
+		<-c.halt.Done.Chan
+	}
 	//vv("Client.Close() finished.")
 	return nil
 }

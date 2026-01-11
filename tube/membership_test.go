@@ -91,6 +91,7 @@ func Test401_add_node(t *testing.T) {
 			// cluster close won't shut us down, since
 			// were not a part of the original setup...
 			defer node4.Close()
+			c.Halt.AddChild(node4.Halt)
 
 			vv("ask leader (or other, who should tell us leader) for cluster membership list, before adding the node4") // seen
 			list0, _, _, _, _, _, err := node4.GetPeerListFrom(bkg, leaderURL, leaderNode.name)
@@ -168,6 +169,7 @@ func Test401_add_node(t *testing.T) {
 			// cluster close won't shut us down, since
 			// were not a part of the original setup...
 			defer node5.Close()
+			c.Halt.AddChild(node5.Halt)
 
 			vv("ask leader (or other, who should tell us leader) for cluster membership list, before adding the node5") // seen
 			list5pre, _, _, _, _, _, err := node5.GetPeerListFrom(bkg, leaderURL, leaderNode.name)
@@ -280,11 +282,11 @@ func Test401_add_node(t *testing.T) {
 
 			// cleanup
 			c.Close()
-			//if numNodes < maxClusterSz-1 {
+			// if numNodes < maxClusterSz-1 {
 			//	time.Sleep(time.Second)
 			//}
 
-			vv("401 back from cluster Close")
+			vv("401 done")
 		} // for numNodes loop
 	})
 }
@@ -334,6 +336,8 @@ func Test402_build_up_a_cluster_from_one_node(t *testing.T) {
 		if totNodes > artificiallyHighClusterSize {
 			panic("better keep totNodes <= artificiallyHighClusterSize")
 		}
+		var needClose []*TubeNode
+
 		// i is the node number to add, one at a time.
 		for i := baseNodeCount; i < totNodes; i++ {
 
@@ -346,7 +350,8 @@ func Test402_build_up_a_cluster_from_one_node(t *testing.T) {
 			panicOn(err)
 			// cluster close won't shut us down, since
 			// were not a part of the original setup...
-			defer node1.Close()
+			//defer node1.Close()
+			needClose = append(needClose, node1)
 
 			newExpectedClusterSz := i + baseNodeCount
 			//vv("add node '%v', going -> cluster size %v", name1, newExpectedClusterSz)
@@ -397,6 +402,9 @@ func Test402_build_up_a_cluster_from_one_node(t *testing.T) {
 		}
 
 		// cleanup
+		for _, node1 := range needClose {
+			node1.Close()
+		}
 		c.Close()
 		vv("402 back from cluster Close; totNodes = %v", totNodes)
 	})

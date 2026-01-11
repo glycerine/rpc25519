@@ -3574,6 +3574,13 @@ func (s *TubeCluster) Close() {
 		n.Close()
 	}
 	s.Halt.RootReqStopClose(ErrShutDown)
+	if net != nil {
+		// try to prevent the 500msec halter timeouts from clashing with
+		// the synctest bubble exit... otherwise we get:
+		// panic: deadlock: main bubble goroutine has exited but blocked goroutines remain
+		time.Sleep(10 * time.Second)
+		vv("cluster.Close slept 10 sec")
+	}
 }
 
 func (s *TubeNode) Close() {

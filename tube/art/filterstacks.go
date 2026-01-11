@@ -3,11 +3,13 @@ package art
 // intercept SIGQUIT and skip showing gc stacks
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 )
 
 var sigQuitCh chan os.Signal
@@ -39,7 +41,7 @@ func init() {
 				}
 			}
 
-			os.Stderr.Write([]byte("\nSIGQUIT: quit after filtering.\nfilterstacks.go filtered stacks:\n\n"))
+			os.Stderr.Write([]byte(fmt.Sprintf("\nSIGQUIT: quit after filtering at %v.\nfilterstacks.go filtered stacks:\n\n", nice(time.Now()))))
 			os.Stderr.Write([]byte(strings.Join(filtered, "\n\n")))
 			os.Exit(1)
 		}

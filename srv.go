@@ -2050,7 +2050,14 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 	}
 	//vv("ok true in Server.destAddrToSendCh(destAddr='%v') -> sendCh=%p", destAddr, pair.SendCh)
 	// INVAR: ok is true
-	haltCh = s.halt.ReqStop.Chan
+	if pair == nil {
+		panic("why is pair nil?")
+	}
+	if pair.halt == nil {
+		panic("why is pair.halt nil?")
+	}
+	//haltCh = s.halt.ReqStop.Chan // this is the whole server! ugh! not what we want.
+	haltCh = pair.halt.ReqStop.Chan // this is the 1-1 tcp socket. This is what we want.
 	from = local(pair.Conn)
 	to = remote(pair.Conn)
 	sendCh = pair.SendCh
@@ -2176,6 +2183,9 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			from:      local(cli.conn),
 			to:        key,
 		}
+		p.halt = idem.NewHalterNamed(fmt.Sprintf("auto-cli Server.rwPair(%p)", p))
+		cli.halt.AddChild(p.halt) // causes shutdown lag; e.g. tube 707 test red.
+
 		s.mut.Lock() // want these two set together atomically.
 		s.remote2pair.Set(key, p)
 		s.pair2remote.Set(p, key)
@@ -2291,6 +2301,14 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		}
 	} else {
 		//vv("sendOneWayMessage about to select on sendCh = %p", sendCh)
+
+		// paused 17 minutes here!? might be shutdown logical race.
+		// ah probable fix: p.halt specifically for the pair
+		// made at srv.go:2186 in SendOneWayMessage(); and
+		// Server.destAddrToSendCh() at srv.go:2059 was for the
+		// whole server and not the client specific pair/socket!
+		// both could account for not cleaning up client sockets
+		// promptly and thus getting wedged trying to send on them.
 		select {
 		case sendCh <- msg:
 			//vv("sendOneWayMessage did send on sendCh = %p", sendCh)
@@ -2501,6 +2519,8 @@ func (s *Server) Close() error {
 		if s.halt != nil {
 			s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
 			//vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name)
+			// try to prevent alot of hanging on... but maybe we are leaking goro?
+			//s.halt.ReqStop.Close()
 		}
 	} else {
 		return nil
@@ -2535,7 +2555,7 @@ func (s *Server) Close() error {
 		cli.Close()
 	}
 	s.mut.Unlock()
-	<-s.halt.Done.Chan
+	<-s.halt.Done.Chan // 101_gosimnet_basics blocked here on shutdown without the StopTreeAndWaitTilDone() above.
 
 	return nil
 }
