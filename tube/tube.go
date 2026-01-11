@@ -15943,7 +15943,13 @@ func (s *TubeNode) ifLostTicketTellClient(calledOnLeader bool) {
 		// compacted away?
 		baseC := s.wal.getCompactBase()
 		if tkt.LogIndex <= baseC {
-			panicf("internal logic problem: we still have a ticket in waiting (onLead: %v), but its index has been compacted away and we should have replied by now! tkt='%v'", calledOnLeader, tkt)
+			alwaysPrintf("tell client of problem: we still have a ticket in waiting (onLead: %v), but its index has been compacted away and we should have replied by now! tkt='%v'", calledOnLeader, tkt)
+
+			tkt.Err = fmt.Errorf("log truncation caused this ticket outcome to be lost. Client may need to resubmit request.")
+			tkt.Stage += ":truncated_wal_detected_in_ifLostTicketTellClient1"
+
+			s.respondToClientTicketApplied(tkt)
+			s.FinishTicket(tkt, calledOnLeader)
 		}
 		// INVAR: tkt.LogIndex > baseC
 		entry, err := s.wal.GetEntry(tkt.LogIndex)
@@ -15954,7 +15960,7 @@ func (s *TubeNode) ifLostTicketTellClient(calledOnLeader bool) {
 		if entry.Ticket.TicketID != tkt.TicketID {
 			alwaysPrintf("at tkt.LogIndex=%v, (%v)entry.Ticket.TicketID != our waiting tkt.TicketID(%v), so return error to client", tkt.LogIndex, entry.Ticket.TicketID, tkt.TicketID)
 			tkt.Err = fmt.Errorf("leader fail/new leader election resulted in log truncation which caused this ticket to be lost. Client must resubmit request.")
-			tkt.Stage += ":truncated_wal_detected_in_newAppliesCanWeRespond"
+			tkt.Stage += ":truncated_wal_detected_in_ifLostTicketTellClient2"
 
 			s.respondToClientTicketApplied(tkt)
 			s.FinishTicket(tkt, calledOnLeader)
