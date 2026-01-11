@@ -2,7 +2,7 @@ package tube
 
 import (
 	"fmt"
-	//"sync"
+	"sync"
 	"time"
 )
 
@@ -46,32 +46,36 @@ import (
 // rather than in hlc.go
 //type HLC int64
 
-// the single hlcMut lock, at least for now, avoids
+// Both external and internal users of TubeNode call
+// NewTicket, which creates a new HLC, and so we
+// get data races under test without synchronization.
+//
+// A single hlcMut lock, at least for now, avoids
 // the deadlock risk inherent in having
 // two un-ordered locking operations needed
 // in the comparisons GTE/LTE/GT/LT.
-//var hlcMut sync.Mutex
+var hlcMut sync.Mutex
 
 const getCount HLC = HLC(1<<16) - 1 // low 16 bits are 1
 const getLC HLC = ^getCount         // low 16 bits are 0
 
 func (hlc *HLC) LC() int64 {
-	//hlcMut.Lock()
-	////defer hlcMut.Unlock()
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
 	r := *hlc
 	return int64(r & getLC)
 }
 
 func (hlc *HLC) Count() int64 {
-	//hlcMut.Lock()
-	//defer hlcMut.Unlock()
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
 	r := *hlc
 	return int64(r & getCount)
 }
 
 func (hlc *HLC) String() string {
-	//hlcMut.Lock()
-	//defer hlcMut.Unlock()
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
 	r := *hlc
 
 	lc := int64(r & getLC)
@@ -119,8 +123,8 @@ func PhysicalTime48() HLC {
 // POST: r == *hlc
 func (hlc *HLC) CreateSendOrLocalEvent() (r HLC) {
 
-	//hlcMut.Lock()
-	//defer hlcMut.Unlock()
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
 
 	j := *hlc
 
@@ -147,8 +151,8 @@ func (hlc *HLC) CreateSendOrLocalEvent() (r HLC) {
 // hlc conversion of the low 16 bits.
 func (hlc *HLC) CreateAndNow() (r HLC, now time.Time) {
 
-	//hlcMut.Lock()
-	//defer hlcMut.Unlock()
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
 
 	j := *hlc
 
@@ -180,8 +184,8 @@ func (hlc *HLC) CreateAndNow() (r HLC, now time.Time) {
 // POST: r == *hlc
 func (hlc *HLC) ReceiveMessageWithHLC(m HLC) (r HLC) {
 
-	//hlcMut.Lock()
-	//defer hlcMut.Unlock()
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
 
 	j := *hlc
 
@@ -221,8 +225,11 @@ func (hlc HLC) ToTime() time.Time {
 // ToTime48 returns only the LC in the upper 48 bits
 // of hlc; the lower 16 bits of r.UnixNano() will be all 0.
 // See ToTime to include the Count as well.
-func (hlc HLC) ToTime48() (r time.Time) {
-	lc := int64(hlc & getLC)
+func (hlc *HLC) ToTime48() (r time.Time) {
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
+
+	lc := int64(*hlc & getLC)
 	r = time.Unix(0, int64(lc))
 	return
 }
@@ -233,8 +240,8 @@ func (hlc HLC) ToTime48() (r time.Time) {
 // during our execution. Only hlc
 // is accessed atomically. Use LT if need be.
 func (hlc *HLC) GT(b HLC) bool {
-	//hlcMut.Lock()
-	//defer hlcMut.Unlock()
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
 	a := *hlc
 
 	aLC := a & getLC
@@ -257,8 +264,8 @@ func (hlc *HLC) GT(b HLC) bool {
 // during our execution. Only hlc
 // is accessed atomically. Use LTE if need be.
 func (hlc *HLC) GTE(b HLC) bool {
-	//hlcMut.Lock()
-	//defer hlcMut.Unlock()
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
 	a := *hlc
 
 	aLC := a & getLC
@@ -281,8 +288,8 @@ func (hlc *HLC) GTE(b HLC) bool {
 // during our execution. Only hlc
 // is accessed atomically. Use GT if need be.
 func (hlc *HLC) LT(b HLC) bool {
-	//hlcMut.Lock()
-	//defer hlcMut.Unlock()
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
 	a := *hlc
 
 	aLC := a & getLC
@@ -305,8 +312,8 @@ func (hlc *HLC) LT(b HLC) bool {
 // during our execution. Only hlc
 // is accessed atomically. Use GTE if need be.
 func (hlc *HLC) LTE(b HLC) bool {
-	//hlcMut.Lock()
-	//defer hlcMut.Unlock()
+	hlcMut.Lock()
+	defer hlcMut.Unlock()
 	a := *hlc
 
 	aLC := a & getLC
