@@ -564,10 +564,10 @@ func (t *Tree) at_unlocked(i int) (lf *Leaf, ok bool) {
 
 	// try to cache At() iteration. Gives 6x speedup
 	// for common case of going forward.
-	//if ok && t.size > 1 {
-	//	t.atCache = t.Iter(lf.Key, nil)
-	//	t.atCache.Next()
-	//}
+	if ok && t.size > 1 {
+		t.atCache = t.Iter(lf.Key, nil)
+		t.atCache.Next()
+	}
 
 	return
 }

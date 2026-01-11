@@ -556,6 +556,31 @@ func BenchmarkMapRemove(b *testing.B) {
 	}
 }
 
+func BenchmarkWordsReverseIteration(b *testing.B) {
+	words := loadTestFile("assets/words.txt")
+	tree := NewArtTree()
+	// new version, integer indexed based:
+	//  1K    32_842_019 ns/op 32 iterations
+	//  3K   315_657_709 ns/op  4 iterations
+	// 10K 3_764_153_260 ns/op  1 iteration
+	//lim := 1_000
+	//lim := 3_000
+	lim := 10_000
+	for i, w := range words {
+		tree.Insert(w, w, "")
+		if i >= lim-1 {
+			break
+		}
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		for key, lf := range Descend(tree, nil, nil) {
+			_ = key
+			_ = lf
+		}
+	}
+}
+
 // helper for computing a permutation
 type origpos struct {
 	orig int
