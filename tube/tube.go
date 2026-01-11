@@ -6442,7 +6442,10 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 	if true { // !s.cfg.isTest || s.cfg.testNo != 802 {
 		s.wal.assertConsistentWalAndIndex(0)
 		if s.state.CompactionDiscardedLast.Index != s.wal.logIndex.BaseC {
-			panicf("s.state.CompactionDiscardedLastIndex(%v) != s.wal.logIndex.BaseC(%v)", s.state.CompactionDiscardedLast.Index, s.wal.logIndex.BaseC) // panic: s.state.CompactionDiscardedLastIndex(0) != s.wal.logIndex.BaseC(1)
+			// instead of panic, ask for snapshot.
+			reject = true
+			return
+			panicf("s.state.CompactionDiscardedLastIndex(%v) != s.wal.logIndex.BaseC(%v)", s.state.CompactionDiscardedLast.Index, s.wal.logIndex.BaseC) // panic: s.state.CompactionDiscardedLastIndex(5117) != s.wal.logIndex.BaseC(0)
 		}
 	}
 
