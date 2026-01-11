@@ -447,7 +447,9 @@ fullRestart:
 			panicOn(err)
 			//vv("got leaderName = '%v'; leaderURL = '%v'; reallyLeader='%v'", leaderName, leaderURL, reallyLeader)
 
-			sess, err = cli.CreateNewSession(ctx, leaderURL)
+			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
+			sess, err = cli.CreateNewSession(ctx5, leaderURL)
+			canc()
 			//panicOn(err) // panic: hmm. no leader known to me (node 'node_0')
 			if err == nil {
 				break
