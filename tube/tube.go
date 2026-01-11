@@ -6414,6 +6414,11 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 		if !ok || cktP0.ckt == nil {
 			//vv("%v ugh: no circuit to ste.ClientName: '%v'. making one on a background goro...", s.name, ste.ClientName)
 
+			if !isValidURL(ste.ClientURL) {
+				alwaysPrintf("arg. could not inform client of new leader; bad url '%v' for client SessionID '%v'; clientName='%v'; clientPeerID='%v'", ste.ClientURL, ste.SessionID, ste.ClientName, ste.ClientPeerID)
+				return
+			}
+
 			// background b/c trying to not block the leader main event loop
 			go func(clientURL string, firstFrag *rpc.Fragment) {
 				ckt, _, _, _ = s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, firstFrag, 0)
@@ -6432,6 +6437,11 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 		s.SendOneWay(ckt, fragUpdateLeader, -1, 0)
 		vv("%v sent new leader(me) notification to %v", s.name, ste.ClientName)
 	}
+}
+
+func isValidURL(url0 string) bool {
+	_, err := url.Parse(url0)
+	return err == nil
 }
 
 // if reject is returned, then
