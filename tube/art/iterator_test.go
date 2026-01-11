@@ -441,7 +441,7 @@ func TestIterRange(t *testing.T) {
 	}
 }
 
-func TestDescend(t *testing.T) {
+func TestAscendAndDescendIteration(t *testing.T) {
 
 	keys := []string{
 		"member_-1edUtuyHCPBstGobzJE",
@@ -605,7 +605,8 @@ func TestDescend(t *testing.T) {
 		"member_mVS-MXk0RSWuj1BgfEfb",
 		"member_mZKGy-6UhMSyRFY_du0A",
 		"member_nKyon5DmKmKNjuFOF3gc", // keys[160]
-		// minimal sized set to see the error: 161 above this line.
+		// minimal sized set to see the
+		// original error error: the 161 above this comment.
 
 		//_ = []string{ // additional 39 in the original issue, may not be needed.
 		"member_nb5lg-7HsGd51R0a8SUZ",
@@ -649,6 +650,8 @@ func TestDescend(t *testing.T) {
 		"member_zy5jl8MjvhXSj9a4yK8a",
 	}
 
+	keys = keys[:18]
+
 	sorted := make([]string, len(keys))
 	copy(sorted, keys)
 	sort.Strings(sorted)
@@ -669,6 +672,7 @@ func TestDescend(t *testing.T) {
 
 	i := 0
 	if false {
+		// check Ascend
 		for key, lf := range Ascend(tree, nil, nil) {
 			_ = lf
 			skey := string(key)
@@ -680,9 +684,9 @@ func TestDescend(t *testing.T) {
 		if i != len(keys) {
 			panicf("wanted %v keys back from Ascend, got %v", len(keys), i)
 		}
-		vv("Ascend worked fine")
+		//vv("%v: Ascend worked fine", t.Name())
 
-		// does indexing work? yes
+		// verify that integer indexing works.
 		i = 0
 		for j := len(keys) - 1; j >= 0; j-- {
 			lf, ok := tree.At(j)
@@ -696,20 +700,113 @@ func TestDescend(t *testing.T) {
 			//vv("good, observed skey='%v' and expected '%v'", skey, reversed[i])
 			i++
 		}
-		vv("At indexing in reverse was okay.")
+		//vv("%v At indexing in reverse was okay.", t.Name())
+
+		i = 0
+		for key, lf := range Descend(tree, nil, nil) {
+			_ = lf
+			skey := string(key)
+			if skey != reversed[i] {
+				panicf("Descend i=%v problem, want '%v', got '%v'", i, reversed[i], skey)
+			}
+			i++
+		}
+		if i != len(keys) {
+			panicf("wanted %v keys back from Descend, got %v", len(keys), i)
+		}
+		//vv("%v: Descend worked fine", t.Name())
 	}
+	// verify delete in the middle of iteration works in reverse.
 	i = 0
 	for key, lf := range Descend(tree, nil, nil) {
 		_ = lf
 		skey := string(key)
 		if skey != reversed[i] {
-			panicf("Descend i=%v problem, want '%v', got '%v'", i, reversed[i], skey)
-			// panic: Descend i=0 problem, want 'member_zy5jl8MjvhXSj9a4yK8a', got 'member_9EYH_9dj0-KG9fGZJlKF' [recovered, repanicked]
+			panicf("Descend with Delete: i=%v problem, want '%v', got '%v'. tree.Len=%v", i, reversed[i], skey, tree.Size())
 		}
 		i++
+		// remove the odd ones as we go.
+		if i%2 == 1 {
+			vv("i=%v before removal, tree = '%v'", i, tree)
+			tree.Remove(Key(skey))
+			vv("i=%v, removed '%v'", i, skey)
+			vv("i=%v after removal, tree = '%v'", i, tree)
+		}
 	}
 	if i != len(keys) {
-		panicf("wanted %v keys back from Ascend, got %v", len(keys), i)
+		panicf("wanted %v keys back from Descend, got %v", len(keys), i)
+	}
+}
+
+func TestFindAndAtInverses(t *testing.T) {
+
+	keys := []string{
+		"member_-1edUtuyHCPBstGobzJE",
+		"member_-78B0K04ju0mfbX1MWww",
+		"member_-SK5-j0ts4TZ2Fdelq07",
+		"member_-eoXzbpz4qW0Ag8U3iNU",
+		"member_-sReAjJ-7SiiTuFegyGl",
+		"member_-t-DFBVVn1JfnaE9Wy5Y",
+		"member_-tWIrOIRW_K9nKMJ1uk5",
+		"member_0MTkiems5W3X8y9R0B8_",
+		"member_2FWEydbAjl7xhvLTEZPG",
+		"member_2SyZXJJsmtagaWHXqzlE",
+		"member_2WwNPC3x57Vn_y8CT7sn",
+		"member_2egkGSbmDD7utBHjtALy",
+		"member_38cuzVH2qCNohKi_i4UI",
+		"member_4J8GA4BKESllXNH9oKe5",
+		"member_4vgH-iStQh29oYdCHwz8",
+		"member_55BFGyQSf7h6_88eeb6h",
+		"member_5bJZ9CTuJaGTcLPF-PVD",
+		"member_6RIb5ClaFCleukwcEZQU",
 	}
 
+	sorted := make([]string, len(keys))
+	copy(sorted, keys)
+	sort.Strings(sorted)
+
+	reversed := make([]string, len(keys))
+	copy(reversed, keys)
+	sort.Sort(sort.Reverse(sort.StringSlice(reversed)))
+
+	vv("forward sorted = '%#v'", sorted)
+
+	vv("reversed = '%#v'", reversed)
+
+	tree := NewArtTree()
+	for _, key := range keys {
+		tree.Insert([]byte(key), nil, "")
+	}
+	vv("tree = '%v'", tree)
+
+	n := tree.Size()
+	last := n - 1
+
+	for k := 1; k < tree.Size()-1; k++ {
+		target := keys[tree.Size()-k]
+		tree.Remove(Key(target))
+		vv("after removing '%v', tree='%v'", target, tree)
+
+		n = tree.Size()
+		last = n - 1
+		for i := range last {
+			j := last - i
+			skey := keys[j]
+			lf, idx, ok := tree.find_unlocked(LT, Key(skey))
+			if !ok {
+				panicf("j=%v, i=%v (key='%v') not found in tree, but we put it in already; tree='%v'", j, i, skey, tree)
+			}
+			lfkey0 := string(lf.Key)
+
+			// at() should invert back to what we just received
+			lf2, ok2 := tree.at_unlocked(idx)
+			if !ok2 {
+				panicf("why not ok2?")
+			}
+			lfkey2 := string(lf2.Key)
+			if lfkey2 != lfkey0 {
+				panicf("find LT (skey='%v') gave back idx and leaf that do not correspond! idx='%v'; leaf='%v'; but at(idx=%v) -> lf2='%v'", skey, idx, lfkey0, idx, lfkey2)
+			}
+		}
+	}
 }

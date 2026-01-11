@@ -211,7 +211,11 @@ func (t *Tree) Iter(start, end []byte) (iter *iterator) {
 // (or inserts into) the tree during the iteration,
 // which is not an uncommon need.
 func (t *Tree) RevIter(end, start []byte) (iter *revIterator) {
+	return t.riHelp(end, start, LTE)
+}
+func (t *Tree) riHelp(end, start []byte, smod SearchModifier) (iter *revIterator) {
 
+	t.atCache = nil
 	if t.root == nil || t.size < 1 {
 		return &revIterator{
 			initDone: true,
@@ -220,15 +224,21 @@ func (t *Tree) RevIter(end, start []byte) (iter *revIterator) {
 	}
 
 	// get the integer range [endIdx, begIdx]
-	_, begIdx, ok := t.find_unlocked(LTE, start)
+	begLeaf, begIdx, ok := t.find_unlocked(smod, start) // was LTE
 	if !ok {
-		//vv("FindLTE start found nothing!")
+		//vv("Find (%v) start found nothing!", smod)
 		return &revIterator{
 			initDone: true,
 			closed:   true,
 		}
 	}
-	//vv("begIdx = %v", begIdx)
+	// sanity check
+	lf2, ok2 := t.at_unlocked(begIdx)
+	if lf2 != begLeaf {
+		vv("smod=%v, begIdx=%v, why did at_unlocked not return the same as find_unlocked? start='%v'; ok=true, ok2=%v; begLeaf='%v'; lf2='%v'", smod, begIdx, string(start), ok2, begLeaf, lf2)
+		// because begIdx is wrong?
+	}
+	vv("smod=%v riHelp found begIdx=%v, begLeaf='%v'", smod, begLeaf, begIdx)
 
 	gtLeaf, endIdx, ok := t.find_unlocked(GT, end)
 	_ = gtLeaf
@@ -242,9 +252,11 @@ func (t *Tree) RevIter(end, start []byte) (iter *revIterator) {
 			closed:   true,
 		}
 	}
-	//vv("endIdx = %v; gtLeaf='%v'", endIdx, gtLeaf)
+	vv("RevIter: endIdx = %v; gtLeaf='%v'", endIdx, gtLeaf)
 
-	//vv("revIt starting cursor=start='%v'", string(start))
+	//cur := begIdx + 1
+	vv("revIt starting with begIdx=%v, curIdx=%v, start=cursor='%v'; begLeaf='%v'", begIdx, begIdx+1, string(start), string(begLeaf.Key))
+
 	return &revIterator{
 		tree:        t,
 		treeVersion: t.treeVersion,
@@ -356,43 +368,34 @@ func (i *revIterator) Next() (ok bool) {
 		// there has been a modification
 		// to the tree, reset the stack and
 		// indexes. Proceed from the
-		// last provided key+1 (-1 for reverse).
-		//vv("tree modified, reseting iterator state")
+		// last provided key-1 (for reverse).
+		vv("tree modified, reseting iterator state; i.terminate='%v'; i.cursor='%v'", string(i.terminate), string(i.cursor))
 
-		leaf, idx, ok := i.tree.find_unlocked(LT, i.cursor)
-		if !ok {
-			//vv("ugh. could not find successor to i.cursor '%v'. terminating iteration", string(i.cursor))
-
-			// user modification may have deleted all further keys,
-			// so terminate the iteration.
+		i2 := i.tree.riHelp(i.terminate, i.cursor, LT)
+		if i2.closed {
+			vv("i2 was closed")
 			i.closed = true
 			return false
 		}
-		i.curIdx = idx
-		i.leaf = leaf
-		i.key = leaf.Key
-		i.value = leaf.Value
-		i.treeVersion = i.tree.treeVersion
-
-		// reset the stack from scratch
-		i.cursor = leaf.Key
-		// let re-init code below start the stack again.
-
+		*i = *i2
+		vv("after resetting with new RevIter, curIdx=%v, i.terminate='%v'; i.cursor='%v'", i.curIdx, string(i.terminate), string(i.cursor))
+		i.curIdx--
 	} else {
-		//vv("no change in treeVersion; i.curIdx=%v", i.curIdx)
-		//vv("decrementing i.curIdx to %v", i.curIdx-1)
+		vv("no change in treeVersion; i.curIdx=%v", i.curIdx)
+		vv("decrementing i.curIdx to %v", i.curIdx-1)
 		i.curIdx--
 	}
-	//vv("i.curIdx = %v", i.curIdx)
+	vv("i.curIdx = %v; i.endxIdx = %v", i.curIdx, i.endxIdx)
 
 	if i.curIdx == i.endxIdx {
+		vv("curIdx reached endxIdx %v", i.endxIdx)
 		i.closed = true
 		return false
 	}
 
 	lf, ok := i.tree.at_unlocked(i.curIdx)
 	if !ok {
-		// should never get here
+		vv("should never get here")
 		i.closed = true
 		return false
 	}
