@@ -59,7 +59,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 
 	//vv("runClientMain called. caller = '%v'", stack())
 	defer func() {
-		vv("runClientMain defer: end for goro = %v; closing c.halt=%p", GoroNumber(), c.halt)
+		vv("runClientMain defer: serverAddr='%v'; end for goro = %v; closing c.halt=%p", serverAddr, GoroNumber(), c.halt)
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 
