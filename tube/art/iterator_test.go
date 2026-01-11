@@ -915,8 +915,6 @@ func Test_2nd_AscendAndDescendIteration(t *testing.T) {
 		"member_ymzCnWWv1kJJm8-xaTmn",
 	}
 
-	keys = keys[:95]
-
 	sorted := make([]string, len(keys))
 	copy(sorted, keys)
 	sort.Strings(sorted)
