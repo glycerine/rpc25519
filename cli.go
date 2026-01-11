@@ -57,8 +57,9 @@ var sep = string(os.PathSeparator)
 // serverAddr = "192.168.254.151:8443"
 func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string) {
 
+	vv("runClientMain called. caller = '%v'", stack())
 	defer func() {
-		//vv("runClientMain defer: end for goro = %v; closing c.halt=%p", GoroNumber(), c.halt)
+		vv("runClientMain defer: end for goro = %v; closing c.halt=%p", GoroNumber(), c.halt)
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 

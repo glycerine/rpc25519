@@ -202,7 +202,7 @@ func main() {
 		cfg.HeartbeatDur = time.Millisecond * 200
 	}
 	if cfg.MinElectionDur <= 0 {
-		cfg.MinElectionDur = time.Millisecond * 1000
+		cfg.MinElectionDur = time.Millisecond * 1200
 	}
 	if cfg.ClockDriftBound <= 0 {
 		cfg.ClockDriftBound = time.Millisecond * 500
