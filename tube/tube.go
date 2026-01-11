@@ -12693,7 +12693,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		}
 	}
 	if s.weAreMemberOfCurrentMC() {
-		vv("weAreMemberOfCurrentMC true: ")
+		vv("weAreMemberOfCurrentMC true: %v", s.name)
 		// update/add self
 		det := &PeerDetail{
 			Name:   s.name,
@@ -13476,7 +13476,7 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 	if peerName == s.name {
 		return // already connected to self.
 	}
-	vv("%v connectInBackgroundIfNoCircuitTo from='%v' peerName='%v'", s.me(), from, peerName)
+	//vv("%v connectInBackgroundIfNoCircuitTo from='%v' peerName='%v'", s.me(), from, peerName)
 	//vv("%v top connectInBackgroundIfNoCircuitTo '%v'", s.me(), peerName) // seen in 059
 
 	var url, peerID, netAddr string
@@ -14740,7 +14740,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 
 	// surely we do not want to do this for all the clients!
 	if cktP.PeerServiceName == TUBE_REPLICA {
-		vv("%v cktP.PeerServiceName='%v' calling startWatchdog!", s.me(), cktP.PeerServiceName)
+		//vv("%v cktP.PeerServiceName='%v' calling startWatchdog!", s.me(), cktP.PeerServiceName)
 		cktP.startWatchdog() // ckt non-nil means isUp=true
 	}
 	cktP.seen(nil, 0, 0, 0) // in addToCktall
