@@ -2123,6 +2123,14 @@ func Test620_unlocked_read_comparison(t *testing.T) {
 	rate1 = e1 / time.Duration(K)
 	fmt.Printf("Ascend(tree) reads %v keys: elapsed %v (%v/op)\n", K, e1, rate1)
 
+	t1 = time.Now()
+	for lf := range Descend(tree, nil, nil) {
+		_ = lf
+	}
+	e1 = time.Since(t1)
+	rate1 = e1 / time.Duration(K)
+	fmt.Printf("Descend(tree) reads %v keys: elapsed %v (%v/op)\n", K, e1, rate1)
+
 	// try the native iterator instead of iter.Seq
 
 	it := tree.Iter(nil, nil)

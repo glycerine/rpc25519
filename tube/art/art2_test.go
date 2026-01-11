@@ -559,10 +559,11 @@ func BenchmarkMapRemove(b *testing.B) {
 func BenchmarkWordsReverseIteration(b *testing.B) {
 	words := loadTestFile("assets/words.txt")
 	tree := NewArtTree()
-	// new version, integer indexed based:
-	//  1K    32_842_019 ns/op 32 iterations
-	//  3K   315_657_709 ns/op  4 iterations
-	// 10K 3_764_153_260 ns/op  1 iteration
+	// new version, integer indexed based vs old.
+	// ugh: revert to the old.
+	//  1K    32_842_019 ns/op 32 iterations vs old:  77_846 ns/op
+	//  3K   315_657_709 ns/op  4 iterations vs old: 257_003 ns/op
+	// 10K 3_764_153_260 ns/op  1 iteration  vs old: 917_288 ns/op
 	//lim := 1_000
 	//lim := 3_000
 	lim := 10_000

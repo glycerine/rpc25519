@@ -568,6 +568,26 @@ func (t *Tree) at_unlocked(i int) (lf *Leaf, ok bool) {
 		t.atCache = t.Iter(lf.Key, nil)
 		t.atCache.Next()
 	}
+	// above uncommented: at least 5x faster on At() calls.
+	// GOEXPERIMENT=synctest go test -v -count=1 -run Test620_unlocked_read_comparison
+	// === RUN   Test620_unlocked_read_comparison
+	//
+	// tree.At(i) reads 10000000 keys: elapsed 597.897109ms (59ns/op) *** 5.5x
+	// tree.At(i) reads from 10: 9999990 keys: elapsed 544.235204ms (54ns/op) **
+	// tree.Atfar(i) reads 10000000 keys: elapsed 2.64323583s (264ns/op)
+	//
+	// --- PASS: Test620_unlocked_read_comparison (35.17s)
+	//
+	// vs above commented:
+	//
+	// GOEXPERIMENT=synctest go test -v -count=1 -run Test620_unlocked_read_comparison
+	// === RUN   Test620_unlocked_read_comparison
+	//
+	// tree.At(i) reads 10000000 keys: elapsed 2.73613867s (273ns/op) ***
+	// tree.At(i) reads from 10: 9999990 keys: elapsed 2.645948578s (264ns/op) **
+	// tree.Atfar(i) reads 10000000 keys: elapsed 2.834522242s (283ns/op)
+	//
+	// --- PASS: Test620_unlocked_read_comparison (40.00s)
 
 	return
 }
