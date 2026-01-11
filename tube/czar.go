@@ -365,7 +365,7 @@ func NewCzar(cli *TubeNode, hbDur, clockDriftBound time.Duration) *Czar {
 // We have not needed to do so yet.
 //
 //	func main() {
-//	    clockDriftBound := 20 * time.Millisecond
+//	    clockDriftBound := 500 * time.Millisecond
 //	    mem := tube.NewRMember("hermes", clockDriftBound)
 //	    mem.Start()
 //	    <-mem.Ready

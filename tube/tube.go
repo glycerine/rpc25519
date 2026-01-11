@@ -555,7 +555,7 @@ type TubeConfig struct {
 
 	SimnetGOMAXPROCS int `zid:"11"`
 
-	ClockDriftBound time.Duration `zid:"12"` // time.Millisecond * 20 // even less chance of granting vote...
+	ClockDriftBound time.Duration `zid:"12"` // time.Millisecond * 400 // even less chance of granting vote...
 
 	// tuber --boot flag will set this to non-nil
 	// get a fresh new cluster started.
@@ -2077,7 +2077,7 @@ func newTubeConfig(clusterSize int, clusterID string, useSimNet, isTest bool) (c
 		HeartbeatDur:    time.Millisecond * 200,
 		MinElectionDur:  time.Millisecond * 1000,
 		UseSimNet:       useSimNet,
-		ClockDriftBound: time.Millisecond * 20,
+		ClockDriftBound: time.Millisecond * 500,
 
 		// if UseSimNet && faketime, do synctest.Wait? no effect if not UseSimNet
 	}
@@ -11052,7 +11052,7 @@ func (s *TubeNode) haveStickyLeader(reqVote *RequestVote) (recentLeader bool, de
 		return // over-ride, say no sticky leader
 	}
 
-	//clockDriftBound := s.clockDriftBound // time.Millisecond * 20 // even less chance of granting vote...
+	//clockDriftBound := s.clockDriftBound // time.Millisecond * 500 // even less chance of granting vote...
 	// page 42 says minElectionTimeout
 	denyAfterIfLeaderSeen := time.Now().Add(-s.minElectionTimeoutDur() - s.cfg.ClockDriftBound)
 	if s.lastLegitAppendEntries.After(denyAfterIfLeaderSeen) {

@@ -12,7 +12,7 @@ func main() {
 	tube.VerboseVerbose.Store(true)
 	fmt.Printf("pid = %v\n", os.Getpid())
 
-	clockDriftBound := 20 * time.Millisecond
+	clockDriftBound := 500 * time.Millisecond
 	tableSpace := "hermes"
 	mem := tube.NewRMember(tableSpace, clockDriftBound)
 	mem.Start()

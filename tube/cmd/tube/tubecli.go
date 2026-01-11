@@ -205,7 +205,7 @@ func main() {
 		cfg.MinElectionDur = time.Millisecond * 1000
 	}
 	if cfg.ClockDriftBound <= 0 {
-		cfg.ClockDriftBound = time.Millisecond * 20
+		cfg.ClockDriftBound = time.Millisecond * 500
 	}
 
 	cfg.RpcCfg.TCPonly_no_TLS = cfg.TCPonly_no_TLS

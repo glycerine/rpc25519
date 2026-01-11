@@ -568,7 +568,7 @@ func (t *Tree) at_unlocked(i int) (lf *Leaf, ok bool) {
 		t.atCache = t.Iter(lf.Key, nil)
 		t.atCache.Next()
 	}
-	// above uncommented: at least 5x faster on At() calls.
+	// above uncommented: about 5x faster on At() calls.
 	// GOEXPERIMENT=synctest go test -v -count=1 -run Test620_unlocked_read_comparison
 	// === RUN   Test620_unlocked_read_comparison
 	//
