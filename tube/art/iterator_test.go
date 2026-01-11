@@ -671,7 +671,7 @@ func TestAscendAndDescendIteration(t *testing.T) {
 	//vv("tree = '%v'", tree)
 
 	i := 0
-	if false {
+	if true {
 		// check Ascend
 		for key, lf := range Ascend(tree, nil, nil) {
 			_ = lf
@@ -808,5 +808,197 @@ func TestFindAndAtInverses(t *testing.T) {
 				panicf("find LT (skey='%v') gave back idx and leaf that do not correspond! idx='%v'; leaf='%v'; but at(idx=%v) -> lf2='%v'", skey, idx, lfkey0, idx, lfkey2)
 			}
 		}
+	}
+}
+
+func Test_2nd_AscendAndDescendIteration(t *testing.T) {
+
+	keys := []string{
+		"member_-1tmNqfte9kLpdMlap2g",
+		"member_-E865hVhr_OG9q4l5MiO",
+		"member_-VF-jGpvoKZTSh4OK-tX",
+		"member_-XpcBIFC8n02kh5X7ZT1",
+		"member_078XlQytTVSn9aXWkR0N",
+		"member_0HxDXipTQgxg-I-3OL-g",
+		"member_0VFXK5knCli1HvBHXTvR",
+		"member_11W697loil_TB9LecFHY",
+		"member_14i35kPoWGEjMjN8KFSG",
+		"member_3CItxZzqHZFC4I_y2NBn",
+		"member_3kncddt1T3hZpU1jX1yq",
+		"member_4KBup9Uf8QZB-cdFkErJ",
+		"member_4gUo8M-NfczCE3_WMtLb",
+		"member_5Bv0TVzI9gkBM6G8FjT-",
+		"member_6BtT_Y1H7oDNj_dIDERU",
+		"member_6Kem2lKZkgA9ciNpzo1g",
+		"member_6g4yWOmzynoJb_6LXKER",
+		"member_6odx68Rz7TMoQyE4q5KU",
+		"member_6tE2FNm6Irdjh1eza_7A",
+		"member_799EW267i63SUn3ewV_7",
+		"member_7aKSQiREFCrv0E_2u7pw",
+		"member_8Di5AnlCPCB0wCITi3ng",
+		"member_8gxpg4dq5wYNPhpqKrAU",
+		"member_90vj83xHB4eWGl_8-fKa",
+		"member_9K4pEaeMCmj0Sez4OCrD",
+		"member_9L0GyZ6lEUHCBUaSEiMe",
+		"member_A2QF1fxNGmeDfVJuxEBc",
+		"member_ArQwrHY4eu23FQFLflEi",
+		"member_B2cjlsQ1HlC-HtpvJ9nC",
+		"member_Bd0P77AxJbZFtX7uC_b9",
+		"member_C6qrZJJXn3_HjT4Ymg6I",
+		"member_Cy_MMCCp-eG0PgsQnipf",
+		"member_DZZI8-f6ZNS40BIVeJ6R",
+		"member_ECUGyYz3MglLgBBcVqEM",
+		"member_FwbavczTK4zud_xOj3XI",
+		"member_GKPmYfzbwSgu_mwQG_Oc",
+		"member_GrUBiRiub6d0xHvpF1ec",
+		"member_Iev5NwJ1qcMKBoULUEAl",
+		"member_JUUqAmZnMqmxkwEvXd93",
+		"member_KVApiSEW1Crzruk3VUXy",
+		"member_Kxxh-TBrnQCGfizaFys_",
+		"member_MZL1CbnlWVk9_sKDeERd",
+		"member_NOR88w-KmWiitnRHA1T2",
+		"member_NVpRzaRkPNvP5-rW05uM",
+		"member_NvcyVIL1GjR1h9b5fF1D",
+		"member_OBVzeKek7KPoaZEIKUP8",
+		"member_ODlgu2v_XWuNa79wnmZu",
+		"member_PcnuICK2gFE5YD_cIb8E",
+		"member_QeQ3CZHZ_kZ8fXLXh-za",
+		"member_QzsPhxpTXs9d1boMYmY5",
+		"member_R8edOxB36Pg12G9sOVFu",
+		"member_SGnhWaVstE5XfuOO1dfJ",
+		"member_SLlMWF11pM-jbS_3uGSw",
+		"member_Sh2fb-8TpatJurJIPrhx",
+		"member_StTCZnhINURfr9sFd99h",
+		"member_TfqIKmntnb5kbtrJc_8A",
+		"member_Tqjm8jjutkYk-9Dah9-O",
+		"member_UrdmLZMg3F6sZQ3hOeR8",
+		"member_X5bOazSB1hhAf69lvYGi",
+		"member_XHsHC4EF2RExf0oaueiM",
+		"member_XcoSuIftm72E_tmM6n9D",
+		"member_YKkZNc9P2H5dub4D1sF-",
+		"member_ZubFIxjP96BpBOEWx0A8",
+		"member__V_k4hpgaSFIvDeyuv9t",
+		"member_bVnnSzz4Jdq50jyU4_yp",
+		"member_dSq0b8xP131H0XQ5wxEz",
+		"member_deS64hNbK6r08zrwlAej",
+		"member_dwB1njjJNU2472nnr_Id",
+		"member_eA0IbOube4UkVWxXxlda",
+		"member_fX5RUAmSStMCwlT0exIQ",
+		"member_hPUf031ep21xCvmlDgTZ",
+		"member_jE9DrzJqKT8iusIeKXhK",
+		"member_k1PTW2bEnyioXP99sTYn",
+		"member_l0y7k_Ar-0uFGZKeE8eN",
+		"member_lXoCTYpwFTSZ0u-0eR_g",
+		"member_mpGmnnU5lTzchuMCkLed",
+		"member_muMPvg7vp47oqQNLLRCe",
+		"member_mzNlTfl5rz98kQrJQL6N",
+		"member_nV4VLcoH29fclRUVeKPj",
+		"member_nZSZyJ57NiXupeplNXJz",
+		"member_nwsUbVw1jdfG6FMtGi5x",
+		"member_oOlxIXA1l3n6kliMjfTi",
+		"member_omVS8yKlFpCmiUr9jPUf",
+		"member_ovZZ4XjFpCPzGeF7oS9T",
+		"member_pSuXJ3Om6PyoH0HdKFhZ",
+		"member_qWb1qmFw3lE2bGHQHNdt",
+		"member_qjkYBgrwEu7coxroxBLZ",
+		"member_r9Y7L7l211klkazoGWFv",
+		"member_sG_5xrgccjJ1OFusXIqS",
+		"member_sdLAaEY1aK0SMggtevWv",
+		"member_txyfrx-x0LQ1AJqNyi3j",
+		"member_tzndrdBN2Q9UJfSZ3LN8",
+		"member_uKaLzHejEDTh-u2as0Ck",
+		"member_uSxEqVl-Zzoo_qUVwvf1",
+		"member_wAohUtmpPXhCchN20EeP",
+		"member_wQX4zD4102pGlOpUpCUM",
+		"member_wY7Ox0EsXHuljOdVTXFl",
+		"member_xvmSj5dft_DZ2EPhnE6_",
+		"member_ymzCnWWv1kJJm8-xaTmn",
+	}
+
+	keys = keys[:95]
+
+	sorted := make([]string, len(keys))
+	copy(sorted, keys)
+	sort.Strings(sorted)
+
+	reversed := make([]string, len(keys))
+	copy(reversed, keys)
+	sort.Sort(sort.Reverse(sort.StringSlice(reversed)))
+
+	//vv("forward sorted = '%#v'", sorted)
+
+	//vv("reversed = '%#v'", reversed)
+
+	tree := NewArtTree()
+	for _, key := range keys {
+		tree.Insert([]byte(key), nil, "")
+	}
+	//vv("tree = '%v'", tree)
+
+	i := 0
+	if true {
+		// check Ascend
+		for key, lf := range Ascend(tree, nil, nil) {
+			_ = lf
+			skey := string(key)
+			if skey != keys[i] {
+				panicf("Ascend i=%v problem, want '%v', got '%v'", i, keys[i], skey)
+			}
+			i++
+		}
+		if i != len(keys) {
+			panicf("wanted %v keys back from Ascend, got %v", len(keys), i)
+		}
+		//vv("%v: Ascend worked fine", t.Name())
+
+		// verify that integer indexing works.
+		i = 0
+		for j := len(keys) - 1; j >= 0; j-- {
+			lf, ok := tree.At(j)
+			if !ok {
+				break
+			}
+			skey := string(lf.Key)
+			if skey != reversed[i] {
+				panicf("At indexing in reverse j=%v problem, want '%v', got '%v'", j, reversed[i], skey)
+			}
+			//vv("good, observed skey='%v' and expected '%v'", skey, reversed[i])
+			i++
+		}
+		//vv("%v At indexing in reverse was okay.", t.Name())
+
+		i = 0
+		for key, lf := range Descend(tree, nil, nil) {
+			_ = lf
+			skey := string(key)
+			if skey != reversed[i] {
+				panicf("Descend i=%v problem, want '%v', got '%v'", i, reversed[i], skey)
+			}
+			i++
+		}
+		if i != len(keys) {
+			panicf("wanted %v keys back from Descend, got %v", len(keys), i)
+		}
+		//vv("%v: Descend worked fine", t.Name())
+	}
+	// verify delete in the middle of iteration works in reverse.
+	i = 0
+	for key, lf := range Descend(tree, nil, nil) {
+		_ = lf
+		skey := string(key)
+		if skey != reversed[i] {
+			panicf("Descend with Delete: i=%v problem, want '%v', got '%v'. tree.Len=%v", i, reversed[i], skey, tree.Size())
+		}
+		i++
+		// remove the odd ones as we go.
+		if i%2 == 1 {
+			//vv("i=%v before removal, tree = '%v'", i, tree)
+			tree.Remove(Key(skey))
+			//vv("i=%v, removed '%v'", i, skey)
+			//vv("i=%v after removal, tree = '%v'", i, tree)
+		}
+	}
+	if i != len(keys) {
+		panicf("wanted %v keys back from Descend, got %v", len(keys), i)
 	}
 }
