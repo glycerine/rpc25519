@@ -14740,8 +14740,11 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 
 	// surely we do not want to do this for all the clients!
 	if cktP.PeerServiceName == TUBE_REPLICA {
-		//vv("%v cktP.PeerServiceName='%v' calling startWatchdog!", s.me(), cktP.PeerServiceName)
-		cktP.startWatchdog() // ckt non-nil means isUp=true
+		// in fact, if we are a client ourselves, no watchdog. Only Raft replicas.
+		if s.PeerServiceName == TUBE_REPLICA {
+			//vv("%v cktP.PeerServiceName='%v' calling startWatchdog!", s.me(), cktP.PeerServiceName)
+			cktP.startWatchdog() // ckt non-nil means isUp=true
+		}
 	}
 	cktP.seen(nil, 0, 0, 0) // in addToCktall
 
