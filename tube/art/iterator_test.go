@@ -812,6 +812,63 @@ func TestFindAndAtInverses(t *testing.T) {
 }
 
 func Test_2nd_AscendAndDescendIteration(t *testing.T) {
+	// bug in code that prompted this test.
+	// diff --git a/tube/art/gte.go b/tube/art/gte.go
+	//
+	// index 74444249..a30c03b9 100644
+	// --- a/tube/art/gte.go
+	// +++ b/tube/art/gte.go
+	// @@ -326,7 +326,7 @@ func (n *inner) getGTE(
+	//  		if smallestWillDo {
+	//  			dir = 2
+	//  		}
+	// -		return value2, false, dir, 0
+	// +		return value2, false, dir, id2
+	//
+	//  	} // end if dir > 0
+	//
+	// @@ -385,7 +385,7 @@ func (n *inner) getGTE(
+	//  	if dir2 > 0 && smallestWillDo {
+	//  		dir2 = 2
+	//  	}
+	// -	return value2, false, dir2, 0
+	// +	return value2, false, dir2, id2
+	//  }
+	//
+	//  // byteCmp helps us track how the key
+	// diff --git a/tube/art/lte.go b/tube/art/lte.go
+	// index c688ea5f..1df18cca 100644
+	// --- a/tube/art/lte.go
+	// +++ b/tube/art/lte.go
+	// @@ -331,7 +331,7 @@ func (n *inner) getLTE(
+	//  		if largestWillDo {
+	//  			dir = -2
+	//  		}
+	// -		return value2, false, dir, 0
+	// +		return value2, false, dir, id2
+	//
+	//  	} // end if dir < 0
+	//
+	// @@ -391,5 +391,5 @@ func (n *inner) getLTE(
+	//  	if dir2 < 0 && largestWillDo {
+	//  		dir2 = -2
+	//  	}
+	// -	return value2, false, dir2, 0
+	// +	return value2, false, dir2, id2
+	//  }
+	// diff --git a/tube/art/n256.go b/tube/art/n256.go
+	// index 6831a584..06ebc816 100644
+	// --- a/tube/art/n256.go
+	// +++ b/tube/art/n256.go
+	// @@ -104,7 +104,7 @@ func (n *node256) gt(k *byte) (keyb byte, ch *bnode) {
+	//  }
+	//
+	//  func (n *node256) prev(k *byte) (byte, *bnode) {
+	// -	for idx := n.lth - 1; idx >= 0; idx-- {
+	// +	for idx := 255; idx >= 0; idx-- {
+	//  		b := byte(idx)
+	//  		child := n.children[idx]
+	//  		if (k == nil || b < *k) && child != nil {
 
 	keys := []string{
 		"member_-1tmNqfte9kLpdMlap2g",

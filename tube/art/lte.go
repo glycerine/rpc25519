@@ -331,7 +331,7 @@ func (n *inner) getLTE(
 		if largestWillDo {
 			dir = -2
 		}
-		return value2, false, dir, 0
+		return value2, false, dir, id2
 
 	} // end if dir < 0
 
@@ -391,5 +391,5 @@ func (n *inner) getLTE(
 	if dir2 < 0 && largestWillDo {
 		dir2 = -2
 	}
-	return value2, false, dir2, 0
+	return value2, false, dir2, id2
 }

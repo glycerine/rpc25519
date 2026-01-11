@@ -104,7 +104,7 @@ func (n *node256) gt(k *byte) (keyb byte, ch *bnode) {
 }
 
 func (n *node256) prev(k *byte) (byte, *bnode) {
-	for idx := n.lth - 1; idx >= 0; idx-- {
+	for idx := 255; idx >= 0; idx-- {
 		b := byte(idx)
 		child := n.children[idx]
 		if (k == nil || b < *k) && child != nil {

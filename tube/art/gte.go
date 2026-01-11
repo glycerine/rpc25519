@@ -326,7 +326,7 @@ func (n *inner) getGTE(
 		if smallestWillDo {
 			dir = 2
 		}
-		return value2, false, dir, 0
+		return value2, false, dir, id2
 
 	} // end if dir > 0
 
@@ -385,7 +385,7 @@ func (n *inner) getGTE(
 	if dir2 > 0 && smallestWillDo {
 		dir2 = 2
 	}
-	return value2, false, dir2, 0
+	return value2, false, dir2, id2
 }
 
 // byteCmp helps us track how the key
