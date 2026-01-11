@@ -57,7 +57,7 @@ var sep = string(os.PathSeparator)
 // serverAddr = "192.168.254.151:8443"
 func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string) {
 
-	vv("runClientMain called. caller = '%v'", stack())
+	//vv("runClientMain called. caller = '%v'", stack())
 	defer func() {
 		vv("runClientMain defer: end for goro = %v; closing c.halt=%p", GoroNumber(), c.halt)
 		c.halt.ReqStop.Close()
@@ -1824,7 +1824,7 @@ func (c *Client) setDefaults(cfg *Config) {
 // That is, Start attemps to connect to config.ClientDialToHostPort.
 // The err will come back with any problems encountered.
 func (c *Client) Start() (err error) {
-	//vv("top Client.Start() c.cfg.ClientDialToHostPort='%v'", c.cfg.ClientDialToHostPort)
+	vv("top Client.Start() c.cfg.ClientDialToHostPort='%v'; \n stack='%v'", c.cfg.ClientDialToHostPort, stack())
 	c.cfg.cliStartingDir, err = os.Getwd()
 	if err != nil {
 		return fmt.Errorf("rpc25519.Client.Start() could not Getwd(): '%v'", err)
