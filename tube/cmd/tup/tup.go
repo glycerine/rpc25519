@@ -578,17 +578,23 @@ repl:
 				sess = needNewSess(sess, err)
 
 			} else {
-				i := 0
-				var str string
-				for key := range art.Ascend(tkt.KeyValRangeScan, nil, nil) {
-					str += fmt.Sprintf("[%02d] %v\n", i, string(key))
-					i++
+				var sz int
+				if tkt.KeyValRangeScan == nil || tkt.KeyValRangeScan.Size() == 0 {
+				} else {
+					sz = tkt.KeyValRangeScan.Size()
+					i := 0
+					var str string
+					for key := range art.Ascend(tkt.KeyValRangeScan, nil, nil) {
+						str += fmt.Sprintf("[%02d] %v\n", i, string(key))
+						i++
+					}
 				}
 				if key == "" {
-					fmt.Printf("available tables:\n%v\n(%v tables back)\n", str, tkt.KeyValRangeScan.Size())
+					fmt.Printf("available tables:\n%v\n(%v tables back)\n", str, sz)
 				} else {
-					fmt.Printf("available keys in table '%v':\n%v\n(%v keys back)\n", key, str, tkt.KeyValRangeScan.Size())
+					fmt.Printf("available keys in table '%v':\n%v\n(%v keys back)\n", key, str, sz)
 				}
+
 			}
 		case isSet:
 			const leaseAutoDelFalse = false

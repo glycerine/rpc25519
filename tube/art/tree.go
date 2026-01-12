@@ -144,6 +144,9 @@ func NewArtTree() *Tree {
 // Size returns the number of keys
 // (leaf nodes) stored in the tree.
 func (t *Tree) Size() (sz int) {
+	if t == nil {
+		return // 0
+	}
 	if t.SkipLocking {
 		return int(t.size)
 	}
@@ -158,10 +161,10 @@ func (t *Tree) Size() (sz int) {
 // This is mostly for debugging, and
 // can be quite slow for large trees.
 func (t *Tree) String() string {
-	sz := t.Size()
-	if t.root == nil {
+	if t == nil || t.root == nil {
 		return "empty uart.Tree"
 	}
+	sz := t.Size()
 	return fmt.Sprintf("tree of size %v: ", sz) +
 		t.root.FlatString(0, -1, t.root)
 }
@@ -169,10 +172,10 @@ func (t *Tree) String() string {
 // recurse -1 for full tree; otherwise only
 // that many levels.
 func (t *Tree) stringNoKeys(recurse int) string {
-	sz := t.Size()
-	if t.root == nil {
+	if t == nil || t.root == nil {
 		return "empty uart.Tree"
 	}
+	sz := t.Size()
 	return fmt.Sprintf("tree of size %v: ", sz) +
 		t.root.stringNoKeys(0, recurse, t.root)
 }

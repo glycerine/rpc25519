@@ -115,7 +115,7 @@ type iterator struct {
 // which is not an uncommon need.
 func (t *Tree) Iter(start, end []byte) (iter *iterator) {
 
-	if t.root == nil || t.size < 1 {
+	if t == nil || t.root == nil || t.size < 1 {
 		return &iterator{
 			initDone: true,
 			closed:   true,
@@ -194,7 +194,7 @@ func (t *Tree) Iter(start, end []byte) (iter *iterator) {
 // which is not an uncommon need.
 func (t *Tree) RevIter(end, start []byte) (iter *iterator) {
 
-	if t.root == nil || t.size < 1 {
+	if t == nil || t.root == nil || t.size < 1 {
 		return &iterator{
 			initDone: true,
 			closed:   true,
