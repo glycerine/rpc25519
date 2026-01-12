@@ -167,7 +167,7 @@ func main() {
 	panicOn(err)
 
 	if true {
-		fmt.Printf("tubeadd contacted:\n")
+		fmt.Printf("tuberm contacted:\n")
 		for _, insp2 := range contacted {
 			fmt.Printf(`%v %v  (lead: '%v')
    MC: %v   ShadowReplicas: %v   URL: %v
