@@ -13611,7 +13611,7 @@ doneWithStruct190zgensym_8df0a91a1f250219_191:
 					return
 				}
 			}
-		case "KnownMC_zid17_ptr":
+		case "Known_zid17_ptr":
 			found190zgensym_8df0a91a1f250219_191[17] = true
 			if dc.IsNil() {
 				err = dc.ReadNil()
@@ -13619,9 +13619,9 @@ doneWithStruct190zgensym_8df0a91a1f250219_191:
 					return
 				}
 
-				if z.KnownMC != nil {
+				if z.Known != nil {
 					dc.PushAlwaysNil()
-					err = z.KnownMC.DecodeMsg(dc)
+					err = z.Known.DecodeMsg(dc)
 					if err != nil {
 						return
 					}
@@ -13630,12 +13630,12 @@ doneWithStruct190zgensym_8df0a91a1f250219_191:
 			} else {
 				// not Nil, we have something to read
 
-				if z.KnownMC == nil {
-					z.KnownMC = new(MemberConfig)
+				if z.Known == nil {
+					z.Known = new(MemberConfig)
 				}
-				dc.DedupIndexEachPtr(z.KnownMC)
+				dc.DedupIndexEachPtr(z.Known)
 
-				err = z.KnownMC.DecodeMsg(dc)
+				err = z.Known.DecodeMsg(dc)
 				if err != nil {
 					return
 				}
@@ -13852,7 +13852,7 @@ doneWithStruct190zgensym_8df0a91a1f250219_191:
 }
 
 // fields of RaftState
-var decodeMsgFieldOrder190zgensym_8df0a91a1f250219_191 = []string{"Serial_zid00_i64", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerID_zid04_str", "ClusterID_zid05_str", "CurrentTerm_zid06_i64", "VotedFor_zid07_str", "VotedForName_zid08_str", "HaveVoted_zid09_boo", "HaveVotedTerm_zid10_i64", "CommitIndex_zid11_i64", "CommitIndexEntryTerm_zid12_i64", "LastApplied_zid13_i64", "LastAppliedTerm_zid14_i64", "KVstore_zid15_ptr", "MC_zid16_ptr", "KnownMC_zid17_ptr", "Observers_zid18_ptr", "ShadowReplicas_zid19_ptr", "LastSaveTimestamp_zid20_tim", "CompactionDiscardedLast_zid21_rct", "SessTable_zid22_map"}
+var decodeMsgFieldOrder190zgensym_8df0a91a1f250219_191 = []string{"Serial_zid00_i64", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerID_zid04_str", "ClusterID_zid05_str", "CurrentTerm_zid06_i64", "VotedFor_zid07_str", "VotedForName_zid08_str", "HaveVoted_zid09_boo", "HaveVotedTerm_zid10_i64", "CommitIndex_zid11_i64", "CommitIndexEntryTerm_zid12_i64", "LastApplied_zid13_i64", "LastAppliedTerm_zid14_i64", "KVstore_zid15_ptr", "MC_zid16_ptr", "Known_zid17_ptr", "Observers_zid18_ptr", "ShadowReplicas_zid19_ptr", "LastSaveTimestamp_zid20_tim", "CompactionDiscardedLast_zid21_rct", "SessTable_zid22_map"}
 
 var decodeMsgFieldSkip190zgensym_8df0a91a1f250219_191 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
@@ -13935,7 +13935,7 @@ func (z *RaftState) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[16] {
 		fieldsInUse--
 	}
-	isempty[17] = (z.KnownMC == nil) // pointer, omitempty
+	isempty[17] = (z.Known == nil) // pointer, omitempty
 	if isempty[17] {
 		fieldsInUse--
 	}
@@ -14212,20 +14212,20 @@ func (z *RaftState) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_8df0a91a1f250219_195[17] {
-		// write "KnownMC_zid17_ptr"
-		err = en.Append(0xb1, 0x4b, 0x6e, 0x6f, 0x77, 0x6e, 0x4d, 0x43, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x37, 0x5f, 0x70, 0x74, 0x72)
+		// write "Known_zid17_ptr"
+		err = en.Append(0xaf, 0x4b, 0x6e, 0x6f, 0x77, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x37, 0x5f, 0x70, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
 		// gPtr.encodeGen():
 
-		if z.KnownMC == nil {
+		if z.Known == nil {
 			err = en.WriteNil()
 			if err != nil {
 				return
 			}
 		} else {
-			err = z.KnownMC.EncodeMsg(en)
+			err = z.Known.EncodeMsg(en)
 			if err != nil {
 				return
 			}
@@ -14511,16 +14511,16 @@ func (z *RaftState) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[17] {
-		// string "KnownMC_zid17_ptr"
-		o = append(o, 0xb1, 0x4b, 0x6e, 0x6f, 0x77, 0x6e, 0x4d, 0x43, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x37, 0x5f, 0x70, 0x74, 0x72)
+		// string "Known_zid17_ptr"
+		o = append(o, 0xaf, 0x4b, 0x6e, 0x6f, 0x77, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x37, 0x5f, 0x70, 0x74, 0x72)
 		// marshalGen.gPtr()
 
-		if z.KnownMC == nil {
+		if z.Known == nil {
 			o = msgp.AppendNil(o)
 		} else {
 			// hmm.. no en, no place to check en.DedupWriteIsDup(z)
 
-			o, err = z.KnownMC.MarshalMsg(o) // not is.iface
+			o, err = z.Known.MarshalMsg(o) // not is.iface
 			if err != nil {
 				return
 			}
@@ -14844,31 +14844,31 @@ doneWithStruct199zgensym_8df0a91a1f250219_200:
 					}
 				}
 			}
-		case "KnownMC_zid17_ptr":
+		case "Known_zid17_ptr":
 			found199zgensym_8df0a91a1f250219_200[17] = true
 			// unmarshalGen.gPtr(): we have a BaseElem.
 
 			// unmarshalGen.gPtr(): we have an IDENT:
 
 			if nbs.AlwaysNil {
-				if z.KnownMC != nil {
-					z.KnownMC.UnmarshalMsg(msgp.OnlyNilSlice)
+				if z.Known != nil {
+					z.Known.UnmarshalMsg(msgp.OnlyNilSlice)
 				}
 			} else {
 				// not nbs.AlwaysNil
 				if msgp.IsNil(bts) {
 					bts = bts[1:]
-					if nil != z.KnownMC {
-						z.KnownMC.UnmarshalMsg(msgp.OnlyNilSlice)
+					if nil != z.Known {
+						z.Known.UnmarshalMsg(msgp.OnlyNilSlice)
 					}
 				} else {
 					// not nbs.AlwaysNil and not IsNil(bts): have something to read
 
-					if z.KnownMC == nil {
-						z.KnownMC = new(MemberConfig)
+					if z.Known == nil {
+						z.Known = new(MemberConfig)
 					}
 
-					bts, err = z.KnownMC.UnmarshalMsg(bts)
+					bts, err = z.Known.UnmarshalMsg(bts)
 					if err != nil {
 						return
 					}
@@ -15103,7 +15103,7 @@ doneWithStruct199zgensym_8df0a91a1f250219_200:
 }
 
 // fields of RaftState
-var unmarshalMsgFieldOrder199zgensym_8df0a91a1f250219_200 = []string{"Serial_zid00_i64", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerID_zid04_str", "ClusterID_zid05_str", "CurrentTerm_zid06_i64", "VotedFor_zid07_str", "VotedForName_zid08_str", "HaveVoted_zid09_boo", "HaveVotedTerm_zid10_i64", "CommitIndex_zid11_i64", "CommitIndexEntryTerm_zid12_i64", "LastApplied_zid13_i64", "LastAppliedTerm_zid14_i64", "KVstore_zid15_ptr", "MC_zid16_ptr", "KnownMC_zid17_ptr", "Observers_zid18_ptr", "ShadowReplicas_zid19_ptr", "LastSaveTimestamp_zid20_tim", "CompactionDiscardedLast_zid21_rct", "SessTable_zid22_map"}
+var unmarshalMsgFieldOrder199zgensym_8df0a91a1f250219_200 = []string{"Serial_zid00_i64", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerID_zid04_str", "ClusterID_zid05_str", "CurrentTerm_zid06_i64", "VotedFor_zid07_str", "VotedForName_zid08_str", "HaveVoted_zid09_boo", "HaveVotedTerm_zid10_i64", "CommitIndex_zid11_i64", "CommitIndexEntryTerm_zid12_i64", "LastApplied_zid13_i64", "LastAppliedTerm_zid14_i64", "KVstore_zid15_ptr", "MC_zid16_ptr", "Known_zid17_ptr", "Observers_zid18_ptr", "ShadowReplicas_zid19_ptr", "LastSaveTimestamp_zid20_tim", "CompactionDiscardedLast_zid21_rct", "SessTable_zid22_map"}
 
 var unmarshalMsgFieldSkip199zgensym_8df0a91a1f250219_200 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
@@ -15126,11 +15126,11 @@ func (z *RaftState) Msgsize() (s int) {
 	} else {
 		s += z.MC.Msgsize()
 	}
-	s += 18
-	if z.KnownMC == nil {
+	s += 16
+	if z.Known == nil {
 		s += msgp.NilSize
 	} else {
-		s += z.KnownMC.Msgsize()
+		s += z.Known.Msgsize()
 	}
 	s += 20
 	if z.Observers == nil {
@@ -15178,7 +15178,7 @@ func (z *RaftState) Gstring() (r string) {
 	r += fmt.Sprintf("        LastAppliedTerm: %v,\n", z.LastAppliedTerm)
 	r += fmt.Sprintf("                KVstore: %v,\n", z.KVstore)
 	r += fmt.Sprintf("                     MC: %v,\n", z.MC)
-	r += fmt.Sprintf("                KnownMC: %v,\n", z.KnownMC)
+	r += fmt.Sprintf("                  Known: %v,\n", z.Known)
 	r += fmt.Sprintf("              Observers: %v,\n", z.Observers)
 	r += fmt.Sprintf("         ShadowReplicas: %v,\n", z.ShadowReplicas)
 	r += fmt.Sprintf("      LastSaveTimestamp: %v,\n", z.LastSaveTimestamp)
