@@ -4,6 +4,7 @@ update:
 	git pull origin master --tags
 	make build
 	make kill
+	sleep 1
 	./do
 
 beg:
