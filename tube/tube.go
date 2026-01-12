@@ -1074,6 +1074,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		// wal/raft log.
 
 		select {
+		case <-s.batchSubmitTimeCh:
+			s.replicateBatch()
+
 		case boot := <-s.testBootstrapLogCh: // 020, 040 election_test
 			//vv("%v s.testBootstrapLogCh fired", s.me())
 			err = s.setupFirstRaftLogEntryBootstrapLog(boot)
@@ -2501,6 +2504,18 @@ type TubeNode struct {
 	electionTimeoutWasDur    time.Duration
 	leaderFullPongPQ         *pongPQ
 	lastLeaderActiveStepDown time.Time
+
+	// batching raft writes to amortize fsyncs and network comms.
+
+	// set to wakeup and submit a batch after a fixed interval.
+	batchSubmitTimeCh <-chan time.Time
+	// zero out after each batch; zero if no batch in progress
+	batchStartedTm time.Time
+	// when should this batch be sent off. roughly
+	// the same as the deadline that batchSubmitTimeCh is armed for.
+	batchSubmitTm   time.Time
+	batchInProgress bool
+	batchToSubmit   []*Ticket
 
 	// update in handle AE when leader
 	// changes, try to detect flapping
@@ -4764,11 +4779,11 @@ const (
 	ADD_SHADOW_NON_VOTING    TicketOp = 17 // through writeReqCh
 	REMOVE_SHADOW_NON_VOTING TicketOp = 18
 
+	USER_DEFINED_FSM_OP TicketOp = 19
+
 	// when a ticket acts as a container for a
 	// batch of other tickets.
-	TKT_BATCH TicketOp = 19
-
-	USER_DEFINED_FSM_OP TicketOp = 20
+	//TKT_BATCH TicketOp = 20
 )
 
 func (t TicketOp) String() (r string) {
@@ -4811,10 +4826,10 @@ func (t TicketOp) String() (r string) {
 		return "ADD_SHADOW_NON_VOTING"
 	case REMOVE_SHADOW_NON_VOTING:
 		return "REMOVE_SHADOW_NON_VOTING"
-	case TKT_BATCH:
-		return "TKT_BATCH"
 	case USER_DEFINED_FSM_OP:
 		return "USER_DEFINED_FSM_OP"
+		//case TKT_BATCH:
+		//	return "TKT_BATCH"
 	}
 	r = fmt.Sprintf("(unknown TicketOp: %v", int64(t))
 	panic(r)
@@ -5399,6 +5414,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		}
 	}
 
+	now := time.Now()
 	var idx int64
 	lli, llt := s.wal.LastLogIndexAndTerm()
 	if lli > 0 {
@@ -5408,6 +5424,88 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		// empty log. since lli can be -1 force a 1 here
 		idx = 1
 	}
+
+	entry := s.prepOne(tkt, now, idx)
+
+	// index of log entry immediately preceeding new ones
+	var prevLogIndex int64
+	// term of prevLogIndex
+	var prevLogTerm int64
+	if lli > 0 {
+		prevLogIndex = lli
+		prevLogTerm = llt
+	}
+
+	// persist to disk. in replicateTicket.
+	s.wal.saveRaftLogEntry(entry)
+
+	// log compaction: here in replicateTicket().
+	s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast) // if compaction enabled.
+	//s.state.setCompaction(compactIndex, compactTerm)
+	if true {
+		s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
+	}
+	if tkt.Op == MEMBERSHIP_SET_UPDATE ||
+		tkt.Op == MEMBERSHIP_BOOTSTRAP {
+
+		// single node membership changes take effect
+		// immediately upon hitting the log.
+		//
+		// Section 4.1 on page 35:
+		//
+		// "The new configuration takes effect on each
+		// server as soon as it is added to that server’s
+		// log: the Cnew entry is replicated to the Cnew
+		// servers, and a majority of the new configuration
+		// is used to determine the Cnew entry’s commitment.
+		// This means that servers do not wait for
+		// configuration entries to be committed, and
+		// each server always uses the latest
+		// configuration found in its log.
+
+		// Prov was appended above.
+		amInLatest, _ := s.setMC(tkt.MC.Clone(), fmt.Sprintf("replicateTicket() on '%v'", s.name))
+		_ = amInLatest
+
+		// Log compaction means we want MC in the separate
+		// persistor state on disk. So save it.
+		s.saver.save(s.state)
+	}
+	if s.clusterSize() > 1 {
+		// add to Waiting. NB in replicateTicket(); we are leader.
+		//vv("%v wait for AppendEntries to complete; tkt='%v'", s.me(), tkt.Short())
+		s.WaitingAtLeader.set(tkt.TicketID, tkt)
+		tkt.Stage += "_normal_replication_added_to_WaitingAtLeader"
+	} else {
+		//vv("%v is singleton cluster in replicateTicket; no AppendEntries replication to wait for", s.me())
+
+		// SPECIAL CASE COMMIT ON SINGLE NODE CLUSTER.
+
+		// for 1 node, being on disk is committed.
+		s.state.CommitIndex = idx
+		s.state.CommitIndexEntryTerm = s.state.CurrentTerm
+		s.commitWhatWeCan(true)
+		// -------- commitWhatWeCan does for us:
+		// s.state.LastApplied = idx
+		// entry.commited = true
+		// tkt.Committed = true
+		// s.FinishTicket(tkt)
+		// -------- end commitWhatWeCan does for us.
+
+		tkt.Stage += ":_cluster_size_1_immediate_commit"
+		return
+	}
+
+	// send to other servers.
+	es := []*RaftLogEntry{entry}
+	s.bcastAppendEntries(es, prevLogIndex, prevLogTerm)
+	tkt.Stage += ":_bcastAppendEntries_called"
+
+	// end of replicateTicket
+}
+
+func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64) *RaftLogEntry {
+
 	tkt.LogIndex = idx // tkt.LogIndex is assigned here.
 	if tkt.Op == SESS_NEW {
 		tkt.NewSessReq.SessionAssignedIndex = idx
@@ -5453,7 +5551,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	}
 	tkt.Term = s.state.CurrentTerm
 	entry := &RaftLogEntry{
-		Tm:                 time.Now(),
+		Tm:                 now,
 		LeaderName:         s.name,
 		Term:               s.state.CurrentTerm,
 		Index:              idx,
@@ -5465,59 +5563,70 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	if tkt.LeaseRequestDur > 0 {
 		tkt.LeaseUntilTm = entry.Tm.Add(tkt.LeaseRequestDur)
 	}
+	return entry
+}
 
-	// index of log entry immediately preceeding new ones
-	var prevLogIndex int64
-	// term of prevLogIndex
-	var prevLogTerm int64
+func (s *TubeNode) replicateBatch() {
+
+	batch := s.batchToSubmit
+	s.batchToSubmit = nil
+	s.batchSubmitTimeCh = nil
+	s.batchInProgress = false
+	needSave := false
+	now := time.Now()
+	clusterSz := s.clusterSize()
+	var idx int64
+
+	lli, llt := s.wal.LastLogIndexAndTerm()
+	if lli > 0 {
+		// try to be compaction ready
+		idx = lli + 1
+	} else {
+		// empty log. since lli can be -1 force a 1 here
+		idx = 1
+	}
+
+	var prevLogIndex, prevLogTerm int64
 	if lli > 0 {
 		prevLogIndex = lli
 		prevLogTerm = llt
 	}
 
-	// persist to disk. in replicateTicket.
-	s.wal.saveRaftLogEntry(entry)
+	idx-- // allow the for loop just below to increment for each tkt.
 
-	// log compaction: here in replicateTicket().
-	s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast) // if compaction enabled.
-	//s.state.setCompaction(compactIndex, compactTerm)
-	if true {
-		s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
+	var es []*RaftLogEntry
+	for _, tkt := range batch {
+		idx++
+		entry := s.prepOne(tkt, now, idx)
+
+		if tkt.Op == MEMBERSHIP_SET_UPDATE ||
+			tkt.Op == MEMBERSHIP_BOOTSTRAP {
+
+			// Prov was appended above.
+			s.setMC(tkt.MC.Clone(), fmt.Sprintf("replicateTicket() on '%v'", s.name))
+
+			// Log compaction means we want MC in persistor on disk.
+			needSave = true
+		}
+		es = append(es, entry)
 	}
-	if tkt.Op == MEMBERSHIP_SET_UPDATE ||
-		tkt.Op == MEMBERSHIP_BOOTSTRAP {
 
-		// single node membership changes take effect
-		// immediately upon hitting the log.
-		//
-		// Section 4.1 on page 35:
-		//
-		// "The new configuration takes effect on each
-		// server as soon as it is added to that server’s
-		// log: the Cnew entry is replicated to the Cnew
-		// servers, and a majority of the new configuration
-		// is used to determine the Cnew entry’s commitment.
-		// This means that servers do not wait for
-		// configuration entries to be committed, and
-		// each server always uses the latest
-		// configuration found in its log.
+	// persist all es entries to disk, in one fsync instead of the range loop
+	for _, entry := range es {
+		s.wal.saveRaftLogEntry(entry)
+	}
+	// save this for a bit later. TODO: when? overwriteEntries already does??
+	//s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast)
 
-		// Prov was appended above.
-		amInLatest, _ := s.setMC(tkt.MC.Clone(), fmt.Sprintf("replicateTicket() on '%v'", s.name))
-		_ = amInLatest
-
-		// we don't need a state sync b/c the wal
-		// log sync just above suffices to
-		// recover it on restart/recover.
-		// Update: log compaction makes that a problematic recovery path.
-		// So save it.
+	if needSave {
 		s.saver.save(s.state)
 	}
-	if s.clusterSize() > 1 {
-		// add to Waiting. NB in replicateTicket(); we are leader.
-		//vv("%v wait for AppendEntries to complete; tkt='%v'", s.me(), tkt.Short())
-		s.WaitingAtLeader.set(tkt.TicketID, tkt)
-		tkt.Stage += "_normal_replication_added_to_WaitingAtLeader"
+
+	if clusterSz > 1 {
+		for _, tkt := range batch {
+			s.WaitingAtLeader.set(tkt.TicketID, tkt)
+			tkt.Stage += ":_batch_normal_replication_added_to_WaitingAtLeader"
+		}
 	} else {
 		//vv("%v is singleton cluster in replicateTicket; no AppendEntries replication to wait for", s.me())
 
@@ -5527,23 +5636,17 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		s.state.CommitIndex = idx
 		s.state.CommitIndexEntryTerm = s.state.CurrentTerm
 		s.commitWhatWeCan(true)
-		// -------- commitWhatWeCan does for us:
-		// s.state.LastApplied = idx
-		// entry.commited = true
-		// tkt.Committed = true
-		// s.FinishTicket(tkt)
-		// -------- end commitWhatWeCan does for us.
-
-		tkt.Stage += "_cluster_size_1_immediate_commit"
+		for _, tkt := range batch {
+			tkt.Stage += ":_batch_cluster_size_1_immediate_commit"
+		}
 		return
 	}
 
 	// send to other servers.
-	es := []*RaftLogEntry{entry}
 	s.bcastAppendEntries(es, prevLogIndex, prevLogTerm)
-	tkt.Stage += "_bcastAppendEntries_called"
-
-	// end of replicateTicket
+	for _, tkt := range batch {
+		tkt.Stage += ":_batch_bcastAppendEntries_called"
+	}
 }
 
 type testTermChange struct {
@@ -9182,7 +9285,6 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 		if s.state.LastApplied >= n {
 			panic("shouldn't be possible for CommitIndex to be > n")
 			// (this is also a bounds assertion on LastApplied)
-			return
 		}
 		// If we are already compacted away, then for
 		// sure we have been applied already, since we
@@ -9410,143 +9512,146 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 		// need to persist LastApplied (and any kvstore changes).
 		s.saver.save(s.state)
 	}
-	// end of commitWhatWeCan(). Just some notes follow:
-	return
 
-	// Notes on this last LastApplied sync, why it is safe
-	// even if stale (we crash right here).
-	//
-	// We don't want to skip persisting the LastApplied index
-	// in a separate fsync now, as it is a performance
-	// optimization. But it is only an optimization.
-	// LastApplied represents the
-	// last know good applied transaction. What
-	// if we crashed right here -- a quorum has committed
-	// but we would not have updated our on disk that
-	// we actually applied it? We have already applied it,
-	// but we don't "know" that we have applied it on recovery.
-	// On recovery, we don't want to apply it a second
-	// time.
-	//
-	// Insight: with the blake3 Merkle tree, the
-	// application has become idempotent. We are just
-	// bringing the "materialized view" of the
-	// filesystem into line with the plan corresponding
-	// to the most recently committed root hash.
-	// Recovery just has to re-run the rsync operation locally
-	// and confirm that we have the filesystem looking
-	// like the last committed plan and its root hash.
-	// We can then accurately conclude that the
-	// plan has been applied, and if was not, that we
-	// have just applied it with the rsync.
-	//
-	// https://claude.ai/chat/b10f9df1-83e3-4e1f-9af7-7502ed28cb87
-	//
-	// Summary: the Raft WAL tells us the root-hash
-	// to root-hash transitions to expect. On recovery,
-	// we have to see if any tail of these are on disk
-	// already or not. The blocks have been committed
-	// as a part of consensus (and the plan to assemble
-	// blocks to obtain the new root hash as well) is
-	// saved during consensus. So we know the content
-	// blocks, their hashes, and the plan to assemble them
-	// to get a new root hash are all already safely
-	// on disk. If the materialized view in the actual
-	// filesystem does not match, we must apply rsync
-	// to update it from the local kv store which
-	// has the (hash:block) and (plan:hashes)
-	// stored. Then we can set the LastApplied to
-	// match the applied commit. We plan to
-	// use SeaweedFS (Haystack design) for both
-	// the hash:block and plan-for-a-root-hash:hashes storage.
-	// Recovery is then: if the last-applied < last-commited
-	// iterate through each commit and run its rsync.
-	// Which it turns out is exactly what just did above,
-	// in FinishTicket(), thus completing the recovery.
-	// If we are not maintaining a "materialized view",
-	// as in just being a backup system (e.g. like
-	// a bare git repo without any checkout) then there
-	// isn't anything to do, and FinishTicket is
-	// just telling the client.
-	// Conclusion: FinishTicket either does the rsync
-	// for store to user-viewable filesystem
-	// (a "restore" operation in backup terms), or
-	// just needs to finish telling the client about
-	// completed/committed transactions.
-	//
-	// What does it do for simply maintaining
-	// a small amount of configuration state, our
-	// first implementation goal? I don't thinkg
-	// there is a separate "apply command" step
-	// in this case. The last committed state
-	// on disk is the state we want to serve.
-	// The apply is a no-op, I think, and FinishTicket
-	// just needs to respond to any outstanding
-	// client requests. I think it wants to only
-	// report the last commit to reads however. So we
-	// will need to wait until the end of the
-	// above for loop before responding to reads?
-	//
-	// Well no, reads are ordered with respect
-	// to the Raft log, so they only want to
-	// see the state that was committed when
-	// they were committed too. So actually we
-	// don't want to have them wait; but we could
-	// include a hint that there have been
-	// subsequent commits, and tell them the
-	// latest anyway to allow them to skip
-	// doing a whole other round trip, as an
-	// optimization for practical systems --
-	// but not use that "latest" during linearizability
-	// testing.
+} // end of commitWhatWeCan()
 
-	// Claude.AI:
-	// Good question about Raft's handling of command
-	// execution during server restarts! This is indeed
-	// a subtle point in the protocol.
-	//
-	// Raft does not inherently prevent a state machine
-	// command from being executed twice when servers restart.
-	// You're correct that the lastApplied and commitIndex
-	// are part of the volatile state, which means they are
-	// not persisted to stable storage and are reinitialized
-	// when a server restarts.
-	//
-	// Here's what happens during a restart:
-	// 1. The server loads its persistent state (log entries, currentTerm, votedFor)
-	// 2. The lastApplied index is reset (typically to 0)
-	// 3. When the server restarts, it will reapply commands
-	// from its log starting from index 1 up to the new commitIndex
-	//
-	// This means that commands that were already applied
-	// before the crash will be reapplied to the state machine after restart.
-	//
-	// To handle this problem properly, you have a few options:
-	//
-	// 1. **Make your state machine operations idempotent**:
-	// Design your operations so applying them multiple times
-	// has the same effect as applying them once. For example,
-	// "set x to 5" rather than "add 1 to x".
-	//
-	// 2. **Persist the lastApplied index**: Some Raft
-	// implementations extend the protocol to periodically
-	// persist the lastApplied index to stable storage to
-	// avoid reapplying commands.
-	//
-	// 3. **Take snapshots with metadata**: When taking a
-	// snapshot of the state machine, record the lastApplied
-	// index with it. After a restart, initialize lastApplied
-	// from the snapshot rather than 0.
-	//
-	// 4. **Command deduplication**: Have clients assign
-	// unique IDs to commands and have the state machine
-	// track which commands have already been processed.
-	//
-	// The original Raft paper acknowledges this issue but
-	// doesn't prescribe a specific solution, leaving it to
-	// the implementation to handle appropriately based on
-	// the specific requirements of the system.
-}
+// BEGIN notes on commitWhatWeCan
+//
+// Notes on this last LastApplied sync, why it is safe
+// even if stale (we crash right here).
+//
+// We don't want to skip persisting the LastApplied index
+// in a separate fsync now, as it is a performance
+// optimization. But it is only an optimization.
+// LastApplied represents the
+// last know good applied transaction. What
+// if we crashed right here -- a quorum has committed
+// but we would not have updated our on disk that
+// we actually applied it? We have already applied it,
+// but we don't "know" that we have applied it on recovery.
+// On recovery, we don't want to apply it a second
+// time.
+//
+// Insight: with the blake3 Merkle tree, the
+// application has become idempotent. We are just
+// bringing the "materialized view" of the
+// filesystem into line with the plan corresponding
+// to the most recently committed root hash.
+// Recovery just has to re-run the rsync operation locally
+// and confirm that we have the filesystem looking
+// like the last committed plan and its root hash.
+// We can then accurately conclude that the
+// plan has been applied, and if was not, that we
+// have just applied it with the rsync.
+//
+// https://claude.ai/chat/b10f9df1-83e3-4e1f-9af7-7502ed28cb87
+//
+// Summary: the Raft WAL tells us the root-hash
+// to root-hash transitions to expect. On recovery,
+// we have to see if any tail of these are on disk
+// already or not. The blocks have been committed
+// as a part of consensus (and the plan to assemble
+// blocks to obtain the new root hash as well) is
+// saved during consensus. So we know the content
+// blocks, their hashes, and the plan to assemble them
+// to get a new root hash are all already safely
+// on disk. If the materialized view in the actual
+// filesystem does not match, we must apply rsync
+// to update it from the local kv store which
+// has the (hash:block) and (plan:hashes)
+// stored. Then we can set the LastApplied to
+// match the applied commit. We plan to
+// use SeaweedFS (Haystack design) for both
+// the hash:block and plan-for-a-root-hash:hashes storage.
+// Recovery is then: if the last-applied < last-commited
+// iterate through each commit and run its rsync.
+// Which it turns out is exactly what just did above,
+// in FinishTicket(), thus completing the recovery.
+// If we are not maintaining a "materialized view",
+// as in just being a backup system (e.g. like
+// a bare git repo without any checkout) then there
+// isn't anything to do, and FinishTicket is
+// just telling the client.
+// Conclusion: FinishTicket either does the rsync
+// for store to user-viewable filesystem
+// (a "restore" operation in backup terms), or
+// just needs to finish telling the client about
+// completed/committed transactions.
+//
+// What does it do for simply maintaining
+// a small amount of configuration state, our
+// first implementation goal? I don't thinkg
+// there is a separate "apply command" step
+// in this case. The last committed state
+// on disk is the state we want to serve.
+// The apply is a no-op, I think, and FinishTicket
+// just needs to respond to any outstanding
+// client requests. I think it wants to only
+// report the last commit to reads however. So we
+// will need to wait until the end of the
+// above for loop before responding to reads?
+//
+// Well no, reads are ordered with respect
+// to the Raft log, so they only want to
+// see the state that was committed when
+// they were committed too. So actually we
+// don't want to have them wait; but we could
+// include a hint that there have been
+// subsequent commits, and tell them the
+// latest anyway to allow them to skip
+// doing a whole other round trip, as an
+// optimization for practical systems --
+// but not use that "latest" during linearizability
+// testing.
+
+// Claude.AI:
+// Good question about Raft's handling of command
+// execution during server restarts! This is indeed
+// a subtle point in the protocol.
+//
+// Raft does not inherently prevent a state machine
+// command from being executed twice when servers restart.
+// You're correct that the lastApplied and commitIndex
+// are part of the volatile state, which means they are
+// not persisted to stable storage and are reinitialized
+// when a server restarts.
+//
+// Here's what happens during a restart:
+// 1. The server loads its persistent state (log entries, currentTerm, votedFor)
+// 2. The lastApplied index is reset (typically to 0)
+// 3. When the server restarts, it will reapply commands
+// from its log starting from index 1 up to the new commitIndex
+//
+// This means that commands that were already applied
+// before the crash will be reapplied to the state machine after restart.
+//
+// To handle this problem properly, you have a few options:
+//
+// 1. **Make your state machine operations idempotent**:
+// Design your operations so applying them multiple times
+// has the same effect as applying them once. For example,
+// "set x to 5" rather than "add 1 to x".
+//
+// 2. **Persist the lastApplied index**: Some Raft
+// implementations extend the protocol to periodically
+// persist the lastApplied index to stable storage to
+// avoid reapplying commands.
+//
+// 3. **Take snapshots with metadata**: When taking a
+// snapshot of the state machine, record the lastApplied
+// index with it. After a restart, initialize lastApplied
+// from the snapshot rather than 0.
+//
+// 4. **Command deduplication**: Have clients assign
+// unique IDs to commands and have the state machine
+// track which commands have already been processed.
+//
+// The original Raft paper acknowledges this issue but
+// doesn't prescribe a specific solution, leaving it to
+// the implementation to handle appropriately based on
+// the specific requirements of the system.
+//
+// END notes on commitWhatWeCan implementation choices.
 
 // called after membership changes are applied,
 // and after AEack received.
