@@ -543,7 +543,10 @@ fullRestart:
 			refreshMembersCh = time.After(refreshMembersDur)
 			return err
 		}
-		refreshMemberInTube()
+		err := refreshMemberInTube()
+		if err != nil {
+			continue fullRestart
+		}
 		vv("begin main loop at haveSess")
 
 	haveSess:
