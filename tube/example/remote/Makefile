@@ -3,6 +3,8 @@
 update:
 	git pull origin master --tags
 	make build
+	make kill
+	./do
 
 beg:
 	cd ../../cmd/tube; go install
