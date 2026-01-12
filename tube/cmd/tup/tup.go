@@ -579,11 +579,11 @@ repl:
 
 			} else {
 				var sz int
+				var str string
 				if tkt.KeyValRangeScan == nil || tkt.KeyValRangeScan.Size() == 0 {
 				} else {
 					sz = tkt.KeyValRangeScan.Size()
 					i := 0
-					var str string
 					for key := range art.Ascend(tkt.KeyValRangeScan, nil, nil) {
 						str += fmt.Sprintf("[%02d] %v\n", i, string(key))
 						i++
