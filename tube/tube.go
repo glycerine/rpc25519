@@ -5673,11 +5673,12 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 		doFsync = (i == last)
 		s.wal.saveRaftLogEntryDoFsync(entry, doFsync) // in replicateBatch
 	}
-	// save this for a bit later. TODO: when? overwriteEntries already does??
-	// and single replicateTicket() will do.
-	if s.wal.logSizeOnDisk() > 6<<20 { // over 6MB, then compact (if compact on).
-		s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast)
-	}
+	// we compact aggressively for better testing of compaction vs appendEntries logic.
+	// TODO: uncomment below to only compact occassionally, since it
+	// involves lots of slow fsyncs and file rewrites. but less testing.
+	//if s.wal.logSizeOnDisk() > 6<<20 { // over 6MB, then compact (if compact on).
+	s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast)
+	//}
 
 	if clusterSz > 1 {
 		for _, tkt := range batch {
