@@ -580,7 +580,7 @@ fullRestart:
 				panicOn(err)
 
 				const leaseAutoDelFalse = false
-				czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar, leaseAutoDelFalse)
+				czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar, leaseAutoDelTrue) // leaseAutoDelFalse)
 
 				if err == nil {
 					czarLeaseUntilTm = czarTkt.LeaseUntilTm
