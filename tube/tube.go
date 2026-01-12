@@ -1075,6 +1075,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 		select {
 		case <-s.batchSubmitTimeCh:
+			vv("%v <-s.batchSubmitTimeCh fired", s.name)
 			needSave, didSave := s.replicateBatch()
 			if !didSave && needSave {
 				s.saver.save(s.state)
@@ -5431,7 +5432,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 
 		if s.batchInProgress {
 			submit := false
-			if s.batchSubmitTm.After(now) {
+			if lte(s.batchSubmitTm, now) {
 				submit = true
 			}
 			if len(s.batchToSubmit) >= 100 {
