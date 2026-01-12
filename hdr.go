@@ -332,7 +332,9 @@ var ErrTooLarge = fmt.Errorf("error: length of payload JobSerz is over maxMessag
 // will return ErrTooLarge without trying to serialize it.
 func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
 	if len(m.JobSerz) > maxMessage-1024 {
-		vv("ErrTooLarge! len(m.JobSerz)= %v > %v = maxMessage-1024; \n m=\n%v\n", len(m.JobSerz), maxMessage-1024, m.HDR.String())
+		note := fmt.Sprintf("ErrTooLarge! len(m.JobSerz)= %v > %v = maxMessage-1024; \n m=\n%v\n", len(m.JobSerz), maxMessage-1024, m.HDR.String())
+		vv(note)
+		panicf("arg! message too large -- fix this!: '%v'", note)
 		return nil, ErrTooLarge
 	}
 	return m.MarshalMsg(scratch[:0])

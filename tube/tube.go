@@ -14666,6 +14666,10 @@ func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, 
 
 // helper
 func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur time.Duration, keepFragIfPositive int) (err error) {
+	npay := len(frag.Payload)
+	if npay > rpc.UserMaxPayload {
+		panicf("npay(%v) > rpc.UserMaxPayload(%v) cannot send this large a message!", npay, rpc.UserMaxPayload)
+	}
 	var anew bool
 	anew, err = ckt.SendOneWay(frag, errWriteDur, keepFragIfPositive)
 	_ = anew

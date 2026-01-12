@@ -14,9 +14,15 @@ import (
 )
 
 const (
-	UserMaxPayload = 1_200_000 // users should chunk to this size, to be safe.
+	msgsz          = 1_200_000
+	msgoverhead    = 110720
+	UserMaxPayload = 10 * msgsz // users should chunk to this size, to be safe.
+	maxMessage     = UserMaxPayload + msgoverhead - 80
 
-	maxMessage = 1_310_720 - 80 // ~ 1 MB max message size, prevents TLS clients from talking to TCP servers, as the random TLS data looks like very big message size. Also lets us test on smaller virtual machines without out-of-memory issues.
+	// maxMessage used to be: ~ 1 MB max message size, prevents TLS clients from talking to TCP servers, as the random TLS data looks like very big message size. Also lets us test on smaller virtual machines without out-of-memory issues.
+	// however: our tube/raft packets have gotten quite a bit larger,
+	// and messagechunking is a pretty inconvenient low-level concern to handle
+	// at that application level. For now we go 10 MB or so instead.
 )
 
 var ErrTooLong = fmt.Errorf("message message too long: over 1MB; encrypted client vs an un-encrypted server?")
