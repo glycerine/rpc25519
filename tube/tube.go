@@ -976,7 +976,7 @@ func (s *TubeNode) Start(
 		if present {
 			s.state.MC.setNameDetail(s.name, updatedDetail, s)
 		}
-		s.state.Known.PeerNames.Set(s.name, updatedDetail)
+		s.state.KnownMC.PeerNames.Set(s.name, updatedDetail)
 	} else {
 		if !strings.HasPrefix(s.name, "tup") {
 			// for tup we expect it. do not bark.
@@ -2393,7 +2393,7 @@ type RaftState struct {
 	// known but not in current membership... so we
 	// can find them again easlily if we restart
 	// (and they are not in our config).
-	Known *MemberConfig `zid:"17"`
+	KnownMC *MemberConfig `zid:"17"`
 
 	// put those removed from membership here
 	// and send them all MC changes in AE heartbeat,
@@ -2478,7 +2478,7 @@ func (s *RaftState) clone() (clon *RaftState) {
 	for k, v := range s.SessTable {
 		clon.SessTable[k] = v.Clone()
 	}
-	clon.Known = s.Known.Clone()
+	clon.KnownMC = s.KnownMC.Clone()
 	clon.Observers = s.Observers.Clone()
 	clon.ShadowReplicas = s.ShadowReplicas.Clone()
 	return
@@ -3886,7 +3886,7 @@ func (s *TubeNode) newRaftState() *RaftState {
 		// try to prevent seg fault in 401
 		// where Vote.MC was nil. Ugh, then ClusterSize() returns 0, so
 		// wait to init MC: s.NewMemberConfig("newRaftState", false),
-		Known:          s.NewMemberConfig("newRaftState"),
+		KnownMC:        s.NewMemberConfig("newRaftState"),
 		Observers:      s.NewMemberConfig("newRaftState"),
 		ShadowReplicas: s.NewMemberConfig("newRaftState"),
 	}
@@ -4194,7 +4194,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 
 		// same format as CktAllByName, for helper.go ease.
 		ins.CktAllByName[s.name] = s.URL
-		for name, det := range s.state.Known.PeerNames.All() {
+		for name, det := range s.state.KnownMC.PeerNames.All() {
 			ins.Known[name] = det.URL
 		}
 	} // end if minimize
@@ -6886,8 +6886,8 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 // MC update.
 func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *AppendEntriesAck) {
 
-	if s.state != nil && s.state.Known != nil && ae.MC != nil {
-		s.state.Known.merge(ae.MC)
+	if s.state != nil && s.state.KnownMC != nil && ae.MC != nil {
+		s.state.KnownMC.merge(ae.MC)
 	}
 	if s.state.MC != nil &&
 		s.state.MC.VersionEqual(ae.MC) {
@@ -12941,7 +12941,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			}
 			s.setAddrURL(det, cktP0)
 			newConfig.setNameDetail(peerName, det, s)
-			s.state.Known.PeerNames.Set(peerName, det)
+			s.state.KnownMC.PeerNames.Set(peerName, det)
 		}
 	}
 	if s.weAreMemberOfCurrentMC() {
@@ -12958,7 +12958,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			//NonVoting:              s.NonVoting,
 		}
 		newConfig.setNameDetail(s.name, det, s)
-		s.state.Known.PeerNames.Set(s.name, det)
+		s.state.KnownMC.PeerNames.Set(s.name, det)
 	}
 
 	// DONE: we have updated newConfig set of curConfig members
@@ -12996,7 +12996,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			}
 			s.setAddrURL(det, cktP)
 			newConfig.setNameDetail(tkt.AddPeerName, det, s)
-			s.state.Known.PeerNames.Set(tkt.AddPeerName, det)
+			s.state.KnownMC.PeerNames.Set(tkt.AddPeerName, det)
 
 		} else {
 
@@ -13015,7 +13015,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 					//NonVoting:              s.NonVoting,
 				}
 				newConfig.setNameDetail(s.name, det, s)
-				s.state.Known.PeerNames.Set(s.name, det)
+				s.state.KnownMC.PeerNames.Set(s.name, det)
 			} else {
 				//vv("%v no existing connection to tkt.AddPeerName='%v', try to spin one up in background", s.me(), target)
 				cktP := s.newCktPlus(target, TUBE_REPLICA)
@@ -14844,7 +14844,7 @@ func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, 
 			s.setAddrURL(det, cktP)
 
 			newConfig.setNameDetail(tkt.AddPeerName, det, s)
-			s.state.Known.PeerNames.Set(tkt.AddPeerName, det)
+			s.state.KnownMC.PeerNames.Set(tkt.AddPeerName, det)
 
 			if tkt.AddPeerID != cktP.PeerID {
 				panic("which is more up to date?")
@@ -14861,7 +14861,7 @@ func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, 
 				Addr:   tkt.AddPeerBaseServerHostPort,
 			}
 			newConfig.setNameDetail(tkt.AddPeerName, det, s)
-			s.state.Known.PeerNames.Set(tkt.AddPeerName, det)
+			s.state.KnownMC.PeerNames.Set(tkt.AddPeerName, det)
 		}
 	case tkt.RemovePeerName != "":
 		_, already := newConfig.PeerNames.Get2(tkt.RemovePeerName)
@@ -15065,7 +15065,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 		// in addToCktall here.
 		// have a call to s.adjustCktReplicaForNewMembership() ?
 	}
-	s.state.Known.PeerNames.Set(ckt.RemotePeerName, updatedDetail)
+	s.state.KnownMC.PeerNames.Set(ckt.RemotePeerName, updatedDetail)
 
 	if ckt.RemoteServiceName == TUBE_REPLICA {
 		s.cktReplica[cktP.PeerID] = cktP // cktReplica-write (?)
@@ -15302,7 +15302,7 @@ func (s *TubeNode) updateSelfAddressInMemberConfig(mc *MemberConfig) (changed bo
 		updatedDetail.Addr = s.MyPeer.BaseServerAddr
 	}
 	mc.setNameDetail(s.name, updatedDetail, s)
-	s.state.Known.PeerNames.Set(s.name, updatedDetail)
+	s.state.KnownMC.PeerNames.Set(s.name, updatedDetail)
 
 	return
 }
@@ -15662,7 +15662,7 @@ func (s *TubeNode) mergeCktPToKnown(cktP *cktPlus) {
 		Addr:                   addr,
 	}
 	// in mergeCktPToKnown here
-	s.state.Known.PeerNames.Set(det.Name, det)
+	s.state.KnownMC.PeerNames.Set(det.Name, det)
 }
 
 func (a *MemberConfig) merge(b *MemberConfig) {
@@ -15749,13 +15749,34 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	//vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; ", s.me(), caller, s.state.CommitIndex, state2.CommitIndex) // not seen 065
 
-	if state2.CommitIndex < s.state.CommitIndex {
-		panic(fmt.Sprintf("%v we should never be rolling back CommitIndex with state snapshots! state2.CommitIndex(%v) < s.state.CommitIndex(%v)", s.name, state2.CommitIndex, s.state.CommitIndex))
-	}
-
-	if state2.CurrentTerm < s.state.CurrentTerm {
-		panic(fmt.Sprintf("%v we should never be rolling back Terms with state snapshots! state2.CurrentTerm(%v) < s.state.CurrentTerm(%v)", s.name, state2.CurrentTerm, s.state.CurrentTerm))
-	}
+	// consider this real scenario where this next (commented) assert wedged us, killing the 2 followers after a leader was elected. I think we must allow older state + longer logs to overwrite nestate snapshot but insufficient logs to surpass the leader's log.
+	//    ovh node_2
+	//                CommitIndex: 39173,
+	//       CommitIndexEntryTerm: 5,
+	//                LastApplied: 39173,
+	//               lastLogIndex: 40075, from term 5.
+	//
+	//    aorus node_6
+	//                CommitIndex: 39173,
+	//       CommitIndexEntryTerm: 5,
+	//                LastApplied: 39173,
+	//            LastAppliedTerm: 5,
+	//               LastLogIndex: 41474, from term 5
+	//
+	//    rog node_1
+	//                CommitIndex: 39073,
+	//       CommitIndexEntryTerm: 5,
+	//                LastApplied: 39073, <<< has the longest log, so elected. but others will not accept this snapshot!!? i think they must
+	//            LastAppliedTerm: 5,
+	//               LastLogIndex: 41573 from term 5  (when node_1 was leader)
+	//
+	//if state2.CommitIndex < s.state.CommitIndex {
+	//	panic(fmt.Sprintf("%v we should never be rolling back CommitIndex with state snapshots! state2.CommitIndex(%v) < s.state.CommitIndex(%v)", s.name, state2.CommitIndex, s.state.CommitIndex))
+	// same kind of reasoning for this:
+	//}
+	//if state2.CurrentTerm < s.state.CurrentTerm {
+	//	panic(fmt.Sprintf("%v we should never be rolling back Terms with state snapshots! state2.CurrentTerm(%v) < s.state.CurrentTerm(%v)", s.name, state2.CurrentTerm, s.state.CurrentTerm))
+	//}
 
 	s.state.CurrentTerm = state2.CurrentTerm
 
@@ -15777,12 +15798,12 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	if state2.ShadowReplicas != nil {
 		s.state.ShadowReplicas = state2.ShadowReplicas
 	}
-	if s.state.Known == nil {
-		s.state.Known = state2.Known
+	if s.state.KnownMC == nil {
+		s.state.KnownMC = state2.KnownMC
 	} else {
-		s.state.Known.merge(state2.Known)
+		s.state.KnownMC.merge(state2.KnownMC)
 	}
-	s.state.Known.merge(s.state.MC)
+	s.state.KnownMC.merge(s.state.MC)
 	s.state.LastSaveTimestamp = state2.LastSaveTimestamp
 
 	compactIndex := state2.CompactionDiscardedLast.Index
@@ -15965,7 +15986,7 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 
 	detail := s.getMyDetails()
 	s.state.MC.setNameDetail(s.name, detail, s)
-	s.state.Known.PeerNames.Set(s.name, detail)
+	s.state.KnownMC.PeerNames.Set(s.name, detail)
 
 	s.state.ShadowReplicas.PeerNames.Delkey(s.name)
 	//vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
@@ -16052,7 +16073,7 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 			s.state.MC.ConfigVersion++
 			s.state.MC.setNameDetail(s.name, detail, s)
 			s.state.ShadowReplicas.PeerNames.Delkey(s.name)
-			s.state.Known.PeerNames.Set(s.name, detail)
+			s.state.KnownMC.PeerNames.Set(s.name, detail)
 			changeMade = true
 
 			//vv("%v forcing MC add rather than redirectToLeader. added me='%v'; now MC='%v'", s.me(), s.name, s.state.MC)
@@ -16067,7 +16088,7 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 		// might have good host:port, so worth trying.
 		detail, ok := s.state.ShadowReplicas.PeerNames.Get2(target)
 		if !ok {
-			detail, ok = s.state.Known.PeerNames.Get2(target)
+			detail, ok = s.state.KnownMC.PeerNames.Get2(target)
 		}
 		if ok {
 
@@ -16100,7 +16121,7 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 		// want them lingering in shadows either, so comment out:
 		//s.state.ShadowReplicas.PeerNames.Set(s.name, detail)
 
-		s.state.Known.PeerNames.Set(s.name, detail)
+		s.state.KnownMC.PeerNames.Set(s.name, detail)
 		changeMade = true
 
 		//vv("%v forcing MC remove of myself('%v') rather than redirectToLeader. now MC='%v'", s.me(), s.name, s.state.MC)
@@ -16231,7 +16252,7 @@ func (s *TubeNode) doAddShadow(tkt *Ticket) {
 		//URL:                    tkt.AddPeerURL ??
 	}
 	s.state.ShadowReplicas.PeerNames.Set(tkt.AddPeerName, detail)
-	s.state.Known.PeerNames.Set(tkt.AddPeerName, detail)
+	s.state.KnownMC.PeerNames.Set(tkt.AddPeerName, detail)
 	s.clearFromObservers(tkt.AddPeerName)
 }
 
