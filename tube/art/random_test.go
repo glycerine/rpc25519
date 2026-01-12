@@ -153,6 +153,27 @@ func FuzzAscendDescend(f *testing.F) {
 	})
 }
 
+func FuzzAscendDescendNoPrefix(f *testing.F) {
+	vv("running FuzzAscendDescend with no prefix")
+
+	f.Add(uint16(4))   // Boundary for Node4
+	f.Add(uint16(16))  // Boundary for Node16
+	f.Add(uint16(48))  // Boundary for Node48
+	f.Add(uint16(256)) // Boundary for Node256
+
+	f.Fuzz(func(t *testing.T, n uint16) {
+		count := int(n % 1000)
+
+		// Edge case: ensure we have at least 1 key if that's a requirement
+		if count == 0 {
+			count = 1
+		}
+
+		keys := genKeys(count, "")
+		verifyAscendDescend(t, keys)
+	})
+}
+
 func FuzzARTDeep(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		// 1. Interpret the fuzz data as a list of keys
