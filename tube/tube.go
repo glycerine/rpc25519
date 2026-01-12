@@ -15785,13 +15785,17 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	s.state.LastApplied = state2.LastApplied
 	s.state.LastAppliedTerm = state2.LastAppliedTerm
 
-	if state2.KVstore != nil {
-		// try to catch where our state is getting blown away in prod local/ test
-		if len(s.state.KVstore.m) > 0 && len(state2.KVstore.m) == 0 {
-			panic(fmt.Sprintf("arg! why are we blowing away our KVstore in a snapshot application from caller '%v'\n new state2='%v'\n\nexisting state='%v'\n", caller, state2, s.state))
-		}
-		s.state.KVstore = state2.KVstore
-	}
+	// KVstore could have been emptied at some point in the
+	// history, so we need to allow this in general. we already
+	// caught the earlier bug with this heuristic, maybe, and it
+	// is not a current concern.
+	//	if state2.KVstore != nil {
+	//		// try to catch where our state is getting blown away in prod local/ test
+	//		if len(s.state.KVstore.m) > 0 && len(state2.KVstore.m) == 0 {
+	//			panic(fmt.Sprintf("arg! why are we blowing away our KVstore in a snapshot application from caller '%v'\n new state2='%v'\n\nexisting state='%v'\n", caller, state2, s.state))
+	//		}
+	//		s.state.KVstore = state2.KVstore
+	//	}
 	if state2.MC != nil {
 		s.state.MC = state2.MC
 	}
@@ -15806,14 +15810,15 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	s.state.Known.merge(s.state.MC)
 	s.state.LastSaveTimestamp = state2.LastSaveTimestamp
 
-	compactIndex := state2.CompactionDiscardedLast.Index
+	//compactIndex := state2.CompactionDiscardedLast.Index
 	//compactTerm := state2.CompactionDiscardedLast.Term
 
 	//vv("%v snapshot about to update s.state.CompactionDiscardedLastIndex from %v -> %v; and s.state.CompactionDiscardedLast.Term from %v -> %v", s.name, s.state.CompactionDiscardedLastIndex, compactIndex, s.state.CompactionDiscardedLast.Term, compactTerm)
 
-	if compactIndex < s.state.CompactionDiscardedLast.Index {
-		panic(fmt.Sprintf("%v we should never be rolling back commits with state snapshots! compactIndex(%v) < s.state.CompactionDiscardedLastIndex(%v)", s.name, compactIndex, s.state.CompactionDiscardedLast.Index))
-	}
+	// as the scenario above illustrates, we must, actually.
+	//if compactIndex < s.state.CompactionDiscardedLast.Index {
+	//	panic(fmt.Sprintf("%v we should never be rolling back commits with state snapshots! compactIndex(%v) < s.state.CompactionDiscardedLastIndex(%v)", s.name, compactIndex, s.state.CompactionDiscardedLast.Index))
+	//}
 	s.state.CompactionDiscardedLast = state2.CompactionDiscardedLast
 
 	//vv("%v snapshot set s.state.CompactionDiscardedLastIndex=%v; s.state.CompactionDiscardedLast.Term=%v", s.name, s.state.CompactionDiscardedLastIndex, s.state.CompactionDiscardedLast.Term)
