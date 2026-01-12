@@ -1,33 +1,119 @@
 package art
 
 import (
-	"math/rand/v2"
+	"encoding/binary"
+	"fmt"
+	"math"
+	mathrand2 "math/rand/v2"
 	"sort"
 	"testing"
 )
 
-func genKeys(n int, prefix string) []string {
-	keys := make([]string, n)
-	for i := 0; i < n; i++ {
-		// Generate random suffix
-		const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
-		length := 10 + rand.IntN(20)
+func genKeys(n int, prefix string, seed0 uint16) []string {
+
+	var seed [32]byte
+	seed[0] = byte(seed0)
+	seed[1] = byte(seed0 >> 8)
+	prng := mathrand2.NewChaCha8(seed)
+
+	// dedup
+	seen := make(map[string]bool)
+
+	var keys []string
+	for len(keys) < n {
+		// use 0 and all range of bytes.
+		length := 10 + unbiasedChoiceOf(prng, 5)
 		b := make([]byte, length)
 		for i := range b {
-			b[i] = charset[rand.IntN(len(charset))]
+			b[i] = byte(unbiasedChoiceOf(prng, 256))
 		}
-		keys[i] = prefix + string(b)
-	}
-	// Dedup
-	unique := make(map[string]bool)
-	var deduped []string
-	for _, k := range keys {
-		if !unique[k] {
-			unique[k] = true
-			deduped = append(deduped, k)
+		key := prefix + string(b)
+		if !seen[key] {
+			seen[key] = true
+			keys = append(keys, key)
 		}
 	}
-	return deduped
+	//vv("genKeys n=%v, prefix='%v', seed0='%v'", n, prefix, seed0)
+	//for i := range keys {
+	//	fmt.Printf("%v\n", keys[i])
+	//}
+	return keys
+}
+
+// returns r >= 0
+func pseudoRandNonNegInt64(prng *mathrand2.ChaCha8) (r int64) {
+	b := make([]byte, 8)
+	_, err := prng.Read(b)
+	if err != nil {
+		panic(err)
+	}
+	r = int64(binary.LittleEndian.Uint64(b))
+	if r < 0 {
+		if r == math.MinInt64 {
+			return 0
+		}
+		r = -r
+	}
+	return r
+}
+
+// avoid modulo bias
+func unbiasedChoiceOf(prng *mathrand2.ChaCha8, nChoices int64) (r int64) {
+	if nChoices <= 1 {
+		panic(fmt.Sprintf("nChoices must be in [2, MaxInt64]; we see %v", nChoices))
+	}
+	if nChoices == math.MaxInt64 {
+		return pseudoRandNonNegInt64(prng)
+	}
+
+	// compute the last valid acceptable value,
+	// possibly leaving a small window at the top of the
+	// int64 range that will require drawing again.
+	// we will accept all values <= redrawAbove and
+	// modulo them by nChoices.
+	redrawAbove := math.MaxInt64 - (((math.MaxInt64 % nChoices) + 1) % nChoices)
+	// INVAR: redrawAbove % nChoices == (nChoices - 1).
+
+	b := make([]byte, 8)
+
+	for {
+		_, err := prng.Read(b)
+		if err != nil {
+			panic(err)
+		}
+		r = int64(binary.LittleEndian.Uint64(b))
+		if r < 0 {
+			// there is 1 more negative integer than
+			// positive integers in 2's complement
+			// representation on integers, so the probability
+			// is exactly 1/2 of entering here.
+			//
+			// Does this not bias
+			// against 0 though? Yep.
+			//
+			// Without this next check,
+			// 0 has probability 1/2^64. Whereas
+			// every other positive integer has
+			// probability 2/2^64... So
+			// without this next line we are
+			// (very subtlely) biased against zero.
+			// To correct that, we
+			// give 0 one more chance by
+			// letting it have the last negative
+			// number too, which we never
+			// want to return anyway.
+			if r == math.MinInt64 {
+				return 0
+			}
+			r = -r
+		}
+		if r > redrawAbove {
+			continue
+		}
+		return r % nChoices
+	}
+	panic("never reached")
+	return r
 }
 
 func verifyAscendDescend(t *testing.T, keys []string) {
@@ -128,27 +214,26 @@ func verifyAscendDescend(t *testing.T, keys []string) {
 
 func TestRandomizedAscendDescend(t *testing.T) {
 	// 500 keys with shared prefix
-	keys := genKeys(500, "member_")
+	keys := genKeys(500, "member_", uint16(0))
 	verifyAscendDescend(t, keys)
 }
 
 func FuzzAscendDescend(f *testing.F) {
 	vv("running FuzzAscendDescend with simple prefix variations.")
 
-	f.Add(uint16(4), "seed")   // Boundary for Node4
-	f.Add(uint16(16), "seed")  // Boundary for Node16
-	f.Add(uint16(48), "seed")  // Boundary for Node48
-	f.Add(uint16(256), "seed") // Boundary for Node256
+	f.Add(uint16(4), "seed", uint16(0))     // Boundary for Node4
+	f.Add(uint16(4), "seed", uint16(255))   // Boundary for Node4
+	f.Add(uint16(16), "seed", uint16(1))    // Boundary for Node16
+	f.Add(uint16(16), "seed", uint16(254))  // Boundary for Node16
+	f.Add(uint16(48), "seed", uint16(2))    // Boundary for Node48
+	f.Add(uint16(48), "seed", uint16(253))  // Boundary for Node48
+	f.Add(uint16(256), "seed", uint16(0))   // Boundary for Node256
+	f.Add(uint16(256), "seed", uint16(255)) // Boundary for Node256
 
-	f.Fuzz(func(t *testing.T, n uint16, prefix string) {
+	f.Fuzz(func(t *testing.T, n uint16, prefix string, seed0 uint16) {
 		count := int(n % 1000)
 
-		// Edge case: ensure we have at least 1 key if that's a requirement
-		if count == 0 {
-			count = 1
-		}
-
-		keys := genKeys(count, prefix)
+		keys := genKeys(count, prefix, seed0)
 		verifyAscendDescend(t, keys)
 	})
 }
@@ -156,20 +241,17 @@ func FuzzAscendDescend(f *testing.F) {
 func FuzzNoPrefixAscendDescend(f *testing.F) {
 	vv("running FuzzNoPrefixAscendDescend with no prefix")
 
-	f.Add(uint16(4))   // Boundary for Node4
-	f.Add(uint16(16))  // Boundary for Node16
-	f.Add(uint16(48))  // Boundary for Node48
-	f.Add(uint16(256)) // Boundary for Node256
+	f.Add(uint16(4), uint16(0))     // Boundary for Node4
+	f.Add(uint16(16), uint16(1))    // Boundary for Node16
+	f.Add(uint16(48), uint16(254))  // Boundary for Node48
+	f.Add(uint16(256), uint16(255)) // Boundary for Node256
 
-	f.Fuzz(func(t *testing.T, n uint16) {
+	f.Fuzz(func(t *testing.T, n uint16, seed0 uint16) {
 		count := int(n % 1000)
 
-		// Edge case: ensure we have at least 1 key if that's a requirement
-		if count == 0 {
-			count = 1
-		}
+		// allow 0 length trees.
 
-		keys := genKeys(count, "")
+		keys := genKeys(count, "", seed0)
 		verifyAscendDescend(t, keys)
 	})
 }
