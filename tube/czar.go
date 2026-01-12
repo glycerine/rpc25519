@@ -543,7 +543,7 @@ fullRestart:
 			refreshMembersCh = time.After(refreshMembersDur)
 			return err
 		}
-		err := refreshMemberInTube()
+		err = refreshMemberInTube()
 		if err != nil {
 			continue fullRestart
 		}
