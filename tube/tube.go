@@ -5483,8 +5483,15 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	// persist to disk. in replicateTicket.
 	s.wal.saveRaftLogEntry(entry)
 
+	// this is only for the no-op zero now. Force a compaction?
+	// At least this is in line with our aggressive compaction vs snapshot
+	// testing. but also we saw the leader never compacting with was a concern.
 	// log compaction: here in replicateTicket().
-	s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast) // if compaction enabled.
+	didCompact := s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast) // if compaction enabled.
+	if !s.cfg.NoLogCompaction && !didCompact {
+		_, _, err := s.wal.Compact(s.state.LastApplied, &s.state.CompactionDiscardedLast)
+		panicOn(err)
+	}
 	//if true {
 	//s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
 	//}

@@ -879,7 +879,7 @@ func (s *raftWriteAheadLog) isAppendLoggingHelper(keepIndex int64) bool {
 	return overwriteCount == 0
 }
 
-func (s *raftWriteAheadLog) maybeCompact(lastAppliedIndex int64, syncme *IndexTerm) {
+func (s *raftWriteAheadLog) maybeCompact(lastAppliedIndex int64, syncme *IndexTerm) (didCompact bool) {
 
 	// defaults in case we bail early (important to keep stuff in sync!)
 	if syncme != nil {
@@ -903,6 +903,7 @@ func (s *raftWriteAheadLog) maybeCompact(lastAppliedIndex int64, syncme *IndexTe
 		// only live call (non-test) to Compact is here in maybeCompact().
 		_, _, err = s.Compact(lastAppliedIndex, syncme)
 		panicOn(err)
+		didCompact = true
 	} else {
 		//vv("%v compaction is on, but skipping because lastAppliedIndex(%v) <= s.prevLastAppliedIndex(%v)", s.name, lastAppliedIndex, s.prevLastAppliedIndex)
 	}
