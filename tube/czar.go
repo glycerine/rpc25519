@@ -368,7 +368,7 @@ func NewCzar(cli *TubeNode, hbDur, clockDriftBound time.Duration) *Czar {
 //	    clockDriftBound := 500 * time.Millisecond
 //	    mem := tube.NewRMember("hermes", clockDriftBound)
 //	    mem.Start()
-//	    <-mem.Ready
+//	    <-mem.Ready.Chan
 //	    // ... rest of code here, or just
 //	    select {}
 //	}
@@ -392,7 +392,7 @@ type RMember struct {
 	// Ready is closed when UpcallMembershipChangeCh is set
 	// and the RMember is ready to use (call Start(), then
 	// wait for Ready to be closed).
-	Ready chan struct{}
+	Ready *idem.IdemCloseChan
 
 	clockDriftBound time.Duration
 }
@@ -404,7 +404,7 @@ type RMember struct {
 func NewRMember(tableSpace string, clockDriftBound time.Duration) *RMember {
 	return &RMember{
 		TableSpace:      tableSpace,
-		Ready:           make(chan struct{}),
+		Ready:           idem.NewIdemCloseChan(),
 		clockDriftBound: clockDriftBound,
 	}
 }
@@ -501,7 +501,7 @@ fullRestart:
 
 		// tell user it is safe to listen on
 		// membr.UpcallMembershipChangeCh now.
-		close(membr.Ready)
+		membr.Ready.Close()
 
 		myDetail := &PeerDetailPlus{
 			Det: cli.GetMyPeerDetail(),

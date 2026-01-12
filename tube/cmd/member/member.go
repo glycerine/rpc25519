@@ -16,6 +16,6 @@ func main() {
 	tableSpace := "hermes"
 	mem := tube.NewRMember(tableSpace, clockDriftBound)
 	mem.Start()
-	<-mem.Ready
+	<-mem.Ready.Chan
 	select {}
 }
