@@ -248,6 +248,17 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 	return
 }
 
+func (s *raftWriteAheadLog) logSizeOnDisk() int64 {
+	if s.fd == nil {
+		return 0
+	}
+	fi, err := s.fd.Stat()
+	if err != nil {
+		return 0
+	}
+	return fi.Size()
+}
+
 func (s *raftWriteAheadLog) loadPathHelper(fd *os.File, sz int64, readOnly bool) error {
 
 	var nr int64 // number of bytes read in.

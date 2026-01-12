@@ -5675,7 +5675,9 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 	}
 	// save this for a bit later. TODO: when? overwriteEntries already does??
 	// and single replicateTicket() will do.
-	//s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast)
+	if s.wal.logSizeOnDisk() > 6<<20 { // over 6MB, then compact (if compact on).
+		s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast)
+	}
 
 	if clusterSz > 1 {
 		for _, tkt := range batch {
