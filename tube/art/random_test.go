@@ -20,7 +20,7 @@ func genKeys(n int, prefix string, seed0 uint16) []string {
 	seen := make(map[string]bool)
 
 	var keys []string
-	for len(keys) < n {
+	for range n {
 		// use 0 and all range of bytes.
 		length := 10 + unbiasedChoiceOf(prng, 5)
 		b := make([]byte, length)
@@ -218,6 +218,12 @@ func TestRandomizedAscendDescend(t *testing.T) {
 	verifyAscendDescend(t, keys)
 }
 
+func TestDeepTarget(t *testing.T) {
+	return
+	material := "\x00ecgl8lHmK9zw7smI392011-+_dOrxJn+or2humxOTGRHlYBl9\x00"
+	deepTarget(t, []byte(material), 5)
+}
+
 func FuzzAscendDescend(f *testing.F) {
 	vv("running FuzzAscendDescend with simple prefix variations.")
 
@@ -256,46 +262,51 @@ func FuzzNoPrefixAscendDescend(f *testing.F) {
 	})
 }
 
+func deepTarget(t *testing.T, data []byte, keyLen byte) {
+	// 1. Interpret the fuzz data as a list of keys
+	// We split the random byte stream into chunks (keys).
+	// This lets the fuzzer control the CONTENT
+	// and the COUNT simultaneously.
+
+	if keyLen == 0 || len(data) < 10 {
+		t.Skip()
+	}
+
+	var keys []string
+	// Simple separator strategy: fixed length keys.
+
+	remaining := data
+
+	// avoid duplicate keys
+	seen := make(map[string]bool)
+
+	for len(remaining) >= int(keyLen) {
+		// Create a key from the byte stream
+		currentKey := string(remaining[:keyLen])
+		if !seen[currentKey] {
+			seen[currentKey] = true
+			keys = append(keys, currentKey)
+		}
+
+		// Advance
+		remaining = remaining[keyLen:]
+
+		// Limit to 1000 keys to keep test fast.
+		if len(keys) >= 1000 {
+			break
+		}
+	}
+
+	//fmt.Printf("%#v\n", keys)
+
+	// tree is built with random data now.
+	verifyAscendDescend(t, keys)
+}
+
 func FuzzARTDeep(f *testing.F) {
-	f.Fuzz(func(t *testing.T, data []byte) {
-		// 1. Interpret the fuzz data as a list of keys
-		// We split the random byte stream into chunks (keys).
-		// This lets the fuzzer control the CONTENT
-		// and the COUNT simultaneously.
+	// Add some seed corpus
+	f.Add([]byte("member_one\x00member_two\x00member_three\x00"), byte(10))
+	f.Add([]byte("123\x00456\x00789\x00"), byte(5))
 
-		keys := []string{}
-		// Simple separator strategy: split bytes by 0x00 or fixed width
-		// Here we'll just slice the data into chunks of random length
-
-		if len(data) < 2 {
-			return
-		}
-
-		// Use the first byte to determine key length (random).
-		keyLen := int(data[0])%16 + 1
-		remaining := data[1:]
-
-		// avoid duplicate keys
-		seen := make(map[string]bool)
-
-		for len(remaining) > keyLen {
-			// Create a key from the byte stream
-			currentKey := string(remaining[:keyLen])
-			if !seen[currentKey] {
-				seen[currentKey] = true
-				keys = append(keys, currentKey)
-			}
-
-			// Advance
-			remaining = remaining[keyLen:]
-
-			// Limit to 1000 keys to keep test fast.
-			if len(keys) >= 1000 {
-				break
-			}
-		}
-
-		// tree is built with random data now.
-		verifyAscendDescend(t, keys)
-	})
+	f.Fuzz(deepTarget)
 }
