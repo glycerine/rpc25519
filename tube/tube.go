@@ -5484,7 +5484,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	s.wal.saveRaftLogEntry(entry)
 
 	// log compaction: here in replicateTicket().
-	s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast) // if compaction enabled.
+	s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast) // if compaction enabled.
 	//if true {
 	//s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
 	//}
@@ -5677,7 +5677,7 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 	// TODO: uncomment below to only compact occassionally, since it
 	// involves lots of slow fsyncs and file rewrites. but less testing.
 	//if s.wal.logSizeOnDisk() > 6<<20 { // over 6MB, then compact (if compact on).
-	s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast)
+	s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast)
 	//}
 
 	if clusterSz > 1 {
