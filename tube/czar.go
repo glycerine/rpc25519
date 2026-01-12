@@ -796,7 +796,7 @@ fullRestart:
 						continue
 					}
 					if reply != nil && reply.PeerNames != nil {
-						pp("member called to Czar.Ping, got reply with member count='%v'", reply.PeerNames.Len())
+						pp("member called to Czar.Ping, got reply with member count='%v'; rpcClientToCzar.RemoteAddr = '%v'", reply.PeerNames.Len(), rpcClientToCzar.RemoteAddr())
 					}
 					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
 						nonCzarMembers = reply
