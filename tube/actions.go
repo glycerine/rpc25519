@@ -1029,12 +1029,26 @@ func (s *TubeNode) doShowKeys(tkt *Ticket) {
 		}
 		return
 	}
-	table, ok := s.state.KVstore.m[tkt.Table]
+	tktTable := tkt.Table
+	table, ok := s.state.KVstore.m[tktTable]
 	if !ok {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	for k := range table.All() {
+	deadzone := s.state.ensureDeadzone()
+	now := time.Now()
+
+	for k, lf := range art.Ascend(table.Tree, nil, nil) {
+		// implement AutoDelete
+		if lf.AutoDelete && tktTable != "dead" &&
+			lf.Leasor != "" &&
+			lf.LeaseUntilTm.Before(now) {
+
+			deadzone.Tree.InsertLeaf(lf)
+			table.Tree.Remove(art.Key(k))
+			continue
+		}
+
 		results.Insert(art.Key(k), nil, "")
 	}
 }
