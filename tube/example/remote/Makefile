@@ -1,4 +1,8 @@
-.PHONY:beg clean kill build z one two magic
+.PHONY:beg clean kill build z one two magic update
+
+update:
+	git pull origin master --tags
+	make build
 
 beg:
 	cd ../../cmd/tube; go install
