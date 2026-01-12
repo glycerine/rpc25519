@@ -587,8 +587,9 @@ fullRestart:
 					cState = amCzar
 					expireCheckCh = time.After(5 * time.Second)
 					vers := RMVersionTuple{
-						CzarLeaseEpoch: czarTkt.LeaseEpoch,
-						Version:        0,
+						CzarLeaseEpoch:   czarTkt.LeaseEpoch,
+						Version:          0,
+						CzarLeaseUntilTm: czarTkt.LeaseUntilTm,
 					}
 					t0 := time.Now()                   // since we took over as czar
 					err = czar.setVers(vers, list, t0) // does upcall for us.
@@ -618,8 +619,9 @@ fullRestart:
 					panicOn(err)
 					nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
 					vers := RMVersionTuple{
-						CzarLeaseEpoch: czarTkt.LeaseEpoch,
-						Version:        0,
+						CzarLeaseEpoch:   czarTkt.LeaseEpoch,
+						Version:          0, // czarTkt.VersionRead, // do we want this? no, because it increments on each refresh of the lease, not each different if value.
+						CzarLeaseUntilTm: czarTkt.LeaseUntilTm,
 					}
 					if vers.VersionGT(&nonCzarMembers.Vers) {
 						nonCzarMembers.Vers = vers
@@ -785,6 +787,8 @@ fullRestart:
 
 					reply := &ReliableMembershipList{}
 
+					// We might be talking to a stale random member who
+					// is no longer czar, so check the reply czar LeaseUntilTm
 					err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
 					//vv("member called to Czar.Ping, err='%v'", err)
 					if err != nil {
@@ -798,7 +802,16 @@ fullRestart:
 					if reply != nil && reply.PeerNames != nil {
 						pp("member called to Czar.Ping, got reply with member count='%v'; rpcClientToCzar.RemoteAddr = '%v'", reply.PeerNames.Len(), rpcClientToCzar.RemoteAddr())
 					}
+					if lte(reply.Vers.CzarLeaseUntilTm.Add(-membr.clockDriftBound), time.Now()) {
+						pp("stale czar answer (not really the czar now), reconnect/contend")
+						rpcClientToCzar.Close()
+						rpcClientToCzar = nil
+						rpcClientToCzarDoneCh = nil
+						cState = unknownCzarState
+						continue
+					}
 					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
+
 						nonCzarMembers = reply
 						nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
 
@@ -924,9 +937,10 @@ func newFunneler(halt *idem.Halter) (r *funneler) {
 // when per-Czar members are added/lost.
 // Used by cmd/member/member.go.
 type RMVersionTuple struct {
-	CzarLeaseEpoch     int64 `zid:"0"`
-	Version            int64 `zid:"1"`
-	LeaseUpdateCounter int64 `zid:"2"`
+	CzarLeaseEpoch     int64     `zid:"0"`
+	Version            int64     `zid:"1"`
+	LeaseUpdateCounter int64     `zid:"2"`
+	CzarLeaseUntilTm   time.Time `zid:"3"`
 }
 
 type PeerDetailPlus struct {
