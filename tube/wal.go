@@ -363,6 +363,9 @@ func (s *raftWriteAheadLog) saveRaftLogEntry(entry *RaftLogEntry) (nw int, err e
 
 func (s *raftWriteAheadLog) saveRaftLogEntryDoFsync(entry *RaftLogEntry, doFsync bool) (nw int, err error) {
 	//vv("%v saveRaftLogEntryDoFsync called; entry = '%v'; doFsync = %v", s.name, entry, doFsync)
+	if s.nodisk {
+		return s.saveRaftLogEntry_NODISK(entry)
+	}
 
 	// note: the logIndex won't be in sync with the raftLog
 	// until we return and overwriteEntries() can adjust the logIndex too.

@@ -151,9 +151,10 @@ func (s *TubeSim) resetElectionTimeout(where string) time.Duration {
 	// Not needed for this test
 }
 
-func (s *TubeSim) commitWhatWeCan(leader bool) {
+func (s *TubeSim) commitWhatWeCan(leader bool) (saved bool) {
 	s.commitWhatWeCanCount++
 	// Not needed for this test
+	return
 }
 
 func (s *TubeSim) choice(format string, a ...interface{}) {

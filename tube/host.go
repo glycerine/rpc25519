@@ -26,7 +26,7 @@ type hoster interface {
 	becomeFollower(term int64, mc *MemberConfig, save bool)
 	dispatchAwaitingLeaderTickets()
 	resetElectionTimeout(where string) time.Duration
-	commitWhatWeCan(leader bool)
+	commitWhatWeCan(leader bool) (saved bool)
 	choice(format string, a ...interface{})
 	logsAreMismatched(ae *AppendEntries) (reject bool, conflictTerm int64, conflictTerm1stIndex int64)
 	handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (numOverwrote, numTruncated, numAppended int64)

@@ -1075,7 +1075,10 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 		select {
 		case <-s.batchSubmitTimeCh:
-			s.replicateBatch()
+			needSave, didSave := s.replicateBatch()
+			if !didSave && needSave {
+				s.saver.save(s.state)
+			}
 
 		case boot := <-s.testBootstrapLogCh: // 020, 040 election_test
 			//vv("%v s.testBootstrapLogCh fired", s.me())
@@ -5384,7 +5387,13 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	}
 	tkt.Stage += ":replicateTicket"
 
-	if s.leaderDoneEarlyOnSessionStuff(tkt) {
+	doneEarly, needSave := s.leaderDoneEarlyOnSessionStuff(tkt)
+	defer func() {
+		if needSave {
+			s.saver.save(s.state)
+		}
+	}()
+	if doneEarly {
 		return
 	}
 
@@ -5398,10 +5407,12 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		tkt.LeaderURL = s.URL
 	}
 
+	var isNoop0 bool
 	if !s.initialNoop0HasCommitted {
 		// let the noop0 itself proceed, of course.
 		if tkt == s.initialNoop0Tkt {
 			//vv("%v noop0 tkt recognized: '%v'", s.me(), tkt.Desc)
+			isNoop0 = true
 		} else {
 			// enforce safety that the leader's first noop0
 			// effects: make others wait until it is commited.
@@ -5412,6 +5423,38 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 			tkt.Stage += "_stalled_into_WaitAtLeader_until_noop0"
 			return
 		}
+	}
+
+	if !isNoop0 {
+		now := time.Now()
+		s.batchToSubmit = append(s.batchToSubmit, tkt)
+
+		if s.batchInProgress {
+			submit := false
+			if s.batchSubmitTm.After(now) {
+				submit = true
+			}
+			if len(s.batchToSubmit) >= 100 {
+				submit = true
+			}
+			if submit {
+				needSave2, didSave := s.replicateBatch()
+				if didSave {
+					needSave = false
+				} else if needSave2 {
+					needSave = true
+				}
+				return
+			}
+			// not yet time to submit this batch
+			return
+		}
+		// start of new batch
+		s.batchInProgress = true
+		s.batchStartedTm = now
+		s.batchSubmitTm = now.Add(s.cfg.BatchAccumateDur)
+		s.batchSubmitTimeCh = time.After(s.cfg.BatchAccumateDur)
+		return
 	}
 
 	now := time.Now()
@@ -5441,10 +5484,9 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 
 	// log compaction: here in replicateTicket().
 	s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast) // if compaction enabled.
-	//s.state.setCompaction(compactIndex, compactTerm)
-	if true {
-		s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
-	}
+	//if true {
+	//s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
+	//}
 	if tkt.Op == MEMBERSHIP_SET_UPDATE ||
 		tkt.Op == MEMBERSHIP_BOOTSTRAP {
 
@@ -5469,7 +5511,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 
 		// Log compaction means we want MC in the separate
 		// persistor state on disk. So save it.
-		s.saver.save(s.state)
+		needSave = true
 	}
 	if s.clusterSize() > 1 {
 		// add to Waiting. NB in replicateTicket(); we are leader.
@@ -5484,7 +5526,10 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		// for 1 node, being on disk is committed.
 		s.state.CommitIndex = idx
 		s.state.CommitIndexEntryTerm = s.state.CurrentTerm
-		s.commitWhatWeCan(true)
+		saved := s.commitWhatWeCan(true)
+		if saved {
+			needSave = false // avoid another fsync
+		}
 		// -------- commitWhatWeCan does for us:
 		// s.state.LastApplied = idx
 		// entry.commited = true
@@ -5547,7 +5592,6 @@ func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64) *RaftLogEntry 
 		// note that all replicated tickets will have tkt.MC because
 		// of the above, unless they are
 		// MEMBERSHIP_SET_UPDATE or MEMBERSHIP_BOOTSTRAP.
-
 	}
 	tkt.Term = s.state.CurrentTerm
 	entry := &RaftLogEntry{
@@ -5566,13 +5610,17 @@ func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64) *RaftLogEntry 
 	return entry
 }
 
-func (s *TubeNode) replicateBatch() {
+func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 
+	vv("%v top of replicateBatch with %v in batch", s.me(), len(s.batchToSubmit))
 	batch := s.batchToSubmit
 	s.batchToSubmit = nil
 	s.batchSubmitTimeCh = nil
 	s.batchInProgress = false
-	needSave := false
+	if len(batch) == 0 {
+		return
+	}
+
 	now := time.Now()
 	clusterSz := s.clusterSize()
 	var idx int64
@@ -5596,6 +5644,12 @@ func (s *TubeNode) replicateBatch() {
 
 	var es []*RaftLogEntry
 	for _, tkt := range batch {
+
+		// should be checked before ever batching.
+		//if s.leaderDoneEarlyOnSessionStuff(tkt) {
+		//	continue
+		//}
+		// else replicate it
 		idx++
 		entry := s.prepOne(tkt, now, idx)
 
@@ -5612,15 +5666,15 @@ func (s *TubeNode) replicateBatch() {
 	}
 
 	// persist all es entries to disk, in one fsync instead of the range loop
-	for _, entry := range es {
-		s.wal.saveRaftLogEntry(entry)
+	last := len(es) - 1
+	var doFsync bool
+	for i, entry := range es {
+		doFsync = (i == last)
+		s.wal.saveRaftLogEntryDoFsync(entry, doFsync) // in replicateBatch
 	}
 	// save this for a bit later. TODO: when? overwriteEntries already does??
+	// and single replicateTicket() will do.
 	//s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast)
-
-	if needSave {
-		s.saver.save(s.state)
-	}
 
 	if clusterSz > 1 {
 		for _, tkt := range batch {
@@ -5635,7 +5689,9 @@ func (s *TubeNode) replicateBatch() {
 		// for 1 node, being on disk is committed.
 		s.state.CommitIndex = idx
 		s.state.CommitIndexEntryTerm = s.state.CurrentTerm
-		s.commitWhatWeCan(true)
+		if didSave = s.commitWhatWeCan(true); didSave {
+			needSave = false
+		}
 		for _, tkt := range batch {
 			tkt.Stage += ":_batch_cluster_size_1_immediate_commit"
 		}
@@ -5647,6 +5703,7 @@ func (s *TubeNode) replicateBatch() {
 	for _, tkt := range batch {
 		tkt.Stage += ":_batch_bcastAppendEntries_called"
 	}
+	return
 }
 
 type testTermChange struct {
@@ -9238,7 +9295,9 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 
 // s.state.CommitIndex may have been updated, see if there
 // is anything to apply.
-func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
+// Return true if we just did s.saver.save(s.state); so
+// caller can avoid an fsync.
+func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 	//vv("%v commitWhatWeCan; s.state.LastApplied(%v) s.state.CommitIndex(%v); if LastApplied < CommitIndex, we can commit.", s.me(), s.state.LastApplied, s.state.CommitIndex)
 	//defer func() {
 	//	vv("%v defer commitWhatWeCan; s.state.LastApplied(%v) s.state.CommitIndex(%v)", s.me(), s.state.LastApplied, s.state.CommitIndex)
@@ -9511,8 +9570,9 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 	if s.state.LastApplied > origLastApplied {
 		// need to persist LastApplied (and any kvstore changes).
 		s.saver.save(s.state)
+		saved = true
 	}
-
+	return
 } // end of commitWhatWeCan()
 
 // BEGIN notes on commitWhatWeCan
@@ -12636,6 +12696,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 // our main membership config change routine above.
 // Also called by commandSpecificLocalActionsThenReplicateTicket()
 // during remote submit or resubmit.
+// Our watchdog's seen() also calls it.
 //
 // Any errors should be set on tkt.Err.
 // We'll ignore any tkt that have finishTicketCalled already true.
@@ -14512,10 +14573,10 @@ func (s *TubeNode) garbageCollectOldSessions() {
 
 // called at top of replicateTicket(); and an
 // inlined version is used in leaderServedLocalRead() for reads.
-func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
+func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (doneEarly, needSave bool) {
 	if tkt.SessionID == "" {
 		// sessions not in use
-		return false
+		return
 	}
 	switch tkt.Op {
 	case READ, WRITE, CAS, DELETE_KEY, READ_KEYRANGE, READ_PREFIX_RANGE,
@@ -14524,14 +14585,14 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 		// check these below
 	default: // NOOP, MEMBERSHIP_*, SESS_*
 		// ignore all else as far as dedup goes.
-		return false
+		return
 	}
 
 	defer func() {
 		if tkt.Err != nil {
-			//vv("%v leaderDoneEarlyOnSessionStuff() has tkt.Err='%v'; ans=%v", s.name, tkt.Err, ans)
+			//vv("%v leaderDoneEarlyOnSessionStuff() has tkt.Err='%v'; doneEarly=%v", s.name, tkt.Err, doneEarllly)
 		} else {
-			//vv("%v leaderDoneEarlyOnSessionStuff() no tkt.Err, returning %v", s.name, ans)
+			//vv("%v leaderDoneEarlyOnSessionStuff() no tkt.Err, returning %v", s.name, doneEarly)
 		}
 	}()
 
@@ -14547,9 +14608,8 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 		// calls FinishTicket() if waitingAtLeader, else sends
 		// reply to remote.
 		s.respondToClientTicketApplied(tkt)
-
-		return true // done early
-
+		doneEarly = true
+		return
 	}
 
 	// chapter 6, page 75, section 6.4.1 "Using clocks to
@@ -14573,8 +14633,8 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 		// calls FinishTicket() if waitingAtLeader, else sends
 		// reply to remote.
 		s.respondToClientTicketApplied(tkt)
-
-		return true // done early
+		doneEarly = true
+		return
 	}
 
 	now := time.Now()
@@ -14587,10 +14647,12 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 		// kill the session
 		delete(s.state.SessTable, tkt.SessionID)
 		s.sessByExpiry.Delete(ste)
-		s.saver.save(s.state)
+		needSave = true
+		//s.saver.save(s.state)
 
 		s.respondToClientTicketApplied(tkt)
-		return true // done early
+		doneEarly = true
+		return
 	}
 	// does being in Serial2Ticket mean we are already applied?
 	// commitWhatWeCan() does .Serial2Ticket.set(); as
@@ -14660,7 +14722,8 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 		tkt.HighestSerialSeenFromClient = ste.HighestSerialSeenFromClient
 
 		s.respondToClientTicketApplied(tkt)
-		return true // done early
+		doneEarly = true
+		return
 	}
 
 	//vv("tkt.SessionSerial not in ste.Serial2Ticket: '%v'", tkt.SessionSerial)
@@ -14690,7 +14753,8 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 			//s.saver.save(s.state)
 
 			s.respondToClientTicketApplied(tkt)
-			return true // done early
+			doneEarly = true
+			return
 		}
 	} // end only analyze writes
 
@@ -14698,7 +14762,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 		ste.HighestSerialSeenFromClient = tkt.SessionSerial
 	}
 
-	return false // not done early
+	return
 }
 
 // purge what the client acknowledges they no longer need
