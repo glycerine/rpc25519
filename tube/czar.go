@@ -419,6 +419,8 @@ func (membr *RMember) start() {
 
 fullRestart:
 	for {
+		vv("top of fullRestart")
+
 		tableSpace := membr.TableSpace
 
 		const quiet = false
@@ -674,6 +676,18 @@ fullRestart:
 
 				case <-renewCzarLeaseCh:
 					czar.mut.Lock()
+
+					// if we update, are we going to lose the Plus part leases?
+					// naw, I think that does not apply to the czar,
+					// who gives out leases and only itself lease from the Tube/Raft cluster.
+					myDetail = &PeerDetailPlus{
+						Det: cli.GetMyPeerDetail(),
+					}
+					myDetailBytes, err = myDetail.MarshalMsg(nil)
+					panicOn(err)
+
+					czar.members.PeerNames.Set(myDetail.Det.Name, myDetail)
+
 					bts2, err := czar.members.MarshalMsg(nil)
 					czar.mut.Unlock()
 					panicOn(err)
