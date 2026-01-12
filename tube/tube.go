@@ -4002,9 +4002,32 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.Cfg = s.cfg
 	ins.LastLogIndex = s.lastLogIndex()
 	ins.LastLogTerm = s.lastLogTerm()
+	// (compaction means there is no correspondence between len(s.wal.raftLog)
+	// and LastLogIndex anymore).
+	n := len(s.wal.raftLog)
+	if ins.LastLogIndex > 0 && n > 0 {
+		rle := s.wal.raftLog[n-1]
+		ins.LastLogLeaderName = rle.LeaderName
+		ins.LastLogTicketOp = rle.Ticket.Op
+	}
+	ins.LogIndexBaseC = s.wal.logIndex.BaseC
+
 	ins.ResponderPeerID = s.PeerID
 	ins.ResponderPeerURL = s.URL
 	ins.ResponderName = s.name
+	ins.Role = s.role
+
+	// don't report someone else as leader if we are.
+	if s.role == LEADER {
+		if s.leaderName != s.name {
+			alwaysPrintf("warning: how is this possible? s.role==LEADER but s.name='%v' while s.leaderName='%v'... becomeLeader() would have set this... ", s.name, s.leaderName)
+
+			// what becomeLeader does:
+			//s.leaderID = s.PeerID
+			//s.leaderName = s.name
+			//s.leaderURL = s.URL
+		}
+	}
 
 	ins.CurrentLeaderName = s.leaderName
 	ins.CurrentLeaderURL = s.leaderURL
@@ -4030,7 +4053,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	if !minimize {
 		ins.State = s.getStateSnapshot()
 	}
-	ins.Role = s.role
+
 	if !minimize {
 		for _, tkt := range s.tkthist {
 			ins.Tkthist = append(ins.Tkthist, tkt.clone())
@@ -4398,17 +4421,20 @@ type Inspection struct {
 	ResponderPeerURL string        `zid:"17"`
 	ResponderName    string        `zid:"18"`
 
-	LastLogIndex int64 `zid:"19"`
-	LastLogTerm  int64 `zid:"20"`
+	LastLogIndex      int64    `zid:"19"`
+	LastLogTerm       int64    `zid:"20"`
+	LastLogLeaderName string   `zid:"21"`
+	LastLogTicketOp   TicketOp `zid:"22"`
+	LogIndexBaseC     int64    `zid:"23"`
 
-	ShadowReplicas *MemberConfig     `zid:"21"`
-	Known          map[string]string `zid:"22"`
+	ShadowReplicas *MemberConfig     `zid:"24"`
+	Known          map[string]string `zid:"25"`
 
-	CurrentLeaderFirstObservedTm time.Time `zid:"23"`
+	CurrentLeaderFirstObservedTm time.Time `zid:"26"`
 
 	Tkthist []*Ticket `msg:"-"`
 
-	Minimal bool `zid:"24"`
+	Minimal bool `zid:"27"`
 
 	// internal use only. tests/users call TubeNode.Inpsect()
 	done chan struct{}

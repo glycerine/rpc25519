@@ -136,8 +136,17 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	fmt.Printf("contacted:\n")
 	for _, insp := range sortByName(contacted) {
 		fmt.Printf(`%v %v  (lead: '%v')
+   LastLog:{Term: '%v'; Index: '%v'; LeaderName: '%v'; TicketOp: %v}
+   LogIndexBaseC: %v
    MC: %v   ShadowReplicas: %v   URL: %v
 `, insp.ResponderName, insp.Role, insp.CurrentLeaderName,
+
+			insp.LastLogTerm,
+			insp.LastLogIndex,
+			insp.LastLogLeaderName,
+			insp.LastLogTicketOp,
+			insp.LogIndexBaseC,
+
 			insp.MC,
 			insp.ShadowReplicas,
 			insp.ResponderPeerURL)
