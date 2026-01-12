@@ -52,6 +52,7 @@ func verifyAscendDescend(t *testing.T, keys []string) {
 		if skey != sorted[i] {
 			t.Fatalf("Ascend i=%v problem, want '%v', got '%v'", i, sorted[i], skey)
 		}
+		//vv("Ascend[i=%v] sees key '%v'", i, skey)
 		i++
 	}
 	if i != len(keys) {
@@ -132,15 +133,66 @@ func TestRandomizedAscendDescend(t *testing.T) {
 }
 
 func FuzzAscendDescend(f *testing.F) {
-	f.Add(500, "fuzz_prefix_")
-	f.Fuzz(func(t *testing.T, n int, prefix string) {
-		if n <= 0 {
-			n = 10
+	vv("running FuzzAscendDescend with simple prefix variations.")
+
+	f.Add(uint16(4), "seed")   // Boundary for Node4
+	f.Add(uint16(16), "seed")  // Boundary for Node16
+	f.Add(uint16(48), "seed")  // Boundary for Node48
+	f.Add(uint16(256), "seed") // Boundary for Node256
+
+	f.Fuzz(func(t *testing.T, n uint16, prefix string) {
+		count := int(n % 1000)
+
+		// Edge case: ensure we have at least 1 key if that's a requirement
+		if count == 0 {
+			count = 1
 		}
-		if n > 1000 {
-			n = 1000
+
+		keys := genKeys(count, prefix)
+		verifyAscendDescend(t, keys)
+	})
+}
+
+func FuzzARTDeep(f *testing.F) {
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// 1. Interpret the fuzz data as a list of keys
+		// We split the random byte stream into chunks (keys).
+		// This lets the fuzzer control the CONTENT
+		// and the COUNT simultaneously.
+
+		keys := []string{}
+		// Simple separator strategy: split bytes by 0x00 or fixed width
+		// Here we'll just slice the data into chunks of random length
+
+		if len(data) < 2 {
+			return
 		}
-		keys := genKeys(n, prefix)
+
+		// Use the first byte to determine key length (random).
+		keyLen := int(data[0])%16 + 1
+		remaining := data[1:]
+
+		// avoid duplicate keys
+		seen := make(map[string]bool)
+
+		for len(remaining) > keyLen {
+			// Create a key from the byte stream
+			currentKey := string(remaining[:keyLen])
+			if !seen[currentKey] {
+				seen[currentKey] = true
+				keys = append(keys, currentKey)
+			}
+
+			// Advance
+			remaining = remaining[keyLen:]
+
+			// Limit to 1000 keys to keep test fast.
+			if len(keys) >= 1000 {
+				break
+			}
+		}
+
+		// tree is built with random data now.
 		verifyAscendDescend(t, keys)
 	})
 }
