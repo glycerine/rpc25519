@@ -14507,7 +14507,7 @@ func (s *TubeNode) applyEndSess(tkt *Ticket, calledOnLeader bool) {
 	if s.state == nil || s.state.SessTable == nil {
 		return
 	}
-	vv("%v: delete Session via SESS_END: %v", s.name, tkt.EndSessReq_SessionID)
+	//vv("%v: delete Session via SESS_END: %v", s.name, tkt.EndSessReq_SessionID)
 	ste, ok := s.state.SessTable[tkt.EndSessReq_SessionID]
 	if ok {
 		delete(s.state.SessTable, tkt.EndSessReq_SessionID)
@@ -14560,7 +14560,7 @@ func (s *TubeNode) garbageCollectOldSessions() {
 
 		if gte(now, ste.SessionEndxTm) {
 			desc := fmt.Sprintf("%v: about to replicate SESS_END for SessionID: '%v' b/c expired at '%v' <= now='%v'", s.name, id, nice(ste.SessionEndxTm), nice(now))
-			vv("garbageCollectOldSessions replicating SESS_END: %v", desc)
+			//vv("garbageCollectOldSessions replicating SESS_END: %v", desc)
 			tkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, SESS_END, 0, s.MyPeer.Ctx)
 			tkt.EndSessReq_SessionID = id
 			s.replicateTicket(tkt)
