@@ -6717,7 +6717,6 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 
 	// we can only really check at the earliest these guys,
 	// if they are available ( > 0 ).
-	//baseC := s.state.CompactionDiscardedLastIndex
 	baseC := s.wal.logIndex.BaseC
 	if baseC > 0 {
 		// have to assume we match before what we compacted
@@ -6731,7 +6730,11 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 				}
 				// INVAR: ae.PrevLogTerm == s.state.CompactionDiscardedLast.Term
 				// we match terms at BaseC, but have to look at BaseC+1...
+				// BUT, this _does_ mean we can overwrite our entries with leaders,
+				// so below should never reject(!) so we can stop now...
+				return false, -1, -1
 			}
+			// else: ae.PrevLogIndex < baseC, so I guess we need a snapshot.
 
 			// compaction must/assumes that we always have
 			// agreement though <= s.state.CompactionDiscardedLastIndex.
@@ -6772,7 +6775,9 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 				}
 				if fIndex == ae.PrevLogIndex {
 					if fTerm != ae.PrevLogTerm {
-						return true, fTerm, fIndex
+						// conflict, but we can overwrite with leaders!! so not:
+						//return true, fTerm, fIndex
+						return false, fTerm, fIndex
 					}
 					continue
 				}
@@ -7007,8 +7012,10 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			if aeLastLogIndex > lli {
 				// Test052_partition_leader_away_and_rejoin and 055,057 still
 				// asserts here even with the NeedSnapshotGap check.
-				if !ack.NeedSnapshotGap && extends {
+				if !ack.NeedSnapshotGap && extends && ack.ConflictTerm1stIndex <= 0 {
 					panic(fmt.Sprintf("%v why did we not apply the aeLastLogIndex(%v) > our now lli(%v) ???\n ae='%v'\n ack='%v'\n extends=%v, largestCommonRaftIndex=%v, needSnapshot=%v", s.me(), aeLastLogIndex, lli, ae, ack, extends, largestCommonRaftIndex, needSnapshot)) // extends=true, largestCommonRaftIndex=2, needSnapshot=false; 	             RejectReason: "ae.PrevLogIndex(1) not compatible. conflictTerm=-1, conflictTerm1stIndex=-1; largestCommonRaftIndex=2; alsoGap=false (true if ae.PrevLogIndex(1) > largestCommonRaftIndex(2))",
+					// before adding ack.ConflictTerm1stIndex <= 0 : term mismatched so cannot apply what we got? why not overwriting??
+					// RejectReason: "ae.PrevLogIndex(20547) not compatible. conflictTerm=10, conflictTerm1stIndex=20548; largestCommonRaftIndex=20549; alsoGap=false (true if ae.PrevLogIndex(20547) > largestCommonRaftIndex(20549))",
 				}
 				//vv("%v end handleAE. good: aeLastLogIndex(%v) <= our now lli(%v)\n ae='%v'\n ack='%v'\n extends=%v, largestCommonRaftIndex=%v, needSnapshot=%v", s.me(), aeLastLogIndex, lli, ae, ack, extends, largestCommonRaftIndex, needSnapshot)
 			}

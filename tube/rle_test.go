@@ -668,6 +668,7 @@ func TestRle2LogExtendsAfterCompaction(t *testing.T) {
 		Runs: []*TermRLE{
 			{Term: 3, Count: 2},
 		},
+		CompactTerm: 1,
 	}
 	followerLog.fixTot()
 	leaderLog.fixTot()

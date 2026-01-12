@@ -529,13 +529,39 @@ func (leaderLog *TermsRLE) Extends(followerLog *TermsRLE) (extends bool, largest
 	// allow compaction. check the first "induction step".
 	// any overlap?
 	if followerLog.Endi <= m {
-		// no overlap: extends true, but gap maybe yes.
+		// no overlap: extends maybe, gap maybe.
 		//vv("follower very behind leader. assume the matched up to follow.Endi;\n follower='%v'\n leader='%v'", followerLog, leaderLog)
 		// can we assume that the follower does not need
 		// to be overwritten? what if follower is just joining and
 		// has nothing?
-		return true, followerLog.Endi, false
+		//return true, followerLog.Endi, false // wrong! followerLog.Endi is not the lcp longest common prefix!
+		if followerLog.Endi > f { // we have entries
+			if len(followerLog.Runs) == 0 {
+				panicf("wat? logic error, len(followerLog.Runs) == 0 but followerLog.Endi(%v) > f(%v)", followerLog.Endi, f)
+			}
+			if followerLog.Endi == m && // ( m is leaderLog.BaseC )
+				followerLog.lastTerm() == leaderLog.CompactTerm {
+				return true, followerLog.Endi, false
+			}
+			// INVAR: followerLog.Endi < m, not extends for sure. what is lcp?
+			// lcp is somewhere... but we need snapshot b/c master has already
+			// compacted away what we need.
+			return false, followerLog.BaseC, NEED_LEADER_SNAPSHOT
+		}
+		// INVAR: follower has no entries, just compacted BaseC.
+		if f < m {
+			return false, followerLog.BaseC, NEED_LEADER_SNAPSHOT
+		}
+		// INVAR: f==m
+		if f != m {
+			panicf("logic error: expected f(%v) == m(%v)", f, m)
+		}
+		if followerLog.CompactTerm == leaderLog.CompactTerm {
+			return true, f, false
+		}
+		return false, f, false
 	}
+	// INVAR: followerLog.Endi > m
 
 	// INVAR: leaderLog.BaseC <= followerLog.Endi
 	if len(leaderLog.Runs) == 0 && len(followerLog.Runs) == 0 {
