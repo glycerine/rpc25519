@@ -693,7 +693,7 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 		for key, lf := range art.Descend(table.Tree, art.Key(tktKeyEndx), art.Key(tktKey)) {
 			_ = key
 			// implement AutoDelete
-			if lf.AutoDelete && tktTable != "deadzone" &&
+			if lf.AutoDelete && tktTable != "dead" &&
 				lf.Leasor != "" &&
 				lf.LeaseUntilTm.Before(now) {
 
@@ -714,7 +714,7 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 		for key, lf := range art.Ascend(table.Tree, art.Key(tktKey), art.Key(tktKeyEndx)) {
 			_ = key
 			// implement AutoDelete
-			if lf.AutoDelete && tktTable != "deadzone" &&
+			if lf.AutoDelete && tktTable != "dead" &&
 				lf.Leasor != "" &&
 				lf.LeaseUntilTm.Before(now) {
 
@@ -735,10 +735,10 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 }
 
 func (s *RaftState) ensureDeadzone() (deadzone *ArtTable) {
-	deadzone, ok := s.KVstore.m["deadzone"]
+	deadzone, ok := s.KVstore.m["dead"]
 	if !ok {
 		deadzone = newArtTable()
-		s.KVstore.m["deadzone"] = deadzone
+		s.KVstore.m["dead"] = deadzone
 	}
 	return deadzone
 }
@@ -751,7 +751,7 @@ func (s *RaftState) KVStoreRead(tktTable, tktKey Key) ([]byte, string, error) {
 	lf, _, ok := table.Tree.Find(art.Exact, art.Key(tktKey))
 	if ok {
 		// implement AutoDelete
-		if lf.AutoDelete && tktTable != "deadzone" &&
+		if lf.AutoDelete && tktTable != "dead" &&
 			lf.Leasor != "" &&
 			lf.LeaseUntilTm.Before(time.Now()) {
 
@@ -774,7 +774,7 @@ func (s *RaftState) KVStoreReadLeaf(tktTable, tktKey Key) (*art.Leaf, error) {
 	lf, _, ok := table.Tree.Find(art.Exact, art.Key(tktKey))
 	if ok {
 		// implement AutoDelete
-		if lf.AutoDelete && tktTable != "deadzone" &&
+		if lf.AutoDelete && tktTable != "dead" &&
 			lf.Leasor != "" &&
 			lf.LeaseUntilTm.Before(time.Now()) {
 

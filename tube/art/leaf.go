@@ -91,7 +91,7 @@ type Leaf struct {
 	WriteRaftLogIndex int64     `zid:"6"`
 	LeaseEpoch        int64     `zid:"7"`
 
-	// if lease goes stale then move this to the /deadzone table.
+	// if lease goes stale then move this to the /dead table.
 	AutoDelete bool `zid:"8"`
 }
 
