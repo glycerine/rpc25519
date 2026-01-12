@@ -118,6 +118,7 @@ func (s *TubeConfig) SexpString(ps *zygo.PrintState) (r string) {
              MyName: %q,
     PeerServiceName: %q,
 NoBackgroundConnect: %v,
+   BatchAccumateDur: (dur %q),
           Node2Addr: %v,
 %v)`, s.ConfigName,
 		s.ClusterID,
@@ -138,6 +139,7 @@ NoBackgroundConnect: %v,
 		s.MyName,
 		s.PeerServiceName,
 		s.NoBackgroundConnect,
+		s.BatchAccumateDur,
 		nodes,
 		rpcConfigExtra,
 	)
@@ -204,6 +206,13 @@ func (s *TubeConfig) ShortSexpString(ps *zygo.PrintState) (r string) {
 	}
 	if s.PeerServiceName != "" {
 		mainParts = append(mainParts, fmt.Sprintf("    PeerServiceName: %q", s.PeerServiceName))
+	}
+
+	if s.NoBackgroundConnect {
+		mainParts = append(mainParts, fmt.Sprintf("NoBackgroundConnect: %v", s.NoBackgroundConnect))
+	}
+	if s.BatchAccumateDur != 0 {
+		mainParts = append(mainParts, fmt.Sprintf("   BatchAccumateDur: (dur %q)", s.BatchAccumateDur))
 	}
 
 	nodes := "(hash "
@@ -468,6 +477,9 @@ func (cfg *TubeConfig) ProdConfigSaneOrPanic(isReplica bool) {
 		}
 		if cfg.MinElectionDur <= cfg.ClockDriftBound*2 {
 			panic("cfg.MinElectionDur must be > cfg.ClockDriftBound * 2")
+		}
+		if cfg.BatchAccumateDur < 0 || cfg.BatchAccumateDur > time.Second*10 {
+			panic("cfg.BatchAccumateDur must be in the interval [0s, 10s]")
 		}
 	}
 	if cfg.RpcCfg != nil {

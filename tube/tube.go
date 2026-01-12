@@ -605,6 +605,15 @@ type TubeConfig struct {
 	// process on startup using this setting.
 	ZapMC bool `zid:"19"`
 
+	// AccumateBatchDur says how long we wait
+	// before putting a write through the consensus
+	// pipeline, in order to try and accumulate
+	// a batch of writes and amortize our fsync
+	// and network roundtrip costs. The data limits
+	// of rpc.UserMaxPayload will also, most
+	// likely, need to apply as well.
+	BatchAccumateDur time.Duration `zid:"20"`
+
 	// for internal failure recovery testing,
 	// e.g. to drop or ignore messages.
 	// The int key hould correspond to the test number,
@@ -2069,15 +2078,16 @@ func NewTubeConfigProd(clusterSize int, clusterID string) (cfg *TubeConfig) {
 func newTubeConfig(clusterSize int, clusterID string, useSimNet, isTest bool) (cfg *TubeConfig) {
 
 	cfg = &TubeConfig{
-		PeerServiceName: TUBE_REPLICA, // default
-		ClusterID:       clusterID,
-		ClusterSize:     clusterSize,
-		TCPonly_no_TLS:  isTest,
-		NoDisk:          isTest,
-		HeartbeatDur:    time.Millisecond * 200,
-		MinElectionDur:  time.Millisecond * 1200,
-		UseSimNet:       useSimNet,
-		ClockDriftBound: time.Millisecond * 500,
+		PeerServiceName:  TUBE_REPLICA, // default
+		ClusterID:        clusterID,
+		ClusterSize:      clusterSize,
+		TCPonly_no_TLS:   isTest,
+		NoDisk:           isTest,
+		HeartbeatDur:     time.Millisecond * 200,
+		MinElectionDur:   time.Millisecond * 1200,
+		BatchAccumateDur: time.Millisecond * 100,
+		UseSimNet:        useSimNet,
+		ClockDriftBound:  time.Millisecond * 500,
 
 		// if UseSimNet && faketime, do synctest.Wait? no effect if not UseSimNet
 	}
@@ -4704,7 +4714,12 @@ type Ticket struct {
 	OldVersionCAS int64 `zid:"73"` // For CAS: old version (tested for).
 	VersionRead   int64 `zid:"74"` // version of key that we read.
 
-	// BatchID ? how is batching best implemented (TODO).
+	// to improve load bearing / latency, we want to
+	// batch up consensus operations and store a bunch of them
+	// durably to disk under a sync set of fsyncs.
+	// This recursion should only ever be one level deep.
+	// The tickets in this Batch may only have their own Batch = nil.
+	Batch []*Ticket `zid:"75"`
 
 	// where in tkthist we were entered locally.
 	localHistIndex int
@@ -4749,7 +4764,11 @@ const (
 	ADD_SHADOW_NON_VOTING    TicketOp = 17 // through writeReqCh
 	REMOVE_SHADOW_NON_VOTING TicketOp = 18
 
-	USER_DEFINED_FSM_OP TicketOp = 19
+	// when a ticket acts as a container for a
+	// batch of other tickets.
+	TKT_BATCH TicketOp = 19
+
+	USER_DEFINED_FSM_OP TicketOp = 20
 )
 
 func (t TicketOp) String() (r string) {
@@ -4792,6 +4811,8 @@ func (t TicketOp) String() (r string) {
 		return "ADD_SHADOW_NON_VOTING"
 	case REMOVE_SHADOW_NON_VOTING:
 		return "REMOVE_SHADOW_NON_VOTING"
+	case TKT_BATCH:
+		return "TKT_BATCH"
 	case USER_DEFINED_FSM_OP:
 		return "USER_DEFINED_FSM_OP"
 	}
@@ -10774,6 +10795,9 @@ func (s *TubeNode) setConfigDefaultsIfZero() {
 	}
 	if s.cfg.MinElectionDur == 0 {
 		s.cfg.MinElectionDur = 10 * s.cfg.HeartbeatDur
+	}
+	if s.cfg.BatchAccumateDur == 0 {
+		s.cfg.BatchAccumateDur = time.Millisecond * 100
 	}
 	//vv("%v end setConfigDefaultsIfZero(). s.cfg.HeartbeatDur=%v; s.cfg.MinElectionDur=%v", s.me(), s.cfg.HeartbeatDur, s.cfg.MinElectionDur)
 }
