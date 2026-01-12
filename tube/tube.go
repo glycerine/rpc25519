@@ -6631,6 +6631,13 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 
 			// background b/c trying to not block the leader main event loop
 			go func(clientURL string, firstFrag *rpc.Fragment) {
+				defer func() {
+					// not sure why the isValidURL check above is not working... hmm.
+					r := recover()
+					if r != nil {
+						alwaysPrintf("ignoring error trying to contact clientURL='%v' about new leader: '%v", clientURL, r)
+					}
+				}()
 				ckt, _, _, _ = s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, firstFrag, 0)
 				if ckt != nil {
 					select {
