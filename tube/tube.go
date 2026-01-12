@@ -1075,7 +1075,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 		select {
 		case <-s.batchSubmitTimeCh:
-			vv("%v <-s.batchSubmitTimeCh fired", s.name)
+			//vv("%v <-s.batchSubmitTimeCh fired", s.name)
 			needSave, didSave := s.replicateBatch()
 			if !didSave && needSave {
 				s.saver.save(s.state)
@@ -5613,7 +5613,7 @@ func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64) *RaftLogEntry 
 
 func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 
-	vv("%v top of replicateBatch with %v in batch", s.me(), len(s.batchToSubmit))
+	//vv("%v top of replicateBatch with %v in batch", s.me(), len(s.batchToSubmit))
 	batch := s.batchToSubmit
 	s.batchToSubmit = nil
 	s.batchSubmitTimeCh = nil
