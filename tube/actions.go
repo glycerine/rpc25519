@@ -1037,17 +1037,16 @@ func (s *TubeNode) doShowKeys(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	i := 0
-	var str string
-	for k := range table.All() {
-		if i > 0 {
-			str += "\n"
-		}
-		str += string(k)
-		i++
-	}
-	tkt.Val = []byte(str)
+	results := art.NewArtTree()
+	results.SkipLocking = true
+	tkt.KeyValRangeScan = results
 
+	if table.Tree.Size() == 0 {
+		return
+	}
+	for k := range table.All() {
+		results.Insert(art.Key(k), nil, "")
+	}
 }
 
 // if ctx is nill we will use s.ctx

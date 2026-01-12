@@ -9759,7 +9759,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 		question.CASwapped = answer.CASwapped
 		question.CASRejectedBecauseCurVal = answer.CASRejectedBecauseCurVal
 
-	case READ_KEYRANGE, READ_PREFIX_RANGE:
+	case READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
 		question.KeyValRangeScan = answer.KeyValRangeScan
 	}
 	if question.Op != WRITE || answer.Err != nil {
@@ -10536,7 +10536,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 				tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
 				tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
 
-				// READ_KEYRANGE, READ_PREFIX_RANGE:
+				// READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
 				tkt.KeyValRangeScan = priorTkt.KeyValRangeScan
 
 				tkt.DupDetected = true
@@ -14491,7 +14491,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (ans bool) {
 			tkt.LeaderLocalReadAtTm = priorTkt.LeaderLocalReadAtTm
 			tkt.LeaderLocalReadHLC = priorTkt.LeaderLocalReadHLC
 
-			// READ_KEYRANGE, READ_PREFIX_RANGE:
+			// READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
 			tkt.KeyValRangeScan = priorTkt.KeyValRangeScan
 			tkt.Stage += ":prev_read_val_used_leaderDoneEarlyOnSessionStuff"
 		default:

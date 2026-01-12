@@ -459,7 +459,7 @@ repl:
 				sess = needNewSess(sess, err)
 			} else {
 				if tktRange.Err != nil {
-					fmt.Printf("error in prefix-range scan of table with prefix '%v': %v\n", targetTable, key, tktRange.Err)
+					fmt.Printf("error in prefix-range scan of table '%v' with prefix '%v': %v\n", targetTable, key, tktRange.Err)
 					sess = needNewSess(sess, err)
 
 				} else {
@@ -499,7 +499,7 @@ repl:
 				sess = needNewSess(sess, err)
 			} else {
 				if tktRange.Err != nil {
-					fmt.Printf("error in range scan of table from '%v' to '%v': %v\n", targetTable, key, keyEndx, tktRange.Err)
+					fmt.Printf("error in range scan of table '%v' from '%v' to '%v': %v\n", targetTable, key, keyEndx, tktRange.Err)
 					sess = needNewSess(sess, err)
 
 				} else {
@@ -578,10 +578,16 @@ repl:
 				sess = needNewSess(sess, err)
 
 			} else {
+				i := 0
+				var str string
+				for key := range art.Ascend(tkt.KeyValRangeScan, nil, nil) {
+					str += fmt.Sprintf("[%02d] %v\n", i, string(key))
+					i++
+				}
 				if key == "" {
-					fmt.Printf("available tables:\n%v\n", string(tkt.Val))
+					fmt.Printf("available tables:\n%v\n(%v tables back)\n", str, tkt.KeyValRangeScan.Size())
 				} else {
-					fmt.Printf("available keys in table '%v':\n%v\n", key, string(tkt.Val))
+					fmt.Printf("available keys in table '%v':\n%v\n(%v keys back)\n", key, str, tkt.KeyValRangeScan.Size())
 				}
 			}
 		case isSet:
