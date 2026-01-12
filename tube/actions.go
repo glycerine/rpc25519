@@ -1018,30 +1018,20 @@ func (s *TubeNode) doShowKeys(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
+	results := art.NewArtTree()
+	results.SkipLocking = true
+	tkt.KeyValRangeScan = results
+
 	if tkt.Table == "" {
 		// request to list tables
-		i := 0
-		var str string
-		for tab := range s.state.KVstore.m {
-			if i > 0 {
-				str += "\n"
-			}
-			str += string(tab)
-			i++
+		for tableName := range s.state.KVstore.m {
+			results.Insert(art.Key(tableName), nil, "")
 		}
-		tkt.Val = []byte(str)
 		return
 	}
 	table, ok := s.state.KVstore.m[tkt.Table]
 	if !ok {
 		tkt.Err = ErrKeyNotFound
-		return
-	}
-	results := art.NewArtTree()
-	results.SkipLocking = true
-	tkt.KeyValRangeScan = results
-
-	if table.Tree.Size() == 0 {
 		return
 	}
 	for k := range table.All() {
