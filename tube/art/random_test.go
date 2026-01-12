@@ -153,8 +153,8 @@ func FuzzAscendDescend(f *testing.F) {
 	})
 }
 
-func FuzzAscendDescendNoPrefix(f *testing.F) {
-	vv("running FuzzAscendDescend with no prefix")
+func FuzzNoPrefixAscendDescend(f *testing.F) {
+	vv("running FuzzNoPrefixAscendDescend with no prefix")
 
 	f.Add(uint16(4))   // Boundary for Node4
 	f.Add(uint16(16))  // Boundary for Node16

@@ -6,3 +6,5 @@ deepfuzz:
 quantfuzz:
 	go test -timeout=0 -count=1 -fuzz=FuzzAscendDescend -run=blah |tee fuzz.ad.log
 
+fuzz0:
+	go test -timeout=0 -count=1 -fuzz=FuzzNoPrefixAscendDescend -run=blah |tee fuzz.0.log
