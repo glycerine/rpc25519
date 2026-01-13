@@ -22,8 +22,9 @@ require (
 	github.com/glycerine/restic-chunker-mod v0.5.0
 	github.com/glycerine/zygomys/v9 v9.1.2
 	github.com/google/btree v1.1.3
-	github.com/klauspost/compress v1.17.11
+	github.com/klauspost/compress v1.18.2
 	github.com/klauspost/cpuid/v2 v2.0.9
+	github.com/minio/minlz v1.0.1
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/quic-go/quic-go v0.58.0
 	github.com/templexxx/cpu v0.1.1
