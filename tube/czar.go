@@ -115,6 +115,15 @@ func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
 	//vv("remove could not find dropped client raddr '%v'", raddr)
 }
 
+func (s *Czar) memberCount() (numMembers int) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	if s.members == nil {
+		return
+	}
+	return s.members.PeerNames.Len()
+}
+
 func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 	now := time.Now()
 	if !skipLock {
@@ -654,6 +663,8 @@ fullRestart:
 				}
 
 			case amCzar:
+				vv("%v: I am czar with memberCount() = %v", tubeCliName, czar.memberCount())
+
 				select {
 				case <-refreshMembersCh:
 					err := refreshMemberInTube()
