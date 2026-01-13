@@ -2202,7 +2202,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			return
 		}
 
-		//vv("started auto-client ok. trying again... from:'%v'; to:'%v'", p.from, p.to)
+		vv("started auto-client ok. trying again... from:'%v'; to:'%v'", p.from, p.to)
 		err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	}
 	return
