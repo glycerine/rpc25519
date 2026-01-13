@@ -215,8 +215,8 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 
 	conn := nconn.(*tls.Conn) // docs say this is for sure.
 	defer func(loc, rem string) {
-		vv("conn.Close on client '%v' from '%v' -> '%v' imminent!", c.name, loc, rem)
-		conn.Close() // in runClientMain() here.
+		vv("conn.Close on client '%v' from '%v' -> '%v' imminent!", c.name, loc, rem) // never seen!?!
+		conn.Close()                                                                  // in runClientMain() here.
 	}(local(conn), remote(conn))
 
 	c.setLocalAddr(conn)
@@ -350,7 +350,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			//vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
 		}
 		//}
-		vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt) // EOF from node_0 after bouncing back???
+		vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt) // not seen.
 		canc()
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -1908,12 +1908,15 @@ func (c *Client) Close() error {
 			}
 		}
 		c.cfg.shared.mut.Unlock()
+	} else {
+		c.conn.(net.Conn).Close()
+		vv("did c.conn.Close()")
 	}
 	c.halt.ReqStop.Close()
 	if c.startCalled.Load() {
 		<-c.halt.Done.Chan
 	}
-	vv("Client.Close() finished, for client '%v' from '%v' -> '%v'", c.name, reportLocal, reportRemote)
+	vv("Client.Close() finished, for client '%v' from '%v' -> '%v'", c.name, reportLocal, reportRemote) // this is not, somehow, causing the runClientMain to return!
 	return nil
 }
 
