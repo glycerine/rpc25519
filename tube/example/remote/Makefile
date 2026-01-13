@@ -59,6 +59,7 @@ kill:
 	(ps -ef |grep tube |grep -v grep) || true
 
 who:
+	(ps -ef |grep member |grep -v grep) || true
 	(ps -ef |grep tube |grep -v grep) || true
 
 view0:
