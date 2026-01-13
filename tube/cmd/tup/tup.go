@@ -655,7 +655,7 @@ func leaseInfoFromLeaf(leaf *art.Leaf) string {
 	left := leaf.LeaseUntilTm.Sub(time.Now())
 	var lefts string
 	if left <= 0 {
-		lefts = "(lease expired)"
+		lefts = fmt.Sprintf("(lease expired %v ago)", -left)
 	} else {
 		lefts = fmt.Sprintf("(%v left)", left)
 	}
