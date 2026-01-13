@@ -6685,9 +6685,7 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 	if true { // !s.cfg.isTest || s.cfg.testNo != 802 {
 		s.wal.assertConsistentWalAndIndex(0)
 		if s.state.CompactionDiscardedLast.Index != s.wal.logIndex.BaseC {
-			// instead of panic, ask for snapshot.
-			reject = true
-			return
+
 			panicf("s.state.CompactionDiscardedLastIndex(%v) != s.wal.logIndex.BaseC(%v)", s.state.CompactionDiscardedLast.Index, s.wal.logIndex.BaseC) // panic: s.state.CompactionDiscardedLastIndex(5117) != s.wal.logIndex.BaseC(0)
 		}
 	}
@@ -6730,7 +6728,7 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 		// have to assume we match before what we compacted
 		// away, since we only compact committed values.
 
-		if ae.PrevLogIndex <= baseC { // 3 <= ?
+		if ae.PrevLogIndex <= baseC {
 
 			if ae.PrevLogIndex == baseC {
 				if ae.PrevLogTerm != s.state.CompactionDiscardedLast.Term {
@@ -6835,11 +6833,11 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 	if prevTerm == ae.PrevLogTerm {
 		//vv("good: acceptable. no reject.") // simae_test version 802 runs.
 
-		// we used to return here: return false, -1, -1;
+		// we used to accept here: return false, -1, -1;
 		// but its safer to check for agreement
 		// again, esp with compaction being pretty new.
 
-		if true && lli >= ae.PrevLogIndex+1 {
+		if lli >= ae.PrevLogIndex+1 {
 			// fine grain checking, redundant with Extends?
 			j := 0
 			for fTerm, fIndex := range s.wal.logIndex.getTermIndexStartingAt(ae.PrevLogIndex + 1) {
@@ -15828,6 +15826,10 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	//}
 	s.state.CompactionDiscardedLast = state2.CompactionDiscardedLast
 
+	// but we do want too: s.wal.logIndex.BaseC = s.state.CompactionDiscardedLast.Index
+	// which wal.installedSnapshot() just below sets for us, and we assert
+	// immediately afterwards.
+
 	//vv("%v snapshot set s.state.CompactionDiscardedLastIndex=%v; s.state.CompactionDiscardedLast.Term=%v", s.name, s.state.CompactionDiscardedLastIndex, s.state.CompactionDiscardedLast.Term)
 
 	if state2.SessTable != nil {
@@ -15843,7 +15845,7 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	if s.wal.logIndex.CompactTerm != s.state.CompactionDiscardedLast.Term {
 		panicf("%v: s.wal.logIndex.CompactTerm(%v) != (%v)s.state.CompactionDiscardedLast.Term", s.name, s.wal.logIndex.CompactTerm, s.state.CompactionDiscardedLast.Term)
 	}
-	//vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v", s.name, s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli)
+	vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli)
 }
 
 // properly set CompactionDiscardedLastIndex/Term
