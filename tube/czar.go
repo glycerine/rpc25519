@@ -554,9 +554,9 @@ fullRestart:
 		vv("begin main loop at haveSess")
 
 	haveSess:
-		for sessi := 0; ; sessi++ {
-			vv("sessi = %v", sessi)
-			if sessi > 0 {
+		for ii := 0; ; ii++ {
+			vv("main loop ii = %v   fullRestart j = %v", ii, j)
+			if ii > 0 {
 				time.Sleep(time.Second)
 			}
 
