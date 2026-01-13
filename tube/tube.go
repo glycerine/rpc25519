@@ -821,8 +821,12 @@ func (s *TubeNode) Start(
 		return
 	}
 
-	// figure out where our wal and state are getting de-sycned.
-	s.assertCompactOK()
+	// make sure our wal and state are sycned at load time;
+	// if we crashed before the state could be updated to match
+	// the wal, for instance.
+	s.state.CompactionDiscardedLast.Index = s.wal.logIndex.BaseC
+	s.state.CompactionDiscardedLast.Term = s.wal.logIndex.CompactTerm
+	s.assertCompactOK() // previously, out of sync even here: s.state.CompactionDiscardedLast.Index(1088) != s.wal.logIndex.BaseC(1187)
 
 	if s.cfg.ZapMC {
 		alwaysPrintf("%v -zap of MC requested, about to clear restored MC which is currently: '%v' and will clear this set of ShadowReplicas: '%v'", s.me(), s.state.MC, s.state.ShadowReplicas)
@@ -8768,7 +8772,7 @@ func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerService
 			prevLogIndex = prevLog.Index
 			prevLogTerm = prevLog.Term
 		} else {
-			// note compacted == s.state.CompactionDiscardedLastIndex
+			// note compacted == s.state.CompactionDiscardedLast.Index
 
 			if compacted > 0 && beginIndex == compacted+1 {
 				//vv("%v using prevLogTerm from s.state.CompactionDiscardedLast.Term=%v; prevLogIndex will be %v (from s.state.CompactionDiscardedLastIndex)", s.name, s.state.CompactionDiscardedLast.Term, s.state.CompactionDiscardedLastIndex)
@@ -15835,6 +15839,9 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	//}
 	s.state.CompactionDiscardedLast = state2.CompactionDiscardedLast
 
+	// then we must force the wal to match the new snapshot: this
+	// is what s.wal.installedSnapshot() does below.
+
 	// but we do want too: s.wal.logIndex.BaseC = s.state.CompactionDiscardedLast.Index
 	// which wal.installedSnapshot() just below sets for us, and we assert
 	// immediately afterwards.
@@ -15847,13 +15854,8 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 
 	s.saver.save(s.state)
 	s.wal.installedSnapshot(s.state)
+	s.assertCompactOK()
 
-	if s.wal.logIndex.BaseC != s.state.CompactionDiscardedLast.Index {
-		panicf("%v: s.wal.logIndex.BaseC(%v) != (%v)s.state.CompactionDiscardedLastIndex", s.name, s.wal.logIndex.BaseC, s.state.CompactionDiscardedLast.Index)
-	}
-	if s.wal.logIndex.CompactTerm != s.state.CompactionDiscardedLast.Term {
-		panicf("%v: s.wal.logIndex.CompactTerm(%v) != (%v)s.state.CompactionDiscardedLast.Term", s.name, s.wal.logIndex.CompactTerm, s.state.CompactionDiscardedLast.Term)
-	}
 	vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli)
 }
 
@@ -16566,9 +16568,18 @@ func (s *TubeNode) assertCompactOK() {
 		return
 	}
 	if s.state.CompactionDiscardedLast.Index != s.wal.logIndex.BaseC {
-		panicf("s.state.CompactionDiscardedLast.Index(%v) "+
+		panicf("%v s.state.CompactionDiscardedLast.Index(%v) "+
 			"!= s.wal.logIndex.BaseC(%v)",
+			s.name,
 			s.state.CompactionDiscardedLast.Index,
 			s.wal.logIndex.BaseC)
+	}
+	if s.state.CompactionDiscardedLast.Term != s.wal.logIndex.CompactTerm {
+		panicf("%v s.state.CompactionDiscardedLast.Term(%v) "+
+			"!= s.wal.logIndex.CompactTerm(%v)",
+			s.name,
+			s.state.CompactionDiscardedLast.Term,
+			s.wal.logIndex.CompactTerm)
+
 	}
 }

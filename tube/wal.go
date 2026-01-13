@@ -1343,7 +1343,7 @@ func (s *raftWriteAheadLog) installedSnapshot(state *RaftState) {
 	//s.lli = state.CommitIndex
 	//s.llt = state.CommitIndexEntryTerm
 
-	//vv("%v wal.installedSnapshot, writing s.lli from %v -> %v", s.name, s.lli, state.CompactionDiscardedLastIndex)
+	//vv("%v wal.installedSnapshot, writing s.lli from %v -> %v", s.name, s.lli, state.CompactionDiscardedLast.Index)
 
 	s.lli = state.CompactionDiscardedLast.Index
 	s.llt = state.CompactionDiscardedLast.Term
