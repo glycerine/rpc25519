@@ -1230,11 +1230,24 @@ func (s *RaftState) kvstorePrefixScan(tktTable, tktPrefix Key, descend bool) (re
 	//vv("%v kvstorePrefixScan table='%v', key='%v'; descend=%v", s.name, tktTable, tktPrefix, descend)
 	results = art.NewArtTree()
 	results.SkipLocking = true
+
+	deadzone := s.ensureDeadzone()
+	now := time.Now()
+
 	if descend {
-		// note this is correct, the endx comes first in art.Descend.
+		// the endx comes first in art.Descend.
 		for key, lf := range art.Descend(table.Tree, nil, art.Key(tktPrefix)) {
 			if !strings.HasPrefix(string(key), string(tktPrefix)) {
 				return
+			}
+			// implement AutoDelete
+			if lf.AutoDelete && tktTable != "dead" &&
+				lf.Leasor != "" &&
+				lf.LeaseUntilTm.Before(now) {
+
+				deadzone.Tree.InsertLeaf(lf)
+				table.Tree.Remove(art.Key(key))
+				continue
 			}
 			//vv("Descend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
 			lf2 := lf.Clone()
@@ -1244,6 +1257,15 @@ func (s *RaftState) kvstorePrefixScan(tktTable, tktPrefix Key, descend bool) (re
 		for key, lf := range art.Ascend(table.Tree, art.Key(tktPrefix), nil) {
 			if !strings.HasPrefix(string(key), string(tktPrefix)) {
 				return
+			}
+			// implement AutoDelete
+			if lf.AutoDelete && tktTable != "dead" &&
+				lf.Leasor != "" &&
+				lf.LeaseUntilTm.Before(now) {
+
+				deadzone.Tree.InsertLeaf(lf)
+				table.Tree.Remove(art.Key(key))
+				continue
 			}
 			//vv("Ascend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
 			lf2 := lf.Clone()
