@@ -3330,3 +3330,10 @@ func (s *Server) GetClient() *Client {
 func (s *Client) GetClient() *Client {
 	return s
 }
+
+func (s *Server) ListClients() (remotes []string) {
+	s.mut.Lock()
+	remotes = s.remote2pair.GetKeySlice()
+	s.mut.Unlock()
+	return
+}

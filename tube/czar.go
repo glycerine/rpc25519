@@ -663,7 +663,12 @@ fullRestart:
 				}
 
 			case amCzar:
-				vv("%v: I am czar with memberCount() = %v", tubeCliName, czar.memberCount())
+				cs := cli.Srv.ListClients()
+				vv("%v: I am czar with memberCount() = %v;  cli.Srv.ListClients() len %v", tubeCliName, czar.memberCount(), len(cs))
+				for i, c := range cs {
+					fmt.Printf("[%03d] %v\n", i, c)
+				}
+				fmt.Println()
 
 				select {
 				case <-refreshMembersCh:
