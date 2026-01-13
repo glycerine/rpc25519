@@ -214,7 +214,10 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	c.conn = nconn
 
 	conn := nconn.(*tls.Conn) // docs say this is for sure.
-	defer conn.Close()        // in runClientMain() here.
+	defer func(loc, rem string) {
+		vv("conn.Close on client '%v' from '%v' -> '%v' imminent!", c.name, loc, rem)
+		conn.Close() // in runClientMain() here.
+	}(local(conn), remote(conn))
 
 	c.setLocalAddr(conn)
 
@@ -347,7 +350,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			//vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
 		}
 		//}
-		//vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt) // EOF from node_0 after bouncing back???
+		vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt) // EOF from node_0 after bouncing back???
 		canc()
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
