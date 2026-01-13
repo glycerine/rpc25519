@@ -238,7 +238,8 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 	mePlus.RMemberLeaseUntilTm = leasedUntilTm
 	s.heard[s.TubeCliName] = now
 	// but (only) *this* is what the members are checking!!
-	s.members.Vers.CzarLeaseUntilTm = leasedUntilTm
+	// this fixes the surface bug, TODO: uncomment. but we want to figure out why Close is not cleaning up the remote server socket too... our halter is not AddChild right maybe??
+	//s.members.Vers.CzarLeaseUntilTm = leasedUntilTm
 
 	det, ok := s.members.PeerNames.Get2(args.Det.Name)
 	if !ok {
