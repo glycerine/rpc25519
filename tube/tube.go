@@ -12101,6 +12101,7 @@ func (s *PeerDetail) Clone() *PeerDetail {
 		PeerServiceName:        s.PeerServiceName,
 		PeerServiceNameVersion: s.PeerServiceNameVersion,
 		NonVoting:              s.NonVoting,
+		PID:                    s.PID,
 	}
 }
 
