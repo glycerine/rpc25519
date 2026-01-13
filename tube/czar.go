@@ -648,7 +648,8 @@ fullRestart:
 					//default:
 					//}
 
-					pp("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers)
+					pp("I am not czar, did not write to key: '%v'", err)
+					//pp("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers) // too much to list all 100 in the log.
 					// contact the czar and register ourselves.
 				}
 
