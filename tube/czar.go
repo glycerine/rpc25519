@@ -418,8 +418,11 @@ func (membr *RMember) Start() {
 func (membr *RMember) start() {
 
 fullRestart:
-	for {
-		vv("top of fullRestart")
+	for j := 0; ; j++ {
+		vv("top of fullRestart j=%v", j)
+		if j > 0 {
+			time.Sleep(time.Second) // pace it.
+		}
 
 		tableSpace := membr.TableSpace
 
@@ -442,7 +445,8 @@ fullRestart:
 		var sess *Session
 		const requireOnlyContact = false
 		const keepCktUp = true // false
-		for {
+		for k := 0; ; k++ {
+			pp("find leaader loop k = %v", k)
 			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp)
 			_ = reallyLeader
 			_ = leaderName
@@ -497,7 +501,7 @@ fullRestart:
 		// "suspected" drops in the future.
 		//
 		// funnel all client disconnects down to one channel.
-		funneler := newFunneler(czar.Halt)
+		//funneler := newFunneler(czar.Halt)
 
 		membr.UpcallMembershipChangeCh = czar.UpcallMembershipChangeCh
 
@@ -550,7 +554,11 @@ fullRestart:
 		vv("begin main loop at haveSess")
 
 	haveSess:
-		for {
+		for sessi := 0; ; sessi++ {
+			vv("sessi = %v", sessi)
+			if sessi > 0 {
+				time.Sleep(time.Second)
+			}
 
 			switch cState {
 			case unknownCzarState:
@@ -652,24 +660,25 @@ fullRestart:
 						continue fullRestart
 					}
 
-				case cliConnHalt := <-cli.Srv.NotifyAllNewClients:
-					//vv("czar received on cli.Srv.NotifyAllNewClients, has new client '%v'", cliConnHalt.Conn.RemoteAddr())
-					// tell the funneler to listen for it to drop.
-					// It will notify us on clientDroppedCh below.
-					select {
-					case funneler.newCliCh <- cliConnHalt:
-					case <-czar.Halt.ReqStop.Chan:
-						//vv("czar halt requested. exiting.")
-						return
-					}
+					/* funneler cannot be used b/c leases must be honored so immediate client removal is useless anyway. For simplicity of debugging, turn it off.
+					case cliConnHalt := <-cli.Srv.NotifyAllNewClients:
+						//vv("czar received on cli.Srv.NotifyAllNewClients, has new client '%v'", cliConnHalt.Conn.RemoteAddr())
+						// tell the funneler to listen for it to drop.
+						// It will notify us on clientDroppedCh below.
+						select {
+						case funneler.newCliCh <- cliConnHalt:
+						case <-czar.Halt.ReqStop.Chan:
+							//vv("czar halt requested. exiting.")
+							return
+						}
 
-				case dropped := <-funneler.clientDroppedCh:
-					_ = dropped
-					// for safety we cannot assume this now :(
-					// we must let their lease drain out
-					// and so expireSilentNodes gets all the fun.
-					//czar.remove(dropped)
-
+					case dropped := <-funneler.clientDroppedCh:
+						_ = dropped
+						// for safety we cannot assume this now :(
+						// we must let their lease drain out
+						// and so expireSilentNodes gets all the fun.
+						//czar.remove(dropped)
+					*/
 				case <-expireCheckCh:
 					changed := czar.expireSilentNodes(false)
 					if changed {
