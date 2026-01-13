@@ -693,8 +693,11 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 	}
 
 	n := int64(len(s.raftLog))
-	var overwriteCount, keepCount int64
-	var firstIndex, lastIndex int64
+
+	var overwriteCount int64
+	var keepCount int64
+	var firstIndex int64
+	var lastIndex int64
 
 	// snapshot aware: we cannot delete the barrier.
 	earliestMustKeepBarrier := s.lli // assume snapshot installed this
@@ -786,7 +789,15 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 		if len(killed) > 0 && isLeader {
 			panic(fmt.Sprintf("bad! leader can never overwrite any (here %v) log entries!", len(killed)))
 		}
-		replacements := es[:overwriteCount]
+		// to this point, only nes has referred to es at all. so
+		// all other numbers are with respect to s.raftLog not es.
+		// for instance, overwriteCount. we can overwrite more than
+		// we are writing by truncating off 7 existing entries with
+		// 1 new one that leaves now 6 un-used indexes, for example.
+		// replacements := es[:overwriteCount] // panic: runtime error: slice bounds out of range [:51] with capacity 1
+		// below we will write the full es. here is just some debug checking
+		// for overwriting commited entries or self with self.
+		replacements := es[:min(overwriteCount, int64(len(es)-1))]
 		for i, e := range killed {
 
 			if s.noLogCompaction {
