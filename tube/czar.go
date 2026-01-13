@@ -453,6 +453,7 @@ fullRestart:
 		cliCfg, err := LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
 		panicOn(err)
 		//vv("cliCfg = '%v'", cliCfg)
+		cliCfg.RpcCfg.QuietTestMode = false
 		tubeCliName := cliCfg.MyName
 
 		//vv("tubeCliName = '%v'", tubeCliName)
