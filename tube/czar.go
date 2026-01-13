@@ -229,13 +229,16 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 	args.RMemberLeaseUntilTm = leasedUntilTm
 	args.RMemberLeaseDur = s.memberLeaseDur
 
-	// always refresh our lease in the member list too
+	// always refresh our (czar) lease in the member list too,
+	// especially in Vers.CzarLeaseUntilTm (!)
 	mePlus, ok := s.members.PeerNames.Get2(s.TubeCliName)
 	if !ok {
 		panicf("must have self as czar in members!")
 	}
-	mePlus.RMemberLeaseUntilTm = now.Add(s.memberLeaseDur)
+	mePlus.RMemberLeaseUntilTm = leasedUntilTm
 	s.heard[s.TubeCliName] = now
+	// but (only) *this* is what the members are checking!!
+	s.members.Vers.CzarLeaseUntilTm = leasedUntilTm
 
 	det, ok := s.members.PeerNames.Get2(args.Det.Name)
 	if !ok {

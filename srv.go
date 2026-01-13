@@ -564,7 +564,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 	_ = stopReason
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
-		//vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'; remote='%v'; s.halt=%p; stopReason='%v'", conn.LocalAddr(), remote(conn), s.halt, stopReason)
+		vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'; remote='%v'; s.halt=%p; stopReason='%v'", conn.LocalAddr(), remote(conn), s.halt, stopReason)
 		canc()
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
