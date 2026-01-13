@@ -39,6 +39,18 @@ const (
 	notCzar          czarState = 2
 )
 
+func (s czarState) String() string {
+	switch s {
+	case unknownCzarState:
+		return "unknownCzarState"
+	case amCzar:
+		return "amCzar"
+	case notCzar:
+		return "notCzar"
+	}
+	return "unknown czarState"
+}
+
 // Czar is the RAM/memory only maintainer of
 // the RMember system of membership. The acting Czar is elected
 // via Raft by writing to the key "czar"
@@ -564,7 +576,7 @@ fullRestart:
 
 	haveSess:
 		for ii := 0; ; ii++ {
-			vv("main loop ii = %v   fullRestart j = %v", ii, j)
+			vv("main loop ii = %v   fullRestart j = %v   cState = %v", ii, j, cState)
 			if ii > 0 {
 				time.Sleep(time.Second)
 			}
@@ -657,7 +669,7 @@ fullRestart:
 					//default:
 					//}
 
-					pp("I am not czar, did not write to key: '%v'", err)
+					pp("I am not czar, did not write to key: '%v'", err) // seen regularly???
 					//pp("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers) // too much to list all 100 in the log.
 					// contact the czar and register ourselves.
 				}
@@ -745,6 +757,8 @@ fullRestart:
 
 			case notCzar:
 				if rpcClientToCzar == nil {
+					pp("notCzar top: rpcClientToCzar is nil")
+
 					list := nonCzarMembers
 					czarDetPlus, ok := list.PeerNames.Get2(list.CzarName)
 					if !ok {
@@ -760,7 +774,7 @@ fullRestart:
 					panicOn(err)
 					err = rpcClientToCzar.Start()
 					if err != nil {
-						//vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
+						vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
 						rpcClientToCzar.Close()
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
@@ -776,13 +790,14 @@ fullRestart:
 					pp("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
 					err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
 					if err != nil {
+						pp("error back from Ping: '%v'", err)
 						rpcClientToCzar.Close()
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
 						cState = unknownCzarState
 						continue haveSess
 					}
-					pp("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply of %v nodes", tubeCliName, reply.PeerNames.Len())
+					pp("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply of %v nodes", tubeCliName, reply.PeerNames.Len()) // seen regularly
 					// store view of membership as non-czar
 					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
 						nonCzarMembers = reply
@@ -796,7 +811,7 @@ fullRestart:
 				} // end if rpcClientToCzar == nil
 
 				// INVAR: rpcClientToCzar != nil
-
+				pp("notCzar: rpcClient != nil, about to select")
 				select {
 				case <-refreshMembersCh:
 					refreshMemberInTube()
@@ -818,7 +833,7 @@ fullRestart:
 					err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
 					//vv("member called to Czar.Ping, err='%v'", err)
 					if err != nil {
-						//vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
+						vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
 						rpcClientToCzar.Close()
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
