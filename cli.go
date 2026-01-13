@@ -215,7 +215,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 
 	conn := nconn.(*tls.Conn) // docs say this is for sure.
 	defer func(loc, rem string) {
-		vv("conn.Close on client '%v' from '%v' -> '%v' imminent!", c.name, loc, rem) // never seen!?!
+		vv("conn.Close on client '%v' from '%v' -> '%v' imminent!", c.name, loc, rem) // never seen!?! now seen: after forcing c.conn.Close() in Client.Close().
 		conn.Close()                                                                  // in runClientMain() here.
 	}(local(conn), remote(conn))
 
@@ -284,6 +284,11 @@ func (c *Client) runClientTCP(serverAddr string) {
 		return
 	}
 
+	vv("runClientTCP begun, name='%v'; local:'%v' -> remote:'%v'", c.name, local(conn), remote(conn))
+	defer func(loc, rem string) {
+		vv("runClientTCP ending! '%v' from '%v' -> '%v' imminent!", c.name, loc, rem)
+	}(local(conn), remote(conn))
+
 	c.setLocalAddr(conn)
 
 	c.isTLS = false
@@ -350,7 +355,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			//vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
 		}
 		//}
-		vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt) // not seen.
+		vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt) // not seen. still!
 		canc()
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -1909,14 +1914,17 @@ func (c *Client) Close() error {
 		}
 		c.cfg.shared.mut.Unlock()
 	} else {
+		// BAD MEMORY LEAK FIXED.
+		// This is critical to not leak sockets and all
+		// of their machinery (rwPair, encryption buffers, etc);
+		// and to let the server side cleanup as well.
 		c.conn.(net.Conn).Close()
-		vv("did c.conn.Close()")
 	}
 	c.halt.ReqStop.Close()
 	if c.startCalled.Load() {
 		<-c.halt.Done.Chan
 	}
-	vv("Client.Close() finished, for client '%v' from '%v' -> '%v'", c.name, reportLocal, reportRemote) // this is not, somehow, causing the runClientMain to return!
+	//vv("Client.Close() finished, for client '%v' from '%v' -> '%v'", c.name, reportLocal, reportRemote) // this is not, somehow, causing the runClientMain to return!
 	return nil
 }
 
