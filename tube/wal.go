@@ -671,7 +671,7 @@ func (s *raftWriteAheadLog) saveBlake3sumFor(by []byte, doFsync bool) (nw int, b
 //
 // overwriteEntries may call maybeCompact()
 // if log-compaction is on.
-func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry, isLeader bool, curCommitIndex, lastAppliedIndex int64, syncme *IndexTerm) (err error) {
+func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry, isLeader bool, curCommitIndex, lastAppliedIndex int64, syncme *IndexTerm, node *TubeNode) (err error) {
 
 	//vv("%v begin overwriteEntries()[isAppend=%v] keepIndex=%v; len(raftLog)=%v: %v", s.name, s.isAppendLoggingHelper(keepIndex), keepIndex, len(s.raftLog), s.StringWithCommit(curCommitIndex))
 
@@ -859,7 +859,7 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 		// section 5.1.3 -- "Implementation concerns").
 		//
 		// leave off until TermsRLE is compaction ready.
-		s.maybeCompact(lastAppliedIndex, syncme)
+		s.maybeCompact(lastAppliedIndex, syncme, node)
 	}
 	return
 }
@@ -890,7 +890,7 @@ func (s *raftWriteAheadLog) isAppendLoggingHelper(keepIndex int64) bool {
 	return overwriteCount == 0
 }
 
-func (s *raftWriteAheadLog) maybeCompact(lastAppliedIndex int64, syncme *IndexTerm) (didCompact bool) {
+func (s *raftWriteAheadLog) maybeCompact(lastAppliedIndex int64, syncme *IndexTerm, node *TubeNode) (didCompact bool) {
 
 	// defaults in case we bail early (important to keep stuff in sync!)
 	if syncme != nil {
@@ -912,7 +912,7 @@ func (s *raftWriteAheadLog) maybeCompact(lastAppliedIndex int64, syncme *IndexTe
 		s.prevLastAppliedIndex = lastAppliedIndex
 		var err error
 		// only live call (non-test) to Compact is here in maybeCompact().
-		_, _, err = s.Compact(lastAppliedIndex, syncme)
+		_, _, err = s.Compact(lastAppliedIndex, syncme, node)
 		panicOn(err)
 		didCompact = true
 	} else {
@@ -1112,7 +1112,7 @@ the proof of this claim."
 // entry from the current log. We will panic to assert this.
 // keepIndex == 0 by convention means keep everything => NO-OP.
 // So any keepIndex <= 0 will be a NO-OP.
-func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm) (origPath, origParPath string, err0 error) {
+func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm, node *TubeNode) (origPath, origParPath string, err0 error) {
 
 	//vv("%v Compact(keepIndex=%v) called.", s.name, keepIndex)
 
@@ -1126,6 +1126,9 @@ func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm) (origPat
 			syncme.Term = s.logIndex.CompactTerm
 		}
 		s.assertConsistentWalAndIndex(keepIndex)
+		if node != nil {
+			node.assertCompactOK()
+		}
 	}()
 
 	n := int64(len(s.raftLog))

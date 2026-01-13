@@ -184,7 +184,7 @@ func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftL
 		// section 5.1.3 -- "Implementation concerns").
 		//
 		// leave off until TermsRLE is compaction ready.
-		s.maybeCompact(curCommitIndex, syncme)
+		s.maybeCompact(curCommitIndex, syncme, nil)
 	}
 
 	return

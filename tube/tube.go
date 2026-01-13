@@ -820,6 +820,10 @@ func (s *TubeNode) Start(
 	if err != nil {
 		return
 	}
+
+	// figure out where our wal and state are getting de-sycned.
+	s.assertCompactOK()
+
 	if s.cfg.ZapMC {
 		alwaysPrintf("%v -zap of MC requested, about to clear restored MC which is currently: '%v' and will clear this set of ShadowReplicas: '%v'", s.me(), s.state.MC, s.state.ShadowReplicas)
 		s.state.MC = s.NewMemberConfig("ZapMC")
@@ -5487,9 +5491,9 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	// At least this is in line with our aggressive compaction vs snapshot
 	// testing. but also we saw the leader never compacting with was a concern.
 	// log compaction: here in replicateTicket().
-	didCompact := s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast) // if compaction enabled.
+	didCompact := s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s) // if compaction enabled.
 	if !s.cfg.NoLogCompaction && !didCompact {
-		_, _, err := s.wal.Compact(s.state.LastApplied, &s.state.CompactionDiscardedLast)
+		_, _, err := s.wal.Compact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
 		panicOn(err)
 	}
 	//if true {
@@ -5684,7 +5688,7 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 	// TODO: uncomment below to only compact occassionally, since it
 	// involves lots of slow fsyncs and file rewrites. but less testing.
 	//if s.wal.logSizeOnDisk() > 6<<20 { // over 6MB, then compact (if compact on).
-	s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast)
+	s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
 	//}
 
 	if clusterSz > 1 {
@@ -7551,7 +7555,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		}
 
 		// in handleAppendEntries here.
-		err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast)
+		err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
 		panicOn(err)
 		if true { // TODO restore: s.cfg.isTest {
 			s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
@@ -7612,7 +7616,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 				numTruncated = 0
 				numAppended = int64(len(entries))
 				// in handleAppendEntries here.
-				err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast)
+				err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
 				panicOn(err)
 
 				if true { // TODO restore: s.cfg.isTest {
@@ -12696,7 +12700,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 	var curCommitIndex int64 = 1
 	var keepCount int64 = 0
 	// in setupFirstRaftLogEntryBootstrapLog() here.
-	err := s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0, &s.state.CompactionDiscardedLast)
+	err := s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0, &s.state.CompactionDiscardedLast, s)
 	panicOn(err)
 	if true { // TODO restore: s.cfg.isTest {
 		s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
@@ -14089,7 +14093,7 @@ func (s *TubeNode) testSetupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntr
 	var curCommitIndex int64 = 1
 	var keepCount int64 = 0
 	// in testSetupFirstRaftLogEntryBootstrapLog() here.
-	err = s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0, &s.state.CompactionDiscardedLast)
+	err = s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0, &s.state.CompactionDiscardedLast, s)
 	panicOn(err)
 
 	if true { // TODO restore: s.cfg.isTest {
@@ -16551,5 +16555,20 @@ func (s *TubeNode) GetMyPeerDetail() *PeerDetail {
 		PeerServiceName:        s.MyPeer.PeerServiceName,
 		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
 		PID:                    int64(os.Getpid()),
+	}
+}
+
+// figure out where s.state.CompactionDiscardedLastIndex
+// is falling behind wal.logIndex.BaseC and getting out of sync. assert in AE:
+// s.state.CompactionDiscardedLastIndex(1088) != s.wal.logIndex.BaseC(1187)
+func (s *TubeNode) assertCompactOK() {
+	if s == nil {
+		return
+	}
+	if s.state.CompactionDiscardedLast.Index != s.wal.logIndex.BaseC {
+		panicf("s.state.CompactionDiscardedLast.Index(%v) "+
+			"!= s.wal.logIndex.BaseC(%v)",
+			s.state.CompactionDiscardedLast.Index,
+			s.wal.logIndex.BaseC)
 	}
 }
