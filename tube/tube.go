@@ -8190,8 +8190,8 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 	peer := frag.FromPeerID
 	if ckt != nil {
 		if peer != ckt.RemotePeerID {
-			panic(fmt.Sprintf("sanity check failed, frag should be from ckt. frag.FromPeerID='%v' but ckt.RemotePeerID='%v'", peer, ckt.RemotePeerID))
-			// wtf. how did this happen???
+			panic(fmt.Sprintf("%v sanity check failed, frag should be from ckt. frag.FromPeerID='%v' but ckt.RemotePeerID='%v'; \n frag='%v'\n ckt = '%v'", nice(time.Now()), peer, ckt.RemotePeerID, frag, ckt))
+			// wtf. how did this happen??? still seen every with cryrand long PeerID.
 			/*
 				panic: sanity check failed, frag should be from ckt. frag.FromPeerID='CSVruwG6F6Z1sPs4hCJHgG6Xtige' but ckt.RemotePeerID='EK5_4sQPPAcbr5Rq0yE20Ub2cBP0' [recovered, repanicked]
 
