@@ -584,6 +584,13 @@ fullRestart:
 		var refreshMembersCh <-chan time.Time
 		refreshMemberInTube := func() error {
 
+			// an approximation, the tube Leaf.LeaseUntilTm
+			// is the actual decider, but should be similar.
+			// mostly so that it does not print (current czar)! :)
+			myDetail.RMemberLeaseUntilTm = time.Now().Add(membersLeaseDur)
+			myDetailBytes, err = myDetail.MarshalMsg(nil)
+			panicOn(err)
+
 			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 			_, err := sess.Write(ctx5, Key("members"), Key(tubeCliName), Val(myDetailBytes), writeAttemptDur, PeerDetailPlusType, membersLeaseDur, leaseAutoDelTrue)
 			canc()

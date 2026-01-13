@@ -4868,7 +4868,6 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		tkt.Op == USER_DEFINED_FSM_OP {
 
 		if tkt.Insp == nil {
-			// ideally never needed, but just in case...
 			//panic("why wasn't Insp already set?")
 			//vv("%v is filling in tkt.Insp in FinishTicket; tkt='%v'", s.me(), tkt.Desc)
 			s.addInspectionToTicket(tkt)
