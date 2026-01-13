@@ -1874,10 +1874,16 @@ func (c *Client) Close() error {
 	//c.cfg.simnetRendezvous.singleSimnetMut.Lock()
 	//c.cfg.simnetRendezvous.singleSimnetMut.Unlock()
 
+	// report at the end
+	reportRemote := c.RemoteAddr()
+	_ = reportRemote
+	reportLocal := c.LocalAddr()
+	_ = reportLocal
+
 	// ask any sub components (peer pump loops) to stop.
 	// lots of stalling on this...hmm.
-	//c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
-	c.halt.ReqStop.Close()
+	c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
+	//c.halt.ReqStop.Close()
 
 	if c.cfg.UseQUIC {
 		if c.isQUIC && c.quicConn != nil {
@@ -1904,7 +1910,7 @@ func (c *Client) Close() error {
 	if c.startCalled.Load() {
 		<-c.halt.Done.Chan
 	}
-	//vv("Client.Close() finished.")
+	vv("Client.Close() finished, for client '%v' from '%v' -> '%v'", c.name, reportLocal, reportRemote)
 	return nil
 }
 

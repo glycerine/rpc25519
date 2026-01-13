@@ -157,6 +157,9 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 		if name == s.TubeCliName {
 			// we ourselves are obviously alive so
 			// we don't bother to heartbeat to ourselves.
+			// Ah-hah! but this makes us look stale to
+			// other members, yikes!
+			plus.RMemberLeaseUntilTm = now.Add(s.memberLeaseDur)
 			continue
 		}
 		killIt := false
@@ -226,19 +229,27 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 	args.RMemberLeaseUntilTm = leasedUntilTm
 	args.RMemberLeaseDur = s.memberLeaseDur
 
+	// always refresh our lease in the member list too
+	mePlus, ok := s.members.PeerNames.Get2(s.TubeCliName)
+	if !ok {
+		panicf("must have self as czar in members!")
+	}
+	mePlus.RMemberLeaseUntilTm = now.Add(s.memberLeaseDur)
+	s.heard[s.TubeCliName] = now
+
 	det, ok := s.members.PeerNames.Get2(args.Det.Name)
 	if !ok {
 		//vv("args.Name('%v') is new, adding to PeerNames", args.Name)
+		det = args
 		s.members.PeerNames.Set(args.Det.Name, args)
 		s.members.Vers.Version++
 	} else {
 		if detailsChanged(det.Det, args.Det) {
 			//vv("args.Name('%v') details have changed, updating PeerNames", args.Name)
+			det = args
 			s.members.PeerNames.Set(args.Det.Name, args)
 			s.members.Vers.Version++
 		} else {
-			//vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
-			det.RMemberLeaseUntilTm = leasedUntilTm
 			// do we want lease-extension to increment the Version?
 			// I don't think so. This is the most common
 			// failure free path here. On the otherhand, its
@@ -251,11 +262,20 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 			// set of members.
 			s.members.Vers.LeaseUpdateCounter++
 		}
+		//vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
 	}
+	// INVAR: det is the Ping caller's PeerDetailPlus.
+
+	// extend their lease in the visible return value;
+	// det points into the s.members.PeerNames map, so
+	// it will get cloned in the Clone() call below
+	// and thus assigned to reply.
+	det.RMemberLeaseUntilTm = leasedUntilTm
+
 	s.members.MemberLeaseDur = s.memberLeaseDur
 	*reply = *(s.members.Clone())
 
-	s.heard[args.Det.Name] = time.Now()
+	s.heard[args.Det.Name] = now
 	s.expireSilentNodes(true) // true since mut is already locked.
 	if s.members.Vers.Version != orig.Version {
 		// mut is already held.
@@ -281,7 +301,7 @@ func (s *Czar) shortRMemberSummary() (r string) {
 
 func NewCzar(cli *TubeNode, hbDur, clockDriftBound time.Duration) *Czar {
 
-	memberLeaseDur := hbDur * 3
+	memberLeaseDur := hbDur * 3 // 6s if given 2s heartbeat
 	list := cli.NewReliableMembershipList()
 	list.MemberLeaseDur = memberLeaseDur
 
