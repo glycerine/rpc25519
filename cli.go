@@ -64,7 +64,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	defer func() {
 		r := recover()
 		if r != nil {
-			vv("runClientMain defer: serverAddr='%v'; end for goro = %v; recover='%v'", serverAddr, GoroNumber(), r)
+			//vv("runClientMain defer: serverAddr='%v'; end for goro = %v; recover='%v'", serverAddr, GoroNumber(), r)
 		}
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -214,10 +214,13 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	c.conn = nconn
 
 	conn := nconn.(*tls.Conn) // docs say this is for sure.
-	defer func(loc, rem string) {
-		vv("conn.Close on client '%v' from '%v' -> '%v' imminent!", c.name, loc, rem) // never seen!?! now seen: after forcing c.conn.Close() in Client.Close().
-		conn.Close()                                                                  // in runClientMain() here.
-	}(local(conn), remote(conn))
+
+	//defer func(loc, rem string) {
+	//	//vv("conn.Close on client '%v' from '%v' -> '%v' imminent!", c.name, loc, rem) // seen
+	//	conn.Close() // debug version
+	//}(local(conn), remote(conn))
+
+	defer conn.Close() // in runClientMain() here.
 
 	c.setLocalAddr(conn)
 
@@ -284,10 +287,10 @@ func (c *Client) runClientTCP(serverAddr string) {
 		return
 	}
 
-	vv("runClientTCP begun, name='%v'; local:'%v' -> remote:'%v'", c.name, local(conn), remote(conn))
-	defer func(loc, rem string) {
-		vv("runClientTCP ending! '%v' from '%v' -> '%v' imminent!", c.name, loc, rem)
-	}(local(conn), remote(conn))
+	//vv("runClientTCP begun, name='%v'; local:'%v' -> remote:'%v'", c.name, local(conn), remote(conn))
+	//defer func(loc, rem string) {
+	//	vv("runClientTCP ending! '%v' from '%v' -> '%v' imminent!", c.name, loc, rem)
+	//}(local(conn), remote(conn))
 
 	c.setLocalAddr(conn)
 
@@ -352,10 +355,10 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			// see a ts mutex deadlock under synctest on shutdown, comment out:
 			//alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'", r) // , stack())
 		} else {
-			//vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
+			//vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn)) // seen.
 		}
 		//}
-		vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt) // not seen. still!
+		//vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt)
 		canc()
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -1890,8 +1893,8 @@ func (c *Client) Close() error {
 
 	// ask any sub components (peer pump loops) to stop.
 	// lots of stalling on this...hmm.
-	c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
-	//c.halt.ReqStop.Close()
+	//c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil) // tube/membership_test.go 403 deadlocks on a bunch of mutexes.
+	c.halt.ReqStop.Close() // no 403 deadlock.
 
 	if c.cfg.UseQUIC {
 		if c.isQUIC && c.quicConn != nil {

@@ -1866,7 +1866,7 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 }
 
 func (s *Server) deletePair(p *rwPair) {
-	s.mut.Lock()
+	s.mut.Lock() // hung here trying to shutdown a simnet server, 403 membership test
 	defer s.mut.Unlock()
 
 	key, ok := s.pair2remote.Get(p)
@@ -2107,9 +2107,9 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			lenAutoCli := len(s.autoClients) + 1
 			s.mut.Unlock()
 			_ = lenAutoCli
-			alwaysPrintf("%v server(%p) did not find destAddr (msg.HDR.To='%v') in "+
-				"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
-				" is true so spinning up new client... for a total of %v autoClients", s.name, s, msg.HDR.To, lenAutoCli)
+			//alwaysPrintf("%v server(%p) did not find destAddr (msg.HDR.To='%v') in "+
+			//	"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
+			//	" is true so spinning up new client... for a total of %v autoClients", s.name, s, msg.HDR.To, lenAutoCli)
 			//" is true so spinning up new client... full msg='%v'", msg.HDR.To, msg)
 		}
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
@@ -2142,8 +2142,8 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 				}
 			}
 		}
-		vv("auto cli setting ccfg.BaseServerAddr = '%v'", ccfg.BaseServerAddr)
-		vv("auto cliName = '%v'", cliName)
+		//vv("auto cli setting ccfg.BaseServerAddr = '%v'", ccfg.BaseServerAddr)
+		//vv("auto cliName = '%v'", cliName)
 		// uses same serverBaseID so simnet can group same host simnodes.
 		cli, err2 := NewClient(cliName, &ccfg)
 		panicOn(err2)
@@ -2203,7 +2203,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			return
 		}
 
-		vv("%v started auto-client ok. trying again... from:'%v'; to:'%v'e", s.name, p.from, p.to)
+		//vv("%v started auto-client ok. trying again... from:'%v'; to:'%v'e", s.name, p.from, p.to)
 		err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	}
 	return
