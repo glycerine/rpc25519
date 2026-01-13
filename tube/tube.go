@@ -9835,7 +9835,7 @@ func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
 
 			alwaysPrintf("%v in respondToClientTicketApplied: loss of ticket... don't know how to contact tkt.FromID='%v' (tkt.FromName='%v') (!= s.PeerID='%v'/'%v') to fwd tkt in respondToClientTicketApplied. Assuming they died. tkt=%v; s.cktall='%v'", s.me(), tkt.FromID, tkt.FromName, alias(s.PeerID), s.PeerID, tkt, s.cktall2string())
 
-			tkt.Stage += "__cannot_find_ckt_for_client_lose_ticket"
+			tkt.Stage += ":__cannot_find_ckt_for_client_lose_ticket"
 			// TODO: add to dead letter?
 			//panic("loss of ticket...")
 			return
@@ -9844,6 +9844,11 @@ func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
 	ckt := cktP.ckt
 	tkt.Stage += "__found_ckt"
 
+	if ckt == nil || ckt.LpbFrom == nil {
+		tkt.Stage += ":__cannot_find_ckt_for_client_lose_ticket2"
+		// TODO: add to dead letter?
+		return
+	}
 	err = s.SendOneWay(ckt, frag, -1, 0)
 	_ = err // don't panic on halting.
 	if err != nil {
