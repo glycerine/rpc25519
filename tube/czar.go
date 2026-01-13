@@ -564,7 +564,7 @@ fullRestart:
 			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 			_, err := sess.Write(ctx5, Key("members"), Key(tubeCliName), Val(myDetailBytes), writeAttemptDur, PeerDetailPlusType, membersLeaseDur, leaseAutoDelTrue)
 			canc()
-			vv("member refresh attempt done. err = '%v'", err)
+			vv("members table every 10s refresh attempt done. err = '%v'", err)
 
 			refreshMembersCh = time.After(refreshMembersDur)
 			return err
@@ -844,13 +844,20 @@ fullRestart:
 					if reply != nil && reply.PeerNames != nil {
 						pp("member called to Czar.Ping, got reply with member count='%v'; rpcClientToCzar.RemoteAddr = '%v'", reply.PeerNames.Len(), rpcClientToCzar.RemoteAddr())
 					}
-					if lte(reply.Vers.CzarLeaseUntilTm.Add(-membr.clockDriftBound), time.Now()) {
-						pp("stale czar answer (not really the czar now), reconnect/contend")
-						rpcClientToCzar.Close()
-						rpcClientToCzar = nil
-						rpcClientToCzarDoneCh = nil
-						cState = unknownCzarState
-						continue
+					if !reply.Vers.CzarLeaseUntilTm.IsZero() {
+						deadline := reply.Vers.CzarLeaseUntilTm.Add(-membr.clockDriftBound)
+						now := time.Now()
+						vv("reply.Vers = '%#v';\n deadline = '%v' \n now = '%v'", reply.Vers, nice(deadline), nice(now))
+						if lte(deadline, now) {
+							// this is causing too many restarts! and then we leak clients/auto-clients? hazard of mixing rpc and circuit stuff maybe. kinda want
+							pp("stale czar answer (not really the czar now), reconnect/contend; deadline(%v) <= now(%v)", nice(deadline), nice(now))
+
+							rpcClientToCzar.Close()
+							rpcClientToCzar = nil
+							rpcClientToCzarDoneCh = nil
+							cState = unknownCzarState
+							continue
+						}
 					}
 					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
 
