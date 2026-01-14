@@ -85,8 +85,6 @@ func main() {
 	fmt.Printf("pid = %v\n", os.Getpid())
 	fmt.Printf("started at %v\n", nice(time.Now()))
 
-	startOnlineWebProfiling()
-
 	cmdCfg := &ConfigTubeCli{}
 
 	fs := flag.NewFlagSet("tube", flag.ExitOnError)
@@ -95,6 +93,9 @@ func main() {
 	cmdCfg.SetDefaults()
 	err := cmdCfg.FinishConfig(fs)
 	panicOn(err)
+
+	fmt.Printf("web profiling to 7070 on by default for now.\n")
+	cmdCfg.WebProfile = true
 
 	if cmdCfg.Help {
 		fmt.Fprintf(os.Stderr, "tube {options} <a tube.cfg path>\n")
@@ -107,7 +108,7 @@ func main() {
 	}
 
 	if cmdCfg.WebProfile {
-		alwaysPrintf("samp -webprofile given, about to try and bind 127.0.0.1:7070")
+		alwaysPrintf("tube -webprofile given, about to try and bind 127.0.0.1:7070")
 		go func() {
 			http.ListenAndServe("127.0.0.1:7070", nil)
 			// hmm if we get here we couldn't bind 7070.
