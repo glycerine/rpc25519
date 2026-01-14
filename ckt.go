@@ -1211,15 +1211,24 @@ func (lpb *LocalPeer) newCircuit(
 		madeNewAutoCli, ckt.loopy, err = lpb.U.SendOneWayMessage(ctx2, msg, -1)
 		ckt.MadeNewAutoCli = madeNewAutoCli
 	}
-	if err != nil && ckt != nil && ckt.loopy != nil {
-		select {
-		case ckt.loopy.cktServedAdd <- ckt:
-			// this addition finally stopped the leak of server side circuit support goro.
-			//vv("in lbp.newCircuit: ckt.loopy available and ckt.loopy.cktServedAdd <- ckt ok.")
-		case <-lpb.Halt.ReqStop.Chan:
+	if err != nil && ckt != nil {
+		if ckt.loopy != nil {
+			select {
+			case ckt.loopy.cktServedAdd <- ckt:
+				// this communication finally stopped the
+				// leak of server side circuit support goro.
+				//vv("in lbp.newCircuit: ckt.loopy available and ckt.loopy.cktServedAdd <- ckt ok.")
+			case <-lpb.Halt.ReqStop.Chan:
+			}
+		} else {
+			// assert that our development set ckt.loopy if it could
+			if ckt.RpbTo != nil {
+				panicf("why do we not have ckt.loopy set now?? there might be a good reason, it might need to be lazy but we want to know what that is... as we want to have it set if at all possible, in all Circuit creation scenarios!! ckt.RpbTo.NetAddr='%v' so just set ckt.loopy, _ = s.remote2pair.Get(ckt.RpbTo.NetAddr)", ckt.RpbTo.NetAddr)
+			} else {
+				panicf("ahem: is development of LoopComm helper incomplete? why do we not have ckt.loopy set now?? there might be a good reason, but we want to have it set if at all possible, in all Circuit creation scenarios!")
+			}
 		}
 	}
-
 	return
 }
 
