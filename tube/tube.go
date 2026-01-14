@@ -15874,6 +15874,12 @@ func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circu
 	panicOn(err)
 	fragEnc.Payload = bts
 
+	npay := len(fragEnc.Payload)
+	if npay > rpc.UserMaxPayload {
+		vv("why so large?? snap.Footprint = %v", snap.Footprint())
+		panicf("npay(%v) > rpc.UserMaxPayload(%v) cannot send this large a message!", npay, rpc.UserMaxPayload)
+	}
+
 	fragEnc.SetUserArg("leader", s.leaderID)
 	fragEnc.SetUserArg("leaderName", s.leaderName)
 	s.SendOneWay(ckt, fragEnc, -1, 0)
