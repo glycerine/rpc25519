@@ -160,6 +160,7 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 			// Ah-hah! but this makes us look stale to
 			// other members, yikes!
 			plus.RMemberLeaseUntilTm = now.Add(s.memberLeaseDur)
+			plus.RMemberLeaseDur = s.memberLeaseDur
 			continue
 		}
 		killIt := false
@@ -236,6 +237,8 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 		panicf("must have self as czar in members!")
 	}
 	mePlus.RMemberLeaseUntilTm = leasedUntilTm
+	mePlus.RMemberLeaseDur = s.memberLeaseDur
+
 	s.heard[s.TubeCliName] = now
 	// but (only) *this* is what the members are checking!!
 	s.members.Vers.CzarLeaseUntilTm = leasedUntilTm
@@ -274,6 +277,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 	// it will get cloned in the Clone() call below
 	// and thus assigned to reply.
 	det.RMemberLeaseUntilTm = leasedUntilTm
+	det.RMemberLeaseDur = s.memberLeaseDur
 
 	s.members.MemberLeaseDur = s.memberLeaseDur
 	*reply = *(s.members.Clone())
@@ -588,6 +592,7 @@ fullRestart:
 			// is the actual decider, but should be similar.
 			// mostly so that it does not print (current czar)! :)
 			myDetail.RMemberLeaseUntilTm = time.Now().Add(membersLeaseDur)
+			myDetail.RMemberLeaseDur = membersLeaseDur
 			myDetailBytes, err = myDetail.MarshalMsg(nil)
 			panicOn(err)
 
