@@ -16,7 +16,7 @@ import (
 const (
 	msgsz          = 1_200_000
 	msgoverhead    = 110720
-	UserMaxPayload = 10 * msgsz // users should chunk to this size, to be safe.
+	UserMaxPayload = 1 * msgsz // users should chunk to this size, to be safe.
 	maxMessage     = UserMaxPayload + msgoverhead - 80
 
 	// maxMessage used to be: ~ 1 MB max message size, prevents TLS clients from talking to TCP servers, as the random TLS data looks like very big message size. Also lets us test on smaller virtual machines without out-of-memory issues.
