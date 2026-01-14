@@ -439,7 +439,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	stopReason := ""
 	_ = stopReason
 	defer func() {
-		vv("rwPair(%p) defer of runSendLoop s.SendCh=%p; stopReason='%v'; s.to='%v' s.halt=%p; has len(s.cktServed) = %v ckts", s, s.SendCh, stopReason, s.to, s.halt, len(s.cktServed))
+		//vv("rwPair(%p) defer of runSendLoop s.SendCh=%p; stopReason='%v'; s.to='%v' s.halt=%p; has len(s.cktServed) = %v ckts", s, s.SendCh, stopReason, s.to, s.halt, len(s.cktServed))
 		s.Server.deletePair(s)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
@@ -527,10 +527,10 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 		case ckt := <-s.cktServedAdd:
 			s.cktServed[ckt] = true
-			vv("cktServedAdd added ckt from '%v'. len now = %v", ckt.RpbTo.NetAddr, len(s.cktServed))
+			//vv("cktServedAdd added ckt from '%v'. len now = %v", ckt.RpbTo.NetAddr, len(s.cktServed))
 		case ckt := <-s.cktServedDel:
 			delete(s.cktServed, ckt)
-			vv("cktServedAdd deleted ckt from '%v'. len now = %v", ckt.RpbTo.NetAddr, len(s.cktServed))
+			//vv("cktServedAdd deleted ckt from '%v'. len now = %v", ckt.RpbTo.NetAddr, len(s.cktServed))
 
 		case msg := <-s.SendCh:
 			//vv("srv %v (%v) sendLoop got from s.SendCh=%p, sending msg.HDR = '%v'", s.Server.name, s.from, s.SendCh, msg.HDR.String())
@@ -628,7 +628,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 				// pretty frequent due to utilities connecting for
 				// a moment. so for now we will quit this disconnect
 				// report.
-				alwaysPrintf("server sees io.EOF from receiveMessage on conn '%v' -> '%v'", local(conn), remote(conn))
+				//alwaysPrintf("server sees io.EOF from receiveMessage on conn '%v' -> '%v'", local(conn), remote(conn))
 			}
 			// close of socket before read of full message.
 			// shutdown this connection or we'll just

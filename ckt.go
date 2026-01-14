@@ -1936,7 +1936,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 	}
 	select {
 	case sendCh.cktServedAdd <- ckt:
-		vv("provideRemoteOnNewCircuitCh: sent ckt on LoopComm.cktServedAdd")
+		//vv("provideRemoteOnNewCircuitCh: sent ckt on LoopComm.cktServedAdd")
 	case <-ckt.Halt.ReqStop.Chan:
 	case <-ctx2.Done():
 	}
