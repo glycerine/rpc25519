@@ -236,8 +236,9 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 	// especially in Vers.CzarLeaseUntilTm (!)
 	mePlus, ok := s.members.PeerNames.Get2(s.TubeCliName)
 	if !ok {
-		// try to fix instead of panic-ing.
-		//panicf("must have self as czar in members! s.TubeCliName='%v' not found in s.members = '%v'", s.TubeCliName, s.members)
+		// try to fix instead of panic-ing... after checking, it looks
+		// like maybe s.members is stuck?!?
+		panicf("must have self as czar in members! s.TubeCliName='%v' not found in s.members = '%v'", s.TubeCliName, s.members)
 
 		// maybe something like this:
 		mePlus = getMyPeerDetailPlus(s.node)
@@ -721,7 +722,7 @@ fullRestart:
 
 			case amCzar:
 				cs := cli.Srv.ListClients()
-				vv("%v: I am czar with memberCount() = %v;  cli.Srv.ListClients() len %v", tubeCliName, czar.memberCount(), len(cs))
+				vv("%v: I am czar with memberCount() = %v (from s.members.PeerNames.Len());  cli.Srv.ListClients() len %v", tubeCliName, czar.memberCount(), len(cs))
 				for i, c := range cs {
 					fmt.Printf("[%03d] %v\n", i, c)
 				}
