@@ -672,6 +672,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 	tkt.LeaseEpoch = leaf.LeaseEpoch
 	tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 	tkt.VersionRead = leaf.Version
+	tkt.LeaseAutoDel = leaf.AutoDelete
 
 	//vv("%v reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, tkt.Leasor, s.KVstore.Len())
 }
