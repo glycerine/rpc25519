@@ -2528,6 +2528,7 @@ type TubeNode struct {
 	batchSubmitTm   time.Time
 	batchInProgress bool
 	batchToSubmit   []*Ticket
+	batchByteSize   int
 
 	// update in handle AE when leader
 	// changes, try to detect flapping
@@ -5434,11 +5435,16 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	}
 
 	if !isNoop0 {
+		sz := tkt.Msgsize()
 		now := time.Now()
 		s.batchToSubmit = append(s.batchToSubmit, tkt)
 
 		if s.batchInProgress {
+			s.batchByteSize += sz
 			submit := false
+			if s.batchByteSize > rpc.UserMaxPayload/4 {
+				submit = true
+			}
 			if lte(s.batchSubmitTm, now) {
 				submit = true
 			}
@@ -5459,6 +5465,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		}
 		// start of new batch
 		s.batchInProgress = true
+		s.batchByteSize = sz
 		s.batchStartedTm = now
 		s.batchSubmitTm = now.Add(s.cfg.BatchAccumateDur)
 		s.batchSubmitTimeCh = time.After(s.cfg.BatchAccumateDur)
@@ -5632,6 +5639,7 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 	s.batchToSubmit = nil
 	s.batchSubmitTimeCh = nil
 	s.batchInProgress = false
+	s.batchByteSize = 0
 	if len(batch) == 0 {
 		return
 	}
@@ -8804,6 +8812,13 @@ func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerService
 	aeFrag := s.newFrag()
 	bts, err := ae.MarshalMsg(nil)
 	panicOn(err)
+	if len(bts) > rpc.UserMaxPayload/2 {
+		alwaysPrintf("yikes-ola! very large serialized AE: %v > %v", len(bts), rpc.UserMaxPayload/2)
+		alwaysPrintf("analysis %v entries in AE: %v\n", len(sendThese))
+		for i, e := range sendThese {
+			alwaysPrintf("===== footprint of entry [%02d]:\n %v\n", i, e.Ticket.Footprint())
+		}
+	}
 	aeFrag.Payload = bts
 	aeFrag.FragOp = AppendEntriesMsg
 	aeFrag.FragSubject = "AppendEntries"

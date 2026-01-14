@@ -1,0 +1,65 @@
+package tube
+
+import (
+	"fmt"
+
+	"github.com/glycerine/greenpack/msgp"
+)
+
+// print how much size each big field in Ticket / Inspection takes.
+
+func (z *Ticket) Footprint() (r string) {
+	r = "&Ticket{\n"
+	r += fmt.Sprintf("                         Key: %v,\n", z.Key.Msgsize())
+	r += fmt.Sprintf("                         Val: %v,\n", z.Val.Msgsize())
+	r += fmt.Sprintf("                      OldVal: %v,\n", z.OldVal.Msgsize())
+	r += fmt.Sprintf("                       Stage: \"%v\",\n\n", msgp.GuessSize(z.Stage))
+	r += fmt.Sprintf("                --- begin Insp ---\n%v\n", z.Insp.Footprint())
+	r += fmt.Sprintf("                ---  end Insp ---\n\n")
+	r += fmt.Sprintf("                          MC: %v,\n", z.MC.Msgsize())
+	r += fmt.Sprintf("                  NewSessReq: %v,\n", z.NewSessReq.Msgsize())
+	r += fmt.Sprintf("                NewSessReply: %v,\n", z.NewSessReply.Msgsize())
+	r += fmt.Sprintf("               StateSnapshot: %v,\n", z.StateSnapshot.Msgsize())
+	r += fmt.Sprintf("             KeyValRangeScan: %v,\n", z.KeyValRangeScan.Msgsize())
+	sz := 0
+	for _, b := range z.Batch {
+		sz += b.Msgsize()
+	}
+	r += fmt.Sprintf("                       Batch: %v,\n", sz)
+	r += "  --- batch breakdown ---\n"
+	for _, b := range z.Batch {
+		r += b.Footprint()
+	}
+	r += "  --- end batch breakdown ---\n\n}\n"
+	return
+}
+
+func (z *Inspection) Footprint() (r string) {
+	r = "&Inspection{\n"
+	r += fmt.Sprintf("                  CktReplica: %v,\n", msgp.GuessSize(z.CktReplica))
+	r += fmt.Sprintf("            CktReplicaByName: %v,\n", msgp.GuessSize(z.CktReplicaByName))
+	r += fmt.Sprintf("                      CktAll: %v,\n", msgp.GuessSize(z.CktAll))
+	r += fmt.Sprintf("                CktAllByName: %v,\n", msgp.GuessSize(z.CktAllByName))
+	sz := 0
+	for nm, info := range z.Peers {
+		sz += msgp.GuessSize(nm) + info.Msgsize()
+	}
+	r += fmt.Sprintf("                       Peers: %v,\n", sz)
+	sz = 0
+	for id, tkt := range z.WaitingAtLeader {
+		sz += msgp.GuessSize(id) + tkt.Msgsize()
+	}
+	r += fmt.Sprintf("             WaitingAtLeader: %v,\n", sz)
+	sz = 0
+	for id, tkt := range z.WaitingAtFollow {
+		sz += msgp.GuessSize(id) + tkt.Msgsize()
+	}
+	r += fmt.Sprintf("             WaitingAtFollow: %v,\n", sz)
+	r += fmt.Sprintf("                       State: %v,\n", z.State.Msgsize())
+	r += fmt.Sprintf("                         Cfg: %v,\n", z.Cfg.Msgsize())
+	r += fmt.Sprintf("                          MC: %v,\n", z.MC.Msgsize())
+	r += fmt.Sprintf("              ShadowReplicas: %v,\n", z.ShadowReplicas.Msgsize())
+	r += fmt.Sprintf("                       Known: %v,\n", msgp.GuessSize(z.Known))
+	r += "}\n"
+	return
+}
