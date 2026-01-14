@@ -86,6 +86,25 @@ type Circuit struct {
 	loopy *LoopComm
 }
 
+//msgp:ignore LoopComm
+
+// LoopComm is a handle to the underlying stream (TCP/QUIC)
+// communication loops in rpc25519. It helps the system to tell
+// the user of a Circuit when they can safely garbage collect
+// their own Circuit monitoring goroutines by closing
+// the Circuit.Halt.ReqStop.Chan when the TCP/QUIC stream
+// socket goes down.
+//
+// Thus far LoopComm can remain opaque to the user, who
+// just monitors the returned Circuit.Halt.ReqStop for
+// the events that LoopComm facilitates under the API.
+type LoopComm struct {
+	sendCh chan *Message // talks to a send loop (on Client or a rwPair on Server)
+
+	cktServedAdd chan *Circuit // talks to a read loop
+	cktServedDel chan *Circuit // talks to a read loop
+}
+
 func (ckt *Circuit) String() string {
 	return fmt.Sprintf(`&Circuit{
      CircuitSN: %v,
@@ -2029,7 +2048,7 @@ func (s *peerAPI) replyHelper(isCli bool, msg *Message, ctx context.Context, sen
 	msg.DoneCh = nil // no need now, save allocation. loquet.NewChan(msg)
 
 	select {
-	case sendCh.SendCh <- msg:
+	case sendCh.sendCh <- msg:
 	case <-ctx.Done():
 		return nil // ErrShutdown() but that would shut down whole client.
 	case <-s.u.GetHostHalter().ReqStop.Chan:
@@ -2095,7 +2114,7 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 	msg.HDR.FromPeerID = localPeerID
 
 	select {
-	case sendCh.SendCh <- msg:
+	case sendCh.sendCh <- msg:
 	case <-ctx.Done():
 		return ErrShutdown()
 	}

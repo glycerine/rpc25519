@@ -1849,7 +1849,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		cktServed:    make(map[*Circuit]bool),
 	}
 	c.loopy = &LoopComm{
-		SendCh:       c.oneWayCh,
+		sendCh:       c.oneWayCh,
 		cktServedAdd: c.cktServedAdd,
 		cktServedDel: c.cktServedDel,
 	}

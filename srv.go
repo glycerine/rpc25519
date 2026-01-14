@@ -567,13 +567,6 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	}
 }
 
-type LoopComm struct {
-	SendCh chan *Message // talks to a send loop (on Client or a rwPair on Server)
-
-	cktServedAdd chan *Circuit // talks to a read loop
-	cktServedDel chan *Circuit // talks to a read loop
-}
-
 func (s *rwPair) runReadLoop(conn net.Conn) {
 	if s.cfg.UseSimNet {
 		s.Server.simnode.newGoro("rwPair.runReadLoop")
@@ -1879,7 +1872,7 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		cktServed:    make(map[*Circuit]bool),
 	}
 	p.loopy = &LoopComm{
-		SendCh:       p.SendCh,
+		sendCh:       p.SendCh,
 		cktServedAdd: p.cktServedAdd,
 		cktServedDel: p.cktServedDel,
 	}
@@ -2300,7 +2293,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		//vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call.", destAddr)
 		return ErrNetConnectionNotFound, nil
 	}
-	if sendCh == nil || sendCh.SendCh == nil {
+	if sendCh == nil || sendCh.sendCh == nil {
 		panic("cannot have sendCh == nil here")
 	}
 	if to != destAddr {
@@ -2339,7 +2332,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		//defer timeout.Discard()
 
 		select {
-		case sendCh.SendCh <- msg:
+		case sendCh.sendCh <- msg:
 			return nil, nil
 		case <-haltCh:
 			//vv("errWriteDur == -2: shutting down on haltCh = %p", haltCh)
@@ -2363,7 +2356,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		// both could account for not cleaning up client sockets
 		// promptly and thus getting wedged trying to send on them.
 		select {
-		case sendCh.SendCh <- msg:
+		case sendCh.sendCh <- msg:
 			//vv("sendOneWayMessage did send on sendCh = %p", sendCh.SendCh)
 		case <-haltCh:
 			//vv("shutting down on haltCh = %p", haltCh)
