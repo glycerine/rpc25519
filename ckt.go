@@ -1211,18 +1211,22 @@ func (lpb *LocalPeer) newCircuit(
 		madeNewAutoCli, ckt.loopy, err = lpb.U.SendOneWayMessage(ctx2, msg, -1)
 		ckt.MadeNewAutoCli = madeNewAutoCli
 	}
-	if err != nil && ckt != nil {
+	if err == nil && ckt != nil {
+		if ckt.loopy == nil {
+			lpb.setLoopy(ckt)
+		}
 		if ckt.loopy != nil {
 			select {
 			case ckt.loopy.cktServedAdd <- ckt:
 				// this communication finally stopped the
 				// leak of server side circuit support goro.
-				//vv("in lbp.newCircuit: ckt.loopy available and ckt.loopy.cktServedAdd <- ckt ok.")
+				vv("in lbp.newCircuit: ckt.loopy available and ckt.loopy.cktServedAdd <- ckt ok.")
 			case <-lpb.Halt.ReqStop.Chan:
 			}
 		} else {
 			// INVAR: ckt.loopy == nil
-			// assert that our development set ckt.loopy if it could
+
+			// assert that we set ckt.loopy if we could
 			if ckt.RpbTo != nil && ckt.RpbTo.NetAddr != "" {
 				// seen, we did get here. so do this fix.
 				// Arg, I see the problem: how to get access to remote2pair???
