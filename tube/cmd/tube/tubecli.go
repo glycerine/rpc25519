@@ -83,6 +83,7 @@ func (c *ConfigTubeCli) SetDefaults() {}
 func main() {
 	showBinaryVersion("tube")
 	fmt.Printf("pid = %v\n", os.Getpid())
+	fmt.Printf("started at %v\n", nice(time.Now()))
 
 	startOnlineWebProfiling()
 
