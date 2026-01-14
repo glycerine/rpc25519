@@ -637,14 +637,19 @@ fullRestart:
 				list := czar.members.Clone()
 				czar.mut.Unlock()
 
+				// I think this is borked and giving us split brain:
+
 				// start with the highest version list we can find.
 				if nonCzarMembers != nil && nonCzarMembers.Vers.VersionGT(&list.Vers) {
+					vv("nonCzarMembers.Vers(%#v) sz=%v; was > list.Vers(%#v) sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
 					list = nonCzarMembers.Clone()
 
 					// the lease czar key Vers version is garbage and
 					// always overwritten
 					// anyway with the LeaseEpoch -- used to create a new version,
 					// so there is no need to bother to update it in the raft log.
+				} else {
+					vv("nonCzarMembers.Vers(%#v) nonCzarMembers.sz=%v; was <= list.Vers(%#v) list.sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
 				}
 
 				// if we win the write race, we are the czar.
@@ -1112,6 +1117,11 @@ func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {
 	}
 	for name, det := range s.PeerNames.All() {
 		r.PeerNames.Set(name, det.Clone())
+	}
+	ns := s.PeerNames.Len()
+	nr := r.PeerNames.Len()
+	if nr != ns {
+		panicf("nr = %v but ns = %v", nr, ns)
 	}
 	return
 }
