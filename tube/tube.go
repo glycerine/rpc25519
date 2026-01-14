@@ -8772,6 +8772,20 @@ func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerService
 		sendThese = sendThese[:numLimit]
 	}
 
+	// try not to send a 12MB message with a huge 4900 entry catchup
+	if len(sendThese) > 1 {
+		lim := rpc.UserMaxPayload / 4
+		sz := 0
+		for i, e := range sendThese {
+			sz += e.Msgsize()
+			if sz >= lim {
+				vv("limiting batch of sent AE to %v entries (%v bytes)", i+1, sz)
+				sendThese = sendThese[:(i + 1)]
+				break
+			}
+		}
+	}
+
 	if beginIndex > 1 && beginIndex <= n {
 
 		prevLog, err := s.wal.GetEntry(beginIndex - 1)
@@ -8814,7 +8828,7 @@ func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerService
 	panicOn(err)
 	if len(bts) > rpc.UserMaxPayload/2 {
 		alwaysPrintf("yikes-ola! very large serialized AE: %v > %v", len(bts), rpc.UserMaxPayload/2)
-		alwaysPrintf("analysis %v entries in AE: %v\n", len(sendThese))
+		alwaysPrintf("analysis of %v entries in AE:\n", len(sendThese)) // 4900 ??? but implies 13027005 / 4900 = 2658.572 mean bytes per raft log entry.
 		for i, e := range sendThese {
 			alwaysPrintf("===== footprint of entry [%02d]:\n %v\n", i, e.Ticket.Footprint())
 		}
@@ -9122,7 +9136,7 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 		if leaderLastLogIndex > foll.LargestCommonRaftIndex {
 			// send them
 			//vv("%v leaderLastLogIndex(%v) > foll.LargestCommonRaftIndex(%v), sending additional AE to '%v'", s.me(), leaderLastLogIndex, foll.LargestCommonRaftIndex, foll.PeerName)
-			s.sendAppendEntriesTo(foll.PeerID, foll.PeerName, foll.PeerServiceName, foll.PeerServiceNameVersion, foll.LargestCommonRaftIndex+1, 0, ack)
+			s.sendAppendEntriesTo(foll.PeerID, foll.PeerName, foll.PeerServiceName, foll.PeerServiceNameVersion, foll.LargestCommonRaftIndex+1, 0, ack) // big 4900 entries send 12MB came from here.
 			return
 		}
 	} // end if !rejected
