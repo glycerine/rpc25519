@@ -11859,7 +11859,7 @@ func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, forceCha
 	if errWriteDur > 0 {
 		timeout = time.After(errWriteDur)
 	}
-	select { // 402 hung with full grid. prod hung too. tuberm too.
+	select { // 402 hung with full grid. prod hung too. tuberm too. tubeadd too.
 	case <-tkt.Done.Chan:
 		//vv("%v update membership tkt.DoneChan closed; tkt.LogIndex=%v; Desc='%v'; tkt.Err = '%v'", s.me(), tkt.LogIndex, tkt.Desc, tkt.Err) // racy, leave off mostly.
 		if tkt.Err != nil {

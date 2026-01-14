@@ -231,7 +231,9 @@ if it comes to that.
 	//errWriteDur := time.Second * 20
 	peerServiceName := tube.TUBE_REPLICA
 	baseServerHostPort := ""
-	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx, force, cmdCfg.NonVotingShadowFollower, target, targetPeerID, peerServiceName, baseServerHostPort, leaderURL, errWriteDur)
+	ctx5, canc = context.WithTimeout(ctx, time.Second*5)
+	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx5, force, cmdCfg.NonVotingShadowFollower, target, targetPeerID, peerServiceName, baseServerHostPort, leaderURL, errWriteDur)
+	canc()
 	panicOn(err)
 
 	pp("good: no error on AddPeerIDToCluster('%v'); shadow/nonVoting='%v'; contacting leader '%v'", target, cmdCfg.NonVotingShadowFollower, leaderURL)
