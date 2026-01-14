@@ -217,8 +217,17 @@ if it comes to that.
 		fmt.Printf("tubeadd contacted:\n")
 		for _, insp := range contacted {
 			fmt.Printf(`%v %v  (lead: '%v')
+   LastLog:{Term: '%v'; Index: '%v'; LeaderName: '%v'; TicketOp: %v}
+   LogIndexBaseC: %v
    MC: %v   ShadowReplicas: %v   URL: %v
 `, insp.ResponderName, insp.Role, insp.CurrentLeaderName,
+
+				insp.LastLogTerm,
+				insp.LastLogIndex,
+				insp.LastLogLeaderName,
+				insp.LastLogTicketOp,
+				insp.LogIndexBaseC,
+
 				insp.MC,
 				insp.ShadowReplicas,
 				insp.ResponderPeerURL)
