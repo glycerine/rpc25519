@@ -76,19 +76,49 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 
 	ckt, ackMsg, madeNewAutoCli, onlyPossibleAddr, err = p.implRemotePeerAndGetCircuit(lpb.Ctx, lpb, circuitName, frag, remotePeerServiceName, remotePeerServiceNameVersion, remoteAddr, errWriteDur, waitForAck, preferExtant)
 
-	if err == nil && ckt != nil && autoSendNewCircuitCh != nil {
-		// automatically send along the new ckt
-		select {
-		case autoSendNewCircuitCh <- ckt:
-			//vv("peerAPI.StartRemotePeerAndGetCircuit sent new ckt to '%v' on autoSendNewCircuitCh = %p", ckt.RemotePeerName, autoSendNewCircuitCh)
-		case <-ckt.Halt.ReqStop.Chan:
-		case <-ckt.Context.Done():
-		case <-lpb.Ctx.Done():
-		case <-p.u.GetHostHalter().ReqStop.Chan:
+	if err == nil && ckt != nil {
+		if ckt.loopy != nil {
+			select {
+			case ckt.loopy.cktServedAdd <- ckt:
+				//vv("peerAPI.StartRemotePeerAndGetCircuit sent cktServedAdd <- ckt")
+			case <-ckt.Halt.ReqStop.Chan:
+			case <-ckt.Context.Done():
+			case <-lpb.Ctx.Done():
+			case <-p.u.GetHostHalter().ReqStop.Chan:
+			}
+		}
+		if autoSendNewCircuitCh != nil {
+			// automatically send along the new ckt
+			select {
+			case autoSendNewCircuitCh <- ckt:
+				//vv("peerAPI.StartRemotePeerAndGetCircuit sent new ckt to '%v' on autoSendNewCircuitCh = %p", ckt.RemotePeerName, autoSendNewCircuitCh)
+			case <-ckt.Halt.ReqStop.Chan:
+			case <-ckt.Context.Done():
+			case <-lpb.Ctx.Done():
+			case <-p.u.GetHostHalter().ReqStop.Chan:
+			}
 		}
 	}
-
 	return
+}
+
+// if we need it and can now, set ckt.loopy
+func (lpb *LocalPeer) setLoopy(ckt *Circuit) {
+	if ckt.loopy != nil {
+		return
+	}
+	if lpb.PeerAPI.isCli && lpb.PeerAPI.cliLoopy != nil {
+		ckt.loopy = lpb.PeerAPI.cliLoopy
+		return
+	}
+	if lpb.PeerAPI.remote2pair == nil {
+		panicf("need ckt.loopy set here! how do we do ckt.loopy, _ = s.remote2pair.Get(ckt.RpbTo.NetAddr='%v') from here?? ", ckt.RpbTo.NetAddr)
+	}
+	pair, ok := lpb.PeerAPI.remote2pair.Get(ckt.RpbTo.NetAddr)
+	if !ok {
+		panicf("need ckt.loopy set here! remote2pair did NOT have ckt.RpbTo.NetAddr='%v'. how do we do it?", ckt.RpbTo.NetAddr)
+	}
+	ckt.loopy = pair.loopy
 }
 
 func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remotePeerServiceNameVersion, remoteAddr string, errWriteDur time.Duration, waitForAck bool, preferExtant bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err0 error) {
@@ -96,6 +126,8 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, nil, false, "", ErrHaltRequested
 	}
+
+	//vv("top implRemotePeerAndGetCircuit()")
 
 	// this next looks to be the line that causes the jsync tests
 	// to hang? yep! don't do this! somehow
@@ -300,6 +332,9 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 					lpb.Remotes.Del(pleaseAssignNewRemotePeerID)
 				}
 				lpb.Remotes.Set(rpb.PeerID, rpb)
+
+				// try hard to get ckt.loopy set.
+				lpb.setLoopy(ckt)
 			}
 		case <-ckt.Context.Done():
 			return nil, nil, madeNewAutoCli, "", ErrContextCancelled

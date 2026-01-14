@@ -1315,10 +1315,18 @@ type peerAPI struct {
 
 	baseServerName string
 	baseServerAddr string
+
+	// points to the same on Server
+	remote2pair *Mutexmap[string, *rwPair]
+
+	// no need for remote2pair on clients, they are 1-1,
+	// so always have the same single remote address;
+	// we can just set ckt.loopy directly from cliLoopy
+	cliLoopy *LoopComm
 }
 
-func newPeerAPI(u UniversalCliSrv, isCli, isSim bool, baseServerName, baseServerAddr string) *peerAPI {
-	return &peerAPI{
+func newPeerAPI(u UniversalCliSrv, isCli, isSim bool, baseServerName, baseServerAddr string) (a *peerAPI) {
+	a = &peerAPI{
 		u:                   u,
 		localServiceNameMap: NewMutexmap[string, *knownLocalPeer](),
 		isCli:               isCli,
@@ -1326,6 +1334,21 @@ func newPeerAPI(u UniversalCliSrv, isCli, isSim bool, baseServerName, baseServer
 		baseServerName:      baseServerName,
 		baseServerAddr:      baseServerAddr,
 	}
+	switch x := u.(type) {
+	case *Server:
+		if isCli {
+			panic("why is isCli true?")
+		}
+		a.remote2pair = x.remote2pair
+		//vv("peerAPI initialized remote2pair from Server")
+	case *Client:
+		if !isCli {
+			panic("why is isCli false?")
+		}
+		a.cliLoopy = x.loopy
+		//vv("peerAPI initialized cliLoopy from Client")
+	}
+	return
 }
 
 func (s *peerAPI) newFragment() (f *Fragment) {

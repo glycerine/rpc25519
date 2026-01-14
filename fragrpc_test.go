@@ -75,7 +75,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		panicOn(err)
 		_ = ctx
 
-		//vv("ckt = '%v'", ckt)
+		//vv("ckt = '%v'", ckt) // seen
 
 		if ckt.RemotePeerID == "" {
 			//vv("ckt='%v'", ckt)
