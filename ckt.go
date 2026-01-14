@@ -1192,6 +1192,12 @@ func (lpb *LocalPeer) newCircuit(
 		madeNewAutoCli, ckt.loopy, err = lpb.U.SendOneWayMessage(ctx2, msg, -1)
 		ckt.MadeNewAutoCli = madeNewAutoCli
 	}
+	if ckt.loopy != nil {
+		select {
+		case ckt.loopy.cktServedAdd <- ckt:
+		case <-lpb.Halt.ReqStop.Chan:
+		}
+	}
 
 	return
 }
@@ -1908,7 +1914,6 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 	if err != nil {
 		return err
 	}
-	ckt.loopy = sendCh
 
 	if msg.HDR.Args != nil {
 		ckt.UserString = msg.HDR.Args["#UserString"]
