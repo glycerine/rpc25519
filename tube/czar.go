@@ -76,6 +76,8 @@ type Czar struct {
 	memberHeartBeatDur time.Duration
 	memberLeaseDur     time.Duration // used to be called declaredDeadDur
 	clockDriftBound    time.Duration
+
+	node *TubeNode
 }
 
 func (s *Czar) setVers(v RMVersionTuple, list *ReliableMembershipList, t0 time.Time) error {
@@ -234,8 +236,16 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 	// especially in Vers.CzarLeaseUntilTm (!)
 	mePlus, ok := s.members.PeerNames.Get2(s.TubeCliName)
 	if !ok {
-		panicf("must have self as czar in members!")
+		// try to fix instead of panic-ing.
+		//panicf("must have self as czar in members! s.TubeCliName='%v' not found in s.members = '%v'", s.TubeCliName, s.members)
+
+		// maybe something like this:
+		mePlus = getMyPeerDetailPlus(s.node)
+		//myDetailBytes, err = mePlus.MarshalMsg(nil)
+		//panicOn(err)
+		s.members.PeerNames.Set(s.TubeCliName, mePlus)
 	}
+
 	mePlus.RMemberLeaseUntilTm = leasedUntilTm
 	mePlus.RMemberLeaseDur = s.memberLeaseDur
 
@@ -321,6 +331,7 @@ func NewCzar(cli *TubeNode, hbDur, clockDriftBound time.Duration) *Czar {
 		memberHeartBeatDur:       hbDur,
 		UpcallMembershipChangeCh: make(chan *ReliableMembershipList, 1000),
 		clockDriftBound:          clockDriftBound,
+		node:                     cli,
 	}
 }
 
@@ -558,9 +569,7 @@ fullRestart:
 		// membr.UpcallMembershipChangeCh now.
 		membr.Ready.Close()
 
-		myDetail := &PeerDetailPlus{
-			Det: cli.GetMyPeerDetail(),
-		}
+		myDetail := getMyPeerDetailPlus(cli)
 		myDetailBytes, err := myDetail.MarshalMsg(nil)
 		panicOn(err)
 
@@ -759,9 +768,7 @@ fullRestart:
 					// if we update, are we going to lose the Plus part leases?
 					// naw, I think that does not apply to the czar,
 					// who gives out leases and only itself lease from the Tube/Raft cluster.
-					myDetail = &PeerDetailPlus{
-						Det: cli.GetMyPeerDetail(),
-					}
+					myDetail := getMyPeerDetailPlus(cli)
 					myDetailBytes, err = myDetail.MarshalMsg(nil)
 					panicOn(err)
 
@@ -1233,6 +1240,13 @@ func StringFromVtype(val Val, vtyp string) string {
 	}
 
 	return string(val)
+}
+
+func getMyPeerDetailPlus(cli *TubeNode) (myDetail *PeerDetailPlus) {
+	myDetail = &PeerDetailPlus{
+		Det: cli.GetMyPeerDetail(),
+	}
+	return
 }
 
 /*
