@@ -1195,7 +1195,8 @@ func (lpb *LocalPeer) newCircuit(
 	if err != nil && ckt != nil && ckt.loopy != nil {
 		select {
 		case ckt.loopy.cktServedAdd <- ckt:
-			vv("in lbp.newCircuit: ckt.loopy available and ckt.loopy.cktServedAdd <- ckt ok.")
+			// this addition finally stopped the leak of server side circuit support goro.
+			//vv("in lbp.newCircuit: ckt.loopy available and ckt.loopy.cktServedAdd <- ckt ok.")
 		case <-lpb.Halt.ReqStop.Chan:
 		}
 	}
