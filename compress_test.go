@@ -22,7 +22,9 @@ func Test030_compress_inverses(t *testing.T) {
 	bytesMsg := append([]byte{}, orig...)
 
 	//for _, magic7 := range []byte{1} {
-	for _, magic7 := range []magic7b{0, 1, 2, 3, 4, 5, 6} {
+	// we turned off zstd/lz4 b/c of big behinds the scenes memory allocations.
+	//for _, magic7 := range []magic7b{0, 1, 2, 3, 4, 5, 6} {
+	for _, magic7 := range []magic7b{0, 1} {
 
 		nm, err := decodeMagic7(magic7)
 		_ = nm

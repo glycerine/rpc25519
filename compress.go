@@ -66,25 +66,28 @@ func (d *wrapZstdDecoder) Reset(r io.Reader) {
 // and chacha.go (encrypted) {send/read}Message.
 type decomp struct {
 	maxMsgSize int
-	de_lz4     *lz4.Reader
 	de_s2      *s2.Reader
-	de_zstd    *wrapZstdDecoder // *zstd.Decoder
+
+	// try turning these off since I think the zstd is allocating 18GB (for 200 members) and zstd is unused
+	//de_lz4  *lz4.Reader
+	//de_zstd *wrapZstdDecoder // *zstd.Decoder
 
 	decompSlice []byte
 }
 
 func newDecomp(maxMsgSize int) (d *decomp) {
 
-	var wrap wrapZstdDecoder
-	zread, err := zstd.NewReader(nil)
-	panicOn(err)
-	wrap.Decoder = zread
+	// try turning zstd off since I think the zstd is allocating 18GB (for 200 members) and zstd is unused
+	//var wrap wrapZstdDecoder
+	//zread, err := zstd.NewReader(nil)
+	//panicOn(err)
+	//wrap.Decoder = zread
 
 	d = &decomp{
-		maxMsgSize:  maxMsgSize,
-		de_lz4:      lz4.NewReader(nil),
-		de_s2:       s2.NewReader(nil),
-		de_zstd:     &wrap, // *wrapZstdDecoder, not *zstd.Decoder
+		maxMsgSize: maxMsgSize,
+		//de_lz4:      lz4.NewReader(nil),
+		de_s2: s2.NewReader(nil),
+		//de_zstd:     &wrap, // *wrapZstdDecoder, not *zstd.Decoder
 		decompSlice: make([]byte, maxMsgSize+80),
 	}
 	return d
@@ -95,14 +98,16 @@ func newDecomp(maxMsgSize int) (d *decomp) {
 // after decryption).
 type pressor struct {
 	maxMsgSize int
-	com_lz4    *lz4.Writer
 	com_s2     *s2.Writer
 
+	// try turning zstd/lz4 off since I think the zstd is allocating 18GB (for 200 members) and zstd is unused
+	//com_lz4 *lz4.Writer
+
 	// support any of these 4 Zstandard levels
-	com_zstd11 *zstd.Encoder
-	com_zstd07 *zstd.Encoder
-	com_zstd03 *zstd.Encoder
-	com_zstd01 *zstd.Encoder
+	//com_zstd11 *zstd.Encoder
+	//com_zstd07 *zstd.Encoder
+	//com_zstd03 *zstd.Encoder
+	//com_zstd01 *zstd.Encoder
 
 	// big buffer to write into
 	compSlice []byte
@@ -110,46 +115,47 @@ type pressor struct {
 
 func newPressor(maxMsgSize int) (p *pressor) {
 
-	com_lz4 := lz4.NewWriter(nil)
+	// com_lz4 := lz4.NewWriter(nil)
 
-	options := []lz4.Option{
-		lz4.BlockChecksumOption(true),
-		lz4.CompressionLevelOption(lz4.Fast),
-		// setting the concurrency option seems to make it hang.
-		//lz4.ConcurrencyOption(-1),
-	}
-	if err := com_lz4.Apply(options...); err != nil {
-		panic(fmt.Sprintf("error could not apply lz4 options: '%v'", err))
-	}
+	// options := []lz4.Option{
+	// 	lz4.BlockChecksumOption(true),
+	// 	lz4.CompressionLevelOption(lz4.Fast),
+	// 	// setting the concurrency option seems to make it hang.
+	// 	//lz4.ConcurrencyOption(-1),
+	// }
+	// if err := com_lz4.Apply(options...); err != nil {
+	// 	panic(fmt.Sprintf("error could not apply lz4 options: '%v'", err))
+	// }
 
 	p = &pressor{
 		maxMsgSize: maxMsgSize,
-		com_lz4:    com_lz4,
-		com_s2:     s2.NewWriter(nil),
-		compSlice:  make([]byte, maxMsgSize+80),
+		//com_lz4:    com_lz4,
+		com_s2:    s2.NewWriter(nil),
+		compSlice: make([]byte, maxMsgSize+80),
 	}
 
-	var err error
-	// The "Best"    is roughly equivalent to zstd level 11.
-	p.com_zstd11, err = zstd.NewWriter(io.Discard,
-		zstd.WithEncoderLevel(zstd.SpeedBestCompression))
-	panicOn(err)
+	/*
+		var err error
+		// The "Best"    is roughly equivalent to zstd level 11.
+		p.com_zstd11, err = zstd.NewWriter(io.Discard,
+			zstd.WithEncoderLevel(zstd.SpeedBestCompression))
+		panicOn(err)
 
-	// The "Better"  is roughly equivalent to zstd level 7.
-	p.com_zstd07, err = zstd.NewWriter(io.Discard,
-		zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
-	panicOn(err)
+		// The "Better"  is roughly equivalent to zstd level 7.
+		p.com_zstd07, err = zstd.NewWriter(io.Discard,
+			zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+		panicOn(err)
 
-	// The "Default" is roughly equivalent to zstd level 3 (default).
-	p.com_zstd03, err = zstd.NewWriter(io.Discard,
-		zstd.WithEncoderLevel(zstd.SpeedDefault))
-	panicOn(err)
+		// The "Default" is roughly equivalent to zstd level 3 (default).
+		p.com_zstd03, err = zstd.NewWriter(io.Discard,
+			zstd.WithEncoderLevel(zstd.SpeedDefault))
+		panicOn(err)
 
-	// The "Fastest" is roughly equivalent to zstd level 1.
-	p.com_zstd01, err = zstd.NewWriter(io.Discard,
-		zstd.WithEncoderLevel(zstd.SpeedFastest))
-	panicOn(err)
-
+		// The "Fastest" is roughly equivalent to zstd level 1.
+		p.com_zstd01, err = zstd.NewWriter(io.Discard,
+			zstd.WithEncoderLevel(zstd.SpeedFastest))
+		panicOn(err)
+	*/
 	return p
 }
 
@@ -167,27 +173,29 @@ func (p *pressor) handleCompress(magic7 magic7b, bytesMsg []byte) ([]byte, error
 	case 1:
 		c = p.com_s2
 		//return "s2", nil
-	case 2:
-		c = p.com_lz4
-		//return "lz4", nil
-	case 3:
-		c = p.com_zstd11
-		//return "bzst:11", nil
-	case 4:
-		c = p.com_zstd07
-		//return "bzst:07", nil
-	case 5:
-		c = p.com_zstd03
-		//return "bzst:03", nil
-	case 6:
-		c = p.com_zstd01
-		//return "bzst:01", nil
+
+	// case 2:
+	// 	c = p.com_lz4
+	// 	//return "lz4", nil
+	// case 3:
+	// 	c = p.com_zstd11
+	// 	//return "bzst:11", nil
+	// case 4:
+	// 	c = p.com_zstd07
+	// 	//return "bzst:07", nil
+	// case 5:
+	// 	c = p.com_zstd03
+	// 	//return "bzst:03", nil
+	// case 6:
+	// 	c = p.com_zstd01
+	// 	//return "bzst:01", nil
+
 	case magic7b_no_system_compression:
 		// no compression
 		return bytesMsg, nil
 
 	default:
-		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
+		panic(fmt.Sprintf("unknown magic7 '%v'", byte(magic7)))
 	}
 
 	//vv("handleCompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
@@ -228,21 +236,21 @@ func (decomp *decomp) handleDecompress(magic7 magic7b, message []byte) ([]byte, 
 	case 1:
 		d = decomp.de_s2
 		//return "s2", nil
-	case 2:
-		d = decomp.de_lz4
-		//return "lz4", nil
-	case 3, 4, 5, 6:
-		d = decomp.de_zstd
-		//return "bzst:11", nil
-		//return "bzst:07", nil
-		//return "bzst:03", nil
-		//return "bzst:01", nil
+	// case 2:
+	// 	d = decomp.de_lz4
+	// 	//return "lz4", nil
+	// case 3, 4, 5, 6:
+	// 	d = decomp.de_zstd
+	// 	//return "bzst:11", nil
+	// 	//return "bzst:07", nil
+	// 	//return "bzst:03", nil
+	// 	//return "bzst:01", nil
 	case magic7b_no_system_compression:
 		// no compression
 		return message, nil
 
 	default:
-		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
+		panic(fmt.Sprintf("unknown magic7 '%v'", byte(magic7)))
 	}
 
 	//vv("handleDecompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
