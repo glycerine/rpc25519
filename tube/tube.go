@@ -2022,7 +2022,7 @@ func (s *TubeNode) handleNewCircuit(
 				}
 
 			case <-ckt.Halt.ReqStop.Chan:
-				//zz("%v: (ckt '%v') ckt halt requested.", s.name, ckt.Name)
+				vv("%v: (ckt '%v') ckt halt requested (RemotePeerName: '%v').", s.name, ckt.Name, ckt.RemotePeerName)
 				select {
 				case cktHasDied <- ckt:
 				case <-s.Halt.ReqStop.Chan:
@@ -2032,7 +2032,7 @@ func (s *TubeNode) handleNewCircuit(
 				return
 
 			case <-cktContextDone:
-				//zz("%v: (ckt '%v') cktContextDone!", s.name, ckt.Name)
+				vv("%v: cktContextDone (ckt '%v' to RemotePeerName:'%v') ", s.name, ckt.Name, ckt.RemotePeerName)
 				select {
 				case cktHasDied <- ckt:
 				case <-s.Halt.ReqStop.Chan:
