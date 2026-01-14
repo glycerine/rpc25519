@@ -1192,9 +1192,10 @@ func (lpb *LocalPeer) newCircuit(
 		madeNewAutoCli, ckt.loopy, err = lpb.U.SendOneWayMessage(ctx2, msg, -1)
 		ckt.MadeNewAutoCli = madeNewAutoCli
 	}
-	if ckt.loopy != nil {
+	if err != nil && ckt != nil && ckt.loopy != nil {
 		select {
 		case ckt.loopy.cktServedAdd <- ckt:
+			vv("in lbp.newCircuit: ckt.loopy available and ckt.loopy.cktServedAdd <- ckt ok.")
 		case <-lpb.Halt.ReqStop.Chan:
 		}
 	}
@@ -1932,6 +1933,13 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		*callerSkipUnlock = true
 		(*callerMut).Unlock()
 	}
+	select {
+	case sendCh.cktServedAdd <- ckt:
+		vv("provideRemoteOnNewCircuitCh: sent ckt on LoopComm.cktServedAdd")
+	case <-ckt.Halt.ReqStop.Chan:
+	case <-ctx2.Done():
+	}
+
 	select {
 	case lpb.NewCircuitCh <- ckt: // should this be sendCh ?? nope, but early it did not seem used.
 		select { // might be blocked here in 2 sec pump stack dump. called by :1833 peerAPI.bootstrapCircuit where s.mut.Lock is held

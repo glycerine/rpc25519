@@ -217,7 +217,9 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	if callCtx != nil {
 		ctx = callCtx
 	}
-	madeNewAutoCli, _, err = p.u.SendOneWayMessage(ctx, msg, errWriteDur)
+	var loopy *LoopComm
+	madeNewAutoCli, loopy, err = p.u.SendOneWayMessage(ctx, msg, errWriteDur)
+	_ = loopy
 	if err != nil {
 		err0 = fmt.Errorf("error requesting CallPeerStartCircuit from remote: '%v'; netAddr='%v'; remoteAddr='%v'", err, netAddr, remoteAddr)
 		ckt = nil

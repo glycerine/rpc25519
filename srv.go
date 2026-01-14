@@ -527,8 +527,10 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 		case ckt := <-s.cktServedAdd:
 			s.cktServed[ckt] = true
+			vv("cktServedAdd added ckt from '%v'. len now = %v", ckt.RpbTo.NetAddr, len(s.cktServed))
 		case ckt := <-s.cktServedDel:
 			delete(s.cktServed, ckt)
+			vv("cktServedAdd deleted ckt from '%v'. len now = %v", ckt.RpbTo.NetAddr, len(s.cktServed))
 
 		case msg := <-s.SendCh:
 			//vv("srv %v (%v) sendLoop got from s.SendCh=%p, sending msg.HDR = '%v'", s.Server.name, s.from, s.SendCh, msg.HDR.String())
