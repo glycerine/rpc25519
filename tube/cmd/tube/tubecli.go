@@ -84,6 +84,8 @@ func main() {
 	showBinaryVersion("tube")
 	fmt.Printf("pid = %v\n", os.Getpid())
 
+	startOnlineWebProfiling()
+
 	cmdCfg := &ConfigTubeCli{}
 
 	fs := flag.NewFlagSet("tube", flag.ExitOnError)
