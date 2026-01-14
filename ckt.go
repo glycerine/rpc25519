@@ -1220,7 +1220,7 @@ func (lpb *LocalPeer) newCircuit(
 			case ckt.loopy.cktServedAdd <- ckt:
 				// this communication finally stopped the
 				// leak of server side circuit support goro.
-				vv("in lbp.newCircuit: ckt.loopy available and ckt.loopy.cktServedAdd <- ckt ok.")
+				//vv("in lbp.newCircuit: ckt.loopy available and ckt.loopy.cktServedAdd <- ckt ok.")
 			case <-lpb.Halt.ReqStop.Chan:
 			}
 		} else {

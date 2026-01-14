@@ -1107,9 +1107,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		select {
 
 		case <-s.leaderSendsHeartbeatsCh:
-			if s.cfg.testNum != 52 && s.cfg.testNum != 51 {
-				vv("%v <-s.leaderSendsHeartbeatsCh", s.name)
-			}
+			//if s.cfg.testNum != 52 && s.cfg.testNum != 51 {
+			//	vv("%v <-s.leaderSendsHeartbeatsCh", s.name)
+			//}
 
 			s.countLeaderHeartbeat++
 			if s.countLeaderHeartbeat%500 == 0 {
