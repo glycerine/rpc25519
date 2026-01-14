@@ -8212,7 +8212,13 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 				vv("about to panic on frag.FromPeerID(%v) != ckt.RemotePeerID(%v); on a 'RedirectTicketToLeader' here is the original Ticket: '%v'", frag.FromPeerID, ckt.RemotePeerID, tmpTkt)
 
 			}
-			panic(fmt.Sprintf("%v sanity check failed, frag should be from ckt. frag.FromPeerID='%v' but ckt.RemotePeerID='%v'; \n frag='%v'\n ckt = '%v'", nice(time.Now()), peer, ckt.RemotePeerID, frag, ckt)) // just saw again.
+			//panic(fmt.Sprintf(
+			vv("%v: %v sanity check failed, frag should be from ckt. frag.FromPeerID='%v' but ckt.RemotePeerID='%v'; \n frag='%v'\n ckt = '%v'", s.me(), nice(time.Now()), peer, ckt.RemotePeerID, frag, ckt) // just saw again.
+			if frag.ToPeerID == s.PeerID {
+				vv("since it was sent to me, process it anyway")
+			} else {
+				panic("fit this mis-directed packet!")
+			}
 			/*
 								panic: 2026-01-14T03:54:41.687Z sanity check failed, frag should be from ckt. frag.FromPeerID='2iC9T3fXs9WmvcRqihtFEd48OfGmrJ6P9MAvVQuKnrqy' but ckt.RemotePeerID='W_U8id0xDApdmaFJw3oMLVmpwCJNK0EIopYLeo5l1_8u';
 
