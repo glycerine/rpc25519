@@ -1116,7 +1116,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#fromBaseServerName"] = lpb.BaseServerName
 		msg.HDR.Args["#fromBaseServerAddr"] = lpb.BaseServerAddr
 
-		madeNewAutoCli, _, err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+		madeNewAutoCli, ckt.loopy, err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 		ckt.MadeNewAutoCli = madeNewAutoCli
 		if err != nil {
 			alwaysPrintf("arg: tried to tell remote, but: err='%v'", err)
@@ -1189,7 +1189,7 @@ func (lpb *LocalPeer) newCircuit(
 		// msg.HDR.Args["#fragRPCtoken"] as it was
 		// copied above in firstFrag.ToMessage()
 
-		madeNewAutoCli, _, err = lpb.U.SendOneWayMessage(ctx2, msg, -1)
+		madeNewAutoCli, ckt.loopy, err = lpb.U.SendOneWayMessage(ctx2, msg, -1)
 		ckt.MadeNewAutoCli = madeNewAutoCli
 	}
 
