@@ -281,6 +281,15 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	}
 	//vv("madeNewAutoCli = %v", madeNewAutoCli)
 
+	// try hard to get ckt.loopy set.
+	if ckt.loopy == nil {
+		if loopy != nil {
+			ckt.loopy = loopy
+		} else {
+			lpb.setLoopy(ckt)
+		}
+	}
+
 	var timeoutCh <-chan time.Time
 	if errWriteDur > 0 {
 		timeoutCh = time.After(errWriteDur)
@@ -332,9 +341,6 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 					lpb.Remotes.Del(pleaseAssignNewRemotePeerID)
 				}
 				lpb.Remotes.Set(rpb.PeerID, rpb)
-
-				// try hard to get ckt.loopy set.
-				lpb.setLoopy(ckt)
 			}
 		case <-ckt.Context.Done():
 			return nil, nil, madeNewAutoCli, "", ErrContextCancelled

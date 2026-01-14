@@ -3227,6 +3227,7 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 	defer func() {
 		if ckt != nil {
 			if ckt.loopy == nil {
+				panicf("why is not loopy set BEFORE here??")
 				destAddr := ckt.RpbTo.NetAddr
 				pair, ok := s.remote2pair.Get(destAddr)
 				if !ok {
