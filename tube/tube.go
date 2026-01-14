@@ -6436,8 +6436,8 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 	if !s.leaderSendsHeartbeatsDue.IsZero() {
 		elap := time.Since(s.leaderSendsHeartbeatsDue)
 		if !s.leaderSendsHeartbeatsDue.IsZero() && elap > 300*time.Millisecond {
-			alwaysPrintf("%v warning! elap=%v between resetLeaderHeartbeat() calls.", s.me(), elap)
-			alwaysPrintf("%v (same on one line) warning! elap=%v between resetLeaderHeartbeat() calls.", s.name, elap)
+			//alwaysPrintf("%v warning! elap=%v between resetLeaderHeartbeat() calls.", s.me(), elap)
+			alwaysPrintf("%v warning! elap=%v between resetLeaderHeartbeat() calls.", s.name, elap)
 		}
 	}
 	dur := s.leaderBeatDur()
