@@ -1221,9 +1221,15 @@ func (lpb *LocalPeer) newCircuit(
 			case <-lpb.Halt.ReqStop.Chan:
 			}
 		} else {
+			// INVAR: ckt.loopy == nil
 			// assert that our development set ckt.loopy if it could
-			if ckt.RpbTo != nil {
-				panicf("why do we not have ckt.loopy set now?? there might be a good reason, it might need to be lazy but we want to know what that is... as we want to have it set if at all possible, in all Circuit creation scenarios!! ckt.RpbTo.NetAddr='%v' so just set ckt.loopy, _ = s.remote2pair.Get(ckt.RpbTo.NetAddr)", ckt.RpbTo.NetAddr)
+			if ckt.RpbTo != nil && ckt.RpbTo.NetAddr != "" {
+				// seen, we did get here. so do this fix.
+				// Arg, I see the problem: how to get access to remote2pair???
+				//ckt.loopy, _ = s.remote2pair.Get(ckt.RpbTo.NetAddr)
+				if ckt.loopy == nil {
+					panicf("why do we not have ckt.loopy set now? why does s.remote2pair not have it? there might be a good reason, it might need to be lazy but we want to know what that is... as we want to have it set if at all possible, in all Circuit creation scenarios!! ckt.RpbTo.NetAddr='%v' so just set ckt.loopy, _ = s.remote2pair.Get(ckt.RpbTo.NetAddr); stack=\n%v\n", ckt.RpbTo.NetAddr, stack())
+				}
 			} else {
 				panicf("ahem: is development of LoopComm helper incomplete? why do we not have ckt.loopy set now?? there might be a good reason, but we want to have it set if at all possible, in all Circuit creation scenarios!")
 			}
