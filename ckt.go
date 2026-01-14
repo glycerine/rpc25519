@@ -1916,7 +1916,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		(*callerMut).Unlock()
 	}
 	select {
-	case lpb.NewCircuitCh <- ckt:
+	case lpb.NewCircuitCh <- ckt: // should this be sendCh ?? it does not seem used.
 		select { // might be blocked here in 2 sec pump stack dump. called by :1833 peerAPI.bootstrapCircuit where s.mut.Lock is held
 		case ckt.Reads <- asFrag:
 		case <-ckt.Halt.ReqStop.Chan:
