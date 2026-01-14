@@ -82,6 +82,8 @@ type Circuit struct {
 	// report whether the creation of this circuit
 	// involved spinning up a new auto-client.
 	MadeNewAutoCli bool
+
+	loopy *LoopComm
 }
 
 func (ckt *Circuit) String() string {
@@ -1201,6 +1203,13 @@ func (h *Circuit) Close(reason error) {
 	// must be idemopotent. Often called many times
 	// during normal Circuit shutdown.
 
+	if h.loopy != nil {
+		select {
+		case h.loopy.cktServedDel <- h:
+		case <-h.LpbFrom.Halt.ReqStop.Chan:
+		}
+	}
+
 	// set reason atomically.
 	h.Halt.ReqStop.CloseWithReason(reason)
 
@@ -1208,6 +1217,7 @@ func (h *Circuit) Close(reason error) {
 	case h.LpbFrom.HandleCircuitClose <- h:
 	case <-h.LpbFrom.Halt.ReqStop.Chan:
 	}
+
 }
 
 // one line version of the below, for ease of copying.
@@ -1386,7 +1396,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	peerServiceNameVersion string,
 	requestedCircuit *Message,
 	isUpdatedPeerID bool,
-	sendCh chan *Message,
+	sendCh *LoopComm,
 	pleaseAssignNewPeerID string,
 	peerName string,
 	isRemoteSide onRemoteSideVal,
@@ -1631,7 +1641,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, peerServ
 //			    ...
 //
 // .
-func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) (err0 error) {
+func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh *LoopComm) (err0 error) {
 	//vv("isCli=%v, bootstrapCircuit called with msg='%v'; JobSerz='%v'", isCli, msg.String(), string(msg.JobSerz))
 
 	// defer func() {
@@ -1856,7 +1866,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 // and :1459 unlockedStartLocalPeer() which is called
 // from two places :1369 (StartLocalPeer, which holds mut at top),
 // :1778 (bootstrapCircuit, which as in the first case, holds mut).
-func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool, isRemoteSide onRemoteSideVal, preferExtant bool, callerMut *sync.Mutex, callerSkipUnlock *bool) error {
+func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh *LoopComm, isUpdatedPeerID bool, isRemoteSide onRemoteSideVal, preferExtant bool, callerMut *sync.Mutex, callerSkipUnlock *bool) error {
 	rpb := &RemotePeer{
 		LocalPeer: lpb,
 		PeerID:    msg.HDR.FromPeerID,
@@ -1898,6 +1908,8 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 	if err != nil {
 		return err
 	}
+	ckt.loopy = sendCh
+
 	if msg.HDR.Args != nil {
 		ckt.UserString = msg.HDR.Args["#UserString"]
 	}
@@ -1916,7 +1928,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		(*callerMut).Unlock()
 	}
 	select {
-	case lpb.NewCircuitCh <- ckt: // should this be sendCh ?? it does not seem used.
+	case lpb.NewCircuitCh <- ckt: // should this be sendCh ?? nope, but early it did not seem used.
 		select { // might be blocked here in 2 sec pump stack dump. called by :1833 peerAPI.bootstrapCircuit where s.mut.Lock is held
 		case ckt.Reads <- asFrag:
 		case <-ckt.Halt.ReqStop.Chan:
@@ -1933,7 +1945,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 }
 
 // helper for bootstapCircuit rejects
-func (s *peerAPI) rejectWith(errString string, isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
+func (s *peerAPI) rejectWith(errString string, isCli bool, msg *Message, ctx context.Context, sendCh *LoopComm) error {
 	// moved out from replyHelper since did not apply
 	// to the other use at ckt.go:1302
 	// Re-use same msg in error reply:
@@ -1988,7 +2000,7 @@ func (s *peerAPI) rejectWith(errString string, isCli bool, msg *Message, ctx con
 // code more compact. Only return errors here that
 // should shut down the whole client/connection; like
 // host-shutdown errors.
-func (s *peerAPI) replyHelper(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
+func (s *peerAPI) replyHelper(isCli bool, msg *Message, ctx context.Context, sendCh *LoopComm) error {
 
 	// assume these are correctly set not:
 	//msg.HDR.From, msg.HDR.To
@@ -2003,7 +2015,7 @@ func (s *peerAPI) replyHelper(isCli bool, msg *Message, ctx context.Context, sen
 	msg.DoneCh = nil // no need now, save allocation. loquet.NewChan(msg)
 
 	select {
-	case sendCh <- msg:
+	case sendCh.SendCh <- msg:
 	case <-ctx.Done():
 		return nil // ErrShutdown() but that would shut down whole client.
 	case <-s.u.GetHostHalter().ReqStop.Chan:
@@ -2021,7 +2033,7 @@ func (s *peerAPI) replyHelper(isCli bool, msg *Message, ctx context.Context, sen
 //
 // Note: we should only return an error if the shutdown request was received,
 // which will kill the readLoop and connection.
-func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, localPeerName string) error {
+func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Context, sendCh *LoopComm, localPeerName string) error {
 
 	////vv("top of bootstrapPeerService(): isCli=%v; msg.HDR='%v'", isCli, msg.HDR.String())
 
@@ -2069,7 +2081,7 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 	msg.HDR.FromPeerID = localPeerID
 
 	select {
-	case sendCh <- msg:
+	case sendCh.SendCh <- msg:
 	case <-ctx.Done():
 		return ErrShutdown()
 	}
@@ -2212,7 +2224,7 @@ func (a *Fragment) Compare(b *Fragment) int {
 // itself can survey the existing other
 // peers on the same machine, and tell the
 // caller about them. For now we start simple.
-func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
+func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context.Context, sendCh *LoopComm) error {
 	//vv("gotCircuitEstablishedAck seen. isCli=%v; msg='%v'", isCli, msg) // seen 1x in 410, isCli = true
 	token, ok := msg.HDR.Args["#fragRPCtoken"]
 	if ok {

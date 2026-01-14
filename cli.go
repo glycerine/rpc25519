@@ -487,7 +487,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			// deadlocks. See also the comments on
 			// SendOneWayMessage in srv.go.
 
-			err := c.PeerAPI.bootstrapCircuit(yesIsClient, msg, ctx, c.oneWayCh)
+			err := c.PeerAPI.bootstrapCircuit(yesIsClient, msg, ctx, c.loopy)
 			if err != nil {
 				// only error is on shutdown request received.
 				//vv("cli c.PeerAPI.bootstrapCircuit returned err = '%v'", err)
@@ -495,7 +495,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			}
 			continue
 		case CallPeerCircuitEstablishedAck:
-			err := c.PeerAPI.gotCircuitEstablishedAck(yesIsClient, msg, ctx, c.oneWayCh)
+			err := c.PeerAPI.gotCircuitEstablishedAck(yesIsClient, msg, ctx, c.loopy)
 			if err != nil {
 				// only error is on shutdown request received.
 				return
@@ -561,12 +561,21 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			//vv("cli runSendLoop defer/shutdown running. reason='%v'. conn local '%v' -> '%v' remote", stopReason, local(conn), remote(conn))
 		}
 
+		for ckt := range c.cktServed {
+			// this should notify the pump too.
+			ckt.Halt.ReqStop.CloseWithReason(fmt.Errorf("conn shut: %v", stopReason))
+		}
+
 		// we need to remove our c.oneWayCh from the
 		// Server.remote2pair / pair2remote channels
 		// used by the OneWaySend
 		for i, g := range gcMe {
 			_ = i
 			//vv("client sendLoop cleanup %v of %v: calling g.srv.deletePair on g=%p", i, len(gcMe), g)
+			// needed? methinks the above handles it, but maybe...
+			//for ckt := range gcMe.pair.cktServed {
+			//	ckt.Halt.ReqStop.CloseWithReason("conn shut: " + stopReason)
+			//}
 			g.srv.deletePair(g.pair)
 		}
 		//vv("Client.runSendLoop defer closing c.halt=%p", c.halt)
@@ -667,6 +676,11 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		}
 
 		select { // client send loop
+
+		case ckt := <-c.cktServedAdd:
+			c.cktServed[ckt] = true
+		case ckt := <-c.cktServedDel:
+			delete(c.cktServed, ckt)
 
 		case needGC := <-c.garbageCollectThisRwPairCh:
 			// when we go down, remove this auto-cli from
@@ -1418,6 +1432,19 @@ type Client struct {
 	// not wait on c.halt.Done since the background
 	// goroutine was never started.
 	startCalled atomic.Bool
+
+	// track ckt being served so when our socket conn
+	// goes down we can tell the users of the ckt that it is gone.
+	cktServedAdd chan *Circuit
+	cktServedDel chan *Circuit
+	cktServed    map[*Circuit]bool
+
+	// loopy is a proxy for communicating with the send and read loops
+	// from circuit bootstrap and close down points. loopy
+	// helps generalize over Client and Server, enabling users
+	// to inject new *Circuit and ckt.Close() notification into
+	// the appropriate read and send loops.
+	loopy *LoopComm
 }
 
 var ErrNoSimconnAvail = fmt.Errorf("rpc25519.Client error: no simconn available")
@@ -1815,7 +1842,18 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		// net/rpc
 		pending: make(map[uint64]*Call),
 		epochV:  EpochVers{EpochTieBreaker: NewCallID("")},
+
+		// runSendLoop handles these.
+		cktServedAdd: make(chan *Circuit, 100),
+		cktServedDel: make(chan *Circuit, 100),
+		cktServed:    make(map[*Circuit]bool),
 	}
+	c.loopy = &LoopComm{
+		SendCh:       c.oneWayCh,
+		cktServedAdd: c.cktServedAdd,
+		cktServedDel: c.cktServedDel,
+	}
+
 	c.halt = idem.NewHalterNamed(fmt.Sprintf("Client(%v %p)", name, c)) // this halter is being closed quickly? 20 msec - 30 msec after made.
 
 	// share code with server for CallID and ToPeerID callbacks.
@@ -2297,7 +2335,7 @@ type UniversalCliSrv interface {
 
 	PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, autoSendNewCircuitCh chan *Circuit, waitForAck bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error)
 
-	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch chan *Message, err error)
+	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch *LoopComm, err error)
 
 	GetReadsForCallID(ch chan *Message, callID string)
 	GetErrorsForCallID(ch chan *Message, callID string)
@@ -2361,13 +2399,13 @@ var _ UniversalCliSrv = &Server{}
 // for symmetry: see srv.go for details, under the same func name.
 //
 // SendOneWayMessage only sets msg.HDR.From to its correct value.
-func (cli *Client) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch chan *Message, err error) {
+func (cli *Client) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch *LoopComm, err error) {
 	err, ch = sendOneWayMessage(cli, ctx, msg, errWriteDur)
 	return
 }
 
 // implements the oneWaySender interface for symmetry with Server.
-func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool) {
+func (cli *Client) destAddrToSendCh(destAddr string) (sendCh *LoopComm, haltCh chan struct{}, to, from string, ok bool) {
 	// future: allow client to contact multple servers.
 	// for now, only the original client->sever conn is supported.
 
@@ -2403,7 +2441,7 @@ func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, halt
 	*/
 	//vv("cli okay with destAddr '%v' == to; cli.oneWayCh=%p", destAddr, cli.oneWayCh)
 	haltCh = cli.halt.ReqStop.Chan
-	sendCh = cli.oneWayCh
+	sendCh = cli.loopy
 	ok = true
 	return
 }

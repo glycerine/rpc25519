@@ -2022,7 +2022,7 @@ func (s *TubeNode) handleNewCircuit(
 				}
 
 			case <-ckt.Halt.ReqStop.Chan:
-				vv("%v: (ckt '%v') ckt halt requested (RemotePeerName: '%v').", s.name, ckt.Name, ckt.RemotePeerName)
+				vv("%v: (ckt '%v') ckt halt requested (RemotePeerName: '%v').", s.name, ckt.Name, ckt.RemotePeerName) // NOT SEEN, SO WE LEAK THIS GORO! arg, must fix this! the pump.go is supposed to close it!
 				select {
 				case cktHasDied <- ckt:
 				case <-s.Halt.ReqStop.Chan:
@@ -2032,7 +2032,7 @@ func (s *TubeNode) handleNewCircuit(
 				return
 
 			case <-cktContextDone:
-				vv("%v: cktContextDone (ckt '%v' to RemotePeerName:'%v') ", s.name, ckt.Name, ckt.RemotePeerName)
+				vv("%v: cktContextDone (ckt '%v' to RemotePeerName:'%v') ", s.name, ckt.Name, ckt.RemotePeerName) // NOT SEEN, SO WE LEAK THIS GORO! arg, must fix this!
 				select {
 				case cktHasDied <- ckt:
 				case <-s.Halt.ReqStop.Chan:

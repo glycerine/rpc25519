@@ -443,6 +443,11 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		s.Server.deletePair(s)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
+
+		for ckt := range s.cktServed {
+			// this should notify the pump too.
+			ckt.Halt.ReqStop.CloseWithReason(fmt.Errorf("conn shut: %v", stopReason))
+		}
 	}()
 
 	sendLoopGoroNum := GoroNumber()
@@ -520,6 +525,11 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 			// check and send above.
 			continue
 
+		case ckt := <-s.cktServedAdd:
+			s.cktServed[ckt] = true
+		case ckt := <-s.cktServedDel:
+			delete(s.cktServed, ckt)
+
 		case msg := <-s.SendCh:
 			//vv("srv %v (%v) sendLoop got from s.SendCh=%p, sending msg.HDR = '%v'", s.Server.name, s.from, s.SendCh, msg.HDR.String())
 
@@ -553,6 +563,13 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 			return
 		}
 	}
+}
+
+type LoopComm struct {
+	SendCh chan *Message // talks to a send loop (on Client or a rwPair on Server)
+
+	cktServedAdd chan *Circuit // talks to a read loop
+	cktServedDel chan *Circuit // talks to a read loop
 }
 
 func (s *rwPair) runReadLoop(conn net.Conn) {
@@ -692,7 +709,14 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			// deadlocks. See also the comments on
 			// SendOneWayMessage in srv.go.
 
-			err := s.Server.PeerAPI.bootstrapCircuit(notClient, req, ctx, s.SendCh)
+			// LoopComm generalizes the s.SendCh to include
+			// the read-loop channels that users also
+			// need in order that ckt can be closed
+			// when their net.Conn socket goes down. We _were_ leaking
+			// user (tube) circuit handling goroutines then.
+
+			err := s.Server.PeerAPI.bootstrapCircuit(notClient, req, ctx, s.loopy)
+			//err := s.Server.PeerAPI.bootstrapCircuit(notClient, req, ctx, s.SendCh)
 			if err != nil {
 				// only error is on shutdown request received.
 				stopReason = fmt.Sprintf("bootstrapCircuit error s.halt=%p err='%v'", s.halt, err)
@@ -700,7 +724,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			}
 			continue
 		case CallPeerCircuitEstablishedAck:
-			err := s.Server.PeerAPI.gotCircuitEstablishedAck(notClient, req, ctx, s.SendCh)
+			err := s.Server.PeerAPI.gotCircuitEstablishedAck(notClient, req, ctx, s.loopy)
 			if err != nil {
 				// only error is on shutdown request received.
 				stopReason = fmt.Sprintf("gotCircuitEstablishedAck error s.halt=%p err='%v'", s.halt, err)
@@ -1820,6 +1844,19 @@ type rwPair struct {
 	// keep-alive ping.
 	epochV       EpochVers
 	keepAliveMsg Message
+
+	// track ckt being served so when our socket conn
+	// goes down we can tell the users of the ckt that it is gone.
+	cktServedAdd chan *Circuit
+	cktServedDel chan *Circuit
+	cktServed    map[*Circuit]bool
+
+	// loopy is a proxy for communicating with the send and read loops
+	// from circuit bootstrap and close down points. loopy
+	// helps generalize over Client and Server, enabling users
+	// to inject new *Circuit and ckt.Close() notification into
+	// the appropriate read and send loops.
+	loopy *LoopComm
 }
 
 func (s *Server) newRWPair(conn net.Conn) *rwPair {
@@ -1833,7 +1870,18 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		from:   local(conn),
 		to:     remote(conn),
 		epochV: EpochVers{EpochTieBreaker: NewCallID("")},
+
+		// runSendLoop handles these.
+		cktServedAdd: make(chan *Circuit, 100),
+		cktServedDel: make(chan *Circuit, 100),
+		cktServed:    make(map[*Circuit]bool),
 	}
+	p.loopy = &LoopComm{
+		SendCh:       p.SendCh,
+		cktServedAdd: p.cktServedAdd,
+		cktServedDel: p.cktServedDel,
+	}
+
 	p.halt = idem.NewHalterNamed(fmt.Sprintf("Server.rwPair(%p)", p))
 	p.keepAliveMsg.HDR.Typ = CallKeepAlive
 	p.keepAliveMsg.HDR.Subject = p.epochV.EpochTieBreaker
@@ -1988,7 +2036,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 // Callers should re-write the msg.HDR.To if the
 // returned to is different from destAddr, to avoid
 // having to have the sendLoop do it again.
-func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool) {
+func (s *Server) destAddrToSendCh(destAddr string) (sendCh *LoopComm, haltCh chan struct{}, to, from string, ok bool) {
 
 	var pair *rwPair
 	pair, ok = s.remote2pair.Get(destAddr)
@@ -2061,12 +2109,13 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 	haltCh = pair.halt.ReqStop.Chan // this is the 1-1 tcp socket. This is what we want.
 	from = local(pair.Conn)
 	to = remote(pair.Conn)
-	sendCh = pair.SendCh
+	//sendCh = pair.SendCh
+	sendCh = pair.loopy
 	return
 }
 
 type oneWaySender interface {
-	destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool)
+	destAddrToSendCh(destAddr string) (sendCh *LoopComm, haltCh chan struct{}, to, from string, ok bool)
 	NewTimer(dur time.Duration) (ti *SimTimer)
 }
 
@@ -2094,7 +2143,7 @@ func fromToAutoCliName(from, dest string) string {
 // the send loop becomes available. See pump.go and how
 // it calls closeCktInBackgroundToAvoidDeadlock() to avoid
 // deadlocks on circuit shutdown.
-func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch chan *Message, err error) {
+func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch *LoopComm, err error) {
 
 	err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	if err == ErrNetConnectionNotFound {
@@ -2183,6 +2232,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			SendCh:    cli.oneWayCh,
 			from:      local(cli.conn),
 			to:        key,
+			loopy:     cli.loopy,
 		}
 		p.halt = idem.NewHalterNamed(fmt.Sprintf("auto-cli Server.rwPair(%p)", p))
 		cli.halt.AddChild(p.halt) // causes shutdown lag; e.g. tube 707 test red.
@@ -2229,7 +2279,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 // loops). A positive errWriteDur will wait for that long
 // before returning, and will supply the a DoneCh if it
 // is nil on msg.
-func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWriteDur time.Duration) (error, chan *Message) {
+func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWriteDur time.Duration) (error, *LoopComm) {
 
 	//if msg.HDR.Serial == 0 {
 	// nice to do this, but test 004, 014, 015 crash then and need attention.
@@ -2248,7 +2298,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		//vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call.", destAddr)
 		return ErrNetConnectionNotFound, nil
 	}
-	if sendCh == nil {
+	if sendCh == nil || sendCh.SendCh == nil {
 		panic("cannot have sendCh == nil here")
 	}
 	if to != destAddr {
@@ -2287,7 +2337,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		//defer timeout.Discard()
 
 		select {
-		case sendCh <- msg:
+		case sendCh.SendCh <- msg:
 			return nil, nil
 		case <-haltCh:
 			//vv("errWriteDur == -2: shutting down on haltCh = %p", haltCh)
@@ -2301,7 +2351,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 			return ErrAntiDeadlockMustQueue, sendCh
 		}
 	} else {
-		//vv("sendOneWayMessage about to select on sendCh = %p", sendCh)
+		//vv("sendOneWayMessage about to select on sendCh = %p", sendCh.SendCh)
 
 		// paused 17 minutes here!? might be shutdown logical race.
 		// ah probable fix: p.halt specifically for the pair
@@ -2311,8 +2361,8 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		// both could account for not cleaning up client sockets
 		// promptly and thus getting wedged trying to send on them.
 		select {
-		case sendCh <- msg:
-			//vv("sendOneWayMessage did send on sendCh = %p", sendCh)
+		case sendCh.SendCh <- msg:
+			//vv("sendOneWayMessage did send on sendCh = %p", sendCh.SendCh)
 		case <-haltCh:
 			//vv("shutting down on haltCh = %p", haltCh)
 			return ErrShutdown(), nil
@@ -3150,7 +3200,14 @@ func (s *Client) StartRemotePeerAndGetCircuit(
 	preferExtant bool,
 
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error) {
-
+	defer func() {
+		if ckt != nil {
+			select {
+			case s.cktServedAdd <- ckt:
+			case <-s.halt.ReqStop.Chan:
+			}
+		}
+	}()
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
 		lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
 }
@@ -3172,6 +3229,22 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 	preferExtant bool,
 
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error) {
+	defer func() {
+		if ckt != nil {
+			if ckt.loopy == nil {
+				destAddr := ckt.RpbTo.NetAddr
+				pair, ok := s.remote2pair.Get(destAddr)
+				if !ok {
+					panicf("wat? why is destAddr('%v') not registered in remote2pair?", destAddr)
+				}
+				ckt.loopy = pair.loopy
+			}
+			select {
+			case ckt.loopy.cktServedAdd <- ckt:
+			case <-s.halt.ReqStop.Chan:
+			}
+		}
+	}()
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
 		lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
