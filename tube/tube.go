@@ -2022,7 +2022,7 @@ func (s *TubeNode) handleNewCircuit(
 				}
 
 			case <-ckt.Halt.ReqStop.Chan:
-				vv("%v: (ckt '%v') ckt halt requested (RemotePeerName: '%v').", s.name, ckt.Name, ckt.RemotePeerName) // NOT SEEN, SO WE LEAK THIS GORO! arg, must fix this! the pump.go is supposed to close it!
+				//vv("%v: (ckt '%v') ckt halt requested (RemotePeerName: '%v').", s.name, ckt.Name, ckt.RemotePeerName) // NOT SEEN, SO WE used to LEAK THIS GORO! fixed by using LoopComm and having ckt.go:1197 tell the read loop which circuits they support, and in turn they notify those ckt when the socket is shut/closed.
 				select {
 				case cktHasDied <- ckt:
 				case <-s.Halt.ReqStop.Chan:
