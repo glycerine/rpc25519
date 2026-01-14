@@ -14,7 +14,9 @@ func (z *Ticket) Footprint() (r string) {
 	r += fmt.Sprintf("                         Val: %v,\n", z.Val.Msgsize())
 	r += fmt.Sprintf("                      OldVal: %v,\n", z.OldVal.Msgsize())
 	r += fmt.Sprintf("                       Stage: \"%v\",\n\n", msgp.GuessSize(z.Stage))
-	r += fmt.Sprintf("                --- begin Insp ---\n%v\n", z.Insp.Footprint())
+	if z.Insp != nil {
+		r += fmt.Sprintf("                --- begin Insp ---\n%v\n", z.Insp.Footprint())
+	}
 	r += fmt.Sprintf("                ---  end Insp ---\n\n")
 	r += fmt.Sprintf("                          MC: %v,\n", z.MC.Msgsize())
 	r += fmt.Sprintf("                  NewSessReq: %v,\n", z.NewSessReq.Msgsize())
@@ -28,7 +30,9 @@ func (z *Ticket) Footprint() (r string) {
 	r += fmt.Sprintf("                       Batch: %v,\n", sz)
 	r += "  --- batch breakdown ---\n"
 	for _, b := range z.Batch {
-		r += b.Footprint()
+		if b != nil {
+			r += b.Footprint()
+		}
 	}
 	r += "  --- end batch breakdown ---\n\n}\n"
 	return
