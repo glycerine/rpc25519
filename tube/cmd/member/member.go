@@ -12,6 +12,8 @@ func main() {
 	tube.VerboseVerbose.Store(true)
 	fmt.Printf("pid = %v\n", os.Getpid())
 
+	startOnlineWebProfiling()
+
 	clockDriftBound := 500 * time.Millisecond
 	tableSpace := "hermes"
 	mem := tube.NewRMember(tableSpace, clockDriftBound)
