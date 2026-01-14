@@ -2882,27 +2882,34 @@ func (s *TubeNode) waitingSummaryHelper(atLeader bool, tot *int) (sum string) {
 		sum = "WaitingAtFollow: "
 	}
 	*tot += n
-	// sort into log order
-	var orderedTickets []*Ticket
-	for _, tkt := range waiting.all() {
-		orderedTickets = append(orderedTickets, tkt)
-	}
-	sort.Sort(logOrder(orderedTickets))
-	sum += fmt.Sprintf("(%v tkt waiting: \n", n)
-	extra := ""
-	i := 0
-	var star string // "*" for commited, "_" for uncommited.
-	for _, tkt := range orderedTickets {
-		if tkt.Committed {
-			star = "*"
-		} else {
-			star = "_"
+
+	sum += fmt.Sprintf("(%v tkt waiting)\n", n)
+	if n < 2 {
+		// we ony print the first now...
+
+		// sort into log order
+		var orderedTickets []*Ticket
+		for _, tkt := range waiting.all() {
+			orderedTickets = append(orderedTickets, tkt)
 		}
-		sum += fmt.Sprintf("___ %v[%v%v %v] '%v'\n", extra, tkt.LogIndex, star, tkt.TicketID[:4], tkt.Desc)
-		if i == 0 {
-			//extra = "; "
+		sort.Sort(logOrder(orderedTickets))
+		extra := ""
+		i := 0
+		var star string // "*" for commited, "_" for uncommited.
+		for _, tkt := range orderedTickets {
+			if tkt.Committed {
+				star = "*"
+			} else {
+				star = "_"
+			}
+			sum += fmt.Sprintf("___ %v[%v%v %v] '%v'\n", extra, tkt.LogIndex, star, tkt.TicketID[:4], tkt.Desc)
+			if i == 0 {
+				//extra = "; "
+			}
+			i++
 		}
-		i++
+	} else {
+		// not showing any ticket contents... slows down the process.
 	}
 	sum += ")"
 	return
