@@ -439,7 +439,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	stopReason := ""
 	_ = stopReason
 	defer func() {
-		//vv("rwPair(%p) defer of runSendLoop s.SendCh=%p; stopReason='%v'; s.to='%v' s.halt=%p", s, s.SendCh, stopReason, s.to, s.halt)
+		vv("rwPair(%p) defer of runSendLoop s.SendCh=%p; stopReason='%v'; s.to='%v' s.halt=%p; has len(s.cktServed) = %v ckts", s, s.SendCh, stopReason, s.to, s.halt, len(s.cktServed))
 		s.Server.deletePair(s)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
