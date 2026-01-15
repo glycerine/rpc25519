@@ -16538,13 +16538,15 @@ func (s *TubeNode) ifLostTicketTellClient(calledOnLeader bool) {
 		// compacted away?
 		baseC := s.wal.getCompactBase()
 		if tkt.LogIndex <= baseC {
-			alwaysPrintf("tell client of problem: we still have a ticket in waiting (onLead: %v), but its index has been compacted away and we should have replied by now! tkt='%v'", calledOnLeader, tkt)
+			if tkt.Op != SESS_END && tkt.Op != NOOP {
+				alwaysPrintf("tell client of problem: we still have a ticket in waiting (onLead: %v), but its index has been compacted away and we should have replied by now! tkt='%v'", calledOnLeader, tkt)
 
-			tkt.Err = fmt.Errorf("log truncation caused this ticket outcome to be lost. Client may need to resubmit request.")
-			tkt.Stage += ":truncated_wal_detected_in_ifLostTicketTellClient1"
+				tkt.Err = fmt.Errorf("log truncation caused this ticket outcome to be lost. Client may need to resubmit request. TicketID = '%v' (Op: '%v')", tkt.TicketID, tkt.Op)
+				tkt.Stage += ":truncated_wal_detected_in_ifLostTicketTellClient1" // bajillions of repeats on same ticket????
 
-			s.respondToClientTicketApplied(tkt)
-			s.FinishTicket(tkt, calledOnLeader)
+				s.respondToClientTicketApplied(tkt)
+				s.FinishTicket(tkt, calledOnLeader)
+			}
 		}
 		// INVAR: tkt.LogIndex > baseC
 		entry, err := s.wal.GetEntry(tkt.LogIndex)
