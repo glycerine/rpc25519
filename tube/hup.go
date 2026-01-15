@@ -35,7 +35,7 @@ func init() {
 			writeMemProfiles(fn)
 
 			ckts := debugGlobalCkt.GetValSlice()
-			alwaysPrintf("here are the %v active ckt:\n", len(ckts))
+			alwaysPrintf("HUP: here are the %v active ckt, most recently made first:\n", len(ckts))
 			sort.Sort(byCircuitSN(ckts))
 			for i, ckt := range ckts {
 				fmt.Printf("[%02d] %v\n", i, ckt)
