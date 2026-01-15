@@ -2551,11 +2551,17 @@ func (c *Client) RemoteAddr() string {
 }
 
 func remote(nc localRemoteAddr) string {
+	if isNil(nc) {
+		return ""
+	}
 	ra := nc.RemoteAddr()
 	return ra.Network() + "://" + ra.String()
 }
 
 func local(nc localRemoteAddr) string {
+	if isNil(nc) {
+		return ""
+	}
 	la := nc.LocalAddr()
 	return la.Network() + "://" + la.String()
 }
