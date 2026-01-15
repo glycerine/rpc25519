@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/pprof"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -35,11 +36,22 @@ func init() {
 
 			ckts := debugGlobalCkt.GetValSlice()
 			alwaysPrintf("here are the %v active ckt:\n", len(ckts))
+			sort.Sort(byCircuitSN(ckts))
 			for i, ckt := range ckts {
 				fmt.Printf("[%02d] %v\n", i, ckt)
 			}
 		}
 	}()
+}
+
+type byCircuitSN []*rpc.Circuit
+
+func (lo byCircuitSN) Len() int { return len(lo) }
+func (lo byCircuitSN) Less(i, j int) bool {
+	return lo[i].CircuitSN > lo[j].CircuitSN // most recent first
+}
+func (lo byCircuitSN) Swap(i, j int) {
+	lo[i], lo[j] = lo[j], lo[i]
 }
 
 func writeMemProfiles(fn string) {

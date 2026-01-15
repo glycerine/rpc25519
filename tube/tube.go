@@ -14630,7 +14630,7 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderURL string) (r *S
 		return
 	}
 
-	select { // tup linz hung here
+	select { // tup linz hung here. tup hung here on simple startup. in CreateNewSession.
 	case <-tkt.Done.Chan: // waits for completion
 		err = tkt.Err
 		r = tkt.NewSessReply
