@@ -53,17 +53,25 @@ func (z *Inspection) Footprint() (r string) {
 	for id, tkt := range z.WaitingAtLeader {
 		sz += msgp.GuessSize(id) + tkt.Msgsize()
 	}
-	r += fmt.Sprintf("             WaitingAtLeader: %v,\n", sz)
+	r += fmt.Sprintf("             WaitingAtLeader(len %v): %v,\n", len(z.WaitingAtLeader), sz)
 	sz = 0
 	for id, tkt := range z.WaitingAtFollow {
 		sz += msgp.GuessSize(id) + tkt.Msgsize()
 	}
-	r += fmt.Sprintf("             WaitingAtFollow: %v,\n", sz)
-	r += fmt.Sprintf("                       State: %v,\n", z.State.Msgsize())
+	r += fmt.Sprintf("             WaitingAtFollow(len %v): %v,\n", len(z.WaitingAtFollow), sz)
+	if z.State != nil {
+		r += fmt.Sprintf("                       State: %v,\n", z.State.Msgsize())
+	}
 	r += fmt.Sprintf("                         Cfg: %v,\n", z.Cfg.Msgsize())
-	r += fmt.Sprintf("                          MC: %v,\n", z.MC.Msgsize())
-	r += fmt.Sprintf("              ShadowReplicas: %v,\n", z.ShadowReplicas.Msgsize())
-	r += fmt.Sprintf("                       Known: %v,\n", msgp.GuessSize(z.Known))
+	if z.MC != nil {
+		r += fmt.Sprintf("                          MC: %v,\n", z.MC.Msgsize())
+	}
+	if z.ShadowReplicas != nil {
+		r += fmt.Sprintf("              ShadowReplicas: %v,\n", z.ShadowReplicas.Msgsize())
+	}
+	if z.Known != nil {
+		r += fmt.Sprintf("                       Known: %v,\n", msgp.GuessSize(z.Known))
+	}
 	r += "}\n"
 	return
 }
