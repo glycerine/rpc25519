@@ -223,13 +223,16 @@ func newBlabber(
 		work:         newWorkspace(name+"_enc", maxMsgSize, isServer, cfg, spair, cpair),
 		compress:     !cfg.CompressionOff,
 		compressAlgo: cfg.CompressAlgo,
-		pressor:      newPressor(maxMsgSize + 80),
 		magicCheck:   make([]byte, 8),
 		isServer:     isServer,
 		cfg:          cfg,
 		spair:        spair,
 		cpair:        cpair,
 	}
+	if !cfg.CompressionOff {
+		enc.pressor = newPressor(maxMsgSize + 80)
+	}
+
 	enc.magic7 = setMagicCheckWord(cfg.CompressAlgo, enc.magicCheck)
 	// set default
 	if spair != nil {
@@ -244,14 +247,15 @@ func newBlabber(
 		noncesize:  nsz,
 		overhead:   aeadEnc.Overhead(),
 		work:       newWorkspace(name+"_dec", maxMsgSize, isServer, cfg, spair, cpair),
-		decomp:     newDecomp(maxMsgSize + 80),
 		magicCheck: make([]byte, 8), // last byte is compression type.
 		isServer:   isServer,
 		cfg:        cfg,
 		spair:      spair,
 		cpair:      cpair,
 	}
-
+	if !cfg.CompressionOff {
+		dec.decomp = newDecomp(maxMsgSize + 80)
+	}
 	//vv("making blabber, conn = '%#v'", conn)
 
 	cfg.simnetRendezvous.singleSimnetMut.Lock()
