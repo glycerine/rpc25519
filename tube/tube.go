@@ -9586,7 +9586,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		// state.LastApplied index.
 		// quick sanity check that we are not writing a zero or decreasing term:
 		if do.Term < s.state.LastAppliedTerm {
-			panic(fmt.Sprintf("terms should be monotone up; do.Term=%v; but s.state.LastAppliedTerm = %v", do.Term, s.state.LastAppliedTerm))
+			panic(fmt.Sprintf("terms should be monotone up; do.Term=%v; but s.state.LastAppliedTerm = %v; do='%v'\n state='%v'", do.Term, s.state.LastAppliedTerm, do, s.state)) // saw once, added print of do and state: panic: terms should be monotone up; do.Term=6; but s.state.LastAppliedTerm = 7
 		}
 		s.state.LastAppliedTerm = do.Term
 
