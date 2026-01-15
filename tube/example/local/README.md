@@ -26,14 +26,14 @@ state and raft log of a node.
 
 * `tuberm -e node_0` will erase the membership configuration of node_0
 
-We will run a simple 3 node cluster, with
-all three nodes on the same host. So we
-will end up starting three processes, and
-then connect to them using `tup`, the tube
-updater CLI command for reading and writing
+Here we will run a simple 3 node cluster, with
+all three nodes on the same host. We
+will end up starting three processes.
+Then we will connect to all three using `tup`, the "tube
+updater" CLI command for reading and writing
 the key/value store.
 
-from this directory (rpc25519/tube/example/local):
+From this directory (rpc25519/tube/example/local):
 
 1. install the default tup config file to its default location (one time task).
 ~~~
