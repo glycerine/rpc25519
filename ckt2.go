@@ -146,6 +146,8 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	frag.SetSysArg("fromBaseServerName", lpb.BaseServerName)
 	frag.SetSysArg("fromBaseServerAddr", lpb.BaseServerAddr)
 	frag.SetSysArg("circuitName", circuitName)
+	frag.SetSysArg("fromHostname", p.hostname)
+	frag.SetSysArg("fromPID", p.pid)
 	frag.FromPeerID = lpb.PeerID
 	frag.FromPeerName = lpb.PeerName
 
@@ -198,6 +200,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 		responseID := NewCallID("responseCallID for cktID(" + circuitID + ") in StartRemotePeerAndGetCircuit")
 		//vv("responseID = '%v'; alias='%v'; responseCh=%p", responseID, AliasDecode(responseID), responseCh)
 		frag.SetSysArg("fragRPCtoken", responseID)
+
 		p.u.GetReadsForCallID(responseCh, responseID)
 		p.u.GetErrorsForCallID(responseErrCh, responseID)
 

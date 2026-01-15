@@ -1355,9 +1355,13 @@ type peerAPI struct {
 	// so always have the same single remote address;
 	// we can just set ckt.loopy directly from cliLoopy
 	cliLoopy *LoopComm
+
+	hostname string
+	pid      string
 }
 
 func newPeerAPI(u UniversalCliSrv, isCli, isSim bool, baseServerName, baseServerAddr string) (a *peerAPI) {
+	hostname, _ := os.Hostname()
 	a = &peerAPI{
 		u:                   u,
 		localServiceNameMap: NewMutexmap[string, *knownLocalPeer](),
@@ -1365,7 +1369,10 @@ func newPeerAPI(u UniversalCliSrv, isCli, isSim bool, baseServerName, baseServer
 		isSim:               isSim,
 		baseServerName:      baseServerName,
 		baseServerAddr:      baseServerAddr,
+		hostname:            hostname,
+		pid:                 fmt.Sprintf("%v", os.Getpid()),
 	}
+
 	switch x := u.(type) {
 	case *Server:
 		if isCli {
