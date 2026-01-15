@@ -9723,25 +9723,28 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 				s.replyToForwardedTicketWithError(tkt)
 				continue
 			}
-			ste.ticketID2tkt[tkt.TicketID] = tkt
-			ste.Serial2Ticket.Set(tkt.SessionSerial, tkt)
-			if tkt.SessionSerial > ste.MaxAppliedSerial {
-				//vv("%v: updating ste.MaxAppliedSerial to higher tkt.SessionSerial: %v -> %v; on tkt.SessionID = '%v'", s.name, ste.MaxAppliedSerial, tkt.SessionSerial, tkt.SessionID)
-				ste.MaxAppliedSerial = tkt.SessionSerial
+			if tkt.Op == SESS_END {
+				delete(s.state.SessTable, tkt.SessionID)
+			} else {
+				ste.ticketID2tkt[tkt.TicketID] = tkt
+				ste.Serial2Ticket.Set(tkt.SessionSerial, tkt)
+				if tkt.SessionSerial > ste.MaxAppliedSerial {
+					//vv("%v: updating ste.MaxAppliedSerial to higher tkt.SessionSerial: %v -> %v; on tkt.SessionID = '%v'", s.name, ste.MaxAppliedSerial, tkt.SessionSerial, tkt.SessionID)
+					ste.MaxAppliedSerial = tkt.SessionSerial
 
-				// leader calls in the pre-replication checks,
-				// but followers cleanup does not happen unless
-				// we do it on them too, like here.
-				s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
+					// leader calls in the pre-replication checks,
+					// but followers cleanup does not happen unless
+					// we do it on them too, like here.
+					s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
+				}
+
+				// by using do.Tm below, we gain that
+				// all replicas extend by the same amount each time:
+				// Here 'do' is the RaftLogEntry for this most recent
+				// applied log entry; do.Tm is when the leader created
+				// when it in replicateTicket().
+				ste.SessionReplicatedEndxTm = s.refreshSession(do.Tm, ste)
 			}
-
-			// by using do.Tm below, we gain that
-			// all replicas extend by the same amount each time:
-			// Here 'do' is the RaftLogEntry for this most recent
-			// applied log entry; do.Tm is when the leader created
-			// when it in replicateTicket().
-			ste.SessionReplicatedEndxTm = s.refreshSession(do.Tm, ste)
-
 			// end client session implementation
 			// =========================================
 		}
@@ -14770,7 +14773,8 @@ func (s *TubeNode) garbageCollectOldSessions() {
 
 			vv("%v ste.SessionEndxTm='%v' expired. garbageCollectOldSessions replicating SESS_END. WHY ARE THESE LEAKING SO MUCH??", s.me(), nice(ste.SessionEndxTm))
 
-			// this is a major memory leak... why is this Ticket memory not cleaned up?
+			// this may be a major memory leak... why is this Ticket memory not cleaned up?
+			// I think every time a session is refreshed, something happens to extend memory?
 			tkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, SESS_END, 0, s.MyPeer.Ctx)
 			tkt.EndSessReq_SessionID = id
 			s.replicateTicket(tkt)
