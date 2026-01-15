@@ -291,7 +291,7 @@ import (
 	//"path/filepath"
 	//"github.com/glycerine/greenpack/msgp"
 
-	//"github.com/glycerine/blake3"
+	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
 	//rb "github.com/glycerine/rbtree"
 	rpc "github.com/glycerine/rpc25519"
@@ -2834,6 +2834,12 @@ type TubeNode struct {
 	lastBecomeLeaderTerm int64
 
 	hlc HLC
+
+	// multi-part state snapshot receives
+	snapInProgressLastPart        int64
+	snapInProgressB3checksumWhole string
+	snapInProgressHasher          *blake3.Hasher
+	snapInProgress                []byte
 }
 
 // tuber uses to read the DataDir in use.
@@ -15850,9 +15856,6 @@ func (s *TubeNode) updateMCindex(commitIndex, commitIndexEntryTerm int64) {
 
 func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circuit, caller string) {
 	//vv("%v top of handleRequestStateSnapshot(), caller='%v' to '%v'", s.name, caller, ckt.RemotePeerName) // seen 065
-	fragEnc := s.newFrag()
-	fragEnc.FragOp = StateSnapshotEnclosed
-	fragEnc.FragSubject = "StateSnapshotEnclosed"
 
 	// do we want to set these here? yes I think so!
 	// The recipient will reference them and install
@@ -15872,24 +15875,145 @@ func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circu
 
 	bts, err := snap.MarshalMsg(nil)
 	panicOn(err)
-	fragEnc.Payload = bts
 
-	npay := len(fragEnc.Payload)
-	if npay > rpc.UserMaxPayload {
+	// convention/encoding for FragPart for state Snapshots:
+	//fragEnc.FragPart = 0 // all in one Fragment.
+	//fragEnc.FragPart = 1 // more to come, this is part 1, 2, 3, ...
+	//fragEnc.FragPart = -4 or neg of max // the is the last of more to come.
+	// so typically either just 0, or: 1,2,3,-4
+	// (there should never need be a -1 on FragPart because that means the same as 0).
+	// so anytime we see FragPart <= 0, we know after appending to
+	// any prior stuff, we are done.
+
+	npay := len(bts)
+	const mx = rpc.UserMaxPayload
+	if npay > mx {
 		vv("why so large?? snap.Footprint = %v", snap.Footprint())
-		panicf("npay(%v) > rpc.UserMaxPayload(%v) cannot send this large a message!", npay, rpc.UserMaxPayload)
-	}
 
-	fragEnc.SetUserArg("leader", s.leaderID)
-	fragEnc.SetUserArg("leaderName", s.leaderName)
-	s.SendOneWay(ckt, fragEnc, -1, 0)
+		// accumulate the checksum of the whole to make sure we
+		// sequenced it right.
+		h := blake3.New(64, nil)
+		h.Write(bts)
+		b3checksumWhole := blake3ToString33B(h)
+
+		var part int64
+		left := bts
+		for len(left) > 0 {
+			frag := s.newFrag()
+			frag.FragOp = StateSnapshotEnclosed
+			frag.FragSubject = "StateSnapshotEnclosed"
+			frag.SetUserArg("leader", s.leaderID)
+			frag.SetUserArg("leaderName", s.leaderName)
+			frag.SetUserArg("b3checksumWhole", b3checksumWhole)
+
+			part++ // start at 1
+			frag.FragPart = part
+			sendme := left[:min(len(left), mx)]
+			left = left[len(sendme):]
+			frag.Payload = sendme
+			if len(left) == 0 {
+				// negative means we are done after this last part
+				// (and 0 means not multi-part)
+				frag.FragPart = -frag.FragPart
+			}
+			s.SendOneWay(ckt, frag, -1, 0)
+		}
+		vv("note: send snapshot in %v parts", part)
+	} else {
+		fragEnc := s.newFrag()
+		fragEnc.FragOp = StateSnapshotEnclosed
+		fragEnc.FragSubject = "StateSnapshotEnclosed"
+		fragEnc.SetUserArg("leader", s.leaderID)
+		fragEnc.SetUserArg("leaderName", s.leaderName)
+
+		// just one part
+		fragEnc.FragPart = 0 // redundant; for emphasis.
+		fragEnc.Payload = bts
+		s.SendOneWay(ckt, fragEnc, -1, 0)
+	}
 }
 
 func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circuit, caller string) {
-	state2 := &RaftState{}
-	_, err := state2.UnmarshalMsg(frag.Payload)
-	panicOn(err)
-	s.applyNewStateSnapshot(state2, caller)
+
+	part := frag.FragPart
+
+	// if part != 0, snapshot was too big for
+	// one message and sender is sending it in multiple parts.
+
+	b3checksumWhole, ok := frag.GetUserArg("b3checksumWhole")
+	if !ok && part != 0 {
+		panicf("multi-part snapshots must have b3checksumWhole set on their fragments")
+	}
+
+	switch {
+	case part == 1:
+		// first of a new multipart snapshot
+		s.snapInProgressLastPart = part
+		s.snapInProgressB3checksumWhole = b3checksumWhole
+		s.snapInProgressHasher = blake3.New(64, nil)
+		s.snapInProgressHasher.Write(frag.Payload)
+		s.snapInProgress = append([]byte{}, frag.Payload...)
+	case part > 1:
+		// next of a multipart
+		if part != s.snapInProgressLastPart+1 {
+			panicf("parts out of order s.snapInProgressLastPart=%v but this next =%v", s.snapInProgressLastPart, part)
+		}
+		if s.snapInProgressB3checksumWhole != b3checksumWhole {
+			panicf("part is from a different overall snapshot: discard and start over")
+			s.snapInProgressLastPart = 0
+			s.snapInProgressB3checksumWhole = ""
+			s.snapInProgressHasher = nil
+			s.snapInProgress = nil
+		}
+		s.snapInProgressLastPart = part
+		s.snapInProgressHasher.Write(frag.Payload)
+		s.snapInProgress = append(s.snapInProgress, frag.Payload...)
+
+	case part < 0:
+		// last of a multipart snapshot
+
+		if -part != s.snapInProgressLastPart+1 {
+			panicf("parts out of order s.snapInProgressLastPart=%v but this next -part=%v", s.snapInProgressLastPart, -part)
+		}
+		if s.snapInProgressB3checksumWhole != b3checksumWhole {
+			panicf("part is from a different overall snapshot: discard and start over")
+			s.snapInProgressLastPart = 0
+			s.snapInProgressB3checksumWhole = ""
+			s.snapInProgressHasher = nil
+			s.snapInProgress = nil
+		}
+
+		h := s.snapInProgressHasher
+		h.Write(frag.Payload)
+		b3checksumWhole2 := blake3ToString33B(h)
+		if b3checksumWhole2 != b3checksumWhole {
+			panicf("re-assmebly checksum failure: b3checksumWhole2 = '%v' but b3checksumWhole='%v'", b3checksumWhole2, b3checksumWhole)
+		}
+		s.snapInProgress = append(s.snapInProgress, frag.Payload...)
+
+		state2 := &RaftState{}
+		_, err := state2.UnmarshalMsg(s.snapInProgress)
+		panicOn(err)
+		s.applyNewStateSnapshot(state2, caller)
+		vv("applied %v part state snapshot", -part)
+		// and reset.
+		s.snapInProgressLastPart = 0
+		s.snapInProgressB3checksumWhole = ""
+		s.snapInProgressHasher = nil
+		s.snapInProgress = nil
+
+	case part == 0:
+		// single part
+		state2 := &RaftState{}
+		_, err := state2.UnmarshalMsg(frag.Payload)
+		panicOn(err)
+		s.applyNewStateSnapshot(state2, caller)
+		// nothing in progress, reset all such state:
+		s.snapInProgressLastPart = 0
+		s.snapInProgressB3checksumWhole = ""
+		s.snapInProgressHasher = nil
+		s.snapInProgress = nil
+	}
 }
 
 // arg. this is fragile; we forgot to add ShadowReplicas
