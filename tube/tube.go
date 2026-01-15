@@ -9940,6 +9940,7 @@ func (s *TubeNode) otherNoop0applyActions(tkt0 *Ticket) {
 // commitWhatWeCan(); and now by
 // leaderDoneEarlyOnSessionStuff().
 func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
+	//tkt.StateSnapshot = nil // do not replicate again!
 
 	calledOnLeader := s.role == LEADER
 	// whelp. in desparate circumstances, a
@@ -10201,7 +10202,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.HighestSerialSeenFromClient = answer.HighestSerialSeenFromClient
 
 	question.Err = answer.Err
-	question.StateSnapshot = answer.StateSnapshot
+	//question.StateSnapshot = answer.StateSnapshot
 
 	question.AsOfLogIndex = answer.AsOfLogIndex
 	question.LeaderLocalReadGoodUntil = answer.LeaderLocalReadGoodUntil
@@ -13334,7 +13335,9 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	// side effect: removal from MC will add to ShadowReplicas
 	s.setMC(newConfig, fmt.Sprintf("changeMembership to newConfig '%v'", newConfig.Short()))
 
-	tkt.StateSnapshot = s.getStateSnapshot()
+	// WTF why full snapshot on each member change???
+	//tkt.StateSnapshot = s.getStateSnapshot()
+
 	if tkt.Insp == nil {
 		//vv("%v changeMembership mongo logless commit adding tkt.Insp", s.me())
 		s.addInspectionToTicket(tkt)

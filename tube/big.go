@@ -10,6 +10,14 @@ import (
 
 func (z *Ticket) Footprint() (r string) {
 	r = "&Ticket{\n"
+	// just for context
+	r += fmt.Sprintf("                        Errs: \"%v\",\n", z.Errs)
+	r += fmt.Sprintf("                    TicketID: \"%v\",\n", z.TicketID)
+	r += fmt.Sprintf("                          Op: %v,\n", z.Op)
+	r += fmt.Sprintf("                    LogIndex: %v,\n", z.LogIndex)
+	r += fmt.Sprintf("                        Term: %v,\n", z.Term)
+	r += fmt.Sprintf("                        Desc: \"%v\",\n", z.Desc)
+
 	r += fmt.Sprintf("                         Key: %v,\n", z.Key.Msgsize())
 	r += fmt.Sprintf("                         Val: %v,\n", z.Val.Msgsize())
 	r += fmt.Sprintf("                      OldVal: %v,\n", z.OldVal.Msgsize())
