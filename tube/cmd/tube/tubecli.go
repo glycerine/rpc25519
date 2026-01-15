@@ -241,7 +241,7 @@ func main() {
 		if state == nil {
 			fmt.Printf("\n(none) empty RaftState from path '%v'.\n", path)
 		} else {
-			fmt.Printf("\nRaftState from path '%v':\n%v\n", path, state.Gstring())
+			fmt.Printf("\nRaftState from path '%v':\n%v\n", path, state.String())
 			if state.KVstore != nil {
 				fmt.Printf("KVstore: (len %v)\n", state.KVstore.Len())
 				for table, tab := range state.KVstore.All() {
