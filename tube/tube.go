@@ -2052,7 +2052,7 @@ func (s *TubeNode) handleNewCircuit(
 				return
 
 			case <-cktContextDone:
-				vv("%v: cktContextDone (ckt '%v' to RemotePeerName:'%v') ", s.name, ckt.Name, ckt.RemotePeerName) // NOW SEEN, SO WE no longer LEAK THIS GORO.
+				//vv("%v: cktContextDone (ckt '%v' to RemotePeerName:'%v') ", s.name, ckt.Name, ckt.RemotePeerName) // NOW SEEN, SO WE no longer leak this goro always, but have 8415 such open with only 200 members so hmm...
 				select {
 				case cktHasDied <- ckt:
 				case <-s.Halt.ReqStop.Chan:
