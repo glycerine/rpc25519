@@ -645,7 +645,7 @@ type TubeConfig struct {
 	deaf2b map[string]bool
 
 	// must be shared by all notes for simnet to work.
-	// Init will set it up. NOT SERIALIZED at the moment.
+	// Init will set it up. NOT (greenpack) SERIALIZED at the moment.
 	RpcCfg     *rpc.Config `msg:"-"`
 	initCalled bool        // verify everyone is using cfg.Init() now.
 
@@ -3760,6 +3760,13 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 	}
 	if hasWhiteSpace(name) {
 		panic(fmt.Sprintf("name '%v' cannot have whitespace, as it will be in the log path", name))
+	}
+
+	if !cfg.RpcCfg.CompressionOff {
+		cfg.RpcCfg.CompressionOff = true
+		if !cfg.isTest {
+			vv("setting cfg.RpcCfg.CompressionOff = true to debug big memory. EXPERIMENTAL!")
+		}
 	}
 
 	if cfg.ClusterID == "" {
