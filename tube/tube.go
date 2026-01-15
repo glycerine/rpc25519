@@ -14775,6 +14775,9 @@ func (s *TubeNode) garbageCollectOldSessions() {
 
 			// this may be a major memory leak... why is this Ticket memory not cleaned up?
 			// I think every time a session is refreshed, something happens to extend memory?
+			// What if we just scan for expired sessions at a regular interval?
+			// and also validate any session used on a ticket and kick it back if
+			// the session "would" have been deleted already.
 			tkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, SESS_END, 0, s.MyPeer.Ctx)
 			tkt.EndSessReq_SessionID = id
 			s.replicateTicket(tkt)
