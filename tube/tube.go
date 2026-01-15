@@ -8918,7 +8918,7 @@ func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerService
 		for i, e := range sendThese {
 			sz += e.Msgsize()
 			if sz >= lim {
-				vv("limiting batch of sent AE to %v entries (%v bytes)", i+1, sz)
+				//vv("limiting batch of sent AE to %v entries (%v bytes)", i+1, sz)
 				sendThese = sendThese[:(i + 1)]
 				break
 			}
