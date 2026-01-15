@@ -1988,10 +1988,16 @@ func (s *TubeNode) handleNewCircuit(
 		ctx := ckt.Context
 		cktContextDone := ctx.Done()
 
-		vv("%v: (ckt '%v') got incoming ckt: '%v'", s.name, ckt.Name, ckt)
+		if ckt.RemoteServiceName != TUBE_REPLICA {
+			vv("%v: (ckt '%v') got incoming ckt: '%v'; from hostname '%v'; pid = %v", s.name, ckt.Name, ckt, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID)
+		}
 
 		defer func() {
 			//vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.RemotePeerName) // , stack())
+
+			if ckt.RemoteServiceName != TUBE_REPLICA {
+				vv("%v: (ckt '%v') defer running! finishing ckt for RemotePeer goro; from hostname '%v'; pid = %v", s.name, ckt.RemotePeerName, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID)
+			}
 			ckt.Close(err0)
 			// subtract from peers, avoid race by using peerLeftCh.
 			//vv("%v reduce s.ckt peer set since peer went away: '%v'", s.me(), ckt.RemotePeerID)

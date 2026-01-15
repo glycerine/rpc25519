@@ -434,7 +434,8 @@ type RemotePeer struct {
 	BaseServerName               string   // for auto-cli, what is base server?
 	BaseServerAddr               string   // for auto-cli, what is base server addr?
 	IncomingCkt                  *Circuit // first one to arrive
-	PID                          int64
+	Hostname                     string
+	PID                          string
 }
 
 // LocalPeer in the backing behind each local instantiation of a PeerServiceFunc.
@@ -472,7 +473,7 @@ type LocalPeer struct {
 	AutoShutdownWhenNoMoreCircuits bool
 
 	Hostname string
-	PID      int64
+	PID      string
 
 	// put this in b/c the pump and the peer service
 	// func were racing on recycled new frag. might have
@@ -589,7 +590,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 		return nil, nil, madeNewAutoCli, err
 	}
 	rpb.IncomingCkt = ckt
-	s.Remotes.Set(peerID, rpb) // arg. _was_ only called this once. need to symmetrically set on the remote side too. addedckt.go:808 for that.
+	s.Remotes.Set(peerID, rpb) // arg. _was_ only called this once. need to symmetrically set on the remote side too. added ckt.go:808 for that.
 	return
 }
 
@@ -780,7 +781,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 		HandleCircuitClose: make(chan *Circuit),
 		QueryCh:            make(chan *QueryLocalPeerPump),
 		Hostname:           hostname,
-		PID:                int64(os.Getpid()),
+		PID:                fmt.Sprintf("%v", os.Getpid()),
 	}
 	pb.Halt = idem.NewHalterNamed(fmt.Sprintf("LocalPeer(%v %p)", peerServiceName, pb))
 
@@ -936,7 +937,7 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 	msg.HDR.Args["#fromBaseServerName"] = ckt.LpbFrom.BaseServerName
 	msg.HDR.Args["#fromBaseServerAddr"] = ckt.LpbFrom.BaseServerAddr
 	msg.HDR.Args["#fromHostname"] = ckt.LpbFrom.Hostname
-	msg.HDR.Args["#fromPID"] = fmt.Sprintf("%v", ckt.LpbFrom.PID)
+	msg.HDR.Args["#fromPID"] = ckt.LpbFrom.PID
 
 	return
 }
@@ -1147,7 +1148,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#fromBaseServerName"] = lpb.BaseServerName
 		msg.HDR.Args["#fromBaseServerAddr"] = lpb.BaseServerAddr
 		msg.HDR.Args["#fromHostname"] = lpb.Hostname
-		msg.HDR.Args["#fromPID"] = fmt.Sprintf("%v", lpb.PID)
+		msg.HDR.Args["#fromPID"] = lpb.PID
 
 		madeNewAutoCli, ckt.loopy, err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 		ckt.MadeNewAutoCli = madeNewAutoCli
@@ -1215,6 +1216,9 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
 		msg.HDR.Args["#fromBaseServerName"] = lpb.BaseServerName
 		msg.HDR.Args["#fromBaseServerAddr"] = lpb.BaseServerAddr
+		msg.HDR.Args["#fromHostname"] = lpb.Hostname
+		msg.HDR.Args["#fromPID"] = lpb.PID
+
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#toPeerServiceNameVersion"] = rpb.RemotePeerServiceNameVersion
 		msg.HDR.Args["#circuitName"] = circuitName
@@ -1921,7 +1925,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 				"#fromBaseServerName": lpb.BaseServerName,
 				"#fromBaseServerAddr": lpb.BaseServerAddr,
 				"#fromHostname":       lpb.Hostname,
-				"#fromPID":            fmt.Sprintf("%v", lpb.PID),
+				"#fromPID":            lpb.PID,
 				//"#fragRPCtoken": msg.HDR.Args["#fragRPCtoken"] // but only CallPeerStartCircuitTakeToID atm, so here maybe not.
 			}
 
@@ -1970,6 +1974,8 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		circuitName = msg.HDR.Args["#circuitName"]
 		rpb.BaseServerName = msg.HDR.Args["#fromBaseServerName"]
 		rpb.BaseServerAddr = msg.HDR.Args["#fromBaseServerAddr"]
+		rpb.Hostname = msg.HDR.Args["#fromHostname"]
+		rpb.PID = msg.HDR.Args["#fromPID"]
 		//vv("setting rpb.BaseServerAddr='%v'; rpb.BaseServerName = '%v'", rpb.BaseServerAddr, rpb.BaseServerName)
 	}
 	if !gotServiceName {
@@ -2067,6 +2073,16 @@ func (s *peerAPI) rejectWith(errString string, isCli bool, msg *Message, ctx con
 	if ok {
 		msg.HDR.Args["#toBaseServerAddr"] = fromServiceBaseServerAddr
 		delete(msg.HDR.Args, "#fromBaseServerAddr")
+	}
+	fromHostname, ok := msg.HDR.Args["#fromHostname"]
+	if ok {
+		msg.HDR.Args["#toHostname"] = fromHostname
+		delete(msg.HDR.Args, "#fromHostname")
+	}
+	fromPID, ok := msg.HDR.Args["#fromPID"]
+	if ok {
+		msg.HDR.Args["#toPID"] = fromPID
+		delete(msg.HDR.Args, "#fromPID")
 	}
 
 	//vv("bootstrapCircuit returning early (isCli=%v): '%v'", isCli, msg.JobErrs)
