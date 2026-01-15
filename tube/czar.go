@@ -828,7 +828,9 @@ fullRestart:
 					err = rpcClientToCzar.Start()
 					if err != nil {
 						vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
-						rpcClientToCzar.Close()
+						if rpcClientToCzar != nil {
+							rpcClientToCzar.Close()
+						}
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
 						cState = unknownCzarState
@@ -844,7 +846,9 @@ fullRestart:
 					err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
 					if err != nil {
 						pp("error back from Ping: '%v'", err)
-						rpcClientToCzar.Close()
+						if rpcClientToCzar != nil {
+							rpcClientToCzar.Close()
+						}
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
 						cState = unknownCzarState
@@ -887,7 +891,9 @@ fullRestart:
 					//vv("member called to Czar.Ping, err='%v'", err)
 					if err != nil {
 						vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
-						rpcClientToCzar.Close()
+						if rpcClientToCzar != nil {
+							rpcClientToCzar.Close()
+						}
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
 						cState = unknownCzarState
@@ -904,7 +910,9 @@ fullRestart:
 							// this is causing too many restarts! and then we leak clients/auto-clients? hazard of mixing rpc and circuit stuff maybe. kinda want
 							pp("stale czar answer (not really the czar now), reconnect/contend; deadline(%v) <= now(%v)", nice(deadline), nice(now))
 
-							rpcClientToCzar.Close()
+							if rpcClientToCzar != nil {
+								rpcClientToCzar.Close()
+							}
 							rpcClientToCzar = nil
 							rpcClientToCzarDoneCh = nil
 							cState = unknownCzarState
