@@ -25,7 +25,7 @@ func init() {
 
 	path := "debug"
 	sigHupCh = make(chan os.Signal, 1)
-	signal.Notify(sigQuitCh, syscall.SIGHUP)
+	signal.Notify(sigHupCh, syscall.SIGHUP)
 	go func() {
 		for range sigHupCh {
 			rnd8 := cryrand.RandomStringWithUp(8)
