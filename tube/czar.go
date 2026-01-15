@@ -238,7 +238,9 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 	if !ok {
 		// try to fix instead of panic-ing... after checking, it looks
 		// like maybe s.members is stuck?!?
-		panicf("must have self as czar in members! s.TubeCliName='%v' not found in s.members = '%v'", s.TubeCliName, s.members)
+
+		// fired! why??
+		//panicf("must have self as czar in members! s.TubeCliName='%v' not found in s.members = '%v'", s.TubeCliName, s.members)
 
 		// maybe something like this:
 		mePlus = getMyPeerDetailPlus(s.node)
