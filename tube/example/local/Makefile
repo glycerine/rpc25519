@@ -12,6 +12,11 @@ beg:
 	(grep "remote\ URL" log.*) || true
 	(ps -ef |grep tube |grep -v grep) || true
 	./taillogs
+	tubeadd node_0
+	tubeadd node_4
+	tubeadd node_5
+	sleep 1
+	tubels
 
 magic:
 	make clean; make beg; make who

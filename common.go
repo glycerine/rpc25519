@@ -132,7 +132,12 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair
 		maxMsgSize: maxMsgSize,
 		// need at least len(msg) + 56; 56 because ==
 		// magic(8) + msglen(8) + nonceX(24) + overhead(16)
-		buf:                  make([]byte, maxMsgSize+80),
+
+		// can we minimize memory footprint but allocating/deallocating buf each time?
+		// a little slower, but currently we use maxMsgSize * 3 * numberClients
+		// so for 200 clients we use about 200 times the memory of 1 client.
+		buf: nil, // was: make([]byte, maxMsgSize+80),
+
 		readLenMessageBytes:  make([]byte, 8),
 		writeLenMessageBytes: make([]byte, 8),
 		magicCheck:           make([]byte, 8), // last byte is compression type.

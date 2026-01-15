@@ -88,7 +88,9 @@ func newDecomp(maxMsgSize int) (d *decomp) {
 		//de_lz4:      lz4.NewReader(nil),
 		de_s2: s2.NewReader(nil),
 		//de_zstd:     &wrap, // *wrapZstdDecoder, not *zstd.Decoder
-		decompSlice: make([]byte, maxMsgSize+80),
+
+		// trying to minimize memory footprint now, by trying nil decompSlice
+		// decompSlice: make([]byte, maxMsgSize+80),
 	}
 	return d
 }
@@ -130,8 +132,10 @@ func newPressor(maxMsgSize int) (p *pressor) {
 	p = &pressor{
 		maxMsgSize: maxMsgSize,
 		//com_lz4:    com_lz4,
-		com_s2:    s2.NewWriter(nil),
-		compSlice: make([]byte, maxMsgSize+80),
+		com_s2: s2.NewWriter(nil),
+
+		// trying to minimize memory footprint now, by trying nil compSlice
+		// compSlice: make([]byte, maxMsgSize+80),
 	}
 
 	/*
@@ -206,10 +210,6 @@ func (p *pressor) handleCompress(magic7 magic7b, bytesMsg []byte) ([]byte, error
 	// already done at init:
 	//p.compSlice = make([]byte, maxMsgSize+80)
 
-	// debug: new slice every time, is memory sharing the issue? nope.
-	//big := make([]byte, maxMessage)
-	//out := bytes.NewBuffer(big[:0])
-
 	out := bytes.NewBuffer(p.compSlice[:0])
 
 	c.Reset(out)
@@ -268,10 +268,12 @@ func (decomp *decomp) handleDecompress(magic7 magic7b, message []byte) ([]byte, 
 
 	n, err := io.Copy(out, d)
 	panicOn(err)
-	if n > int64(len(decomp.decompSlice)) {
-		panic(fmt.Sprintf("we wrote more than our "+
-			"pre-allocated buffer, up its size! "+
-			"n(%v) > len(out) = %v", n, len(decomp.decompSlice)))
+	if false { // trying to minimize memory footprint now, by trying nil decompSlice
+		if n > int64(len(decomp.decompSlice)) {
+			panic(fmt.Sprintf("we wrote more than our "+
+				"pre-allocated buffer, up its size! "+
+				"n(%v) > len(out) = %v", n, len(decomp.decompSlice)))
+		}
 	}
 	//vv("decompression: %v bytes -> %v bytes; "+
 	//"len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
