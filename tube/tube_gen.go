@@ -9907,7 +9907,7 @@ func (z *PeerDetail) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields144zgensym_8df0a91a1f250219_145 = 8
+	const maxFields144zgensym_8df0a91a1f250219_145 = 9
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields144zgensym_8df0a91a1f250219_145 uint32
@@ -10004,6 +10004,12 @@ doneWithStruct144zgensym_8df0a91a1f250219_145:
 			if err != nil {
 				return
 			}
+		case "Hostname_zid08_str":
+			found144zgensym_8df0a91a1f250219_145[8] = true
+			z.Hostname, err = dc.ReadString()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -10027,16 +10033,16 @@ doneWithStruct144zgensym_8df0a91a1f250219_145:
 }
 
 // fields of PeerDetail
-var decodeMsgFieldOrder144zgensym_8df0a91a1f250219_145 = []string{"Name_zid00_str", "URL_zid01_str", "PeerID_zid02_str", "Addr_zid03_str", "PeerServiceName_zid04_str", "PeerServiceNameVersion_zid05_str", "NonVoting_zid06_boo", "PID_zid07_i64"}
+var decodeMsgFieldOrder144zgensym_8df0a91a1f250219_145 = []string{"Name_zid00_str", "URL_zid01_str", "PeerID_zid02_str", "Addr_zid03_str", "PeerServiceName_zid04_str", "PeerServiceNameVersion_zid05_str", "NonVoting_zid06_boo", "PID_zid07_i64", "Hostname_zid08_str"}
 
-var decodeMsgFieldSkip144zgensym_8df0a91a1f250219_145 = []bool{false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip144zgensym_8df0a91a1f250219_145 = []bool{false, false, false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *PeerDetail) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 8
+		return 9
 	}
-	var fieldsInUse uint32 = 8
+	var fieldsInUse uint32 = 9
 	isempty[0] = (len(z.Name) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -10069,6 +10075,10 @@ func (z *PeerDetail) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[7] {
 		fieldsInUse--
 	}
+	isempty[8] = (len(z.Hostname) == 0) // string, omitempty
+	if isempty[8] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -10080,7 +10090,7 @@ func (z *PeerDetail) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_146 [8]bool
+	var empty_zgensym_8df0a91a1f250219_146 [9]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_147 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_146[:])
 
 	// map header
@@ -10195,6 +10205,18 @@ func (z *PeerDetail) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_8df0a91a1f250219_146[8] {
+		// write "Hostname_zid08_str"
+		err = en.Append(0xb2, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.Hostname)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -10207,7 +10229,7 @@ func (z *PeerDetail) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [8]bool
+	var empty [9]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -10259,6 +10281,12 @@ func (z *PeerDetail) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendInt64(o, z.PID)
 	}
 
+	if !empty[8] {
+		// string "Hostname_zid08_str"
+		o = append(o, 0xb2, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.Hostname)
+	}
+
 	return
 }
 
@@ -10277,7 +10305,7 @@ func (z *PeerDetail) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o
 
 	var field []byte
 	_ = field
-	const maxFields148zgensym_8df0a91a1f250219_149 = 8
+	const maxFields148zgensym_8df0a91a1f250219_149 = 9
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields148zgensym_8df0a91a1f250219_149 uint32
@@ -10383,6 +10411,13 @@ doneWithStruct148zgensym_8df0a91a1f250219_149:
 			if err != nil {
 				return
 			}
+		case "Hostname_zid08_str":
+			found148zgensym_8df0a91a1f250219_149[8] = true
+			z.Hostname, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -10406,13 +10441,13 @@ doneWithStruct148zgensym_8df0a91a1f250219_149:
 }
 
 // fields of PeerDetail
-var unmarshalMsgFieldOrder148zgensym_8df0a91a1f250219_149 = []string{"Name_zid00_str", "URL_zid01_str", "PeerID_zid02_str", "Addr_zid03_str", "PeerServiceName_zid04_str", "PeerServiceNameVersion_zid05_str", "NonVoting_zid06_boo", "PID_zid07_i64"}
+var unmarshalMsgFieldOrder148zgensym_8df0a91a1f250219_149 = []string{"Name_zid00_str", "URL_zid01_str", "PeerID_zid02_str", "Addr_zid03_str", "PeerServiceName_zid04_str", "PeerServiceNameVersion_zid05_str", "NonVoting_zid06_boo", "PID_zid07_i64", "Hostname_zid08_str"}
 
-var unmarshalMsgFieldSkip148zgensym_8df0a91a1f250219_149 = []bool{false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip148zgensym_8df0a91a1f250219_149 = []bool{false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *PeerDetail) Msgsize() (s int) {
-	s = 1 + 15 + msgp.StringPrefixSize + len(z.Name) + 14 + msgp.StringPrefixSize + len(z.URL) + 17 + msgp.StringPrefixSize + len(z.PeerID) + 15 + msgp.StringPrefixSize + len(z.Addr) + 26 + msgp.StringPrefixSize + len(z.PeerServiceName) + 34 + msgp.StringPrefixSize + len(z.PeerServiceNameVersion) + 20 + msgp.BoolSize + 14 + msgp.Int64Size
+	s = 1 + 15 + msgp.StringPrefixSize + len(z.Name) + 14 + msgp.StringPrefixSize + len(z.URL) + 17 + msgp.StringPrefixSize + len(z.PeerID) + 15 + msgp.StringPrefixSize + len(z.Addr) + 26 + msgp.StringPrefixSize + len(z.PeerServiceName) + 34 + msgp.StringPrefixSize + len(z.PeerServiceNameVersion) + 20 + msgp.BoolSize + 14 + msgp.Int64Size + 19 + msgp.StringPrefixSize + len(z.Hostname)
 	return
 }
 func (z *PeerDetail) Gstring() (r string) {
@@ -10425,6 +10460,7 @@ func (z *PeerDetail) Gstring() (r string) {
 	r += fmt.Sprintf("PeerServiceNameVersion: \"%v\",\n", z.PeerServiceNameVersion)
 	r += fmt.Sprintf("             NonVoting: %v,\n", z.NonVoting)
 	r += fmt.Sprintf("                   PID: %v,\n", z.PID)
+	r += fmt.Sprintf("              Hostname: \"%v\",\n", z.Hostname)
 	r += "}\n"
 	return
 }

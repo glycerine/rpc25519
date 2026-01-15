@@ -2574,6 +2574,8 @@ type TubeNode struct {
 	peerLeftCh       chan string
 	gotNewPeerListCh chan []string
 
+	hostname string
+
 	// sent by external getCircuitToLeader() for clients.
 	setLeaderCktChan chan *rpc.Circuit
 
@@ -3757,6 +3759,9 @@ func (t *Ticket) PostLoadHook() {
 // cfg.PeerServiceName = "tube-replica" (typically); or "tube-client"
 func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 
+	hostname, err := os.Hostname()
+	panicOn(err)
+
 	if cfg.PeerServiceName == "" {
 		panic(`cfg.PeerServiceName must be set; usually to "tube-replica" but could also be "tube-client" to just send read/write requests.`)
 	}
@@ -3790,7 +3795,8 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 	}
 
 	s := &TubeNode{
-		cfg:             *cfg,                 // must make our own copy to avoid cross talk with other nodes
+		cfg:             *cfg, // must make our own copy to avoid cross talk with other nodes
+		hostname:        hostname,
 		Ctx:             context.Background(), // placeholder until MyPeer.Ctx
 		name:            name,
 		PeerServiceName: cfg.PeerServiceName,
@@ -12264,8 +12270,9 @@ type PeerDetail struct {
 	PeerServiceName        string `zid:"4"`
 	PeerServiceNameVersion string `zid:"5"`
 
-	NonVoting bool  `zid:"6"`
-	PID       int64 `zid:"7"`
+	NonVoting bool   `zid:"6"`
+	PID       int64  `zid:"7"`
+	Hostname  string `zid:"8"` // for quick reference
 
 	gcAfterHeartbeatCount int
 }
@@ -12280,6 +12287,7 @@ func (s *PeerDetail) Clone() *PeerDetail {
 		PeerServiceNameVersion: s.PeerServiceNameVersion,
 		NonVoting:              s.NonVoting,
 		PID:                    s.PID,
+		Hostname:               s.Hostname,
 	}
 }
 
@@ -12293,9 +12301,10 @@ func (s *PeerDetail) String() string {
 PeerServiceNameVersion: %v
              NonVoting: %v
                    PID: %v
+              Hostname: %v
 }`, s.Name, s.URL, s.PeerID, s.Addr,
 		s.PeerServiceName, s.PeerServiceNameVersion,
-		s.NonVoting, s.PID)
+		s.NonVoting, s.PID, s.Hostname)
 }
 
 // MemberConfig gets stored and saved
@@ -16872,6 +16881,7 @@ func (s *TubeNode) GetMyPeerDetail() *PeerDetail {
 		PeerServiceName:        s.MyPeer.PeerServiceName,
 		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
 		PID:                    int64(os.Getpid()),
+		Hostname:               s.hostname,
 	}
 }
 
