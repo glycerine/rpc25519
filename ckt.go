@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 
@@ -433,6 +434,7 @@ type RemotePeer struct {
 	BaseServerName               string   // for auto-cli, what is base server?
 	BaseServerAddr               string   // for auto-cli, what is base server addr?
 	IncomingCkt                  *Circuit // first one to arrive
+	PID                          int64
 }
 
 // LocalPeer in the backing behind each local instantiation of a PeerServiceFunc.
@@ -468,6 +470,9 @@ type LocalPeer struct {
 	// should we shut ourselves down when no more peers?
 	AutoShutdownWhenNoMorePeers    bool
 	AutoShutdownWhenNoMoreCircuits bool
+
+	Hostname string
+	PID      int64
 
 	// put this in b/c the pump and the peer service
 	// func were racing on recycled new frag. might have
@@ -754,6 +759,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 			baseServerAddr = netAddr
 		}
 	}
+	hostname, _ := os.Hostname()
 	pb = &LocalPeer{
 		NetAddr:         netAddr,
 		PeerServiceName: peerServiceName,
@@ -773,6 +779,8 @@ func (peerAPI *peerAPI) newLocalPeer(
 		TellPumpNewCircuit: make(chan *Circuit),
 		HandleCircuitClose: make(chan *Circuit),
 		QueryCh:            make(chan *QueryLocalPeerPump),
+		Hostname:           hostname,
+		PID:                int64(os.Getpid()),
 	}
 	pb.Halt = idem.NewHalterNamed(fmt.Sprintf("LocalPeer(%v %p)", peerServiceName, pb))
 
@@ -927,6 +935,8 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 	msg.HDR.Args["#fromPeerServiceNameVersion"] = ckt.LocalPeerServiceNameVersion
 	msg.HDR.Args["#fromBaseServerName"] = ckt.LpbFrom.BaseServerName
 	msg.HDR.Args["#fromBaseServerAddr"] = ckt.LpbFrom.BaseServerAddr
+	msg.HDR.Args["#fromHostname"] = ckt.LpbFrom.Hostname
+	msg.HDR.Args["#fromPID"] = fmt.Sprintf("%v", ckt.LpbFrom.PID)
 
 	return
 }
@@ -1115,6 +1125,8 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.FromPeerID = lpb.PeerID
 		msg.HDR.FromPeerName = lpb.PeerName
 		msg.HDR.FromServiceName = lpb.PeerServiceName
+		msg.HDR.FromPeerServiceNameVersion = lpb.PeerServiceNameVersion
+
 		msg.HDR.ToPeerID = rpb.PeerID
 		msg.HDR.ToPeerName = rpb.PeerName
 		msg.HDR.ToServiceName = rpb.RemoteServiceName
@@ -1134,6 +1146,8 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#circuitName"] = circuitName
 		msg.HDR.Args["#fromBaseServerName"] = lpb.BaseServerName
 		msg.HDR.Args["#fromBaseServerAddr"] = lpb.BaseServerAddr
+		msg.HDR.Args["#fromHostname"] = lpb.Hostname
+		msg.HDR.Args["#fromPID"] = fmt.Sprintf("%v", lpb.PID)
 
 		madeNewAutoCli, ckt.loopy, err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 		ckt.MadeNewAutoCli = madeNewAutoCli
@@ -1906,6 +1920,8 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 				"#fromServiceName":    lpb.PeerServiceName,
 				"#fromBaseServerName": lpb.BaseServerName,
 				"#fromBaseServerAddr": lpb.BaseServerAddr,
+				"#fromHostname":       lpb.Hostname,
+				"#fromPID":            fmt.Sprintf("%v", lpb.PID),
 				//"#fragRPCtoken": msg.HDR.Args["#fragRPCtoken"] // but only CallPeerStartCircuitTakeToID atm, so here maybe not.
 			}
 

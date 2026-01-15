@@ -1988,7 +1988,7 @@ func (s *TubeNode) handleNewCircuit(
 		ctx := ckt.Context
 		cktContextDone := ctx.Done()
 
-		//vv("%v: (ckt '%v') got incoming ckt: '%v'", s.name, ckt.Name, ckt)
+		vv("%v: (ckt '%v') got incoming ckt: '%v'", s.name, ckt.Name, ckt)
 
 		defer func() {
 			//vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.RemotePeerName) // , stack())
