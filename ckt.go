@@ -30,6 +30,7 @@ var nextCircuitSN int64
 //msgp:ignore Circuit
 type Circuit struct {
 	CircuitSN int64
+	T0        time.Time
 
 	LpbFrom *LocalPeer
 	RpbTo   *RemotePeer
@@ -109,6 +110,7 @@ type LoopComm struct {
 func (ckt *Circuit) String() string {
 	return fmt.Sprintf(`&Circuit{
      CircuitSN: %v,
+            T0: %v,
           Name: "%v",
      CircuitID: "%v",
 
@@ -138,7 +140,9 @@ RemotePeerServiceNameVersion: "%v",
 
    UserString: "%v",
     FirstFrag: %v
-}`, ckt.CircuitSN, ckt.Name,
+}`, ckt.CircuitSN,
+		nice(ckt.T0),
+		ckt.Name,
 		AliasDecode(ckt.CircuitID),
 		ckt.LocalPeerID, AliasDecode(ckt.LocalPeerID),
 		ckt.LocalPeerName,
@@ -1082,6 +1086,7 @@ func (lpb *LocalPeer) newCircuit(
 	errors := make(chan *Fragment, 100)
 	ckt = &Circuit{
 		CircuitSN:                    atomic.AddInt64(&nextCircuitSN, 1),
+		T0:                           time.Now(),
 		Name:                         circuitName,
 		LocalServiceName:             lpb.PeerServiceName,
 		LocalPeerServiceNameVersion:  lpb.PeerServiceNameVersion,
