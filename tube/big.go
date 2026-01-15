@@ -19,22 +19,32 @@ func (z *Ticket) Footprint() (r string) {
 	}
 	r += fmt.Sprintf("                ---  end Insp ---\n\n")
 	r += fmt.Sprintf("                          MC: %v,\n", z.MC.Msgsize())
-	r += fmt.Sprintf("                  NewSessReq: %v,\n", z.NewSessReq.Msgsize())
-	r += fmt.Sprintf("                NewSessReply: %v,\n", z.NewSessReply.Msgsize())
-	r += fmt.Sprintf("               StateSnapshot: %v,\n", z.StateSnapshot.Msgsize())
-	r += fmt.Sprintf("             KeyValRangeScan: %v,\n", z.KeyValRangeScan.Msgsize())
-	sz := 0
-	for _, b := range z.Batch {
-		sz += b.Msgsize()
+	if z.NewSessReq != nil {
+		r += fmt.Sprintf("                  NewSessReq: %v,\n", z.NewSessReq.Msgsize())
 	}
-	r += fmt.Sprintf("                       Batch: %v,\n", sz)
-	r += "  --- batch breakdown ---\n"
-	for _, b := range z.Batch {
-		if b != nil {
-			r += b.Footprint()
+	if z.NewSessReply != nil {
+		r += fmt.Sprintf("                NewSessReply: %v,\n", z.NewSessReply.Msgsize())
+	}
+	if z.StateSnapshot != nil {
+		r += fmt.Sprintf("               StateSnapshot: %v,\n", z.StateSnapshot.Msgsize())
+	}
+	if z.KeyValRangeScan != nil {
+		r += fmt.Sprintf("             KeyValRangeScan: %v,\n", z.KeyValRangeScan.Msgsize())
+	}
+	if len(z.Batch) > 0 {
+		sz := 0
+		for _, b := range z.Batch {
+			sz += b.Msgsize()
 		}
+		r += fmt.Sprintf("                       Batch: %v,\n", sz)
+		r += "  --- batch breakdown ---\n"
+		for _, b := range z.Batch {
+			if b != nil {
+				r += b.Footprint()
+			}
+		}
+		r += "  --- end batch breakdown ---\n\n}\n"
 	}
-	r += "  --- end batch breakdown ---\n\n}\n"
 	return
 }
 
