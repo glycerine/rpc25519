@@ -2912,8 +2912,10 @@ func (s *TubeNode) waitingSummaryHelper(atLeader bool, tot *int) (sum string) {
 	*tot += n
 
 	sum += fmt.Sprintf("(%v tkt waiting)\n", n)
-	if n < 2 {
-		// we ony print the first now...
+
+	const maxShow = 2
+	if true { // n < 2 {
+		// we ony print the first 2 now...
 
 		// sort into log order
 		var orderedTickets []*Ticket
@@ -2922,9 +2924,12 @@ func (s *TubeNode) waitingSummaryHelper(atLeader bool, tot *int) (sum string) {
 		}
 		sort.Sort(logOrder(orderedTickets))
 		extra := ""
-		i := 0
+
 		var star string // "*" for commited, "_" for uncommited.
-		for _, tkt := range orderedTickets {
+		for i, tkt := range orderedTickets {
+			if i >= maxShow {
+				break
+			}
 			if tkt.Committed {
 				star = "*"
 			} else {
@@ -2934,7 +2939,6 @@ func (s *TubeNode) waitingSummaryHelper(atLeader bool, tot *int) (sum string) {
 			if i == 0 {
 				//extra = "; "
 			}
-			i++
 		}
 	} else {
 		// not showing any ticket contents... slows down the process.
