@@ -130,8 +130,11 @@ RemotePeerServiceNameVersion: "%v",
  // LocalCircuitURL: "%v",
  // RemoteCircuitURL: "%v",
 
-     Hostname: %v
-          PID: %v
+      Lpb.Hostname: %v
+      Lpb.PID: %v
+
+      RemotePeer.Hostname: %v
+      RemotePeer.PID: %v
 
    UserString: "%v",
     FirstFrag: %v
@@ -151,6 +154,8 @@ RemotePeerServiceNameVersion: "%v",
 		ckt.RemoteCircuitURL(),
 		ckt.LpbFrom.Hostname,
 		ckt.LpbFrom.PID,
+		ckt.RpbTo.Hostname,
+		ckt.RpbTo.PID,
 		ckt.UserString,
 		ckt.FirstFrag,
 	)
