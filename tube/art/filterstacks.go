@@ -1,5 +1,6 @@
 package art
 
+// optional debug utility:
 // intercept SIGQUIT and skip showing gc stacks
 
 import (
@@ -15,6 +16,7 @@ import (
 var sigQuitCh chan os.Signal
 
 func init() {
+	return // comment to turn on this debugging.
 	sigQuitCh = make(chan os.Signal, 1)
 	signal.Notify(sigQuitCh, syscall.SIGQUIT)
 	go func() {

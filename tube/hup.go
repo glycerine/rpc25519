@@ -33,7 +33,7 @@ func init() {
 			alwaysPrintf("got HUP, write mem profile to '%v'.", fn)
 			writeMemProfiles(fn)
 
-			alwaysPrintf("here are the active ckt:\n")
+			alwaysPrintf("here are the %v active ckt:\n", len(ckts))
 			ckts := debugGlobalCkt.GetValSlice()
 			for i, ckt := range ckts {
 				fmt.Printf("[%02d] %v\n", i, ckt)
