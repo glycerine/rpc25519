@@ -250,7 +250,7 @@ func (pb *LocalPeer) peerbackPump() {
 			// creation because pump gets stuck here.
 			// new 2025 Sept 11 try adding timeout:
 			case <-time.After(time.Second * 2):
-				alwaysPrintf("warning: pump is dropping frag it could not deliver after 2 sec '%v'; allstacks=\n%v\n\n", frag, allstacks()) // get a stack trace too
+				alwaysPrintf("warning: pump is dropping frag it could not deliver after 2 sec '%v';", frag) //  allstacks=\n%v\n\n", frag, allstacks()) // get a stack trace too
 				continue
 
 			// was hung here on shutdown... tried adding this first case...
