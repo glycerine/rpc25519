@@ -14762,10 +14762,14 @@ func (s *TubeNode) garbageCollectOldSessions() {
 
 		if gte(now, ste.SessionEndxTm) {
 			desc := fmt.Sprintf("%v: about to replicate SESS_END for SessionID: '%v' b/c expired at '%v' <= now='%v'", s.name, id, nice(ste.SessionEndxTm), nice(now))
-			//vv("garbageCollectOldSessions replicating SESS_END: %v", desc)
+
+			vv("%v ste.SessionEndxTm='%v' expired. garbageCollectOldSessions replicating SESS_END. WHY ARE THESE LEAKING SO MUCH??", s.me(), nice(ste.SessionEndxTm))
+
+			// this is a major memory leak... why is this Ticket memory not cleaned up?
 			tkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, SESS_END, 0, s.MyPeer.Ctx)
 			tkt.EndSessReq_SessionID = id
 			s.replicateTicket(tkt)
+
 			// let applyEndSess() do the actual deletion,
 			// so that it happens in the correct serial order
 			// on all state machines.
