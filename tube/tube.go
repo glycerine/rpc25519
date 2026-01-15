@@ -317,7 +317,7 @@ func init() {
 	[1085778.017586] oom_reaper: reaped process 854415 (member), now anon-rss:0kB, file-rss:296kB,shmem-rss:0kB
 
 	*/
-	debug.SetMemoryLimit(2 << 30) // 2 GB
+	debug.SetMemoryLimit(10 << 30) // 10 GB. Was 2 GB but => grinding at 400% cpu sometimes.
 }
 
 // HLC is a hybrid logical/physical clock, based
