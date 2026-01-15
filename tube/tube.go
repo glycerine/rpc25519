@@ -9957,6 +9957,9 @@ func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
 	bts, err := tkt.MarshalMsg(nil)
 	panicOn(err)
 	frag.Payload = bts
+	if len(bts) > rpc.UserMaxPayload { // 1_200_000
+		panicf("why so big? will not get through... len(bts) is %v > rpc.UserMaxPayload(%v) footprint = %v", len(bts), rpc.UserMaxPayload, tkt.Footprint())
+	}
 
 	frag.SetUserArg("leader", s.leaderID)
 	frag.SetUserArg("leaderName", s.leaderName)
@@ -15036,7 +15039,7 @@ func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, 
 func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur time.Duration, keepFragIfPositive int) (err error) {
 	npay := len(frag.Payload)
 	if npay > rpc.UserMaxPayload {
-		panicf("npay(%v) > rpc.UserMaxPayload(%v) cannot send this large a message!", npay, rpc.UserMaxPayload)
+		panicf("npay(%v) > rpc.UserMaxPayload(%v) cannot send this large a message! frag.FragSubject='%v'; frag.FragOp='%v'", npay, rpc.UserMaxPayload, frag.FragSubject, frag.FragOp)
 	}
 	var anew bool
 	anew, err = ckt.SendOneWay(frag, errWriteDur, keepFragIfPositive)
