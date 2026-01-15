@@ -4,6 +4,7 @@ package tube
 // intercept SIGHUP and dump a memory profile
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"runtime/pprof"
@@ -11,8 +12,11 @@ import (
 	"syscall"
 
 	"github.com/glycerine/cryrand"
+	rpc "github.com/glycerine/rpc25519"
 	_ "net/http/pprof" // for web based profiling while running
 )
+
+var debugGlobalCkt = rpc.NewMutexmap[string, *rpc.Circuit]()
 
 var sigHupCh chan os.Signal
 
@@ -28,6 +32,12 @@ func init() {
 			fn := path + ".memprof." + rnd8
 			alwaysPrintf("got HUP, write mem profile to '%v'.", fn)
 			writeMemProfiles(fn)
+
+			alwaysPrintf("here are the active ckt:\n")
+			ckts := debugGlobalCkt.GetValSlice()
+			for i, ckt := range ckts {
+				fmt.Printf("[%02d] %v\n", i, ckt)
+			}
 		}
 	}()
 }
