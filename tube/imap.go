@@ -7,7 +7,7 @@ import (
 )
 
 // imap is an indexed-map for storing and
-// retreiving *Ticket efficient by either TicketID or LogIndex.
+// retreiving *Ticket efficiently by either TicketID or LogIndex.
 //
 // Inside: a regular Go map m has TicketID as a key;
 // and an ordered omap providing ordered

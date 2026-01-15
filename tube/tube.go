@@ -1196,9 +1196,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			//s.ay("%v got ticket on %v <-s.writeReqCh: '%v'", s.me(), s.countWriteCh, tkt)
 			//vv("%v got ticket on %v <-s.writeReqCh: '%v'", s.me(), s.countWriteCh, tkt)
 			tkt.Stage += ":writeReqCh"
-			tkt.localHistIndex = len(s.tkthist)
-			s.tkthist = append(s.tkthist, tkt)
-			s.tkthistQ.add(tkt)
+			//tkt.localHistIndex = len(s.tkthist)
+			//s.tkthist = append(s.tkthist, tkt)
+			//s.tkthistQ.add(tkt)
 
 			if s.redirectToLeader(tkt) {
 				if tkt.Err != nil {
@@ -1223,9 +1223,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			s.countReadCh++
 			//vv("%v got ticket on %v <-s.readReqCh: '%v'", s.me(), s.countReadCh, tkt)
 			tkt.Stage += ":readReqCh"
-			tkt.localHistIndex = len(s.tkthist)
-			s.tkthistQ.add(tkt)
-			s.tkthist = append(s.tkthist, tkt)
+			//tkt.localHistIndex = len(s.tkthist)
+			//s.tkthistQ.add(tkt)
+			//s.tkthist = append(s.tkthist, tkt)
 
 			if s.redirectToLeader(tkt) {
 				if tkt.Err != nil {
@@ -1255,9 +1255,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			s.countDeleteKeyCh++
 			//s.ay("%v got ticket on %v <-s.deleteKeyReqCh: '%v'", s.me(), s.countDeleteKeyCh, tkt)
 			tkt.Stage += ":deleteKeyReqCh"
-			tkt.localHistIndex = len(s.tkthist)
-			s.tkthistQ.add(tkt)
-			s.tkthist = append(s.tkthist, tkt)
+			//tkt.localHistIndex = len(s.tkthist)
+			//s.tkthistQ.add(tkt)
+			//s.tkthist = append(s.tkthist, tkt)
 
 			if s.redirectToLeader(tkt) {
 				if tkt.Err != nil {
@@ -2677,8 +2677,10 @@ type TubeNode struct {
 	WaitingAtLeader *imap `msg:"-"` // map[string]*Ticket
 	WaitingAtFollow *imap `msg:"-"` // map[string]*Ticket
 
-	tkthist  []*Ticket
-	tkthistQ *tkthistQ
+	// conjecture: ?actually not using these anymore?
+	//and might be leaking memory?
+	//tkthist  []*Ticket
+	//tkthistQ *tkthistQ
 
 	ticketsAwaitingLeader map[string]*Ticket
 
@@ -3793,7 +3795,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		// client Tickets that are waiting for logs to replicate.
 		WaitingAtLeader: newImap(),
 		WaitingAtFollow: newImap(),
-		tkthistQ:        newTkthistQ(),
+		//tkthistQ:        newTkthistQ(),
 
 		cktall:       make(map[string]*cktPlus), // by PeerID
 		cktAllByName: make(map[string]*cktPlus),
@@ -4133,9 +4135,9 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	}
 
 	if !minimize {
-		for _, tkt := range s.tkthist {
-			ins.Tkthist = append(ins.Tkthist, tkt.clone())
-		}
+		//for _, tkt := range s.tkthist {
+		//	ins.Tkthist = append(ins.Tkthist, tkt.clone())
+		//}
 
 		for id, info := range s.peers {
 			if minimize && info.PeerServiceName == TUBE_CLIENT {
@@ -12962,9 +12964,9 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		} else {
 			//vv("%v overload! must stall this 2nd (or greater) config change. tkt has '%v'", s.me(), tkt.Short())
 			tkt.Stage += ":stalledAsHavePreviousConfigChangeUncommitted"
-			tkt.localHistIndex = len(s.tkthist)
-			s.tkthist = append(s.tkthist, tkt)
-			s.tkthistQ.add(tkt)
+			//tkt.localHistIndex = len(s.tkthist)
+			//s.tkthist = append(s.tkthist, tkt)
+			//s.tkthistQ.add(tkt)
 
 			// en-queue at end
 			s.stalledMembershipConfigChangeTkt =
@@ -13133,7 +13135,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		}
 	}
 	if s.weAreMemberOfCurrentMC() {
-		vv("weAreMemberOfCurrentMC true: %v", s.name)
+		//vv("weAreMemberOfCurrentMC true: %v", s.name)
 		// update/add self
 		det := &PeerDetail{
 			Name:   s.name,
@@ -14646,9 +14648,9 @@ func (s *TubeNode) handleNewSessionRequestTicket(tkt *Ticket) {
 	//vv("%v top handleNewSessionRequestTicket", s.me())
 
 	tkt.Stage += ":newSessionRequestCh"
-	tkt.localHistIndex = len(s.tkthist)
-	s.tkthistQ.add(tkt)
-	s.tkthist = append(s.tkthist, tkt)
+	//tkt.localHistIndex = len(s.tkthist)
+	//s.tkthistQ.add(tkt)
+	//s.tkthist = append(s.tkthist, tkt)
 
 	if s.redirectToLeader(tkt) {
 		if tkt.Err != nil {
