@@ -281,6 +281,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"runtime/debug"
 	//"iter"
 	//"io"
 	//"os"
@@ -299,6 +300,25 @@ import (
 )
 
 //go:generate greenpack
+
+func init() {
+	/* try to avoid OOM like this, where we only need 1MB but Go allocates 30 GB per process
+
+	[1085741.373606] Out of memory: Killed process 854413 (member) total-vm:65343076kB, anon-rss:28445568kB, file-rss:936kB, shmem-rss:0kB, UID:1000 pgtables:67976kB oom_score_adj:0
+	[1085743.597277] oom_reaper: reaped process 854413 (member), now anon-rss:0kB, file-rss:936kB, shmem-rss:0kB
+	[1085775.498923] member invoked oom-killer: gfp_mask=0x140cca(GFP_HIGHUSER_MOVABLE|__GFP_COMP), order=0, oom_score_adj=0
+	[1085775.498957]  oom_kill_process+0x118/0x280
+	[1085775.498962]  ? oom_evaluate_task+0x155/0x1e0
+	[1085775.498968]  __alloc_pages_may_oom+0x10b/0x1d0
+	[1085775.499239] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+	[1085775.499259] [   1387]   990  1387     4400     1867      288     1579         0    77824        0          -900 systemd-oomd
+	[1085775.499478] oom-kill:constraint=CONSTRAINT_NONE,nodemask=(null),cpuset=user.slice,mems_allowed=0,global_oom,task_memcg=/user.slice/user-1000.slice/session-83.scope,task=member,pid=854415,uid=1000
+	[1085775.499595] Out of memory: Killed process 854415 (member) total-vm:1004092396kB, anon-rss:31270716kB, file-rss:296kB, shmem-rss:0kB, UID:1000 pgtables:334784kB oom_score_adj:0
+	[1085778.017586] oom_reaper: reaped process 854415 (member), now anon-rss:0kB, file-rss:296kB,shmem-rss:0kB
+
+	*/
+	debug.SetMemoryLimit(2 << 30) // 2 GB
+}
 
 // HLC is a hybrid logical/physical clock, based
 // on the 2014 paper
