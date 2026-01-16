@@ -376,7 +376,7 @@ const commitWithPACT = true
 // This is what a client actively does when they write to net.Conn.
 // Write(plaintext []byte) (n int, err error)
 func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
-
+	//vv("encoder.sendMessage top") // seen 006
 	// encryption
 	e.mut.Lock()
 	defer e.mut.Unlock()
@@ -399,7 +399,20 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	// }
 
 	// serialize message to bytes
-	bytesMsg, err := msg.AsGreenpack(e.work.buf[16+e.noncesize : cap(e.work.buf)])
+	defer func() {
+		r := recover()
+		if r != nil {
+			vv("saw panic: %v", r) // chacha.go:405 2026-01-16 21:18:22.967542000 +0000 UTC saw panic: runtime error: slice bounds out of range [32:0], when e.work.buf == nil.
+		}
+	}()
+
+	var buf2 []byte = e.work.buf
+	if e.work.buf == nil {
+		buf2 = make([]byte, maxMessage+80) // temp buffer, just for this call.
+	}
+	//bytesMsg, err := msg.AsGreenpack(e.work.buf[16+e.noncesize : cap(e.work.buf)])
+	bytesMsg, err := msg.AsGreenpack(buf2[16+e.noncesize : cap(buf2)])
+
 	if err != nil {
 		return err
 	}
@@ -431,7 +444,7 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		if err != nil {
 			return err
 		}
-		copy(e.work.buf[16+e.noncesize:cap(e.work.buf)], bytesMsg)
+		copy(buf2[16+e.noncesize:cap(buf2)], bytesMsg)
 	} else {
 		e.magicCheck[7] = byte(magic7b_none)
 	}
@@ -477,10 +490,11 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	}
 
 	// write len.
-	binary.BigEndian.PutUint64(e.work.buf[lenBegin:lenEndx], uint64(sz))
-	assocData := e.work.buf[:8]
+	binary.BigEndian.PutUint64(buf2[lenBegin:lenEndx], uint64(sz))
+	assocData := buf2[:8]
 
-	buf := e.work.buf
+	//buf := e.work.buf
+	buf := buf2
 
 	// Encrypt the data (prepends the nonce? nope need to do so ourselves)
 
@@ -540,6 +554,9 @@ func (d *decoder) readMessage(conn uConn) (msg *Message, err error) {
 	//vv("readMessage sees messageLen = %v", messageLen)
 
 	buf := d.work.buf
+	if buf == nil {
+		buf = make([]byte, maxMessage+80) // temp buffer, just for this call.
+	}
 
 	// Read the encrypted data
 	encrypted := buf[:messageLen]

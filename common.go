@@ -136,7 +136,7 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair
 		// can we minimize memory footprint but allocating/deallocating buf each time?
 		// a little slower, but currently we use maxMsgSize * 3 * numberClients
 		// so for 200 clients we use about 200 times the memory of 1 client.
-		buf: nil, // pre-mature shutdown red tests 011, 006, 024 etc.
+		//buf: nil, // pre-mature shutdown red tests 011, 006, 024 etc. not encryption related
 		//buf: make([]byte, maxMsgSize+80), // all tests green.
 
 		readLenMessageBytes:  make([]byte, 8),
@@ -311,8 +311,10 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 	// serialize message to bytes
 	bytesMsg, err := msg.AsGreenpack(w.buf)
 	if err != nil {
+		vv("err = '%v'", err) // not seen 006
 		return err
 	}
+	vv("len bytesMsg = %v", len(bytesMsg)) // not seen 006
 
 	if w.compress {
 		if msg.HDR.NoSystemCompression {
