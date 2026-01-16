@@ -9748,7 +9748,9 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 			// Yes, and we do now: see leaderDoneEarlyOnSessionStuff().
 			ste, ok := s.state.SessTable[tkt.SessionID]
 			if !ok {
-				panicf("how should be handled? should we not already have replicated and thus established the session? unknown tkt.SessionID for tkt=%v", tkt)
+				// happens if cluster bounces but member clients stay up and
+				// use stale sessions?? don't freak out.
+				//panicf("how should be handled? should we not already have replicated and thus established the session? unknown tkt.SessionID for tkt=%v", tkt)
 				tkt.Err = fmt.Errorf("unknown SessionID on tkt '%v'. Must call CreateNewSession first.", tkt)
 				tkt.Stage += ":err_unknown_SessionID_in_commitWhatWeCan"
 				s.replyToForwardedTicketWithError(tkt)
