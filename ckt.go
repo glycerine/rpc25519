@@ -2202,6 +2202,8 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 			"#fromBaseServerAddr":         lpb.BaseServerAddr,
 			"#toServiceName":              msg.HDR.FromServiceName,
 			"#toPeerServiceNameVersion":   msg.HDR.FromPeerServiceNameVersion,
+			"#fromHostname":               lpb.Hostname,
+			"#fromPID":                    lpb.PID,
 		}
 	}
 	msg.HDR.FromServiceName, msg.HDR.ToServiceName = msg.HDR.ToServiceName, msg.HDR.FromServiceName
