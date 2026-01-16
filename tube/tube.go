@@ -1989,7 +1989,7 @@ func (s *TubeNode) handleNewCircuit(
 		cktContextDone := ctx.Done()
 
 		//if ckt.RemoteServiceName != TUBE_REPLICA {
-		vv("%v: (ckt '%v') 888888888888 got-incoming-ckt: from hostname '%v'; pid = %v; ckt='%v'", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID, ckt)
+		vv("%v: (ckt '%v') 888888888888 got-incoming-ckt: from RemotePeerName:'%v' hostname '%v'; pid = %v; ckt='%v'", s.name, ckt.Name, ckt.RemotePeerName, ckt.RpbTo.Hostname, ckt.RpbTo.PID, ckt)
 		//}
 		debugGlobalCkt.Set(ckt.CircuitID, ckt)
 
@@ -16013,6 +16013,13 @@ func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circu
 	}
 }
 
+func (s *TubeNode) resetToNoSnapshotInProgress() {
+	s.snapInProgressLastPart = 0
+	s.snapInProgressB3checksumWhole = ""
+	s.snapInProgressHasher = nil
+	s.snapInProgress = nil
+}
+
 func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circuit, caller string) {
 
 	part := frag.FragPart
@@ -16035,15 +16042,15 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 		s.snapInProgress = append([]byte{}, frag.Payload...)
 	case part > 1:
 		// next of a multipart
-		if part != s.snapInProgressLastPart+1 {
-			panicf("parts out of order s.snapInProgressLastPart=%v but this next =%v", s.snapInProgressLastPart, part)
-		}
 		if s.snapInProgressB3checksumWhole != b3checksumWhole {
-			panicf("part is from a different overall snapshot: discard and start over")
-			s.snapInProgressLastPart = 0
-			s.snapInProgressB3checksumWhole = ""
-			s.snapInProgressHasher = nil
-			s.snapInProgress = nil
+			alwaysPrintf("part is from a different overall snapshot: discard and start over; s.snapInProgressB3checksumWhole(%v) != b3checksumWhole(%v)", s.snapInProgressB3checksumWhole, b3checksumWhole)
+			s.resetToNoSnapshotInProgress()
+			return
+		}
+		if part != s.snapInProgressLastPart+1 {
+			alwaysPrintf("parts out of order s.snapInProgressLastPart=%v but this next =%v. discard and ignore.", s.snapInProgressLastPart, part)
+			s.resetToNoSnapshotInProgress()
+			return
 		}
 		s.snapInProgressLastPart = part
 		s.snapInProgressHasher.Write(frag.Payload)
@@ -16052,22 +16059,24 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 	case part < 0:
 		// last of a multipart snapshot
 
-		if -part != s.snapInProgressLastPart+1 {
-			panicf("parts out of order s.snapInProgressLastPart=%v but this next -part=%v", s.snapInProgressLastPart, -part)
-		}
 		if s.snapInProgressB3checksumWhole != b3checksumWhole {
-			panicf("part is from a different overall snapshot: discard and start over")
-			s.snapInProgressLastPart = 0
-			s.snapInProgressB3checksumWhole = ""
-			s.snapInProgressHasher = nil
-			s.snapInProgress = nil
+			alwaysPrintf("part is from a different overall snapshot: discard and start over")
+			s.resetToNoSnapshotInProgress()
+			return
+		}
+		if -part != s.snapInProgressLastPart+1 {
+			alwaysPrintf("parts out of order s.snapInProgressLastPart=%v but this next -part=%v", s.snapInProgressLastPart, -part)
+			s.resetToNoSnapshotInProgress()
+			return
 		}
 
 		h := s.snapInProgressHasher
 		h.Write(frag.Payload)
 		b3checksumWhole2 := blake3ToString33B(h)
 		if b3checksumWhole2 != b3checksumWhole {
-			panicf("re-assmebly checksum failure: b3checksumWhole2 = '%v' but b3checksumWhole='%v'", b3checksumWhole2, b3checksumWhole)
+			alwaysPrintf("re-assembly checksum failure: b3checksumWhole2 = '%v' but b3checksumWhole='%v'", b3checksumWhole2, b3checksumWhole)
+			s.resetToNoSnapshotInProgress()
+			return
 		}
 		s.snapInProgress = append(s.snapInProgress, frag.Payload...)
 
@@ -16077,10 +16086,8 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 		s.applyNewStateSnapshot(state2, caller)
 		vv("applied %v part state snapshot", -part)
 		// and reset.
-		s.snapInProgressLastPart = 0
-		s.snapInProgressB3checksumWhole = ""
-		s.snapInProgressHasher = nil
-		s.snapInProgress = nil
+		s.resetToNoSnapshotInProgress()
+		return
 
 	case part == 0:
 		// single part
@@ -16088,11 +16095,9 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 		_, err := state2.UnmarshalMsg(frag.Payload)
 		panicOn(err)
 		s.applyNewStateSnapshot(state2, caller)
-		// nothing in progress, reset all such state:
-		s.snapInProgressLastPart = 0
-		s.snapInProgressB3checksumWhole = ""
-		s.snapInProgressHasher = nil
-		s.snapInProgress = nil
+		vv("applied single part state snapshot")
+		s.resetToNoSnapshotInProgress()
+		return
 	}
 }
 
