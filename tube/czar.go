@@ -772,9 +772,10 @@ fullRestart:
 				czar.mut.Lock()
 				until := czar.members.Vers.CzarLeaseUntilTm
 				czar.mut.Unlock()
-				left := time.Until(until)
+				now := time.Now()
+				left := until.Sub(now)
 				if left < 0 {
-					vv("ouch! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces.")
+					vv("ouch! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces. CzarLeaseUntil(%v) - now(%v) = left = '%v' on czar.members.Vers='%v'", nice(until), nice(now), left, czar.members.Vers)
 					cState = unknownCzarState
 					continue fullRestart
 				}
