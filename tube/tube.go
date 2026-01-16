@@ -3793,7 +3793,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 	if !cfg.RpcCfg.CompressionOff {
 		cfg.RpcCfg.CompressionOff = true
 		if !cfg.isTest {
-			vv("setting cfg.RpcCfg.CompressionOff = true to debug big memory. EXPERIMENTAL!")
+			alwaysPrintf("we set cfg.RpcCfg.CompressionOff = true to keep memory use low.")
 		}
 	}
 

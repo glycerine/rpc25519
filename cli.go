@@ -2133,7 +2133,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		// let loop assign Seqno.
 	}
 
-	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
+	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req) // seen.
 	select {
 	case c.roundTripCh <- req:
 		// proceed
@@ -2155,7 +2155,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		return nil, ErrTimeout
 
 	case <-c.halt.ReqStop.Chan:
-		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop before roundTripCh <- req", c.name, req)
+		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop before roundTripCh <- req", c.name, req) // not seen.
 		c.halt.Done.Close()
 		return nil, ErrShutdown()
 	}
@@ -2196,7 +2196,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		return nil, ErrTimeout
 
 	case <-c.halt.ReqStop.Chan:
-		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop", c.name, req) // here
+		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop.", c.name, req) // seen, reason nil.
 		c.halt.Done.Close()
 		return nil, ErrShutdown()
 	}
