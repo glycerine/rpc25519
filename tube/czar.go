@@ -204,6 +204,8 @@ func (s *Czar) expireSilentNodes(skipLock bool) (changed bool) {
 	return
 }
 
+var ErrNotCzar = fmt.Errorf("I am not the czar. Re-query the Tube czar key.")
+
 func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMembershipList) error {
 
 	// since the rpc system will call us on a
@@ -213,6 +215,10 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 	defer s.mut.Unlock()
 
 	orig := s.members.Vers
+	now := time.Now()
+	if now.After(s.members.Vers.CzarLeaseUntilTm) {
+		return ErrNotCzar
+	}
 
 	if hdr, ok := rpc.HDRFromContext(ctx); ok {
 		//vv("Ping, from ctx: hdr.Nc.LocalAddr()='%v'; hdr.Nc.RemoteAddr()='%v'", hdr.Nc.LocalAddr(), hdr.Nc.RemoteAddr()) // we want remote
@@ -227,7 +233,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 	if s.memberLeaseDur < time.Millisecond {
 		panicf("s.memberLeaseDur too small! '%v'", s.memberLeaseDur)
 	}
-	now := time.Now()
+
 	leasedUntilTm := now.Add(s.memberLeaseDur)
 	args.RMemberLeaseUntilTm = leasedUntilTm
 	args.RMemberLeaseDur = s.memberLeaseDur
@@ -254,7 +260,6 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 
 	s.heard[s.TubeCliName] = now
 	// but (only) *this* is what the members are checking!!
-	s.members.Vers.CzarLeaseUntilTm = leasedUntilTm
 
 	det, ok := s.members.PeerNames.Get2(args.Det.Name)
 	if !ok {
@@ -900,7 +905,7 @@ fullRestart:
 						continue
 					}
 					if reply != nil && reply.PeerNames != nil {
-						pp("member called to Czar.Ping, got reply with member count='%v'; rpcClientToCzar.RemoteAddr = '%v'", reply.PeerNames.Len(), rpcClientToCzar.RemoteAddr())
+						pp("member called to Czar.Ping, got reply with member count='%v'; rpcClientToCzar.RemoteAddr = '%v':\n reply = %v\n", reply.PeerNames.Len(), rpcClientToCzar.RemoteAddr(), reply)
 					}
 					if !reply.Vers.CzarLeaseUntilTm.IsZero() {
 						deadline := reply.Vers.CzarLeaseUntilTm.Add(-membr.clockDriftBound)
