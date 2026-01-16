@@ -45,8 +45,8 @@ func init() {
 				m[endpoints] = n + 1
 
 				e2 := fmt.Sprintf("local: %v  remote: %v remotePeerName: %v", ckt.LocalServiceName, ckt.RemoteServiceName, ckt.RemotePeerName)
-				n = m[e2]
-				m[e2] = n + 1
+				n = m2[e2]
+				m2[e2] = n + 1
 
 			}
 			alwaysPrintf("HUP: here are the %v active ckt, most recently made first:\n", len(ckts))
