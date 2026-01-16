@@ -94,7 +94,7 @@ func (s *Czar) setVers(v RMVersionTuple, list *ReliableMembershipList, t0 time.T
 	s.members.Vers = v
 	s.t0 = t0
 
-	//vv("end of setVers(v='%#v') s.members is now '%v')", v, s.members)
+	//vv("end of setVers(v='%v') s.members is now '%v')", v, s.members)
 	select {
 	case s.UpcallMembershipChangeCh <- s.members.Clone():
 	default:
@@ -118,7 +118,7 @@ func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
 		if addr == raddr {
 			s.members.PeerNames.Delkey(name)
 			s.members.Vers.Version++
-			//vv("remove dropped client '%v', vers='%#v'", name, s.members.Vers)
+			//vv("remove dropped client '%v', vers='%v'", name, s.members.Vers)
 			select {
 			case s.UpcallMembershipChangeCh <- s.members.Clone():
 			default:
@@ -229,7 +229,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 	} else {
 		panic("must have rpc.HDRFromContext(ctx) set so we know which tube-client to drop when the rpc.Client drops!")
 	}
-	//vv("Ping called at cliName = '%v', since args = '%v'; orig='%#v'", s.CliName, args, orig)
+	//vv("Ping called at cliName = '%v', since args = '%v'; orig='%v'", s.CliName, args, orig)
 	if s.memberLeaseDur < time.Millisecond {
 		panicf("s.memberLeaseDur too small! '%v'", s.memberLeaseDur)
 	}
@@ -304,7 +304,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 	s.expireSilentNodes(true) // true since mut is already locked.
 	if s.members.Vers.Version != orig.Version {
 		// mut is already held.
-		//vv("Czar.Ping: membership has changed (was %#v; now %#v), is now: {%v}", orig, s.members.Vers, s.shortRMemberSummary())
+		//vv("Czar.Ping: membership has changed (was %v; now %v), is now: {%v}", orig, s.members.Vers, s.shortRMemberSummary())
 	}
 
 	//vv("czar sees Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, czar replies with ='%v'", s.cliName, args, reply)
@@ -664,7 +664,7 @@ fullRestart:
 				// start with the highest version list we can find.
 				if nonCzarMembers != nil {
 					if nonCzarMembers.Vers.VersionGT(&list.Vers) {
-						vv("nonCzarMembers.Vers(%#v) sz=%v; was > list.Vers(%#v) sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
+						vv("nonCzarMembers.Vers(%v) sz=%v; was > list.Vers(%v) sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
 						list = nonCzarMembers.Clone()
 
 						// the lease czar key Vers version is garbage and
@@ -672,7 +672,7 @@ fullRestart:
 						// anyway with the LeaseEpoch -- used to create a new version,
 						// so there is no need to bother to update it in the raft log.
 					} else {
-						vv("nonCzarMembers.Vers(%#v) nonCzarMembers.sz=%v; was <= list.Vers(%#v) list.sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
+						vv("nonCzarMembers.Vers(%v) nonCzarMembers.sz=%v; was <= list.Vers(%v) list.sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
 					}
 				}
 
@@ -723,7 +723,7 @@ fullRestart:
 					czar.mut.Unlock()
 					_ = sum
 					left = time.Until(czar.members.Vers.CzarLeaseUntilTm)
-					pp("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%#v'; czar='%v'", tubeCliName, left, vers, sum)
+					pp("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", tubeCliName, left, vers, sum)
 
 					renewCzarLeaseDue = time.Now().Add(renewCzarLeaseDur)
 					renewCzarLeaseCh = time.After(renewCzarLeaseDur)
@@ -853,7 +853,7 @@ fullRestart:
 						cState = unknownCzarState
 						continue fullRestart
 					} else {
-						pp("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
+						pp("renewed czar lease, good until %v (%v out)", nice(czarTkt.LeaseUntilTm), time.Until(czarTkt.LeaseUntilTm))
 						czarLeaseUntilTm = czarTkt.LeaseUntilTm
 					}
 					renewCzarLeaseDue = time.Now().Add(renewCzarLeaseDur)
@@ -962,7 +962,7 @@ fullRestart:
 					if !reply.Vers.CzarLeaseUntilTm.IsZero() {
 						deadline := reply.Vers.CzarLeaseUntilTm.Add(-membr.clockDriftBound)
 						now := time.Now()
-						vv("reply.Vers = '%#v';\n deadline = '%v' \n now = '%v'", reply.Vers, nice(deadline), nice(now))
+						vv("reply.Vers = '%v';\n deadline = '%v' \n now = '%v'", reply.Vers, nice(deadline), nice(now))
 						if lte(deadline, now) {
 							// this is causing too many restarts! and then we leak clients/auto-clients? hazard of mixing rpc and circuit stuff maybe. kinda want
 							pp("stale czar answer (not really the czar now), reconnect/contend; deadline(%v) <= now(%v)", nice(deadline), nice(now))
@@ -1109,6 +1109,16 @@ type RMVersionTuple struct {
 	CzarLeaseUntilTm   time.Time `zid:"3"`
 }
 
+func (z *RMVersionTuple) String() (r string) {
+	r = "&RMVersionTuple{\n"
+	r += fmt.Sprintf("    CzarLeaseEpoch: %v\n", z.CzarLeaseEpoch)
+	r += fmt.Sprintf("           Version: %v\n", z.Version)
+	r += fmt.Sprintf("LeaseUpdateCounter: %v\n", z.LeaseUpdateCounter)
+	r += fmt.Sprintf("  CzarLeaseUntilTm: %v\n", nice(z.CzarLeaseUntilTm))
+	r += "}\n"
+	return
+}
+
 type PeerDetailPlus struct {
 	Det *PeerDetail `zid:"0"`
 
@@ -1198,7 +1208,7 @@ func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {
 func (s *ReliableMembershipList) String() (r string) {
 	r = "&ReliableMembershipList{\n"
 	r += fmt.Sprintf(" CzarName: \"%v\",\n", s.CzarName)
-	r += fmt.Sprintf("     Vers: %#v,\n", s.Vers)
+	r += fmt.Sprintf("     Vers: %v,\n", s.Vers)
 	r += fmt.Sprintf("PeerNames: (%v present)\n", s.PeerNames.Len())
 	i := 0
 	for _, plus := range s.PeerNames.All() {
@@ -1315,7 +1325,7 @@ func StringFromVtype(val Val, vtyp string) string {
 		//vv("attempting to unmarshal into PeerDetailPlus len %v bytes: '%v'", len(val), string(val))
 		det := &PeerDetailPlus{}
 		det.UnmarshalMsg(val)
-		//vv("after UnmarshalMsg, det = '%#v'", det)
+		//vv("after UnmarshalMsg, det = '%v'", det)
 		return det.String()
 	}
 
