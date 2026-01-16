@@ -54,7 +54,7 @@ func init() {
 			for endp, count := range m {
 				fmt.Printf("%v   -> count: %v\n", endp, count)
 			}
-			alwaysPrintf("(and counted by endpoints + remotePeerName):\n")
+			alwaysPrintf("\n(and counted by endpoints + remotePeerName):\n")
 			for endp, count := range m2 {
 				fmt.Printf("%v   -> count: %v\n", endp, count)
 			}
@@ -63,7 +63,7 @@ func init() {
 				fmt.Printf("[%02d] %v\n", i, ckt)
 			}
 
-			fmt.Printf("allstacks = \n%v\n", allstacks())
+			//fmt.Printf("allstacks = \n%v\n", allstacks())
 		}
 	}()
 }
