@@ -536,6 +536,8 @@ fullRestart:
 		keyCz := "czar"
 
 		var renewCzarLeaseCh <-chan time.Time
+		var renewCzarLeaseDue time.Time
+		_ = renewCzarLeaseDue
 
 		leaseDurCzar := time.Second * 10
 		renewCzarLeaseDur := leaseDurCzar / 2
@@ -668,13 +670,28 @@ fullRestart:
 				bts2, err := list.MarshalMsg(nil)
 				panicOn(err)
 
-				const leaseAutoDelFalse = false
+				// in cState == unknownCzarState here
+
 				czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar, leaseAutoDelTrue)
 
+				// INVAR: state == unknownCzarState here
 				if err == nil {
 					czarLeaseUntilTm = czarTkt.LeaseUntilTm
 					cState = amCzar
-					expireCheckCh = time.After(5 * time.Second)
+
+					now := time.Now()
+					left := czarLeaseUntilTm.Sub(now)
+					if left < 2*time.Second {
+						vv("less than 2 sec left on lease as czar?!? try again from haveSess")
+						cState = unknownCzarState
+						continue haveSess
+					}
+					// INVAR left >= 2s
+					checkAgainIn := 5 * time.Second
+					if left < checkAgainIn {
+						checkAgainIn = left - time.Millisecond*500
+					}
+					expireCheckCh = time.After(checkAgainIn)
 					vers := RMVersionTuple{
 						CzarLeaseEpoch:   czarTkt.LeaseEpoch,
 						Version:          0,
@@ -692,8 +709,10 @@ fullRestart:
 					sum := czar.shortRMemberSummary()
 					czar.mut.Unlock()
 					_ = sum
-					left := time.Until(czar.members.Vers.CzarLeaseUntilTm)
+					left = time.Until(czar.members.Vers.CzarLeaseUntilTm)
 					pp("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%#v'; czar='%v'", tubeCliName, left, vers, sum)
+
+					renewCzarLeaseDue = time.Now().Add(renewCzarLeaseDur)
 					renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 				} else {
 					cState = notCzar
@@ -737,13 +756,28 @@ fullRestart:
 
 			case amCzar:
 				cs := cli.Srv.ListClients()
-				vv("%v: I am czar with memberCount() = %v (from s.members.PeerNames.Len());  cli.Srv.ListClients() len %v", tubeCliName, czar.memberCount(), len(cs))
+				czar.mut.Lock()
+				until := czar.members.Vers.CzarLeaseUntilTm
+				czar.mut.Unlock()
+				left := time.Until(until)
+				if left < 0 {
+					vv("ouch! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces.")
+					cState = unknownCzarState
+					continue fullRestart
+				}
+
+				vv("%v: I am czar with (left on lease: %v) memberCount() = %v (from s.members.PeerNames.Len());  cli.Srv.ListClients() len %v", tubeCliName, left, czar.memberCount(), len(cs))
 				for i, c := range cs {
 					fmt.Printf("[%03d] %v\n", i, c)
 				}
 				fmt.Println()
 
 				select {
+				case <-time.After(left):
+					vv("ouch2! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces.")
+					cState = unknownCzarState
+					continue fullRestart
+
 				case <-refreshMembersCh:
 					err := refreshMemberInTube()
 					if err != nil {
@@ -808,7 +842,9 @@ fullRestart:
 						pp("renewed czar lease, good until %v", nice(czarTkt.LeaseUntilTm))
 						czarLeaseUntilTm = czarTkt.LeaseUntilTm
 					}
+					renewCzarLeaseDue = time.Now().Add(renewCzarLeaseDur)
 					renewCzarLeaseCh = time.After(renewCzarLeaseDur)
+
 				case <-czar.Halt.ReqStop.Chan:
 					//vv("czar halt requested. exiting.")
 					return
@@ -858,6 +894,7 @@ fullRestart:
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
 						cState = unknownCzarState
+						time.Sleep(time.Second)
 						continue haveSess
 					}
 					pp("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply of %v nodes", tubeCliName, reply.PeerNames.Len()) // seen regularly
