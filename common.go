@@ -319,10 +319,8 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 	// serialize message to bytes
 	bytesMsg, err := msg.AsGreenpack(w.buf)
 	if err != nil {
-		vv("err = '%v'", err) // not seen 006
 		return err
 	}
-	vv("len bytesMsg = %v", len(bytesMsg)) // not seen 006
 
 	if w.compress {
 		if msg.HDR.NoSystemCompression {

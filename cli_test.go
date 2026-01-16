@@ -185,7 +185,7 @@ func (BuiltinTypes) WantsContext(ctx context.Context, args *Args, reply *[2]int)
 // See attic/net_server_test.go:169 herein, which is a copy, with renaming
 // to build here without conflict over who is the real Server{}.
 func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
-	//return // any others? Test024_RoundTrip_Using_NetRPC_ and  011_Pre: all shutting down pre-maturely now.
+
 	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return

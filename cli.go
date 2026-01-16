@@ -216,7 +216,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	conn := nconn.(*tls.Conn) // docs say this is for sure.
 
 	//defer func(loc, rem string) {
-	//	//vv("conn.Close on client '%v' from '%v' -> '%v' imminent!", c.name, loc, rem) // seen
+	//	//vv("conn.Close on client '%v' from '%v' -> '%v' imminent!", c.name, loc, rem)
 	//	conn.Close() // debug version
 	//}(local(conn), remote(conn))
 
@@ -355,7 +355,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			// see a ts mutex deadlock under synctest on shutdown, comment out:
 			//alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'", r) // , stack())
 		} else {
-			//vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn)) // seen.
+			//vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
 		}
 		//}
 		//vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt)
@@ -2133,7 +2133,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		// let loop assign Seqno.
 	}
 
-	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req) // seen.
+	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
 	select {
 	case c.roundTripCh <- req:
 		// proceed
@@ -2155,7 +2155,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		return nil, ErrTimeout
 
 	case <-c.halt.ReqStop.Chan:
-		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop before roundTripCh <- req", c.name, req) // not seen.
+		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop before roundTripCh <- req", c.name, req)
 		c.halt.Done.Close()
 		return nil, ErrShutdown()
 	}
@@ -2196,7 +2196,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		return nil, ErrTimeout
 
 	case <-c.halt.ReqStop.Chan:
-		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop.", c.name, req) // seen, reason nil.
+		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop.", c.name, req)
 		c.halt.Done.Close()
 		return nil, ErrShutdown()
 	}
