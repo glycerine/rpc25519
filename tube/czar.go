@@ -484,6 +484,28 @@ func (membr *RMember) Start() {
 
 func (membr *RMember) start() {
 
+	tableSpace := membr.TableSpace
+
+	const quiet = false
+	const isTest = false
+	const useSimNet = false
+	cliCfg, err := LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
+	panicOn(err)
+	//vv("cliCfg = '%v'", cliCfg)
+	cliCfg.RpcCfg.QuietTestMode = false
+	tubeCliName := cliCfg.MyName
+
+	vv("tubeCliName = '%v'", tubeCliName)
+
+	cli := NewTubeNode(tubeCliName, cliCfg)
+	err = cli.InitAndStart()
+	panicOn(err)
+	defer cli.Close()
+
+	// if we full restart above here, then we make a whole new TubeNode
+	// and another member_xyz but all with the same config, so why?
+	// We are probably just dealing with a Tube/Raft cluster leadership change.
+
 fullRestart:
 	for j := 0; ; j++ {
 		vv("top of fullRestart j=%v", j)
@@ -491,31 +513,22 @@ fullRestart:
 			time.Sleep(time.Second) // pace it.
 		}
 
-		tableSpace := membr.TableSpace
-
-		const quiet = false
-		const isTest = false
-		const useSimNet = false
-		cliCfg, err := LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
-		panicOn(err)
-		//vv("cliCfg = '%v'", cliCfg)
-		cliCfg.RpcCfg.QuietTestMode = false
-		tubeCliName := cliCfg.MyName
-
-		//vv("tubeCliName = '%v'", tubeCliName)
-
-		cli := NewTubeNode(tubeCliName, cliCfg)
-		err = cli.InitAndStart()
-		panicOn(err)
-		defer cli.Close()
-
 		ctx := context.Background()
 		var sess *Session
 		const requireOnlyContact = false
 		const keepCktUp = true // false
 		for k := 0; ; k++ {
 			pp("find leaader loop k = %v", k)
-			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp)
+			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp) // ugh. this is making a new member_ peer each time.
+
+			// for example...
+			// helper.go:96 2026-01-16T07:30:58.014627000+00:00 TubeNode.HelperFindLeader(): attempting to contact 'node_0' at 100.114.32.72:7000 ...
+			//
+			// cli.go:235 2026-01-16 07:30:58.019553000 +0000 UTC connected to server '100.114.32.72:7000'; c.oneWayCh=0xc0006e9e60; c.roundTripCh=0xc0006e9ef0; local(conn)=tcp://100.114.32.72:56132 -> remote(conn)=tcp://100.114.32.72:7000 c.name='auto-cli-from-srv_member_rzWzuF4xRI0GdN5v6RzI-to-100.114.32.72:7000___6QAftrVqfZXwvG5ry5g9'
+			//
+			// tube.go:1992 [goID 245] 2026-01-16T07:30:58.020887000+00:00 member_rzWzuF4xRI0GdN5v6RzI: (ckt 'tube-ckt') 888888888888 got-incoming-ckt: from RemotePeerName:'node_0' hostname 'jbook.chimera-bass.ts.net'; pid = 28800; ckt='&Circuit{
+			//
+
 			_ = reallyLeader
 			_ = leaderName
 			panicOn(err)

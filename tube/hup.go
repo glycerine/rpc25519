@@ -58,6 +58,7 @@ func init() {
 			for endp, count := range m2 {
 				fmt.Printf("%v   -> count: %v\n", endp, count)
 			}
+			fmt.Println()
 			sort.Sort(byCircuitSN(ckts))
 			for i, ckt := range ckts {
 				fmt.Printf("[%02d] %v\n", i, ckt)
