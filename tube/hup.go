@@ -38,14 +38,24 @@ func init() {
 
 			// count by endpoint pairs
 			m := make(map[string]int)
+			m2 := make(map[string]int)
 			for _, ckt := range ckts {
 				endpoints := fmt.Sprintf("local: %v  remote: %v", ckt.LocalServiceName, ckt.RemoteServiceName)
 				n := m[endpoints]
 				m[endpoints] = n + 1
+
+				e2 := fmt.Sprintf("local: %v  remote: %v remotePeerName: %v", ckt.LocalServiceName, ckt.RemoteServiceName, ckt.RemotePeerName)
+				n = m[e2]
+				m[e2] = n + 1
+
 			}
 			alwaysPrintf("HUP: here are the %v active ckt, most recently made first:\n", len(ckts))
 			alwaysPrintf("(and counted by endpoints):\n")
 			for endp, count := range m {
+				fmt.Printf("%v   -> count: %v\n", endp, count)
+			}
+			alwaysPrintf("(and counted by endpoints + remotePeerName):\n")
+			for endp, count := range m2 {
 				fmt.Printf("%v   -> count: %v\n", endp, count)
 			}
 			sort.Sort(byCircuitSN(ckts))
