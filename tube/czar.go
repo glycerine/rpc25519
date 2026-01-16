@@ -842,6 +842,7 @@ fullRestart:
 
 					bts2, err := czar.members.MarshalMsg(nil)
 
+					prevUntil := czar.members.Vers.CzarLeaseUntilTm
 					czar.mut.Unlock()
 					panicOn(err)
 
@@ -858,8 +859,8 @@ fullRestart:
 					}
 
 					now := time.Now()
-					previousLeaseLeft := renewCzarLeaseDue.Sub(now)
-					pp("renewed czar lease (with %v left on it), good until %v (%v out). Will renew in %v at ~ '%v'", previousLeaseLeft, nice(czarTkt.LeaseUntilTm), time.Until(czarTkt.LeaseUntilTm), renewCzarLeaseDur/2, now.Add(renewCzarLeaseDur/2))
+					previousLeaseLeft := prevUntil.Sub(now)
+					pp("renewed czar lease (with %v left on it), good until %v (%v out). Will renew in %v at ~ '%v' for %v", previousLeaseLeft, nice(czarTkt.LeaseUntilTm), time.Until(czarTkt.LeaseUntilTm), renewCzarLeaseDur, now.Add(renewCzarLeaseDur), leaseDurCzar)
 
 					czar.mut.Lock()
 
@@ -878,7 +879,7 @@ fullRestart:
 					czar.mut.Unlock()
 
 					renewCzarLeaseDue = now.Add(renewCzarLeaseDur)
-					renewCzarLeaseCh = time.After(renewCzarLeaseDur / 2)
+					renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 
 				case <-czar.Halt.ReqStop.Chan:
 					//vv("czar halt requested. exiting.")
