@@ -5573,14 +5573,20 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	// persist to disk. in replicateTicket.
 	s.wal.saveRaftLogEntry(entry)
 
-	// this is only for the no-op zero now. Force a compaction?
+	// replicateTicket is only for the no-op zero now. Force a compaction?
+
 	// At least this is in line with our aggressive compaction vs snapshot
 	// testing. but also we saw the leader never compacting with was a concern.
 	// log compaction: here in replicateTicket().
-	didCompact := s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s) // if compaction enabled.
-	if !s.cfg.NoLogCompaction && !didCompact {
-		_, _, err := s.wal.Compact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
-		panicOn(err)
+
+	// relax our compact every time policy now that we have tested
+	// it for a while, to allow for some performance...
+	if s.wal.logSizeOnDisk() > s.wal.compactionThresholdBytes { // over 6MB, then compact (if compact on).
+		didCompact := s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
+		if !s.cfg.NoLogCompaction && !didCompact {
+			_, _, err := s.wal.Compact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
+			panicOn(err)
+		}
 	}
 	//if true {
 	//s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
@@ -5774,9 +5780,9 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 	// we compact aggressively for better testing of compaction vs appendEntries logic.
 	// TODO: uncomment below to only compact occassionally, since it
 	// involves lots of slow fsyncs and file rewrites. but less testing.
-	//if s.wal.logSizeOnDisk() > 6<<20 { // over 6MB, then compact (if compact on).
-	s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
-	//}
+	if s.wal.logSizeOnDisk() > s.wal.compactionThresholdBytes { // over 6MB, then compact (if compact on).
+		s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
+	}
 
 	if clusterSz > 1 {
 		for _, tkt := range batch {

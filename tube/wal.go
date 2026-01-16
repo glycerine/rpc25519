@@ -54,6 +54,7 @@ type raftWriteAheadLog struct {
 	// warning! if you add any new fields,
 	// clear or copy them in Compact() below.
 
+	compactionThresholdBytes int64
 }
 
 func dirExists(name string) bool {
@@ -224,20 +225,21 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 		}
 	}
 	s = &raftWriteAheadLog{
-		path:            path,
-		fd:              fd,
-		parentDirFd:     parentDirFd,
-		w:               msgp.NewWriter(fd),
-		r:               msgp.NewReader(fd),
-		logIndex:        newTermsRLE(),
-		checkEach:       blake3.New(64, nil),
-		parlog:          parlog,
-		name:            cfg.MyName,
-		noLogCompaction: cfg.NoLogCompaction,
-		isTest:          cfg.isTest,
-		testNum:         cfg.testNum,
-		lli:             0,
-		llt:             0,
+		path:                     path,
+		fd:                       fd,
+		parentDirFd:              parentDirFd,
+		w:                        msgp.NewWriter(fd),
+		r:                        msgp.NewReader(fd),
+		logIndex:                 newTermsRLE(),
+		checkEach:                blake3.New(64, nil),
+		parlog:                   parlog,
+		name:                     cfg.MyName,
+		noLogCompaction:          cfg.NoLogCompaction,
+		isTest:                   cfg.isTest,
+		testNum:                  cfg.testNum,
+		lli:                      0,
+		llt:                      0,
+		compactionThresholdBytes: 6 << 20, // 6MB
 	}
 	//vv("%v made newRaftWriteAheadLog(path = '%v'); nodisk=%v; cfg.MyName='%v'; noLogCompaction=%v", s.name, path, cfg.NoDisk, cfg.MyName, s.noLogCompaction)
 
@@ -859,7 +861,10 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 		// section 5.1.3 -- "Implementation concerns").
 		//
 		// leave off until TermsRLE is compaction ready.
-		s.maybeCompact(lastAppliedIndex, syncme, node)
+
+		if s.logSizeOnDisk() > s.compactionThresholdBytes { // over 6MB, then compact (if compact on).
+			s.maybeCompact(lastAppliedIndex, syncme, node)
+		}
 	}
 	return
 }
