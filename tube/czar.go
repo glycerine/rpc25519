@@ -692,7 +692,8 @@ fullRestart:
 					sum := czar.shortRMemberSummary()
 					czar.mut.Unlock()
 					_ = sum
-					pp("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. vers = '%#v'; czar='%v'", tubeCliName, vers, sum)
+					left := time.Until(czar.members.Vers.CzarLeaseUntilTm)
+					pp("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%#v'; czar='%v'", tubeCliName, left, vers, sum)
 					renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 				} else {
 					cState = notCzar
