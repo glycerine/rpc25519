@@ -297,7 +297,7 @@ func main() {
 	for _, insp := range contacted {
 		fmt.Printf(`%v %v  (lead: '%v')
    LastLog:{Term: '%v'; Index: '%v'; LeaderName: '%v'; TicketOp: %v}
-   LogIndexBaseC: %v
+   LogIndexBaseC: %v      PID: %v     Hostname: %v
    MC: %v   ShadowReplicas: %v   URL: %v
 `, insp.ResponderName, insp.Role, insp.CurrentLeaderName,
 
@@ -306,6 +306,9 @@ func main() {
 			insp.LastLogLeaderName,
 			insp.LastLogTicketOp,
 			insp.LogIndexBaseC,
+
+			insp.PID,
+			insp.Hostname,
 
 			insp.MC,
 			insp.ShadowReplicas,
