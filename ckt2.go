@@ -340,6 +340,9 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 				ckt.RemotePeerID = ackMsg.HDR.FromPeerID
 				ckt.RemotePeerName = ackMsg.HDR.FromPeerName
 
+				rpb.Hostname = ackMsg.HDR.Args["#fromHostname"]
+				rpb.PID = ackMsg.HDR.Args["#fromPID"]
+
 				if pleaseAssignNewRemotePeerID != "" {
 					lpb.Remotes.Del(pleaseAssignNewRemotePeerID)
 				}
