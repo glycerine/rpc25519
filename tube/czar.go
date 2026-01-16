@@ -92,7 +92,9 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, t0 time.
 
 	s.members = list.Clone()
 	s.members.Vers = v
-	s.t0 = t0
+	if !t0.IsZero() {
+		s.t0 = t0
+	}
 
 	//vv("end of setVers(v='%v') s.members is now '%v')", v, s.members)
 	select {
@@ -839,6 +841,7 @@ fullRestart:
 					czar.members.PeerNames.Set(myDetail.Det.Name, myDetail)
 
 					bts2, err := czar.members.MarshalMsg(nil)
+
 					czar.mut.Unlock()
 					panicOn(err)
 
@@ -852,12 +855,28 @@ fullRestart:
 
 						cState = unknownCzarState
 						continue fullRestart
-					} else {
-						pp("renewed czar lease, good until %v (%v out)", nice(czarTkt.LeaseUntilTm), time.Until(czarTkt.LeaseUntilTm))
-						czarLeaseUntilTm = czarTkt.LeaseUntilTm
 					}
+
+					pp("renewed czar lease, good until %v (%v out)", nice(czarTkt.LeaseUntilTm), time.Until(czarTkt.LeaseUntilTm))
+
+					czar.mut.Lock()
+
+					switch {
+					case czar.members.Vers.CzarLeaseEpoch < czarTkt.LeaseEpoch:
+						czar.members.Vers.CzarLeaseEpoch = czarTkt.LeaseEpoch
+						czar.members.Vers.Version = 0
+
+					case czar.members.Vers.CzarLeaseEpoch == czarTkt.LeaseEpoch:
+						czar.members.Vers.Version++
+					default:
+						panicf("tube LeaseEpoch must be monotone up, but czar.members.Vers.CzarLeaseEpoch('%v') already > what we just got back: czarTkt.LeaseEpoch('%v')", czar.members.Vers.CzarLeaseEpoch, czarTkt.LeaseEpoch)
+						continue fullRestart
+					}
+					czar.members.Vers.CzarLeaseUntilTm = czarTkt.LeaseUntilTm
+					czar.mut.Unlock()
+
 					renewCzarLeaseDue = time.Now().Add(renewCzarLeaseDur)
-					renewCzarLeaseCh = time.After(renewCzarLeaseDur)
+					renewCzarLeaseCh = time.After(renewCzarLeaseDur / 2)
 
 				case <-czar.Halt.ReqStop.Chan:
 					//vv("czar halt requested. exiting.")
