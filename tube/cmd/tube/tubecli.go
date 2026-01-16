@@ -464,7 +464,8 @@ func showArchive(path string) (exitCode int) {
 		fmt.Printf("(none) empty RaftState from path '%v'\n", path)
 		return 0
 	}
-	fmt.Printf("\nRaftState from path '%v':\n%v\n", path, state.Gstring())
+	// Gstring prints ALL the session entries (too many); String just one at random.
+	fmt.Printf("\nRaftState from path '%v':\n%v\n", path, state.String())
 	if state.KVstore != nil {
 		fmt.Printf("KVstore: (len %v)\n", state.KVstore.Len())
 		for table, tab := range state.KVstore.All() {
