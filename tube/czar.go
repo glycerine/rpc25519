@@ -511,9 +511,9 @@ func (membr *RMember) start() {
 fullRestart:
 	for j := 0; ; j++ {
 		vv("top of fullRestart j=%v", j)
-		if j > 0 {
-			time.Sleep(time.Second) // pace it.
-		}
+		//if j > 0 {
+		//	time.Sleep(time.Second) // pace it.
+		//}
 
 		ctx := context.Background()
 		var sess *Session
@@ -652,6 +652,7 @@ fullRestart:
 			}
 
 			switch cState {
+
 			case unknownCzarState:
 
 				// find the czar. it might be me.
