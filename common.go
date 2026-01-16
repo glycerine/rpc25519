@@ -136,7 +136,8 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair
 		// can we minimize memory footprint but allocating/deallocating buf each time?
 		// a little slower, but currently we use maxMsgSize * 3 * numberClients
 		// so for 200 clients we use about 200 times the memory of 1 client.
-		buf: nil, // was: make([]byte, maxMsgSize+80),
+		buf: nil, // pre-mature shutdown red tests 011, 006, 024 etc.
+		//buf: make([]byte, maxMsgSize+80), // all tests green.
 
 		readLenMessageBytes:  make([]byte, 8),
 		writeLenMessageBytes: make([]byte, 8),
