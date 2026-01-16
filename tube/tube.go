@@ -1989,15 +1989,12 @@ func (s *TubeNode) handleNewCircuit(
 		cktContextDone := ctx.Done()
 
 		//if ckt.RemoteServiceName != TUBE_REPLICA {
-		vv("%v: (ckt '%v') 888888888888 got-incoming-ckt: from hostname '%v'; pid = %v", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID)
+		vv("%v: (ckt '%v') 888888888888 got-incoming-ckt: from hostname '%v'; pid = %v; ckt='%v'", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID, ckt)
 		//}
 		debugGlobalCkt.Set(ckt.CircuitID, ckt)
 
 		defer func() {
 			//vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.RemotePeerName) // , stack())
-
-			//if ckt.RemoteServiceName != TUBE_REPLICA {
-			vv("%v: (ckt '%v') 999999999999 got-departing-ckt: from hostname '%v'; pid = %v", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID)
 
 			//vv("%v: (ckt '%v') defer running! finishing ckt for RemotePeer goro; from hostname '%v'; pid = %v", s.name, ckt.RemotePeerName, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID)
 			//}
@@ -2005,15 +2002,24 @@ func (s *TubeNode) handleNewCircuit(
 			ckt.Close(err0)
 			// subtract from peers, avoid race by using peerLeftCh.
 			//vv("%v reduce s.ckt peer set since peer went away: '%v'", s.me(), ckt.RemotePeerID)
+			// try to not have a race between shutdowns keep us
+			// from garbage collecting the ckt.
+			t0gc := time.Now()
+			select {
+			case s.peerLeftCh <- ckt.RemotePeerID:
+				vv("peerLeftCh after %v", time.Since(t0gc))
+			case <-time.After(time.Millisecond * 10):
+				vv("arg! could not send on peerLeftCh for 10ms")
+			}
 			select {
 			case s.peerLeftCh <- ckt.RemotePeerID:
 			case <-done0:
 				//zz("%v: (ckt '%v') done0!", s.name, ckt.Name)
-				return
 			case <-s.Halt.ReqStop.Chan:
 				//zz("%v: (ckt '%v') top func halt.ReqStop seen", s.name, ckt.Name)
-				return
 			}
+			//if ckt.RemoteServiceName != TUBE_REPLICA {
+			vv("%v: (ckt '%v') 999999999999 got-departing-ckt: from hostname '%v'; pid = %v", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID)
 		}()
 
 		//zz("%v: (ckt '%v') <- got new incoming ckt", s.name, ckt.Name)
@@ -2613,7 +2619,7 @@ type TubeNode struct {
 	// we maintain them all during suppressWatchdogs()
 	// if we hear from the remote peer over any of the ckts.
 	//
-	// The first key is peerName, 2nd key is sn (so we don't loose any).
+	// The first key is peerName, 2nd key is cktPlus.sn (so we don't loose any).
 	parked map[string]map[int64]*cktPlus
 
 	// cktReplica: the key is a PeerID.
@@ -13236,7 +13242,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 				//vv("%v no existing connection to tkt.AddPeerName='%v', try to spin one up in background", s.me(), target)
 				cktP := s.newCktPlus(target, TUBE_REPLICA)
 				cktP.PeerBaseServerAddr = tkt.AddPeerBaseServerHostPort
-				//vv("%v calling startWatchdog in changeMembership on cktP=%p for '%v'", s.me(), cktP, cktP.PeerName)
+				vv("%v calling startWatchdog in changeMembership on cktP=%p for '%v'", s.me(), cktP, cktP.PeerName)
 				cktP.startWatchdog()
 
 				det := &PeerDetail{

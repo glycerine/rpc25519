@@ -40,6 +40,8 @@ func init() {
 			for i, ckt := range ckts {
 				fmt.Printf("[%02d] %v\n", i, ckt)
 			}
+
+			fmt.Printf("allstacks = \n%v\n", allstacks())
 		}
 	}()
 }
