@@ -1959,7 +1959,12 @@ func (c *Client) Close() error {
 		// This is critical to not leak sockets and all
 		// of their machinery (rwPair, encryption buffers, etc);
 		// and to let the server side cleanup as well.
-		c.conn.(net.Conn).Close()
+		if !isNil(c.conn) {
+			nc, ok := c.conn.(net.Conn)
+			if ok {
+				nc.Close()
+			}
+		}
 	}
 	c.halt.ReqStop.Close()
 	if c.startCalled.Load() {
