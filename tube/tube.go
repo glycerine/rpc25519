@@ -9751,14 +9751,18 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 				// happens if cluster bounces but member clients stay up and
 				// use stale sessions?? don't freak out.
 				//panicf("how should be handled? should we not already have replicated and thus established the session? unknown tkt.SessionID for tkt=%v", tkt)
-				tkt.Err = fmt.Errorf("unknown SessionID on tkt '%v'. Must call CreateNewSession first.", tkt)
-				tkt.Stage += ":err_unknown_SessionID_in_commitWhatWeCan"
-				s.replyToForwardedTicketWithError(tkt)
+
+				// only one reply; from leader. replicas can just drop the session error.
+				if calledOnLeader {
+					tkt.Err = fmt.Errorf("unknown SessionID on tkt '%v'. Must call CreateNewSession first.", tkt)
+					tkt.Stage += ":err_unknown_SessionID_in_commitWhatWeCan"
+					s.respondToClientTicketApplied(tkt)
+				}
 				continue
 			}
-			if tkt.Op == SESS_END {
-				delete(s.state.SessTable, tkt.SessionID)
-			} else {
+			if tkt.Op != SESS_END {
+				// cache the Ticket for dedup; extend session.
+
 				ste.ticketID2tkt[tkt.TicketID] = tkt
 				ste.Serial2Ticket.Set(tkt.SessionSerial, tkt)
 				if tkt.SessionSerial > ste.MaxAppliedSerial {
@@ -9771,12 +9775,14 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 					s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
 				}
 
-				// by using do.Tm below, we gain that
-				// all replicas extend by the same amount each time:
-				// Here 'do' is the RaftLogEntry for this most recent
-				// applied log entry; do.Tm is when the leader created
-				// when it in replicateTicket().
-				ste.SessionReplicatedEndxTm = s.refreshSession(do.Tm, ste)
+				if tkt.Op != SESS_NEW {
+					// by using do.Tm below, we gain that
+					// all replicas extend by the same amount each time:
+					// Here 'do' is the RaftLogEntry for this most recent
+					// applied log entry; do.Tm is when the leader created
+					// when it in replicateTicket().
+					ste.SessionReplicatedEndxTm = s.refreshSession(do.Tm, ste)
+				}
 			}
 			// end client session implementation
 			// =========================================
@@ -10943,8 +10949,8 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 			tkt.Stage += ":unkown_SessionID_leaderServedLocalRead"
 			// actually DO think we need to do this here! otherwise
 			// tup reader can just hang!
-			s.respondToClientTicketApplied(tkt)
-			return true // done early
+			s.respondToClientTicketApplied(tkt) // or s.replyToForwardedTicketWithError(tkt)?
+			return true                         // done early
 
 		} else {
 			// session exists
