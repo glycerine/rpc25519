@@ -141,8 +141,11 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair
 		// per client connection, which for hundreds of
 		// clients becomes unsustainable. The garbage collector
 		// does a little more work, but in exchange we avoid OOM kills.
-		buf: nil, // now all tests green as well.
-
+		//
+		// See below, in "if w.compress": requires setting
+		// cfg.CompressionOff = true for now.
+		//buf: nil, // now all tests green as well.
+		//
 		// the classic version, before we did any memory optimization.
 		// Suffers from OOM killing alot when many clients:
 		//buf: make([]byte, maxMsgSize+80), // all tests green.
@@ -168,6 +171,11 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair
 		w.pressor = newPressor(maxMsgSize + 80)
 		w.decomp = newDecomp(maxMsgSize + 80)
 		w.defaultCompressionAlgo = cfg.CompressAlgo
+
+		// if cfg.CompressionOff = true then we avoid allocating
+		// even w.buf. With compression on we assume we are
+		// going for faster but with more memory consumption.
+		w.buf = make([]byte, maxMsgSize+80)
 
 		// write according to our defaults.
 		w.defaultMagic7 = setMagicCheckWord(cfg.CompressAlgo, w.magicCheck)
