@@ -4122,6 +4122,8 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.ResponderPeerURL = s.URL
 	ins.ResponderName = s.name
 	ins.Role = s.role
+	ins.Hostname = s.hostname
+	ins.PID = fmt.Sprintf("%v", os.Getpid())
 
 	// don't report someone else as leader if we are.
 	if s.role == LEADER {
@@ -4543,6 +4545,9 @@ type Inspection struct {
 	Tkthist []*Ticket `msg:"-"`
 
 	Minimal bool `zid:"27"`
+
+	Hostname string `zid:"28"`
+	PID      string `zid:"29"`
 
 	// internal use only. tests/users call TubeNode.Inpsect()
 	done chan struct{}
