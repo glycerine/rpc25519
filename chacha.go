@@ -376,7 +376,7 @@ const commitWithPACT = true
 // This is what a client actively does when they write to net.Conn.
 // Write(plaintext []byte) (n int, err error)
 func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
-	//vv("encoder.sendMessage top") // seen 006
+
 	// encryption
 	e.mut.Lock()
 	defer e.mut.Unlock()
@@ -399,18 +399,16 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	// }
 
 	// serialize message to bytes
-	defer func() {
-		r := recover()
-		if r != nil {
-			vv("saw panic: %v", r) // chacha.go:405 2026-01-16 21:18:22.967542000 +0000 UTC saw panic: runtime error: slice bounds out of range [32:0], when e.work.buf == nil.
-		}
-	}()
-
 	var buf2 []byte = e.work.buf
 	if e.work.buf == nil {
-		buf2 = make([]byte, maxMessage+80) // temp buffer, just for this call.
+		// In a space/time trade-off, we allocate memory
+		// temporarly to avoid having a large memory footprint
+		// per client connection, which for hundreds of
+		// clients becomes unsustainable.
+
+		// temp buffer, just for this call.
+		buf2 = make([]byte, maxMessage+80)
 	}
-	//bytesMsg, err := msg.AsGreenpack(e.work.buf[16+e.noncesize : cap(e.work.buf)])
 	bytesMsg, err := msg.AsGreenpack(buf2[16+e.noncesize : cap(buf2)])
 
 	if err != nil {
@@ -555,7 +553,13 @@ func (d *decoder) readMessage(conn uConn) (msg *Message, err error) {
 
 	buf := d.work.buf
 	if buf == nil {
-		buf = make([]byte, maxMessage+80) // temp buffer, just for this call.
+		// In a space/time trade-off, we allocate memory
+		// temporarly to avoid having a large memory footprint
+		// per client connection, which for hundreds of
+		// clients becomes unsustainable.
+
+		// temp buffer, just for this call.
+		buf = make([]byte, maxMessage+80)
 	}
 
 	// Read the encrypted data

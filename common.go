@@ -136,7 +136,15 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair
 		// can we minimize memory footprint but allocating/deallocating buf each time?
 		// a little slower, but currently we use maxMsgSize * 3 * numberClients
 		// so for 200 clients we use about 200 times the memory of 1 client.
-		//buf: nil, // pre-mature shutdown red tests 011, 006, 024 etc. not encryption related
+		// Yes. So: In a classic space for time trade-off, we allocate memory
+		// temporarly to avoid having a large memory footprint
+		// per client connection, which for hundreds of
+		// clients becomes unsustainable. The garbage collector
+		// does a little more work, but in exchange we avoid OOM kills.
+		buf: nil, // now all tests green as well.
+
+		// the classic version, before we did any memory optimization.
+		// Suffers from OOM killing alot when many clients:
 		//buf: make([]byte, maxMsgSize+80), // all tests green.
 
 		readLenMessageBytes:  make([]byte, 8),
