@@ -857,7 +857,9 @@ fullRestart:
 						continue fullRestart
 					}
 
-					pp("renewed czar lease, good until %v (%v out)", nice(czarTkt.LeaseUntilTm), time.Until(czarTkt.LeaseUntilTm))
+					now := time.Now()
+					previousLeaseLeft := renewCzarLeaseDue.Sub(now)
+					pp("renewed czar lease (with %v left on it), good until %v (%v out). Will renew in %v at ~ '%v'", previousLeaseLeft, nice(czarTkt.LeaseUntilTm), time.Until(czarTkt.LeaseUntilTm), renewCzarLeaseDur/2, now.Add(renewCzarLeaseDur/2))
 
 					czar.mut.Lock()
 
@@ -875,7 +877,7 @@ fullRestart:
 					czar.members.Vers.CzarLeaseUntilTm = czarTkt.LeaseUntilTm
 					czar.mut.Unlock()
 
-					renewCzarLeaseDue = time.Now().Add(renewCzarLeaseDur)
+					renewCzarLeaseDue = now.Add(renewCzarLeaseDur)
 					renewCzarLeaseCh = time.After(renewCzarLeaseDur / 2)
 
 				case <-czar.Halt.ReqStop.Chan:
