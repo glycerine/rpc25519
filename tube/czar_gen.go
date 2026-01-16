@@ -1185,11 +1185,34 @@ doneWithStruct19zgensym_d4b91a75c2094c05_20:
 			if err != nil {
 				return
 			}
-		case "Vers_zid01_rct":
+		case "Vers_zid01_ptr":
 			found19zgensym_d4b91a75c2094c05_20[1] = true
-			err = z.Vers.DecodeMsg(dc)
-			if err != nil {
-				return
+			if dc.IsNil() {
+				err = dc.ReadNil()
+				if err != nil {
+					return
+				}
+
+				if z.Vers != nil {
+					dc.PushAlwaysNil()
+					err = z.Vers.DecodeMsg(dc)
+					if err != nil {
+						return
+					}
+					dc.PopAlwaysNil()
+				}
+			} else {
+				// not Nil, we have something to read
+
+				if z.Vers == nil {
+					z.Vers = new(RMVersionTuple)
+				}
+				dc.DedupIndexEachPtr(z.Vers)
+
+				err = z.Vers.DecodeMsg(dc)
+				if err != nil {
+					return
+				}
 			}
 		case "SerzPeerDetails_zid02_slc":
 			found19zgensym_d4b91a75c2094c05_20[2] = true
@@ -1261,7 +1284,7 @@ doneWithStruct19zgensym_d4b91a75c2094c05_20:
 }
 
 // fields of ReliableMembershipList
-var decodeMsgFieldOrder19zgensym_d4b91a75c2094c05_20 = []string{"CzarName_zid00_str", "Vers_zid01_rct", "SerzPeerDetails_zid02_slc", "MemberLeaseDur_zid03_dur", ""}
+var decodeMsgFieldOrder19zgensym_d4b91a75c2094c05_20 = []string{"CzarName_zid00_str", "Vers_zid01_ptr", "SerzPeerDetails_zid02_slc", "MemberLeaseDur_zid03_dur", ""}
 
 var decodeMsgFieldSkip19zgensym_d4b91a75c2094c05_20 = []bool{false, false, false, false, true}
 
@@ -1275,7 +1298,7 @@ func (z *ReliableMembershipList) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[0] {
 		fieldsInUse--
 	}
-	isempty[1] = false
+	isempty[1] = (z.Vers == nil) // pointer, omitempty
 	if isempty[1] {
 		fieldsInUse--
 	}
@@ -1330,14 +1353,23 @@ func (z *ReliableMembershipList) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_d4b91a75c2094c05_22[1] {
-		// write "Vers_zid01_rct"
-		err = en.Append(0xae, 0x56, 0x65, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x72, 0x63, 0x74)
+		// write "Vers_zid01_ptr"
+		err = en.Append(0xae, 0x56, 0x65, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x70, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		err = z.Vers.EncodeMsg(en)
-		if err != nil {
-			return
+		// gPtr.encodeGen():
+
+		if z.Vers == nil {
+			err = en.WriteNil()
+			if err != nil {
+				return
+			}
+		} else {
+			err = z.Vers.EncodeMsg(en)
+			if err != nil {
+				return
+			}
 		}
 	}
 
@@ -1403,11 +1435,19 @@ func (z *ReliableMembershipList) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[1] {
-		// string "Vers_zid01_rct"
-		o = append(o, 0xae, 0x56, 0x65, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x72, 0x63, 0x74)
-		o, err = z.Vers.MarshalMsg(o) // not is.iface
-		if err != nil {
-			return
+		// string "Vers_zid01_ptr"
+		o = append(o, 0xae, 0x56, 0x65, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x70, 0x74, 0x72)
+		// marshalGen.gPtr()
+
+		if z.Vers == nil {
+			o = msgp.AppendNil(o)
+		} else {
+			// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+			o, err = z.Vers.MarshalMsg(o) // not is.iface
+			if err != nil {
+				return
+			}
 		}
 	}
 
@@ -1512,11 +1552,35 @@ doneWithStruct24zgensym_d4b91a75c2094c05_25:
 			if err != nil {
 				return
 			}
-		case "Vers_zid01_rct":
+		case "Vers_zid01_ptr":
 			found24zgensym_d4b91a75c2094c05_25[1] = true
-			bts, err = z.Vers.UnmarshalMsg(bts)
-			if err != nil {
-				return
+			// unmarshalGen.gPtr(): we have a BaseElem.
+
+			// unmarshalGen.gPtr(): we have an IDENT:
+
+			if nbs.AlwaysNil {
+				if z.Vers != nil {
+					z.Vers.UnmarshalMsg(msgp.OnlyNilSlice)
+				}
+			} else {
+				// not nbs.AlwaysNil
+				if msgp.IsNil(bts) {
+					bts = bts[1:]
+					if nil != z.Vers {
+						z.Vers.UnmarshalMsg(msgp.OnlyNilSlice)
+					}
+				} else {
+					// not nbs.AlwaysNil and not IsNil(bts): have something to read
+
+					if z.Vers == nil {
+						z.Vers = new(RMVersionTuple)
+					}
+
+					bts, err = z.Vers.UnmarshalMsg(bts)
+					if err != nil {
+						return
+					}
+				}
 			}
 		case "SerzPeerDetails_zid02_slc":
 			found24zgensym_d4b91a75c2094c05_25[2] = true
@@ -1595,13 +1659,19 @@ doneWithStruct24zgensym_d4b91a75c2094c05_25:
 }
 
 // fields of ReliableMembershipList
-var unmarshalMsgFieldOrder24zgensym_d4b91a75c2094c05_25 = []string{"CzarName_zid00_str", "Vers_zid01_rct", "SerzPeerDetails_zid02_slc", "MemberLeaseDur_zid03_dur", ""}
+var unmarshalMsgFieldOrder24zgensym_d4b91a75c2094c05_25 = []string{"CzarName_zid00_str", "Vers_zid01_ptr", "SerzPeerDetails_zid02_slc", "MemberLeaseDur_zid03_dur", ""}
 
 var unmarshalMsgFieldSkip24zgensym_d4b91a75c2094c05_25 = []bool{false, false, false, false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ReliableMembershipList) Msgsize() (s int) {
-	s = 1 + 19 + msgp.StringPrefixSize + len(z.CzarName) + 15 + z.Vers.Msgsize() + 26 + msgp.ArrayHeaderSize
+	s = 1 + 19 + msgp.StringPrefixSize + len(z.CzarName) + 15
+	if z.Vers == nil {
+		s += msgp.NilSize
+	} else {
+		s += z.Vers.Msgsize()
+	}
+	s += 26 + msgp.ArrayHeaderSize
 	for zgensym_d4b91a75c2094c05_18 := range z.SerzPeerDetails {
 		if z.SerzPeerDetails[zgensym_d4b91a75c2094c05_18] == nil {
 			s += msgp.NilSize

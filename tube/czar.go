@@ -80,11 +80,11 @@ type Czar struct {
 	node *TubeNode
 }
 
-func (s *Czar) setVers(v RMVersionTuple, list *ReliableMembershipList, t0 time.Time) error {
+func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, t0 time.Time) error {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	if v.VersionGT(&s.members.Vers) {
+	if v.VersionGT(s.members.Vers) {
 		// okay
 	} else {
 		return fmt.Errorf("error: RMVersionTuple must be monotone increasing, current='%v'; rejecting proposed new Vers '%v'", s.members.Vers, v)
@@ -663,7 +663,7 @@ fullRestart:
 
 				// start with the highest version list we can find.
 				if nonCzarMembers != nil {
-					if nonCzarMembers.Vers.VersionGT(&list.Vers) {
+					if nonCzarMembers.Vers.VersionGT(list.Vers) {
 						vv("nonCzarMembers.Vers(%v) sz=%v; was > list.Vers(%v) sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
 						list = nonCzarMembers.Clone()
 
@@ -705,7 +705,7 @@ fullRestart:
 						checkAgainIn = left - time.Millisecond*500
 					}
 					expireCheckCh = time.After(checkAgainIn)
-					vers := RMVersionTuple{
+					vers := &RMVersionTuple{
 						CzarLeaseEpoch:   czarTkt.LeaseEpoch,
 						Version:          0,
 						CzarLeaseUntilTm: czarTkt.LeaseUntilTm,
@@ -740,12 +740,12 @@ fullRestart:
 					_, err = nonCzarMembers.UnmarshalMsg(czarTkt.Val)
 					panicOn(err)
 					nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
-					vers := RMVersionTuple{
+					vers := &RMVersionTuple{
 						CzarLeaseEpoch:   czarTkt.LeaseEpoch,
 						Version:          0, // czarTkt.VersionRead, // do we want this? no, because it increments on each refresh of the lease, not each different if value.
 						CzarLeaseUntilTm: czarTkt.LeaseUntilTm,
 					}
-					if vers.VersionGT(&nonCzarMembers.Vers) {
+					if vers.VersionGT(nonCzarMembers.Vers) {
 						nonCzarMembers.Vers = vers
 					}
 
@@ -913,7 +913,7 @@ fullRestart:
 					}
 					pp("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply of %v nodes", tubeCliName, reply.PeerNames.Len()) // seen regularly
 					// store view of membership as non-czar
-					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
+					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(reply.Vers) {
 						nonCzarMembers = reply
 						nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
 						select {
@@ -976,7 +976,7 @@ fullRestart:
 							continue
 						}
 					}
-					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(&reply.Vers) {
+					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(reply.Vers) {
 
 						nonCzarMembers = reply
 						nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
@@ -1109,6 +1109,19 @@ type RMVersionTuple struct {
 	CzarLeaseUntilTm   time.Time `zid:"3"`
 }
 
+func (s *RMVersionTuple) Clone() (r *RMVersionTuple) {
+	if s == nil {
+		return nil
+	}
+	r = &RMVersionTuple{
+		CzarLeaseEpoch:     s.CzarLeaseEpoch,
+		Version:            s.Version,
+		LeaseUpdateCounter: s.LeaseUpdateCounter,
+		CzarLeaseUntilTm:   s.CzarLeaseUntilTm,
+	}
+	return
+}
+
 func (z *RMVersionTuple) String() (r string) {
 	r = "&RMVersionTuple{\n"
 	r += fmt.Sprintf("    CzarLeaseEpoch: %v\n", z.CzarLeaseEpoch)
@@ -1173,8 +1186,8 @@ PeerServiceNameVersion: %v
 // which write won the race and arrived first.
 // Used by cmd/member/member.go.
 type ReliableMembershipList struct {
-	CzarName string         `zid:"0"`
-	Vers     RMVersionTuple `zid:"1"`
+	CzarName string          `zid:"0"`
+	Vers     *RMVersionTuple `zid:"1"`
 
 	PeerNames *Omap[string, *PeerDetailPlus] `msg:"-"`
 
@@ -1191,7 +1204,7 @@ type ReliableMembershipList struct {
 func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {
 	r = &ReliableMembershipList{
 		CzarName:  s.CzarName,
-		Vers:      s.Vers,
+		Vers:      s.Vers.Clone(),
 		PeerNames: NewOmap[string, *PeerDetailPlus](),
 	}
 	for name, det := range s.PeerNames.All() {
@@ -1307,6 +1320,7 @@ func (s *ReliableMembershipList) PostLoadHook() {
 func (s *TubeNode) NewReliableMembershipList() *ReliableMembershipList {
 	r := &ReliableMembershipList{
 		PeerNames: NewOmap[string, *PeerDetailPlus](),
+		Vers:      &RMVersionTuple{},
 	}
 	if s == nil {
 		panic("s cannot be nil")
