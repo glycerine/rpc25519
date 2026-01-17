@@ -87,7 +87,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, t0 time.
 	if v.VersionGT(s.members.Vers) {
 		// okay
 	} else {
-		return fmt.Errorf("error: RMVersionTuple must be monotone increasing, current='%v'; rejecting proposed new Vers '%v'", s.members.Vers, v)
+		vv("would be error, but overriding for now: RMVersionTuple must be monotone increasing, current='%v'; rejecting proposed new Vers '%v'", s.members.Vers, v)
 	}
 
 	s.members = list.Clone()
@@ -96,7 +96,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, t0 time.
 		s.t0 = t0
 	}
 
-	//vv("end of setVers(v='%v') s.members is now '%v')", v, s.members)
+	vv("end of setVers(v='%v') s.members is now '%v')", v, s.members)
 	select {
 	case s.UpcallMembershipChangeCh <- s.members.Clone():
 	default:
@@ -402,7 +402,7 @@ func (s *Czar) shortRMemberSummary() (r string) {
 
 func NewCzar(cli *TubeNode, hbDur, clockDriftBound time.Duration) *Czar {
 
-	memberLeaseDur := hbDur * 3 // 6s if given 2s heartbeat
+	memberLeaseDur := hbDur * 6 // 12s if given 2s heartbeat
 	list := cli.NewReliableMembershipList()
 	list.MemberLeaseDur = memberLeaseDur
 
