@@ -4276,7 +4276,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	// tubels wants cktAll now
 	for id, cktP := range s.cktall {
 		ckt := cktP.ckt
-		ins.CktAll[id] = cktP.PeerName + "|" + ckt.RemoteCircuitURL()
+		ins.CktAll[id] = ckt.RemotePeerName + "|" + ckt.RemoteCircuitURL()
 	}
 	// add ourselves too.
 	ins.CktAll[s.PeerID] = s.name + "|" + s.URL
