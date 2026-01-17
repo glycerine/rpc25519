@@ -238,13 +238,8 @@ func haveCircuitsTo(insp *tube.Inspection, show bool) (cktTo string) {
 		return
 	}
 	haveCkt := make(map[string]int)
-	for id, name_pipe_url := range insp.CktAll {
-		_ = id // don't need PeerID atm
-		splt := strings.Split(name_pipe_url, "|")
-		nm := splt[0]
-		if nm == "" {
-			nm = name_pipe_url
-		}
+	for url, nm := range insp.CktAll {
+		_ = url
 		k := haveCkt[nm]
 		haveCkt[nm] = k + 1
 	}

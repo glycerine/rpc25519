@@ -4274,12 +4274,13 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.ShadowReplicas = s.state.ShadowReplicas.Clone()
 
 	// tubels wants cktAll now
-	for id, cktP := range s.cktall {
+	for _, cktP := range s.cktall {
 		ckt := cktP.ckt
-		ins.CktAll[id] = ckt.RemotePeerName + "|" + ckt.RemoteCircuitURL()
+		url := ckt.RemoteCircuitURL()
+		ins.CktAll[url] = ckt.RemotePeerName
 	}
 	// add ourselves too.
-	ins.CktAll[s.PeerID] = s.name + "|" + s.URL
+	ins.CktAll[s.URL] = s.name
 
 	if !minimize {
 		for name, cktP := range s.cktAllByName {
