@@ -99,7 +99,9 @@ func (s *TubeNode) parkedInsert(c *cktPlus) {
 // n*n ping storm going off constantly.
 func (s *TubeNode) suppressWatchdogs(ae *AppendEntries) {
 
-	const gcParked = false // not really sure we want this!
+	//const gcParked = false // not really sure we want this!
+	// try it:
+	const gcParked = true
 	var goners []*cktPlus
 
 	cktP0, ok := s.cktall[ae.FromPeerID]
@@ -117,7 +119,7 @@ func (s *TubeNode) suppressWatchdogs(ae *AppendEntries) {
 				if gcParked && cktp.atomicConnRefused.Load() {
 					goners = append(goners, cktp)
 				} else {
-					cktp.seen(ae.MC, ae.LeaderLLI, ae.LeaderLLT, ae.LeaderTerm) // in handleAE 2
+					cktp.seen(ae.MC, ae.LeaderLLI, ae.LeaderLLT, ae.LeaderTerm) // in handleAE 2; really in suppressWatchdogs.
 				}
 			}
 			for _, gone := range goners {
