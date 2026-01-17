@@ -58,6 +58,7 @@ func (s czarState) String() string {
 type Czar struct {
 	Halt *idem.Halter `msg:"-"`
 
+	keyCz   string
 	members *ReliableMembershipList
 	heard   map[string]time.Time
 
@@ -75,11 +76,57 @@ type Czar struct {
 	memberLeaseDur     time.Duration // used to be called declaredDeadDur
 	clockDriftBound    time.Duration
 
-	node *TubeNode
+	memberHeartBeatCh <-chan time.Time
+
+	cli *TubeNode
 
 	requestPingCh chan *pingReqReply
 
 	cState atomic.Int32 // czarState
+
+	renewCzarLeaseCh  <-chan time.Time
+	renewCzarLeaseDue time.Time
+
+	leaseDurCzar      time.Duration
+	renewCzarLeaseDur time.Duration
+
+	writeAttemptDur time.Duration
+
+	membersTableLeaseDur   time.Duration
+	refreshMembersTableDur time.Duration
+}
+
+func NewCzar(cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
+
+	memberHeartBeatDur := time.Second * 2
+	memberLeaseDur := memberHeartBeatDur * 6 // 12s if given 2s heartbeat
+	members := cli.NewReliableMembershipList()
+	members.MemberLeaseDur = memberLeaseDur
+
+	s = &Czar{
+		keyCz:                    "czar",
+		Halt:                     idem.NewHalter(),
+		members:                  members,
+		heard:                    make(map[string]time.Time),
+		t0:                       time.Now(),
+		memberLeaseDur:           memberLeaseDur,
+		memberHeartBeatDur:       memberHeartBeatDur,
+		UpcallMembershipChangeCh: make(chan *ReliableMembershipList, 1000),
+		clockDriftBound:          clockDriftBound,
+		cli:                      cli,
+		requestPingCh:            make(chan *pingReqReply),
+	}
+	// table hermes, key "czar"
+	s.leaseDurCzar = time.Second * 10
+	s.renewCzarLeaseDur = s.leaseDurCzar / 2
+
+	s.writeAttemptDur = time.Second * 5
+
+	// table /members, key member_name in the Tube kvstore.
+	s.membersTableLeaseDur = time.Second * 30
+	s.refreshMembersTableDur = s.membersTableLeaseDur / 3
+
+	return s
 }
 
 func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, t0 time.Time) error {
@@ -327,7 +374,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 		//panicf("must have self as czar in members! s.TubeCliName='%v' not found in s.members = '%v'", s.TubeCliName, s.members)
 
 		// maybe something like this:
-		mePlus = getMyPeerDetailPlus(s.node)
+		mePlus = getMyPeerDetailPlus(s.cli)
 		//myDetailBytes, err = mePlus.MarshalMsg(nil)
 		//panicOn(err)
 		s.members.PeerNames.Set(s.TubeCliName, mePlus)
@@ -398,26 +445,6 @@ func (s *Czar) shortRMemberSummary() (r string) {
 	}
 	r += "}"
 	return
-}
-
-func NewCzar(cli *TubeNode, hbDur, clockDriftBound time.Duration) *Czar {
-
-	memberLeaseDur := hbDur * 6 // 12s if given 2s heartbeat
-	list := cli.NewReliableMembershipList()
-	list.MemberLeaseDur = memberLeaseDur
-
-	return &Czar{
-		Halt:                     idem.NewHalter(),
-		members:                  list,
-		heard:                    make(map[string]time.Time),
-		t0:                       time.Now(),
-		memberLeaseDur:           memberLeaseDur,
-		memberHeartBeatDur:       hbDur,
-		UpcallMembershipChangeCh: make(chan *ReliableMembershipList, 1000),
-		clockDriftBound:          clockDriftBound,
-		node:                     cli,
-		requestPingCh:            make(chan *pingReqReply),
-	}
 }
 
 //msgp:ignore RMember
@@ -579,54 +606,10 @@ func (membr *RMember) start() {
 	panicOn(err)
 	defer cli.Close()
 
-	// if we full restart above here, then we make a whole new TubeNode
-	// and another member_xyz but all with the same config, so why?
-	// We are probably just dealing with a Tube/Raft cluster leadership change.
-
-	// Make a new Czar associated with the cli.
-	// Previously we were not shutting down the old
-	// czar if we re-find raft leader... hmm... might have
-	// been giving us the split brain/failure to recover after
-	// raft bounce that we had been seeing.
-	keyCz := "czar"
-
-	var renewCzarLeaseCh <-chan time.Time
-	var renewCzarLeaseDue time.Time
-	_ = renewCzarLeaseDue
-
-	leaseDurCzar := time.Second * 10
-	renewCzarLeaseDur := leaseDurCzar / 2
-
-	//var cState czarState = unknownCzarState
-
-	memberHeartBeatDur := time.Second * 2
-	writeAttemptDur := time.Second * 5
-
-	membersLeaseDur := time.Second * 30
-	refreshMembersDur := membersLeaseDur / 3
-
-	czar := NewCzar(cli, memberHeartBeatDur, membr.clockDriftBound)
+	czar := NewCzar(cli, membr.clockDriftBound)
 	czar.TubeCliName = tubeCliName
 
 	cli.Srv.RegisterName("Czar", czar)
-
-	// used by czar to notice when client drops
-	// and change membership quickly. If the
-	// client comes back, well, we just change
-	// membership again.
-	cli.Srv.NotifyAllNewClients = make(chan *rpc.ConnHalt, 1000)
-	////vv("cli.Srv.NotifyAllNewClients = %p", cli.Srv.NotifyAllNewClients)
-
-	// Update: turns out for hermes's Reliable Membership
-	// requirements, we cannot use TCP disconnects to
-	// eliminate dead members from the membership. Instead
-	// we must wait out their lease every time. Hence
-	// funneler is not helpful after all. We keep it wired
-	// in place in case it becomes useful to display
-	// "suspected" drops in the future.
-	//
-	// funnel all client disconnects down to one channel.
-	//funneler := newFunneler(czar.Halt)
 
 	membr.UpcallMembershipChangeCh = czar.UpcallMembershipChangeCh
 
@@ -643,20 +626,8 @@ fullRestart:
 		const keepCktUp = true // false
 		for k := 0; ; k++ {
 			//pp("find leaader loop k = %v", k)
-			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp) // ugh. this is making a new member_ peer each time.
-
-			// for example...
-			// helper.go:96 2026-01-16T07:30:58.014627000+00:00 TubeNode.HelperFindLeader(): attempting to contact 'node_0' at 100.114.32.72:7000 ...
-			//
-			// cli.go:235 2026-01-16 07:30:58.019553000 +0000 UTC connected to server '100.114.32.72:7000'; c.oneWayCh=0xc0006e9e60; c.roundTripCh=0xc0006e9ef0; local(conn)=tcp://100.114.32.72:56132 -> remote(conn)=tcp://100.114.32.72:7000 c.name='auto-cli-from-srv_member_rzWzuF4xRI0GdN5v6RzI-to-100.114.32.72:7000___6QAftrVqfZXwvG5ry5g9'
-			//
-			// tube.go:1992 [goID 245] 2026-01-16T07:30:58.020887000+00:00 member_rzWzuF4xRI0GdN5v6RzI: (ckt 'tube-ckt') 888888888888 got-incoming-ckt: from RemotePeerName:'node_0' hostname 'jbook.chimera-bass.ts.net'; pid = 28800; ckt='&Circuit{
-			//
-
-			_ = reallyLeader
-			_ = leaderName
+			leaderURL, _, _, _, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp)
 			panicOn(err)
-			////vv("got leaderName = '%v'; leaderURL = '%v'; reallyLeader='%v'", leaderName, leaderURL, reallyLeader)
 
 			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 			sess, err = cli.CreateNewSession(ctx5, leaderURL)
@@ -687,8 +658,6 @@ fullRestart:
 		var rpcClientToCzarDoneCh chan struct{}
 		var czarLeaseUntilTm time.Time
 
-		var memberHeartBeatCh <-chan time.Time
-
 		var expireCheckCh <-chan time.Time
 
 		//halt := idem.NewHalter()
@@ -705,17 +674,17 @@ fullRestart:
 			// an approximation, the tube Leaf.LeaseUntilTm
 			// is the actual decider, but should be similar.
 			// mostly so that it does not print (current czar)! :)
-			myDetail.RMemberLeaseUntilTm = time.Now().Add(membersLeaseDur)
-			myDetail.RMemberLeaseDur = membersLeaseDur
+			myDetail.RMemberLeaseUntilTm = time.Now().Add(czar.membersTableLeaseDur)
+			myDetail.RMemberLeaseDur = czar.membersTableLeaseDur
 			myDetailBytes, err = myDetail.MarshalMsg(nil)
 			panicOn(err)
 
 			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-			_, err := sess.Write(ctx5, Key("members"), Key(tubeCliName), Val(myDetailBytes), writeAttemptDur, PeerDetailPlusType, membersLeaseDur, leaseAutoDelTrue)
+			_, err := sess.Write(ctx5, Key("members"), Key(tubeCliName), Val(myDetailBytes), czar.writeAttemptDur, PeerDetailPlusType, czar.membersTableLeaseDur, leaseAutoDelTrue)
 			canc()
 			//vv("members table every 10s refresh attempt done. err = '%v'", err)
 
-			refreshMembersCh = time.After(refreshMembersDur)
+			refreshMembersCh = time.After(czar.refreshMembersTableDur)
 			return err
 		}
 		err = refreshMemberInTube()
@@ -766,7 +735,7 @@ fullRestart:
 
 				// in cState == unknownCzarState here
 
-				czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar, leaseAutoDelTrue)
+				czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
 
 				// INVAR: state == unknownCzarState here
 				if err == nil {
@@ -808,8 +777,8 @@ fullRestart:
 					left = time.Until(czar.members.Vers.CzarLeaseUntilTm)
 					//pp("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", tubeCliName, left, vers, sum)
 
-					renewCzarLeaseDue = time.Now().Add(renewCzarLeaseDur)
-					renewCzarLeaseCh = time.After(renewCzarLeaseDur)
+					czar.renewCzarLeaseDue = time.Now().Add(czar.renewCzarLeaseDur)
+					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)
 				} else {
 					//cState = notCzar
 					czar.cState.Store(int32(notCzar))
@@ -908,25 +877,6 @@ fullRestart:
 						continue fullRestart
 					}
 
-					/* funneler cannot be used b/c leases must be honored so immediate client removal is useless anyway. For simplicity of debugging, turn it off.
-					case cliConnHalt := <-cli.Srv.NotifyAllNewClients:
-						////vv("czar received on cli.Srv.NotifyAllNewClients, has new client '%v'", cliConnHalt.Conn.RemoteAddr())
-						// tell the funneler to listen for it to drop.
-						// It will notify us on clientDroppedCh below.
-						select {
-						case funneler.newCliCh <- cliConnHalt:
-						case <-czar.Halt.ReqStop.Chan:
-							////vv("czar halt requested. exiting.")
-							return
-						}
-
-					case dropped := <-funneler.clientDroppedCh:
-						_ = dropped
-						// for safety we cannot assume this now :(
-						// we must let their lease drain out
-						// and so expireSilentNodes gets all the fun.
-						//czar.remove(dropped)
-					*/
 				case <-expireCheckCh:
 					changed := czar.expireSilentNodes()
 					if changed {
@@ -934,7 +884,7 @@ fullRestart:
 					}
 					expireCheckCh = time.After(5 * time.Second)
 
-				case <-renewCzarLeaseCh:
+				case <-czar.renewCzarLeaseCh:
 
 					// if we update, are we going to lose the Plus part leases?
 					// naw, I think that does not apply to the czar,
@@ -954,7 +904,7 @@ fullRestart:
 					// hung here on cluster leader bounce, write
 					// has failed.
 					ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-					czarTkt, err := sess.Write(ctx5, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar, leaseAutoDelTrue)
+					czarTkt, err := sess.Write(ctx5, Key(tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
 					canc()
 					if err != nil {
 						//vv("renewCzarLeaseCh attempt to renew lease with Write to '%v' failed: err='%v'", keyCz, err)
@@ -983,8 +933,8 @@ fullRestart:
 					}
 					czar.members.Vers.CzarLeaseUntilTm = czarTkt.LeaseUntilTm
 
-					renewCzarLeaseDue = now.Add(renewCzarLeaseDur)
-					renewCzarLeaseCh = time.After(renewCzarLeaseDur)
+					czar.renewCzarLeaseDue = now.Add(czar.renewCzarLeaseDur)
+					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)
 
 				case <-czar.Halt.ReqStop.Chan:
 					////vv("czar halt requested. exiting.")
@@ -1054,7 +1004,7 @@ fullRestart:
 						default:
 						}
 					}
-					memberHeartBeatCh = time.After(memberHeartBeatDur)
+					czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
 				} // end if rpcClientToCzar == nil
 
 				// INVAR: rpcClientToCzar != nil
@@ -1076,7 +1026,7 @@ fullRestart:
 
 					continue fullRestart
 
-				case <-memberHeartBeatCh:
+				case <-czar.memberHeartBeatCh:
 
 					reply := &ReliableMembershipList{}
 
@@ -1133,7 +1083,7 @@ fullRestart:
 						default:
 						}
 					}
-					memberHeartBeatCh = time.After(memberHeartBeatDur)
+					czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
 
 				case <-czar.Halt.ReqStop.Chan:
 					////vv("czar halt requested. exiting.")
@@ -1178,6 +1128,45 @@ func detailsChanged(a, b *PeerDetail) bool {
 // funneler allows us to listen for up to 65535 clients
 // disconnecting from the czar by monitoring a single
 // clientDroppedCh.
+//
+// demo
+// WAS (but is no longer) used by czar to notice when client drops
+// and change membership quickly. If the
+// client comes back, well, we just change
+// membership again.
+// cli.Srv.NotifyAllNewClients = make(chan *rpc.ConnHalt, 1000)
+////vv("cli.Srv.NotifyAllNewClients = %p", cli.Srv.NotifyAllNewClients)
+//
+// Update: turns out for hermes's Reliable Membership
+// requirements, we cannot use TCP disconnects to
+// eliminate dead members from the membership. Instead
+// we must wait out their lease every time. Hence
+// funneler is not helpful after all. We keep it wired
+// in place in case it becomes useful to display
+// "suspected" drops in the future.
+//
+// funnel all client disconnects down to one channel.
+//funneler := newFunneler(czar.Halt)
+// later...
+// funneler cannot be used b/c leases must be honored so immediate client removal is useless anyway. For simplicity of debugging, turn it off.
+// case cliConnHalt := <-cli.Srv.NotifyAllNewClients:
+// 	////vv("czar received on cli.Srv.NotifyAllNewClients, has new client '%v'", cliConnHalt.Conn.RemoteAddr())
+// 	// tell the funneler to listen for it to drop.
+// 	// It will notify us on clientDroppedCh below.
+// 	select {
+// 	case funneler.newCliCh <- cliConnHalt:
+// 	case <-czar.Halt.ReqStop.Chan:
+// 		////vv("czar halt requested. exiting.")
+// 		return
+// 	}
+//
+// case dropped := <-funneler.clientDroppedCh:
+// 	_ = dropped
+// 	// for safety we cannot assume this now :(
+// 	// we must let their lease drain out
+// 	// and so expireSilentNodes gets all the fun.
+// 	//czar.remove(dropped)
+
 type funneler struct {
 	newCliCh        chan *rpc.ConnHalt
 	clientDroppedCh chan *rpc.ConnHalt
