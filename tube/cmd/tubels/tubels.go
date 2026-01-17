@@ -27,12 +27,14 @@ type TubeListConfig struct {
 	ContactName string // -c name of node to contact
 	Help        bool   // -h for help, false, show this help
 	Verbose     bool   // -v for verbose connection logging
+	CktTo       bool
 }
 
 func (c *TubeListConfig) SetFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.ContactName, "c", "", "name of node to contact (defaults to leader)")
 	fs.BoolVar(&c.Help, "h", false, "show this help")
 	fs.BoolVar(&c.Verbose, "v", false, "verbose connection logging")
+	fs.BoolVar(&c.CktTo, "ckt", false, "show circuits")
 }
 
 func (c *TubeListConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -136,12 +138,11 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 
 	fmt.Printf("contacted:\n")
 	for _, insp := range sortByName(contacted) {
-		fmt.Printf(`%v %v  (lead: '%v')     %v
+		fmt.Printf(`%v %v  (lead: '%v')
    LastLog:{Term: '%v'; Index: '%v'; LeaderName: '%v'; TicketOp: %v}
    LogIndexBaseC: %v      PID: %v     Hostname: %v
-   MC: %v   ShadowReplicas: %v   URL: %v
+   MC: %v   ShadowReplicas: %v   URL: %v%v
 `, insp.ResponderName, insp.Role, insp.CurrentLeaderName,
-			haveCircuitsTo(insp),
 			insp.LastLogTerm,
 			insp.LastLogIndex,
 			insp.LastLogLeaderName,
@@ -153,7 +154,9 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 
 			insp.MC,
 			insp.ShadowReplicas,
-			insp.ResponderPeerURL)
+			insp.ResponderPeerURL,
+			haveCircuitsTo(insp, cmdCfg.CktTo),
+		)
 	}
 	pp("tubels using leaderName = '%v'; leaderURL='%v'; err='%v'", leaderName, leaderURL, err)
 
@@ -230,19 +233,20 @@ func sortByName(s []*tube.Inspection) (r []*tube.Inspection) {
 	return s
 }
 
-func haveCircuitsTo(insp *tube.Inspection) (cktTo string) {
-	if insp == nil {
+func haveCircuitsTo(insp *tube.Inspection, show bool) (cktTo string) {
+	if insp == nil || !show {
 		return
 	}
 	haveCkt := make(map[string]int)
-	for _, nm := range insp.CktAllByName {
-		haveCkt[nm]++
+	for nm := range insp.CktAllByName {
+		k := haveCkt[nm]
+		haveCkt[nm] = k + 1
 	}
 	var haveCktSlice []string
-	for _, nm := range insp.CktAllByName {
-		haveCktSlice = append(haveCktSlice, fmt.Sprintf("%v:%v", nm, haveCkt[nm]))
+	for nm, k := range haveCkt {
+		haveCktSlice = append(haveCktSlice, fmt.Sprintf("%v(%v)", nm, k))
 	}
 	sort.Strings(haveCktSlice)
-	cktTo = "cktAllByName:[" + strings.Join(haveCktSlice, " ") + "]"
+	cktTo = "\ncktAllByName:[\n" + strings.Join(haveCktSlice, "\n") + "]\n"
 	return
 }
