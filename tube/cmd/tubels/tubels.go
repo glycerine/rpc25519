@@ -238,7 +238,10 @@ func haveCircuitsTo(insp *tube.Inspection, show bool) (cktTo string) {
 		return
 	}
 	haveCkt := make(map[string]int)
-	for nm := range insp.CktAllByName {
+	for id, name_pipe_url := range insp.CktAll {
+		_ = id // don't need PeerID atm
+		splt := strings.Split(name_pipe_url, "|")
+		nm := splt[0]
 		k := haveCkt[nm]
 		haveCkt[nm] = k + 1
 	}
@@ -247,7 +250,7 @@ func haveCircuitsTo(insp *tube.Inspection, show bool) (cktTo string) {
 		haveCktSlice = append(haveCktSlice, fmt.Sprintf("%v(%v)", nm, k))
 	}
 	sort.Strings(haveCktSlice)
-	cktTo = fmt.Sprintf("\n   --- cktAllByName(count %v):\n", len(haveCktSlice))
+	cktTo = fmt.Sprintf("\n   --- cktAll(count %v):\n", len(haveCktSlice))
 	for i, nm := range haveCktSlice {
 		cktTo += fmt.Sprintf("       [%02d] %v\n", i, nm)
 	}

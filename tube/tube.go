@@ -4273,34 +4273,32 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.MC = s.state.MC.Clone() // in inspectHandler
 	ins.ShadowReplicas = s.state.ShadowReplicas.Clone()
 
-	if !minimize {
-		for id, cktP := range s.cktall {
-			ckt := cktP.ckt
-			ins.CktAll[id] = ckt.RemoteCircuitURL()
-		}
-		// add ourselves too.
-		ins.CktAll[s.PeerID] = s.URL
-	}
-	// tubels wants cktAllByName now
-	for name, cktP := range s.cktAllByName {
+	// tubels wants cktAll now
+	for id, cktP := range s.cktall {
 		ckt := cktP.ckt
-
-		var url string
-		switch {
-		case cktP.isPending():
-			url = "pending"
-		case ckt == nil:
-			// racy
-			//panic(fmt.Sprintf("why is ckt nil if not pending? cktP='%#v'", cktP))
-		default:
-			url = ckt.RemoteCircuitURL()
-		}
-		ins.CktAllByName[name] = url
+		ins.CktAll[id] = cktP.PeerName + "|" + ckt.RemoteCircuitURL()
 	}
 	// add ourselves too.
-	ins.CktAllByName[s.name] = s.URL
+	ins.CktAll[s.PeerID] = s.name + "|" + s.URL
 
 	if !minimize {
+		for name, cktP := range s.cktAllByName {
+			ckt := cktP.ckt
+
+			var url string
+			switch {
+			case cktP.isPending():
+				url = "pending"
+			case ckt == nil:
+				// racy
+				//panic(fmt.Sprintf("why is ckt nil if not pending? cktP='%#v'", cktP))
+			default:
+				url = ckt.RemoteCircuitURL()
+			}
+			ins.CktAllByName[name] = url
+		}
+		// add ourselves too.
+		ins.CktAllByName[s.name] = s.URL
 
 		ins.WaitingAtLeader = s.cloneWaitingAtLeaderToMap()
 		ins.WaitingAtFollow = s.cloneWaitingAtFollowToMap()
