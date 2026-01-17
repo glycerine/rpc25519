@@ -133,14 +133,15 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	leaderURL, leaderName, insp, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, false, keepCktUp)
 	canc()
 	panicOn(err)
+
 	fmt.Printf("contacted:\n")
 	for _, insp := range sortByName(contacted) {
-		fmt.Printf(`%v %v  (lead: '%v')
+		fmt.Printf(`%v %v  (lead: '%v')     %v
    LastLog:{Term: '%v'; Index: '%v'; LeaderName: '%v'; TicketOp: %v}
    LogIndexBaseC: %v      PID: %v     Hostname: %v
    MC: %v   ShadowReplicas: %v   URL: %v
 `, insp.ResponderName, insp.Role, insp.CurrentLeaderName,
-
+			haveCircuitsTo(insp),
 			insp.LastLogTerm,
 			insp.LastLogIndex,
 			insp.LastLogLeaderName,
@@ -227,4 +228,21 @@ func (lo sortByResponderName) Swap(i, j int) {
 func sortByName(s []*tube.Inspection) (r []*tube.Inspection) {
 	sort.Sort(sortByResponderName(s))
 	return s
+}
+
+func haveCircuitsTo(insp *tube.Inspection) (cktTo string) {
+	if insp == nil {
+		return
+	}
+	haveCkt := make(map[string]int)
+	for _, nm := range insp.CktAllByName {
+		haveCkt[nm]++
+	}
+	var haveCktSlice []string
+	for _, nm := range insp.CktAllByName {
+		haveCktSlice = append(haveCktSlice, fmt.Sprintf("%v:%v", nm, haveCkt[nm]))
+	}
+	sort.Strings(haveCktSlice)
+	cktTo = "cktAllByName:[" + strings.Join(haveCktSlice, " ") + "]"
+	return
 }
