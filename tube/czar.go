@@ -61,6 +61,7 @@ type Czar struct {
 	keyCz   string
 	members *ReliableMembershipList
 	heard   map[string]time.Time
+	sess    *Session
 
 	// something for greenpack to serz
 	// this the client of Tube, not rpc.
@@ -77,6 +78,7 @@ type Czar struct {
 	clockDriftBound    time.Duration
 
 	memberHeartBeatCh <-chan time.Time
+	refreshMembersCh  <-chan time.Time
 
 	cli *TubeNode
 
@@ -94,9 +96,12 @@ type Czar struct {
 
 	membersTableLeaseDur   time.Duration
 	refreshMembersTableDur time.Duration
+
+	myDetail      *PeerDetailPlus
+	myDetailBytes []byte
 }
 
-func NewCzar(cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
+func NewCzar(tubeCliName string, cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
 
 	memberHeartBeatDur := time.Second * 2
 	memberLeaseDur := memberHeartBeatDur * 6 // 12s if given 2s heartbeat
@@ -104,6 +109,7 @@ func NewCzar(cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
 	members.MemberLeaseDur = memberLeaseDur
 
 	s = &Czar{
+		TubeCliName:              tubeCliName,
 		keyCz:                    "czar",
 		Halt:                     idem.NewHalter(),
 		members:                  members,
@@ -127,6 +133,25 @@ func NewCzar(cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
 	s.refreshMembersTableDur = s.membersTableLeaseDur / 3
 
 	return s
+}
+
+func (czar *Czar) refreshMemberInTubeMembersTable(ctx context.Context) (err error) {
+
+	// an approximation, the tube Leaf.LeaseUntilTm
+	// is the actual decider, but should be similar.
+	// mostly so that it does not print (current czar)! :)
+	czar.myDetail.RMemberLeaseUntilTm = time.Now().Add(czar.membersTableLeaseDur)
+	czar.myDetail.RMemberLeaseDur = czar.membersTableLeaseDur
+	czar.myDetailBytes, err = czar.myDetail.MarshalMsg(nil)
+	panicOn(err)
+
+	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
+	_, err = czar.sess.Write(ctx5, Key("members"), Key(czar.TubeCliName), Val(czar.myDetailBytes), czar.writeAttemptDur, PeerDetailPlusType, czar.membersTableLeaseDur, leaseAutoDelTrue)
+	canc()
+	//vv("members table every 10s refresh attempt done. err = '%v'", err)
+
+	czar.refreshMembersCh = time.After(czar.refreshMembersTableDur)
+	return err
 }
 
 func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, t0 time.Time) error {
@@ -606,8 +631,7 @@ func (membr *RMember) start() {
 	panicOn(err)
 	defer cli.Close()
 
-	czar := NewCzar(cli, membr.clockDriftBound)
-	czar.TubeCliName = tubeCliName
+	czar := NewCzar(tubeCliName, cli, membr.clockDriftBound)
 
 	cli.Srv.RegisterName("Czar", czar)
 
@@ -621,7 +645,6 @@ fullRestart:
 		//}
 
 		ctx := context.Background()
-		var sess *Session
 		const requireOnlyContact = false
 		const keepCktUp = true // false
 		for k := 0; ; k++ {
@@ -630,7 +653,7 @@ fullRestart:
 			panicOn(err)
 
 			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-			sess, err = cli.CreateNewSession(ctx5, leaderURL)
+			czar.sess, err = cli.CreateNewSession(ctx5, leaderURL)
 			canc()
 			//panicOn(err) // panic: hmm. no leader known to me (node 'node_0')
 			if err == nil {
@@ -645,8 +668,8 @@ fullRestart:
 		// membr.UpcallMembershipChangeCh now.
 		membr.Ready.Close()
 
-		myDetail := getMyPeerDetailPlus(cli)
-		myDetailBytes, err := myDetail.MarshalMsg(nil)
+		czar.myDetail = getMyPeerDetailPlus(cli)
+		czar.myDetailBytes, err = czar.myDetail.MarshalMsg(nil)
 		panicOn(err)
 
 		//vv("myDetail = '%v' for tubeCliName = '%v'; myDetailBytes len %v", myDetail, tubeCliName, len(myDetailBytes))
@@ -668,26 +691,7 @@ fullRestart:
 		// TODO: handle needing new session, maybe it times out?
 		// should survive leader change, but needs checking.
 
-		var refreshMembersCh <-chan time.Time
-		refreshMemberInTube := func() error {
-
-			// an approximation, the tube Leaf.LeaseUntilTm
-			// is the actual decider, but should be similar.
-			// mostly so that it does not print (current czar)! :)
-			myDetail.RMemberLeaseUntilTm = time.Now().Add(czar.membersTableLeaseDur)
-			myDetail.RMemberLeaseDur = czar.membersTableLeaseDur
-			myDetailBytes, err = myDetail.MarshalMsg(nil)
-			panicOn(err)
-
-			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-			_, err := sess.Write(ctx5, Key("members"), Key(tubeCliName), Val(myDetailBytes), czar.writeAttemptDur, PeerDetailPlusType, czar.membersTableLeaseDur, leaseAutoDelTrue)
-			canc()
-			//vv("members table every 10s refresh attempt done. err = '%v'", err)
-
-			refreshMembersCh = time.After(czar.refreshMembersTableDur)
-			return err
-		}
-		err = refreshMemberInTube()
+		err = czar.refreshMemberInTubeMembersTable(ctx)
 		if err != nil {
 			continue fullRestart
 		}
@@ -728,14 +732,14 @@ fullRestart:
 
 				// if we win the write race, we are the czar.
 				list.CzarName = tubeCliName
-				list.PeerNames.Set(tubeCliName, myDetail.Clone())
+				list.PeerNames.Set(tubeCliName, czar.myDetail.Clone())
 
 				bts2, err := list.MarshalMsg(nil)
 				panicOn(err)
 
 				// in cState == unknownCzarState here
 
-				czarTkt, err := sess.Write(ctx, Key(tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+				czarTkt, err := czar.sess.Write(ctx, Key(tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
 
 				// INVAR: state == unknownCzarState here
 				if err == nil {
@@ -871,8 +875,8 @@ fullRestart:
 
 					continue fullRestart
 
-				case <-refreshMembersCh:
-					err := refreshMemberInTube()
+				case <-czar.refreshMembersCh:
+					err := czar.refreshMemberInTubeMembersTable(ctx)
 					if err != nil {
 						continue fullRestart
 					}
@@ -889,11 +893,11 @@ fullRestart:
 					// if we update, are we going to lose the Plus part leases?
 					// naw, I think that does not apply to the czar,
 					// who gives out leases and only itself lease from the Tube/Raft cluster.
-					myDetail := getMyPeerDetailPlus(cli)
-					myDetailBytes, err = myDetail.MarshalMsg(nil)
+					czar.myDetail = getMyPeerDetailPlus(cli)
+					czar.myDetailBytes, err = czar.myDetail.MarshalMsg(nil)
 					panicOn(err)
 
-					czar.members.PeerNames.Set(myDetail.Det.Name, myDetail)
+					czar.members.PeerNames.Set(czar.myDetail.Det.Name, czar.myDetail)
 
 					bts2, err := czar.members.MarshalMsg(nil)
 
@@ -904,7 +908,7 @@ fullRestart:
 					// hung here on cluster leader bounce, write
 					// has failed.
 					ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-					czarTkt, err := sess.Write(ctx5, Key(tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+					czarTkt, err := czar.sess.Write(ctx5, Key(tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
 					canc()
 					if err != nil {
 						//vv("renewCzarLeaseCh attempt to renew lease with Write to '%v' failed: err='%v'", keyCz, err)
@@ -976,10 +980,10 @@ fullRestart:
 					}
 					rpcClientToCzarDoneCh = rpcClientToCzar.GetHostHalter().Done.Chan
 
-					//pp("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
+					//pp("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", czar.myDetail)
 					callStart := time.Now()
 					_ = callStart
-					err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
+					err = rpcClientToCzar.Call("Czar.Ping", czar.myDetail, reply, nil)
 					//pp("rpcClientToCzar.Call(Czar.Ping) took %v; err = '%v'", time.Since(callStart), err)
 					if err != nil {
 						//pp("error back from Ping: '%v'", err)
@@ -1010,8 +1014,8 @@ fullRestart:
 				// INVAR: rpcClientToCzar != nil
 				//pp("notCzar: rpcClient != nil, about to select")
 				select {
-				case <-refreshMembersCh:
-					err := refreshMemberInTube()
+				case <-czar.refreshMembersCh:
+					err := czar.refreshMemberInTubeMembersTable(ctx)
 					if err != nil {
 						continue fullRestart
 					}
@@ -1032,7 +1036,7 @@ fullRestart:
 
 					// We might be talking to a stale random member who
 					// is no longer czar, so check the reply czar LeaseUntilTm
-					err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
+					err = rpcClientToCzar.Call("Czar.Ping", czar.myDetail, reply, nil)
 					////vv("member called to Czar.Ping, err='%v'", err)
 					if err != nil {
 						//vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
@@ -1049,9 +1053,9 @@ fullRestart:
 					if reply != nil && reply.PeerNames != nil {
 						//pp("member called to Czar.Ping, got reply with member count='%v'; rpcClientToCzar.RemoteAddr = '%v':\n reply = %v\n", reply.PeerNames.Len(), rpcClientToCzar.RemoteAddr(), reply)
 						// check for bug in czar: did they add me to the list?
-						_, ok2 := reply.PeerNames.Get2(myDetail.Det.Name)
+						_, ok2 := reply.PeerNames.Get2(czar.myDetail.Det.Name)
 						if !ok2 {
-							panicf("member detected bug in czar: got ping back without ourselves (myDetail.Det.Name='%v') in it!: reply='%v'", myDetail.Det.Name, reply)
+							panicf("member detected bug in czar: got ping back without ourselves (myDetail.Det.Name='%v') in it!: reply='%v'", czar.myDetail.Det.Name, reply)
 						}
 					}
 					if !reply.Vers.CzarLeaseUntilTm.IsZero() {
