@@ -1005,7 +1005,9 @@ fullRestart:
 					rpcClientToCzarDoneCh = rpcClientToCzar.GetHostHalter().Done.Chan
 
 					pp("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
+					callStart := time.Now()
 					err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
+					pp("rpcClientToCzar.Call(Czar.Ping) took %v; err = '%v'", time.Since(callStart), err)
 					if err != nil {
 						pp("error back from Ping: '%v'", err)
 						if rpcClientToCzar != nil {

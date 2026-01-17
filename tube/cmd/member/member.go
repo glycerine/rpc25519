@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	tube.VerboseVerbose.Store(false)
+	tube.VerboseVerbose.Store(true)
 	fmt.Printf("pid = %v\n", os.Getpid())
 
 	startOnlineWebProfiling()
