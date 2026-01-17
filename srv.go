@@ -1431,6 +1431,15 @@ func (s *Server) FreeMessage(msg *Message) {
 func (p *rwPair) callBridgeNetRpc(reqMsg *Message, job *job) error {
 	//vv("bridge called! subject: '%v'", reqMsg.HDR.ToServiceName)
 
+	// defer func() {
+	// 	r := recover()
+	// 	vv("bridge returning... subject: '%v'; r='%v'", reqMsg.HDR.ToServiceName, r)
+	// 	if r != nil {
+	// 		alwaysPrintf("callBridgeNetRpc recovered a panic: '%v'", r)
+	// 		panic(r)
+	// 	}
+	// }()
+
 	p.encBuf.Reset()
 	p.encBufWriter.Reset(&p.encBuf)
 	p.greenCodec.enc.Reset(p.encBufWriter)
@@ -1455,7 +1464,7 @@ func (p *rwPair) callBridgeNetRpc(reqMsg *Message, job *job) error {
 		}
 		return err
 	}
-	//vv("about to callMethodByReflection")
+	vv("about to callMethodByReflection")
 	service.callMethodByReflection(p, reqMsg, mtype, req, argv, replyv, p.greenCodec, wantsCtx, job)
 
 	return nil
@@ -1471,7 +1480,7 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 	// Invoke the method, providing a new value for the reply.
 	var returnValues []reflect.Value
 	if wantsCtx {
-		//vv("wantsCtx so setting up to cancel...")
+		vv("wantsCtx so setting up to cancel...")
 		ctx0 := context.Background()
 		var cancelFunc context.CancelFunc
 		if !reqMsg.HDR.Deadline.IsZero() {
@@ -1488,11 +1497,21 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 		reqMsg.HDR.Ctx = ctx
 
 		rctx := reflect.ValueOf(ctx)
+		// vv("about to ctx function.Call()...")
+		// defer func() {
+		// 	r := recover()
+		// 	vv("ctx function.Call defer running... has r= '%v'", r)
+		// 	if r != nil {
+		// 		panic(r)
+		// 	}
+		// }()
 		returnValues = function.Call([]reflect.Value{s.rcvr, rctx, argv, replyv})
+		//vv("back from ctx function.Call()...")
 
 	} else {
 		returnValues = function.Call([]reflect.Value{s.rcvr, argv, replyv})
 	}
+	//vv("back from function.Call()...") // not seen?!?!
 	// The return value for the method is an error.
 	errInter := returnValues[0].Interface()
 	errmsg := ""
@@ -1504,14 +1523,16 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 	if !ok {
 		panic(fmt.Sprintf("reply must be Green. type '%T' was not.", replyv.Interface()))
 	}
+	//vv("about to pair.sendResponse")
 	pair.sendResponse(reqMsg, req, greenReplyv, codec, errmsg, job)
+	//vv("past pair.sendResponse; errmsg='%v'; greenReplyv = '%v'", errmsg, greenReplyv) // not seen.
 	pair.Server.freeRequest(req)
 }
 
 // called by callMethodByReflection
 func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec ServerCodec, errmsg string, job *job) {
 
-	//vv("pair sendResponse() top, reply: '%#v'", reply)
+	//vv("pair sendResponse() top, reply: '%#v'", reply) // not seen?!?! member Ping reply
 
 	resp := p.Server.getResponse()
 	// Encode the response header

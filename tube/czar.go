@@ -275,6 +275,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	vv("top of Czar.handlePing from '%v' PID: %v", rr.args.Det.Name, rr.args.Det.PID)
 	defer func() {
 		vv("end of Czar.handlePing from '%v' PID: %v; rr.err='%v'; rr.reply='%v'", rr.args.Det.Name, rr.args.Det.PID, rr.err, rr.reply)
+		rr.done.Close() // required! else ping will stall forever.
 	}()
 
 	cur := czarState(s.cState.Load())
@@ -297,6 +298,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	orig := s.members.Vers
 
 	if hdr, ok := rpc.HDRFromContext(rr.ctx); ok {
+		//vv("Ping, from ctx: hdr='%v'", hdr)
 		//vv("Ping, from ctx: hdr.Nc.LocalAddr()='%v'; hdr.Nc.RemoteAddr()='%v'", hdr.Nc.LocalAddr(), hdr.Nc.RemoteAddr()) // we want remote
 		// critical: replace Addr with the rpc.Client of the czar
 		// address, rather than the tube client peer server address.
