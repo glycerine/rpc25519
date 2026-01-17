@@ -865,12 +865,13 @@ fullRestart:
 					continue fullRestart
 				}
 
-				//vv("%v: I am czar with (left on lease: %v) memberCount() = %v (from s.members.PeerNames.Len());  cli.Srv.ListClients() len %v", tubeCliName, left, czar.memberCount(), len(cs))
-				for i, c := range cs {
-					fmt.Printf("[%03d] %v\n", i, c)
+				if false {
+					vv("%v: I am czar with (left on lease: %v) memberCount() = %v (from s.members.PeerNames.Len());  cli.Srv.ListClients() len %v", tubeCliName, left, czar.memberCount(), len(cs))
+					for i, c := range cs {
+						fmt.Printf("[%03d] %v\n", i, c)
+					}
+					fmt.Println()
 				}
-				fmt.Println()
-
 				select {
 				case rr := <-czar.requestPingCh:
 					czar.handlePing(rr)
