@@ -87,7 +87,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, t0 time.
 	if v.VersionGT(s.members.Vers) {
 		// okay
 	} else {
-		vv("would be error, but overriding for now: RMVersionTuple must be monotone increasing, current='%v'; rejecting proposed new Vers '%v'", s.members.Vers, v) // TODO: reject?
+		//vv("would be error, but overriding for now: RMVersionTuple must be monotone increasing, current='%v'; rejecting proposed new Vers '%v'", s.members.Vers, v) // TODO: reject?
 	}
 
 	s.members = list.Clone()
@@ -96,7 +96,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, t0 time.
 		s.t0 = t0
 	}
 
-	vv("end of setVers(v='%v') s.members is now '%v')", v, s.members)
+	//vv("end of setVers(v='%v') s.members is now '%v')", v, s.members)
 	select {
 	case s.UpcallMembershipChangeCh <- s.members.Clone():
 	default:
@@ -108,18 +108,18 @@ func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
 
 	raddr := droppedCli.Conn.RemoteAddr().String()
 
-	//vv("Czar.remove() for raddr='%v'", raddr)
+	////vv("Czar.remove() for raddr='%v'", raddr)
 
 	// linear search, for now. TODO: map based lookup?
 	// we could make the name key be the rpc.Client addr
 	// and use PeerNames.Get2()...
 	for name, plus := range s.members.PeerNames.All() {
 		addr := removeTcp(plus.Det.Addr)
-		//vv("checking addr='%v' against raddr='%v'", addr, raddr)
+		////vv("checking addr='%v' against raddr='%v'", addr, raddr)
 		if addr == raddr {
 			s.members.PeerNames.Delkey(name)
 			s.members.Vers.Version++
-			//vv("remove dropped client '%v', vers='%v'", name, s.members.Vers)
+			////vv("remove dropped client '%v', vers='%v'", name, s.members.Vers)
 			select {
 			case s.UpcallMembershipChangeCh <- s.members.Clone():
 			default:
@@ -127,7 +127,7 @@ func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
 			return
 		}
 	}
-	//vv("remove could not find dropped client raddr '%v'", raddr)
+	////vv("remove could not find dropped client raddr '%v'", raddr)
 }
 
 func (s *Czar) memberCount() (numMembers int) {
@@ -178,7 +178,7 @@ func (s *Czar) expireSilentNodes() (changed bool) {
 					now.After(plus.RMemberLeaseUntilTm.Add(s.clockDriftBound))) {
 
 				killIt = true
-				pp("expiring dead node '%v' -- would upcall membership change too. either dead former czar or nothing heard after uptime = '%v'", name, uptime)
+				//pp("expiring dead node '%v' -- would upcall membership change too. either dead former czar or nothing heard after uptime = '%v'", name, uptime)
 			}
 		} else {
 			been := now.Sub(lastHeard)
@@ -187,7 +187,7 @@ func (s *Czar) expireSilentNodes() (changed bool) {
 					now.After(plus.RMemberLeaseUntilTm.Add(s.clockDriftBound))) {
 
 				killIt = true
-				pp("expiring dead node '%v' -- would upcall membership change too. either dead former czar or been '%v'", name, been)
+				//pp("expiring dead node '%v' -- would upcall membership change too. either dead former czar or been '%v'", name, been)
 			}
 		}
 		if killIt {
@@ -272,15 +272,15 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 // we may change the s.cState, be prepared to
 // not be czar anymore after this.
 func (s *Czar) handlePing(rr *pingReqReply) {
-	vv("top of Czar.handlePing from '%v' PID: %v", rr.args.Det.Name, rr.args.Det.PID)
+	//vv("top of Czar.handlePing from '%v' PID: %v", rr.args.Det.Name, rr.args.Det.PID)
 	defer func() {
-		vv("end of Czar.handlePing from '%v' PID: %v; rr.err='%v'; rr.reply='%v'", rr.args.Det.Name, rr.args.Det.PID, rr.err, rr.reply)
+		//vv("end of Czar.handlePing from '%v' PID: %v; rr.err='%v'; rr.reply='%v'", rr.args.Det.Name, rr.args.Det.PID, rr.err, rr.reply)
 		rr.done.Close() // required! else ping will stall forever.
 	}()
 
 	cur := czarState(s.cState.Load())
 	if cur != amCzar {
-		vv("Czar.handlePing: not czar atm, rejecting straight off.")
+		//vv("Czar.handlePing: not czar atm, rejecting straight off.")
 		rr.err = ErrNotCzar
 		return
 	}
@@ -288,26 +288,26 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	now := time.Now()
 	if now.After(s.members.Vers.CzarLeaseUntilTm) {
 		s.cState.Store(int32(unknownCzarState))
-		vv("Czar.handlePing: lease has expired, so not czar atm, rejecting.")
+		//vv("Czar.handlePing: lease has expired, so not czar atm, rejecting.")
 		rr.err = ErrNotCzar
 		return
 	}
-	vv("Czar.handlePing: am czar, process this ping from '%v'", rr.args.Det.Name)
+	//vv("Czar.handlePing: am czar, process this ping from '%v'", rr.args.Det.Name)
 
 	args := rr.args
 	orig := s.members.Vers
 
 	if hdr, ok := rpc.HDRFromContext(rr.ctx); ok {
-		//vv("Ping, from ctx: hdr='%v'", hdr)
-		//vv("Ping, from ctx: hdr.Nc.LocalAddr()='%v'; hdr.Nc.RemoteAddr()='%v'", hdr.Nc.LocalAddr(), hdr.Nc.RemoteAddr()) // we want remote
+		////vv("Ping, from ctx: hdr='%v'", hdr)
+		////vv("Ping, from ctx: hdr.Nc.LocalAddr()='%v'; hdr.Nc.RemoteAddr()='%v'", hdr.Nc.LocalAddr(), hdr.Nc.RemoteAddr()) // we want remote
 		// critical: replace Addr with the rpc.Client of the czar
 		// address, rather than the tube client peer server address.
-		//vv("changing args.Addr from '%v' -> '%v'", args.Addr, hdr.Nc.RemoteAddr())
+		////vv("changing args.Addr from '%v' -> '%v'", args.Addr, hdr.Nc.RemoteAddr())
 		args.Det.Addr = hdr.Nc.RemoteAddr().String()
 	} else {
 		panic("must have rpc.HDRFromContext(ctx) set so we know which tube-client to drop when the rpc.Client drops!")
 	}
-	//vv("Ping called at cliName = '%v', since args = '%v'; orig='%v'", s.CliName, args, orig)
+	////vv("Ping called at cliName = '%v', since args = '%v'; orig='%v'", s.CliName, args, orig)
 	if s.memberLeaseDur < time.Millisecond {
 		panicf("s.memberLeaseDur too small! '%v'", s.memberLeaseDur)
 	}
@@ -341,13 +341,13 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 
 	det, ok := s.members.PeerNames.Get2(args.Det.Name)
 	if !ok {
-		//vv("args.Name('%v') is new, adding to PeerNames", args.Name)
+		////vv("args.Name('%v') is new, adding to PeerNames", args.Name)
 		det = args
 		s.members.PeerNames.Set(args.Det.Name, args)
 		s.members.Vers.Version++
 	} else {
 		if detailsChanged(det.Det, args.Det) {
-			//vv("args.Name('%v') details have changed, updating PeerNames", args.Name)
+			////vv("args.Name('%v') details have changed, updating PeerNames", args.Name)
 			det = args
 			s.members.PeerNames.Set(args.Det.Name, args)
 			s.members.Vers.Version++
@@ -364,7 +364,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 			// set of members.
 			s.members.Vers.LeaseUpdateCounter++
 		}
-		//vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
+		////vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
 	}
 	// INVAR: det is the Ping caller's PeerDetailPlus.
 
@@ -382,10 +382,10 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	s.expireSilentNodes()
 	if s.members.Vers.Version != orig.Version {
 
-		//vv("Czar.Ping: membership has changed (was %v; now %v), is now: {%v}", orig, s.members.Vers, s.shortRMemberSummary())
+		////vv("Czar.Ping: membership has changed (was %v; now %v), is now: {%v}", orig, s.members.Vers, s.shortRMemberSummary())
 	}
 
-	//vv("czar sees Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, czar replies with ='%v'", s.cliName, args, reply)
+	////vv("czar sees Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, czar replies with ='%v'", s.cliName, args, reply)
 }
 
 func (s *Czar) shortRMemberSummary() (r string) {
@@ -568,11 +568,11 @@ func (membr *RMember) start() {
 	const useSimNet = false
 	cliCfg, err := LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
 	panicOn(err)
-	//vv("cliCfg = '%v'", cliCfg)
+	////vv("cliCfg = '%v'", cliCfg)
 	cliCfg.RpcCfg.QuietTestMode = false
 	tubeCliName := cliCfg.MyName
 
-	vv("tubeCliName = '%v'", tubeCliName) // e.g. member_suM7r8JkqBYkgUm1U4AS
+	//vv("tubeCliName = '%v'", tubeCliName) // e.g. member_suM7r8JkqBYkgUm1U4AS
 
 	cli := NewTubeNode(tubeCliName, cliCfg)
 	err = cli.InitAndStart()
@@ -615,7 +615,7 @@ func (membr *RMember) start() {
 	// client comes back, well, we just change
 	// membership again.
 	cli.Srv.NotifyAllNewClients = make(chan *rpc.ConnHalt, 1000)
-	//vv("cli.Srv.NotifyAllNewClients = %p", cli.Srv.NotifyAllNewClients)
+	////vv("cli.Srv.NotifyAllNewClients = %p", cli.Srv.NotifyAllNewClients)
 
 	// Update: turns out for hermes's Reliable Membership
 	// requirements, we cannot use TCP disconnects to
@@ -632,7 +632,7 @@ func (membr *RMember) start() {
 
 fullRestart:
 	for j := 0; ; j++ {
-		vv("top of fullRestart j=%v", j)
+		//vv("top of fullRestart j=%v", j)
 		//if j > 0 {
 		//	time.Sleep(time.Second) // pace it.
 		//}
@@ -642,7 +642,7 @@ fullRestart:
 		const requireOnlyContact = false
 		const keepCktUp = true // false
 		for k := 0; ; k++ {
-			pp("find leaader loop k = %v", k)
+			//pp("find leaader loop k = %v", k)
 			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp) // ugh. this is making a new member_ peer each time.
 
 			// for example...
@@ -656,7 +656,7 @@ fullRestart:
 			_ = reallyLeader
 			_ = leaderName
 			panicOn(err)
-			//vv("got leaderName = '%v'; leaderURL = '%v'; reallyLeader='%v'", leaderName, leaderURL, reallyLeader)
+			////vv("got leaderName = '%v'; leaderURL = '%v'; reallyLeader='%v'", leaderName, leaderURL, reallyLeader)
 
 			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 			sess, err = cli.CreateNewSession(ctx5, leaderURL)
@@ -668,7 +668,7 @@ fullRestart:
 			alwaysPrintf("got err from CreateNewSession, sleep 1 sec and try again: '%v'", err)
 			time.Sleep(time.Second)
 		}
-		//vv("got sess = '%v'", sess)
+		////vv("got sess = '%v'", sess)
 
 		// tell user it is safe to listen on
 		// membr.UpcallMembershipChangeCh now.
@@ -678,7 +678,7 @@ fullRestart:
 		myDetailBytes, err := myDetail.MarshalMsg(nil)
 		panicOn(err)
 
-		vv("myDetail = '%v' for tubeCliName = '%v'; myDetailBytes len %v", myDetail, tubeCliName, len(myDetailBytes))
+		//vv("myDetail = '%v' for tubeCliName = '%v'; myDetailBytes len %v", myDetail, tubeCliName, len(myDetailBytes))
 
 		//var czarURL string
 		//var czarCkt *rpc.Circuit
@@ -713,7 +713,7 @@ fullRestart:
 			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 			_, err := sess.Write(ctx5, Key("members"), Key(tubeCliName), Val(myDetailBytes), writeAttemptDur, PeerDetailPlusType, membersLeaseDur, leaseAutoDelTrue)
 			canc()
-			vv("members table every 10s refresh attempt done. err = '%v'", err)
+			//vv("members table every 10s refresh attempt done. err = '%v'", err)
 
 			refreshMembersCh = time.After(refreshMembersDur)
 			return err
@@ -722,14 +722,14 @@ fullRestart:
 		if err != nil {
 			continue fullRestart
 		}
-		vv("begin main loop at haveSess")
+		//vv("begin main loop at haveSess")
 
 	haveSess:
 		for ii := 0; ; ii++ {
-			vv("main loop ii = %v   fullRestart j = %v   cState = %v", ii, j, czarState(czar.cState.Load()))
-			if ii > 0 {
-				time.Sleep(time.Millisecond * 100)
-			}
+			////vv("main loop ii = %v   fullRestart j = %v   cState = %v", ii, j, czarState(czar.cState.Load()))
+			//if ii > 0 {
+			//	time.Sleep(time.Millisecond * 100)
+			//}
 
 			switch czarState(czar.cState.Load()) {
 
@@ -745,7 +745,7 @@ fullRestart:
 				// start with the highest version list we can find.
 				if nonCzarMembers != nil {
 					if nonCzarMembers.Vers.VersionGT(list.Vers) {
-						vv("nonCzarMembers.Vers(%v) sz=%v; was > list.Vers(%v) sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
+						//vv("nonCzarMembers.Vers(%v) sz=%v; was > list.Vers(%v) sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
 						list = nonCzarMembers.Clone()
 
 						// the lease czar key Vers version is garbage and
@@ -753,7 +753,7 @@ fullRestart:
 						// anyway with the LeaseEpoch -- used to create a new version,
 						// so there is no need to bother to update it in the raft log.
 					} else {
-						vv("nonCzarMembers.Vers(%v) nonCzarMembers.sz=%v; was <= list.Vers(%v) list.sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
+						//vv("nonCzarMembers.Vers(%v) nonCzarMembers.sz=%v; was <= list.Vers(%v) list.sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
 					}
 				}
 
@@ -777,7 +777,7 @@ fullRestart:
 					now := time.Now()
 					left := czarLeaseUntilTm.Sub(now)
 					if left < 2*time.Second {
-						vv("less than 2 sec left on lease as czar?!? try again from haveSess")
+						//vv("less than 2 sec left on lease as czar?!? try again from haveSess")
 						//cState = unknownCzarState
 						czar.cState.Store(int32(unknownCzarState))
 
@@ -798,7 +798,7 @@ fullRestart:
 					err = czar.setVers(vers, list, t0) // does upcall for us.
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
-						vv("see err = '%v', doing full restart", err) // seen!?!
+						//vv("see err = '%v', doing full restart", err) // seen!?!
 						continue fullRestart
 					}
 
@@ -806,7 +806,7 @@ fullRestart:
 
 					_ = sum
 					left = time.Until(czar.members.Vers.CzarLeaseUntilTm)
-					pp("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", tubeCliName, left, vers, sum)
+					//pp("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", tubeCliName, left, vers, sum)
 
 					renewCzarLeaseDue = time.Now().Add(renewCzarLeaseDur)
 					renewCzarLeaseCh = time.After(renewCzarLeaseDur)
@@ -846,8 +846,8 @@ fullRestart:
 					//default:
 					//}
 
-					pp("I am not czar, did not write to key: '%v'", err) // seen regularly???
-					//pp("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers) // too much to list all 100 in the log.
+					//pp("I am not czar, did not write to key: '%v'", err) // seen regularly???
+					////pp("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers) // too much to list all 100 in the log.
 					// contact the czar and register ourselves.
 				}
 
@@ -859,13 +859,13 @@ fullRestart:
 				now := time.Now()
 				left := until.Sub(now)
 				if left < 0 {
-					vv("ouch! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces. CzarLeaseUntil(%v) - now(%v) = left = '%v' on czar.members.Vers='%v'", nice(until), nice(now), left, czar.members.Vers)
+					//vv("ouch! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces. CzarLeaseUntil(%v) - now(%v) = left = '%v' on czar.members.Vers='%v'", nice(until), nice(now), left, czar.members.Vers)
 					//cState = unknownCzarState
 					czar.cState.Store(int32(unknownCzarState))
 					continue fullRestart
 				}
 
-				vv("%v: I am czar with (left on lease: %v) memberCount() = %v (from s.members.PeerNames.Len());  cli.Srv.ListClients() len %v", tubeCliName, left, czar.memberCount(), len(cs))
+				//vv("%v: I am czar with (left on lease: %v) memberCount() = %v (from s.members.PeerNames.Len());  cli.Srv.ListClients() len %v", tubeCliName, left, czar.memberCount(), len(cs))
 				for i, c := range cs {
 					fmt.Printf("[%03d] %v\n", i, c)
 				}
@@ -880,7 +880,7 @@ fullRestart:
 					}
 
 				case <-time.After(left):
-					vv("ouch2! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces.")
+					//vv("ouch2! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces.")
 					//cState = unknownCzarState
 					czar.cState.Store(int32(unknownCzarState))
 
@@ -894,13 +894,13 @@ fullRestart:
 
 					/* funneler cannot be used b/c leases must be honored so immediate client removal is useless anyway. For simplicity of debugging, turn it off.
 					case cliConnHalt := <-cli.Srv.NotifyAllNewClients:
-						//vv("czar received on cli.Srv.NotifyAllNewClients, has new client '%v'", cliConnHalt.Conn.RemoteAddr())
+						////vv("czar received on cli.Srv.NotifyAllNewClients, has new client '%v'", cliConnHalt.Conn.RemoteAddr())
 						// tell the funneler to listen for it to drop.
 						// It will notify us on clientDroppedCh below.
 						select {
 						case funneler.newCliCh <- cliConnHalt:
 						case <-czar.Halt.ReqStop.Chan:
-							//vv("czar halt requested. exiting.")
+							////vv("czar halt requested. exiting.")
 							return
 						}
 
@@ -914,7 +914,7 @@ fullRestart:
 				case <-expireCheckCh:
 					changed := czar.expireSilentNodes()
 					if changed {
-						pp("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortRMemberSummary())
+						//pp("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortRMemberSummary())
 					}
 					expireCheckCh = time.After(5 * time.Second)
 
@@ -941,7 +941,7 @@ fullRestart:
 					czarTkt, err := sess.Write(ctx5, Key(tableSpace), Key(keyCz), Val(bts2), writeAttemptDur, ReliableMembershipListType, leaseDurCzar, leaseAutoDelTrue)
 					canc()
 					if err != nil {
-						vv("renewCzarLeaseCh attempt to renew lease with Write to '%v' failed: err='%v'", keyCz, err)
+						//vv("renewCzarLeaseCh attempt to renew lease with Write to '%v' failed: err='%v'", keyCz, err)
 
 						//cState = unknownCzarState
 						czar.cState.Store(int32(unknownCzarState))
@@ -951,7 +951,8 @@ fullRestart:
 
 					now := time.Now()
 					previousLeaseLeft := prevUntil.Sub(now)
-					pp("renewed czar lease (with %v left on it), good until %v (%v out). Will renew in %v at ~ '%v' for %v", previousLeaseLeft, nice(czarTkt.LeaseUntilTm), time.Until(czarTkt.LeaseUntilTm), renewCzarLeaseDur, now.Add(renewCzarLeaseDur), leaseDurCzar)
+					_ = previousLeaseLeft
+					//pp("renewed czar lease (with %v left on it), good until %v (%v out). Will renew in %v at ~ '%v' for %v", previousLeaseLeft, nice(czarTkt.LeaseUntilTm), time.Until(czarTkt.LeaseUntilTm), renewCzarLeaseDur, now.Add(renewCzarLeaseDur), leaseDurCzar)
 
 					switch {
 					case czar.members.Vers.CzarLeaseEpoch < czarTkt.LeaseEpoch:
@@ -970,20 +971,20 @@ fullRestart:
 					renewCzarLeaseCh = time.After(renewCzarLeaseDur)
 
 				case <-czar.Halt.ReqStop.Chan:
-					//vv("czar halt requested. exiting.")
+					////vv("czar halt requested. exiting.")
 					return
 				}
 
 			case notCzar:
 				if rpcClientToCzar == nil {
-					pp("notCzar top: rpcClientToCzar is nil")
+					//pp("notCzar top: rpcClientToCzar is nil")
 
 					list := nonCzarMembers
 					czarDetPlus, ok := list.PeerNames.Get2(list.CzarName)
 					if !ok {
 						panicf("list with winning czar did not include czar itself?? list='%v'", list)
 					}
-					pp("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetPlus.Det.URL)
+					//pp("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetPlus.Det.URL)
 					reply := &ReliableMembershipList{}
 
 					ccfg := *cli.GetConfig().RpcCfg
@@ -993,7 +994,7 @@ fullRestart:
 					panicOn(err)
 					err = rpcClientToCzar.Start()
 					if err != nil {
-						vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
+						//vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}
@@ -1003,18 +1004,19 @@ fullRestart:
 						czar.cState.Store(int32(unknownCzarState))
 
 						waitDur := czarLeaseUntilTm.Sub(time.Now()) + time.Second
-						pp("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
+						//pp("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
 						time.Sleep(waitDur)
 						continue haveSess
 					}
 					rpcClientToCzarDoneCh = rpcClientToCzar.GetHostHalter().Done.Chan
 
-					pp("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
+					//pp("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", myDetail)
 					callStart := time.Now()
+					_ = callStart
 					err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
-					pp("rpcClientToCzar.Call(Czar.Ping) took %v; err = '%v'", time.Since(callStart), err)
+					//pp("rpcClientToCzar.Call(Czar.Ping) took %v; err = '%v'", time.Since(callStart), err)
 					if err != nil {
-						pp("error back from Ping: '%v'", err)
+						//pp("error back from Ping: '%v'", err)
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}
@@ -1026,7 +1028,7 @@ fullRestart:
 						time.Sleep(time.Second)
 						continue haveSess
 					}
-					pp("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply of %v nodes", tubeCliName, reply.PeerNames.Len()) // seen regularly
+					//pp("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply of %v nodes", tubeCliName, reply.PeerNames.Len()) // seen regularly
 					// store view of membership as non-czar
 					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(reply.Vers) {
 						nonCzarMembers = reply
@@ -1040,13 +1042,13 @@ fullRestart:
 				} // end if rpcClientToCzar == nil
 
 				// INVAR: rpcClientToCzar != nil
-				pp("notCzar: rpcClient != nil, about to select")
+				//pp("notCzar: rpcClient != nil, about to select")
 				select {
 				case <-refreshMembersCh:
 					refreshMemberInTube()
 
 				case <-rpcClientToCzarDoneCh:
-					pp("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
+					//pp("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
 					rpcClientToCzar.Close()
 					rpcClientToCzar = nil
 					rpcClientToCzarDoneCh = nil
@@ -1062,9 +1064,9 @@ fullRestart:
 					// We might be talking to a stale random member who
 					// is no longer czar, so check the reply czar LeaseUntilTm
 					err = rpcClientToCzar.Call("Czar.Ping", myDetail, reply, nil)
-					//vv("member called to Czar.Ping, err='%v'", err)
+					////vv("member called to Czar.Ping, err='%v'", err)
 					if err != nil {
-						vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
+						//vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}
@@ -1076,7 +1078,7 @@ fullRestart:
 						continue
 					}
 					if reply != nil && reply.PeerNames != nil {
-						pp("member called to Czar.Ping, got reply with member count='%v'; rpcClientToCzar.RemoteAddr = '%v':\n reply = %v\n", reply.PeerNames.Len(), rpcClientToCzar.RemoteAddr(), reply)
+						//pp("member called to Czar.Ping, got reply with member count='%v'; rpcClientToCzar.RemoteAddr = '%v':\n reply = %v\n", reply.PeerNames.Len(), rpcClientToCzar.RemoteAddr(), reply)
 						// check for bug in czar: did they add me to the list?
 						_, ok2 := reply.PeerNames.Get2(myDetail.Det.Name)
 						if !ok2 {
@@ -1086,10 +1088,10 @@ fullRestart:
 					if !reply.Vers.CzarLeaseUntilTm.IsZero() {
 						deadline := reply.Vers.CzarLeaseUntilTm.Add(-membr.clockDriftBound)
 						now := time.Now()
-						vv("reply.Vers = '%v';\n deadline = '%v' \n now = '%v'", reply.Vers, nice(deadline), nice(now))
+						//vv("reply.Vers = '%v';\n deadline = '%v' \n now = '%v'", reply.Vers, nice(deadline), nice(now))
 						if lte(deadline, now) {
 							// this is causing too many restarts! and then we leak clients/auto-clients? hazard of mixing rpc and circuit stuff maybe. kinda want
-							pp("stale czar answer (not really the czar now), reconnect/contend; deadline(%v) <= now(%v)", nice(deadline), nice(now))
+							//pp("stale czar answer (not really the czar now), reconnect/contend; deadline(%v) <= now(%v)", nice(deadline), nice(now))
 
 							if rpcClientToCzar != nil {
 								rpcClientToCzar.Close()
@@ -1115,7 +1117,7 @@ fullRestart:
 					memberHeartBeatCh = time.After(memberHeartBeatDur)
 
 				case <-czar.Halt.ReqStop.Chan:
-					//vv("czar halt requested. exiting.")
+					////vv("czar halt requested. exiting.")
 					return
 				}
 			}
@@ -1188,7 +1190,7 @@ func newFunneler(halt *idem.Halter) (r *funneler) {
 	go func() {
 		for {
 			chosen, recv, _ := reflect.Select(r.clientConns)
-			//vv("reflect.Select chosen='%v'", chosen)
+			////vv("reflect.Select chosen='%v'", chosen)
 			if chosen == 1 {
 				// halt requested.
 				return
@@ -1209,7 +1211,7 @@ func newFunneler(halt *idem.Halter) (r *funneler) {
 			}
 			// stop listening for it
 			dropped := r.clientConnHalt[chosen]
-			//vv("czar rpc.Client departs: '%v'", dropped.Conn.RemoteAddr())
+			////vv("czar rpc.Client departs: '%v'", dropped.Conn.RemoteAddr())
 			r.clientConnHalt = append(r.clientConnHalt[:chosen], r.clientConnHalt[(chosen+1):]...)
 			r.clientConns = append(r.clientConns[:chosen], r.clientConns[(chosen+1):]...)
 			// notify czar that server noticed a client disconnect.
@@ -1462,10 +1464,10 @@ func StringFromVtype(val Val, vtyp string) string {
 		rm.UnmarshalMsg(val)
 		return rm.String()
 	case PeerDetailPlusType:
-		//vv("attempting to unmarshal into PeerDetailPlus len %v bytes: '%v'", len(val), string(val))
+		////vv("attempting to unmarshal into PeerDetailPlus len %v bytes: '%v'", len(val), string(val))
 		det := &PeerDetailPlus{}
 		det.UnmarshalMsg(val)
-		//vv("after UnmarshalMsg, det = '%v'", det)
+		////vv("after UnmarshalMsg, det = '%v'", det)
 		return det.String()
 	}
 
