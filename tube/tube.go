@@ -1217,6 +1217,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		case tkt := <-s.newSessionRequestCh:
 			s.handleNewSessionRequestTicket(tkt)
 
+		case tkt := <-s.closeSessionRequestCh:
+			s.handleCloseSessionRequestTicket(tkt)
+
 		case tkt := <-s.readReqCh:
 			// SHOW_KEYS, READ_KEYRANGE, READ_PREFIX_RANGE, and READ use readReqCh.
 
@@ -2661,7 +2664,8 @@ type TubeNode struct {
 	readReqCh      chan *Ticket
 	deleteKeyReqCh chan *Ticket
 
-	newSessionRequestCh chan *Ticket
+	newSessionRequestCh   chan *Ticket
+	closeSessionRequestCh chan *Ticket
 
 	nextWake       time.Time
 	nextWakeCh     <-chan time.Time
@@ -3840,9 +3844,10 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		readReqCh:      make(chan *Ticket),
 		deleteKeyReqCh: make(chan *Ticket),
 
-		newSessionRequestCh: make(chan *Ticket),
-		requestInpsect:      make(chan *Inspection),
-		peerLeftCh:          make(chan string),
+		newSessionRequestCh:   make(chan *Ticket),
+		closeSessionRequestCh: make(chan *Ticket),
+		requestInpsect:        make(chan *Inspection),
+		peerLeftCh:            make(chan string),
 
 		// bad if buffer=> 707 red no leader
 		setLeaderCktChan: make(chan *rpc.Circuit),
@@ -14622,19 +14627,43 @@ func (z *Session) String() (r string) {
 }
 
 // external, client callable
+func (s *TubeNode) CloseSession(ctx context.Context, sess *Session) (err error) {
+	desc := fmt.Sprintf("CloseSession call from '%v' for SessionID:'%v'", s.name, sess.SessionID)
+	tkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, SESS_END, 0, ctx)
+	tkt.EndSessReq_SessionID = sess.SessionID
+
+	select {
+	case s.closeSessionRequestCh <- tkt:
+		// proceed to wait below for txt.Done
+	case <-ctx.Done():
+		err = ctx.Err()
+		return
+	case <-s.Halt.ReqStop.Chan:
+		tkt = nil
+		err = ErrShutDown
+		return
+	}
+
+	select { // tup linz hung here. tup hung here on simple startup. in CreateNewSession.
+	case <-tkt.Done.Chan: // waits for completion
+		err = tkt.Err
+		return
+	case <-ctx.Done():
+		err = ctx.Err()
+		return
+	case <-s.Halt.ReqStop.Chan:
+		err = ErrShutDown
+		return
+	}
+}
+
+// external, client callable
 func (s *TubeNode) CreateNewSession(ctx context.Context, leaderURL string) (r *Session, err error) {
-	var reqClusterInfoFrag *rpc.Fragment
-	// reqClusterInfoFrag = s.newFrag()
-	// reqClusterInfoFrag.FromPeerName = s.name
-	// reqClusterInfoFrag.FromPeerID = s.PeerID
-	// reqClusterInfoFrag.FromPeerServiceName = TUBE_CLIENT
-	// //reqClusterInfoFrag.FromPeerServiceNameVersion = ?
-	// reqClusterInfoFrag.FragOp
 
 	var ckt *rpc.Circuit
 	var onlyPossibleAddr string
 	if leaderURL != "" {
-		ckt, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderURL, reqClusterInfoFrag, false)
+		ckt, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderURL, nil, false)
 		if err != nil {
 			return
 		}
@@ -14696,6 +14725,36 @@ func (s *TubeNode) newSessionRequest(ctx context.Context) (r *Session) {
 		readyCh:                 make(chan struct{}),
 	}
 	return
+}
+
+// internal routine, <-s.closeSessionRequestCh seen
+func (s *TubeNode) handleCloseSessionRequestTicket(tkt *Ticket) {
+	//vv("%v top handleCloseSessionRequestTicket", s.me())
+
+	tkt.Stage += ":closeSessionRequestCh"
+
+	if s.redirectToLeader(tkt) {
+		if tkt.Err != nil {
+
+			//vv("%v bail out in handleNewSessionRequestTicket; error happened '%v'", s.me(), tkt.Err)
+			s.FinishTicket(tkt, false)
+			return // bail out, error happened.
+		}
+
+		//vv("%v adding to WaitingAtFollow, newSessionRequestCh: '%v'", s.me(), tkt.Short())
+		tkt.Stage += ":after_redirectToLeader_add_WaitingAtFollow"
+
+		prior, already := s.WaitingAtFollow.get2(tkt.TicketID)
+		if already {
+			panic(fmt.Sprintf("WAF already has prior='%v'; versus tkt='%v'", prior, tkt))
+		}
+		s.WaitingAtFollow.set(tkt.TicketID, tkt)
+		//vv("%v AFTER adding to WAF, at newSessionRequestCh: tkt='%v'", s.me(), tkt)
+		return
+	}
+	// INVAR: on leader already, no re-direction needed.
+	//s.leaderSideCloseNewSess(tkt)
+	s.replicateTicket(tkt)
 }
 
 // internal routine, <-s.newSessionRequestCh seen
@@ -15664,6 +15723,7 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 		cktP, ok := s.cktAllByName[tkt.RemovePeerName]
 		if ok && cktP != nil {
 			s.deleteFromCktAll(cktP)
+			vv("REMOVE_SHADOW_NON_VOTING: did deleteFromCktAll(cktP) for '%v'", tkt.RemovePeerName)
 			// this adds stuff back... skip unless we figure out we need it.
 			//s.adjustCktReplicaForNewMembership()
 		}

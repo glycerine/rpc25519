@@ -813,6 +813,11 @@ fullRestart:
 				} else {
 					//cState = notCzar
 					czar.cState.Store(int32(notCzar))
+
+					// can we cleanup all the conn to the raft/tube cluster here
+					// to minimize the open sockets?
+					go cli.CloseSession(ctx, sess)
+
 					czarLeaseUntilTm = czarTkt.LeaseUntilTm
 					expireCheckCh = nil
 
@@ -1007,7 +1012,7 @@ fullRestart:
 						waitDur := czarLeaseUntilTm.Sub(time.Now()) + time.Second
 						//pp("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
 						time.Sleep(waitDur)
-						continue haveSess
+						continue fullRestart
 					}
 					rpcClientToCzarDoneCh = rpcClientToCzar.GetHostHalter().Done.Chan
 
@@ -1027,7 +1032,7 @@ fullRestart:
 						czar.cState.Store(int32(unknownCzarState))
 
 						time.Sleep(time.Second)
-						continue haveSess
+						continue fullRestart
 					}
 					//pp("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply of %v nodes", tubeCliName, reply.PeerNames.Len()) // seen regularly
 					// store view of membership as non-czar
@@ -1056,7 +1061,7 @@ fullRestart:
 					//cState = unknownCzarState
 					czar.cState.Store(int32(unknownCzarState))
 
-					continue haveSess
+					continue fullRestart
 
 				case <-memberHeartBeatCh:
 
@@ -1076,7 +1081,7 @@ fullRestart:
 						//cState = unknownCzarState
 						czar.cState.Store(int32(unknownCzarState))
 
-						continue
+						continue fullRestart
 					}
 					if reply != nil && reply.PeerNames != nil {
 						//pp("member called to Czar.Ping, got reply with member count='%v'; rpcClientToCzar.RemoteAddr = '%v':\n reply = %v\n", reply.PeerNames.Len(), rpcClientToCzar.RemoteAddr(), reply)
@@ -1102,7 +1107,7 @@ fullRestart:
 							//cState = unknownCzarState
 							czar.cState.Store(int32(unknownCzarState))
 
-							continue
+							continue fullRestart
 						}
 					}
 					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(reply.Vers) {
