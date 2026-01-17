@@ -815,11 +815,18 @@ fullRestart:
 					czar.cState.Store(int32(notCzar))
 
 					// can we cleanup all the conn to the raft/tube cluster here
-					// to minimize the open sockets?
-					go func(ctx context.Context, sess *Session) {
-						err := cli.CloseSession(ctx, sess)
-						vv("notCzar CloseSession() err = '%v'", err)
-					}(ctx, sess)
+					// to minimize the open sockets? we could, but we
+					// also do want them to renew their membership leases
+					// in the members table of the raft cluster.
+					// if false {
+					// 	go func(ctx context.Context, sess *Session) {
+					// 		err := cli.CloseSession(ctx, sess)
+					// 		vv("notCzar CloseSession() err = '%v'", err)
+					// 		if err == nil {
+					// 			cli.HelperDisconnectFromLeader(ctx, cliCfg)
+					// 		}
+					// 	}(ctx, sess)
+					// }
 
 					czarLeaseUntilTm = czarTkt.LeaseUntilTm
 					expireCheckCh = nil

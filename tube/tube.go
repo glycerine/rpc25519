@@ -1220,6 +1220,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		case tkt := <-s.closeSessionRequestCh:
 			s.handleCloseSessionRequestTicket(tkt)
 
+		case disco := <-s.discoRequestCh:
+			s.handleLocalCircuitDisconnectRequest(disco)
+
 		case tkt := <-s.readReqCh:
 			// SHOW_KEYS, READ_KEYRANGE, READ_PREFIX_RANGE, and READ use readReqCh.
 
@@ -1893,6 +1896,20 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		} // end select
 	} // end for i
 	return nil
+}
+
+// local request on node, no replication or Ticket needed.
+func (s *TubeNode) handleLocalCircuitDisconnectRequest(disco *discoReq) {
+	for name := range disco.who {
+		cktP, ok := s.cktAllByName[name]
+		if ok {
+			if cktP.ckt != nil {
+				cktP.ckt.Close(nil)
+				s.deleteFromCktAll(cktP)
+			}
+		}
+	}
+	disco.done.Close()
 }
 
 func (s *TubeNode) clientInstallNewTubeClusterMC(mc *MemberConfig) {
@@ -2666,6 +2683,7 @@ type TubeNode struct {
 
 	newSessionRequestCh   chan *Ticket
 	closeSessionRequestCh chan *Ticket
+	discoRequestCh        chan *discoReq
 
 	nextWake       time.Time
 	nextWakeCh     <-chan time.Time
@@ -2885,6 +2903,12 @@ type TubeNode struct {
 	snapInProgressB3checksumWhole string
 	snapInProgressHasher          *blake3.Hasher
 	snapInProgress                []byte
+}
+
+type discoReq struct {
+	who  map[string]string
+	done *idem.IdemCloseChan
+	err  error
 }
 
 // tuber uses to read the DataDir in use.
@@ -3797,7 +3821,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 	if !cfg.RpcCfg.CompressionOff {
 		cfg.RpcCfg.CompressionOff = true
 		if !cfg.isTest {
-			alwaysPrintf("we set cfg.RpcCfg.CompressionOff = true to keep memory use low.")
+			//alwaysPrintf("we set cfg.RpcCfg.CompressionOff = true to keep memory use low.")
 		}
 	}
 
@@ -3846,6 +3870,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 
 		newSessionRequestCh:   make(chan *Ticket),
 		closeSessionRequestCh: make(chan *Ticket),
+		discoRequestCh:        make(chan *discoReq),
 		requestInpsect:        make(chan *Inspection),
 		peerLeftCh:            make(chan string),
 

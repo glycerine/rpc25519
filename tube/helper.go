@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/glycerine/idem"
 	"github.com/glycerine/ipaddr"
 	rpc "github.com/glycerine/rpc25519"
 )
@@ -355,5 +356,37 @@ func mapUnion(a, b map[string]string) (u map[string]string) {
 	for k, v := range b {
 		u[k] = v
 	}
+	return
+}
+
+func (node *TubeNode) HelperDisconnectFromLeader(ctx context.Context, cfg *TubeConfig) (err error) {
+
+	//vv("cfg.Node2Addr = '%v'", cfg.Node2Addr)
+	disco := make(map[string]string)
+	for remoteName, addr := range cfg.Node2Addr {
+		// no "self" disconnect request
+		if remoteName != node.name {
+			disco[remoteName] = addr
+		}
+	}
+	req := &discoReq{
+		who:  disco,
+		done: idem.NewIdemCloseChan(),
+	}
+	select {
+	case node.discoRequestCh <- req:
+	case <-node.Halt.ReqStop.Chan:
+	case <-ctx.Done():
+	}
+
+	select {
+	case <-req.done.Chan:
+		return req.err
+	case <-node.Halt.ReqStop.Chan:
+		return rpc.ErrHaltRequested
+	case <-ctx.Done():
+		return rpc.ErrContextCancelled
+	}
+
 	return
 }
