@@ -816,7 +816,10 @@ fullRestart:
 
 					// can we cleanup all the conn to the raft/tube cluster here
 					// to minimize the open sockets?
-					go cli.CloseSession(ctx, sess)
+					go func(ctx context.Context, sess *Session) {
+						err := cli.CloseSession(ctx, sess)
+						vv("notCzar CloseSession() err = '%v'", err)
+					}(ctx, sess)
 
 					czarLeaseUntilTm = czarTkt.LeaseUntilTm
 					expireCheckCh = nil
