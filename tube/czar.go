@@ -728,7 +728,7 @@ fullRestart:
 		for ii := 0; ; ii++ {
 			vv("main loop ii = %v   fullRestart j = %v   cState = %v", ii, j, czarState(czar.cState.Load()))
 			if ii > 0 {
-				time.Sleep(time.Second)
+				time.Sleep(time.Millisecond * 100)
 			}
 
 			switch czarState(czar.cState.Load()) {
