@@ -381,7 +381,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	s.heard[args.Det.Name] = now
 	s.expireSilentNodes()
 	if s.members.Vers.Version != orig.Version {
-		// mut is already held.
+
 		//vv("Czar.Ping: membership has changed (was %v; now %v), is now: {%v}", orig, s.members.Vers, s.shortRMemberSummary())
 	}
 
@@ -798,7 +798,7 @@ fullRestart:
 					err = czar.setVers(vers, list, t0) // does upcall for us.
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
-						vv("see err = '%v', doing full restart")
+						vv("see err = '%v', doing full restart", err) // seen!?!
 						continue fullRestart
 					}
 
