@@ -675,7 +675,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			stopReason = fmt.Sprintf("req=nil s.halt=%p", s.halt)
 			continue
 		}
-		//vv("srv read loop sees req = '%v'", req.String()) // not seen 040
+		//vv("srv read loop sees req = '%v'", req.String())
 
 		if req.HDR.From != "" {
 			s.Server.unNAT.Set(req.HDR.From, remoteAddr)
@@ -1511,7 +1511,7 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 	} else {
 		returnValues = function.Call([]reflect.Value{s.rcvr, argv, replyv})
 	}
-	//vv("back from function.Call()...") // not seen?!?!
+	//vv("back from function.Call()...")
 	// The return value for the method is an error.
 	errInter := returnValues[0].Interface()
 	errmsg := ""
@@ -1525,14 +1525,14 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 	}
 	//vv("about to pair.sendResponse")
 	pair.sendResponse(reqMsg, req, greenReplyv, codec, errmsg, job)
-	//vv("past pair.sendResponse; errmsg='%v'; greenReplyv = '%v'", errmsg, greenReplyv) // not seen.
+	//vv("past pair.sendResponse; errmsg='%v'; greenReplyv = '%v'", errmsg, greenReplyv)
 	pair.Server.freeRequest(req)
 }
 
 // called by callMethodByReflection
 func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec ServerCodec, errmsg string, job *job) {
 
-	//vv("pair sendResponse() top, reply: '%#v'", reply) // not seen?!?! member Ping reply
+	//vv("pair sendResponse() top, reply: '%#v'", reply)
 
 	resp := p.Server.getResponse()
 	// Encode the response header
