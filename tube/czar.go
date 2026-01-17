@@ -1077,6 +1077,11 @@ fullRestart:
 					}
 					if reply != nil && reply.PeerNames != nil {
 						pp("member called to Czar.Ping, got reply with member count='%v'; rpcClientToCzar.RemoteAddr = '%v':\n reply = %v\n", reply.PeerNames.Len(), rpcClientToCzar.RemoteAddr(), reply)
+						// check for bug in czar: did they add me to the list?
+						_, ok2 := reply.PeerNames.Get2(myDetail.Det.Name)
+						if !ok2 {
+							panicf("member detected bug in czar: got ping back without ourselves (myDetail.Det.Name='%v') in it!: reply='%v'", myDetail.Det.Name, reply)
+						}
 					}
 					if !reply.Vers.CzarLeaseUntilTm.IsZero() {
 						deadline := reply.Vers.CzarLeaseUntilTm.Add(-membr.clockDriftBound)
