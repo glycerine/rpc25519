@@ -15656,6 +15656,15 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 			s.FinishTicket(tkt, true)
 			return
 		}
+		// we should stop any watchdog for them:
+
+		cktP, ok := s.cktAllByName[tkt.RemovePeerName]
+		if ok && cktP != nil {
+			s.deleteFromCktAll(cktP)
+			// this adds stuff back... skip unless we figure out we need it.
+			//s.adjustCktReplicaForNewMembership()
+		}
+
 	// fallthrough to replicateTicket
 
 	case USER_DEFINED_FSM_OP:
@@ -16646,6 +16655,10 @@ func (s *TubeNode) doRemoveShadow(tkt *Ticket) {
 	//vv("%v top of doRemoveShadow() tkt='%v'", s.me(), tkt.Short())
 
 	s.state.ShadowReplicas.PeerNames.Delkey(tkt.RemovePeerName)
+	cktP, ok := s.cktAllByName[tkt.RemovePeerName]
+	if ok && cktP != nil {
+		s.deleteFromCktAll(cktP)
+	}
 }
 
 // For user defined library operations we will need
