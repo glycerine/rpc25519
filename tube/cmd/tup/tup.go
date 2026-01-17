@@ -162,7 +162,8 @@ func main() {
 		table = cfg.TupDefaultTable
 	}
 	fmt.Printf(`tup: the tube updater; use tup -v for diagnostics.
-commands: .key               : read key from current table
+commands: ,,                 : show all keys from current table
+          .key               : read key from current table
           key                : read key from current table (if not keyword)
           !key newval        : write newval to key in current table
           &10s key newval    : write newval to key in current table, 10s lease
@@ -231,6 +232,9 @@ repl:
 			case "show": // list all tables
 				isShowKeys = true
 				key = ""
+			case ",,": // list all keys in current table.
+				isShowKeys = true
+				key = table
 			case "ls": // list all keys of current table
 				isShowKeys = true
 				key = targetTable
