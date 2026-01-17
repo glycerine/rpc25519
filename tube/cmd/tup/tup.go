@@ -480,7 +480,7 @@ repl:
 								if leaf.Leasor != "" {
 									leaseInfo = leaseInfoFromLeaf(leaf)
 								}
-								fmt.Printf("(from table '%v') read key '%v' of type '%v': %v%v\n", targetTable, string(k), leaf.Vtype, tube.StringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
+								fmt.Printf("\n[%03d] (from table '%v') read key '%v' of type '%v': %v%v\n", seen, targetTable, string(k), leaf.Vtype, tube.StringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
 								seen++
 							}
 						} else {
@@ -490,7 +490,7 @@ repl:
 									leaseInfo = leaseInfoFromLeaf(leaf)
 								}
 
-								fmt.Printf("(from table '%v') read key '%v' of type '%v': %v%v\n", targetTable, string(k), leaf.Vtype, tube.StringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
+								fmt.Printf("\n[%03d] (from table '%v') read key '%v' of type '%v': %v%v\n", seen, targetTable, string(k), leaf.Vtype, tube.StringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
 								seen++
 							}
 						}
@@ -521,7 +521,7 @@ repl:
 									leaseInfo = leaseInfoFromLeaf(leaf)
 								}
 
-								fmt.Printf("(from table '%v') read key '%v' (version: %v) of type '%v': %v%v\n", targetTable, string(k), leaf.Version, leaf.Vtype, tube.StringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
+								fmt.Printf("\n[%03d] (from table '%v') read key '%v' (version: %v) of type '%v': %v%v\n", seen, targetTable, string(k), leaf.Version, leaf.Vtype, tube.StringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
 								seen++
 							}
 						} else {
@@ -531,7 +531,7 @@ repl:
 									leaseInfo = leaseInfoFromLeaf(leaf)
 								}
 
-								fmt.Printf("(from table '%v') read key '%v' (version %v) of type '%v': %v%v\n", targetTable, string(k), leaf.Version, leaf.Vtype, tube.StringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
+								fmt.Printf("\n[%03d] (from table '%v') read key '%v' (version %v) of type '%v': %v%v\n", seen, targetTable, string(k), leaf.Version, leaf.Vtype, tube.StringFromVtype(leaf.Value, leaf.Vtype), leaseInfo)
 								seen++
 							}
 						}
