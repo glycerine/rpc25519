@@ -1464,7 +1464,7 @@ func (p *rwPair) callBridgeNetRpc(reqMsg *Message, job *job) error {
 		}
 		return err
 	}
-	vv("about to callMethodByReflection")
+	//vv("about to callMethodByReflection")
 	service.callMethodByReflection(p, reqMsg, mtype, req, argv, replyv, p.greenCodec, wantsCtx, job)
 
 	return nil
@@ -1480,7 +1480,7 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 	// Invoke the method, providing a new value for the reply.
 	var returnValues []reflect.Value
 	if wantsCtx {
-		vv("wantsCtx so setting up to cancel...")
+		//vv("wantsCtx so setting up to cancel...")
 		ctx0 := context.Background()
 		var cancelFunc context.CancelFunc
 		if !reqMsg.HDR.Deadline.IsZero() {
