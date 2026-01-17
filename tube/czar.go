@@ -58,10 +58,11 @@ func (s czarState) String() string {
 type Czar struct {
 	Halt *idem.Halter `msg:"-"`
 
-	keyCz   string
-	members *ReliableMembershipList
-	heard   map[string]time.Time
-	sess    *Session
+	tableSpace string
+	keyCz      string
+	members    *ReliableMembershipList
+	heard      map[string]time.Time
+	sess       *Session
 
 	// something for greenpack to serz
 	// this the client of Tube, not rpc.
@@ -101,7 +102,7 @@ type Czar struct {
 	myDetailBytes []byte
 }
 
-func NewCzar(tubeCliName string, cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
+func NewCzar(tableSpace, tubeCliName string, cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
 
 	memberHeartBeatDur := time.Second * 2
 	memberLeaseDur := memberHeartBeatDur * 6 // 12s if given 2s heartbeat
@@ -109,6 +110,7 @@ func NewCzar(tubeCliName string, cli *TubeNode, clockDriftBound time.Duration) (
 	members.MemberLeaseDur = memberLeaseDur
 
 	s = &Czar{
+		tableSpace:               tableSpace,
 		TubeCliName:              tubeCliName,
 		keyCz:                    "czar",
 		Halt:                     idem.NewHalter(),
@@ -146,7 +148,7 @@ func (czar *Czar) refreshMemberInTubeMembersTable(ctx context.Context) (err erro
 	panicOn(err)
 
 	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-	_, err = czar.sess.Write(ctx5, Key("members"), Key(czar.TubeCliName), Val(czar.myDetailBytes), czar.writeAttemptDur, PeerDetailPlusType, czar.membersTableLeaseDur, leaseAutoDelTrue)
+	_, err = czar.sess.Write(ctx5, Key(czar.tableSpace), Key("members/"+czar.TubeCliName), Val(czar.myDetailBytes), czar.writeAttemptDur, PeerDetailPlusType, czar.membersTableLeaseDur, leaseAutoDelTrue)
 	canc()
 	//vv("members table every 10s refresh attempt done. err = '%v'", err)
 
@@ -631,7 +633,7 @@ func (membr *RMember) start() {
 	panicOn(err)
 	defer cli.Close()
 
-	czar := NewCzar(tubeCliName, cli, membr.clockDriftBound)
+	czar := NewCzar(tableSpace, tubeCliName, cli, membr.clockDriftBound)
 
 	cli.Srv.RegisterName("Czar", czar)
 
@@ -739,7 +741,7 @@ fullRestart:
 
 				// in cState == unknownCzarState here
 
-				czarTkt, err := czar.sess.Write(ctx, Key(tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+				czarTkt, err := czar.sess.Write(ctx, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
 
 				// INVAR: state == unknownCzarState here
 				if err == nil {
@@ -908,7 +910,7 @@ fullRestart:
 					// hung here on cluster leader bounce, write
 					// has failed.
 					ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-					czarTkt, err := czar.sess.Write(ctx5, Key(tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+					czarTkt, err := czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
 					canc()
 					if err != nil {
 						//vv("renewCzarLeaseCh attempt to renew lease with Write to '%v' failed: err='%v'", keyCz, err)

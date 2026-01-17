@@ -158,6 +158,9 @@ func main() {
 	reader := bufio.NewReader(os.Stdin)
 
 	table := "base"
+	if cfg.TupDefaultTable != "" {
+		table = cfg.TupDefaultTable
+	}
 	fmt.Printf(`tup: the tube updater; use tup -v for diagnostics.
 commands: .key               : read key from current table
           key                : read key from current table (if not keyword)

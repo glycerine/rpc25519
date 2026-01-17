@@ -632,7 +632,9 @@ type TubeConfig struct {
 	// and network roundtrip costs. The data limits
 	// of rpc.UserMaxPayload will also, most
 	// likely, need to apply as well.
-	BatchAccumateDur time.Duration `zid:"20"`
+	BatchAccumulateDur time.Duration `zid:"20"`
+
+	TupDefaultTable string `zid:"21"`
 
 	// for internal failure recovery testing,
 	// e.g. to drop or ignore messages.
@@ -2150,16 +2152,16 @@ func NewTubeConfigProd(clusterSize int, clusterID string) (cfg *TubeConfig) {
 func newTubeConfig(clusterSize int, clusterID string, useSimNet, isTest bool) (cfg *TubeConfig) {
 
 	cfg = &TubeConfig{
-		PeerServiceName:  TUBE_REPLICA, // default
-		ClusterID:        clusterID,
-		ClusterSize:      clusterSize,
-		TCPonly_no_TLS:   isTest,
-		NoDisk:           isTest,
-		HeartbeatDur:     time.Millisecond * 200,
-		MinElectionDur:   time.Millisecond * 1200,
-		BatchAccumateDur: time.Millisecond * 100,
-		UseSimNet:        useSimNet,
-		ClockDriftBound:  time.Millisecond * 500,
+		PeerServiceName:    TUBE_REPLICA, // default
+		ClusterID:          clusterID,
+		ClusterSize:        clusterSize,
+		TCPonly_no_TLS:     isTest,
+		NoDisk:             isTest,
+		HeartbeatDur:       time.Millisecond * 200,
+		MinElectionDur:     time.Millisecond * 1200,
+		BatchAccumulateDur: time.Millisecond * 100,
+		UseSimNet:          useSimNet,
+		ClockDriftBound:    time.Millisecond * 500,
 
 		// if UseSimNet && faketime, do synctest.Wait? no effect if not UseSimNet
 	}
@@ -5575,8 +5577,8 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		s.batchInProgress = true
 		s.batchByteSize = sz
 		s.batchStartedTm = now
-		s.batchSubmitTm = now.Add(s.cfg.BatchAccumateDur)
-		s.batchSubmitTimeCh = time.After(s.cfg.BatchAccumateDur)
+		s.batchSubmitTm = now.Add(s.cfg.BatchAccumulateDur)
+		s.batchSubmitTimeCh = time.After(s.cfg.BatchAccumulateDur)
 		return
 	}
 
@@ -11249,8 +11251,8 @@ func (s *TubeNode) setConfigDefaultsIfZero() {
 	if s.cfg.MinElectionDur == 0 {
 		s.cfg.MinElectionDur = 10 * s.cfg.HeartbeatDur
 	}
-	if s.cfg.BatchAccumateDur == 0 {
-		s.cfg.BatchAccumateDur = time.Millisecond * 100
+	if s.cfg.BatchAccumulateDur == 0 {
+		s.cfg.BatchAccumulateDur = time.Millisecond * 100
 	}
 	//vv("%v end setConfigDefaultsIfZero(). s.cfg.HeartbeatDur=%v; s.cfg.MinElectionDur=%v", s.me(), s.cfg.HeartbeatDur, s.cfg.MinElectionDur)
 }

@@ -81,7 +81,8 @@ func Test060_load_config(t *testing.T) {
              MyName: "doug",
     PeerServiceName: "",
 NoBackgroundConnect: true,
-   BatchAccumateDur: (dur "100ms"),
+ BatchAccumulateDur: (dur "100ms"),
+    TupDefaultTable: "hermes",
           Node2Addr: (hash "barney":":7001", "doug":":7004", "frank":":7002", "wilma":":7003"),
              RpcCfg: (rpc25519_Config
     SimnetGOMAXPROCS: 0,
@@ -142,7 +143,7 @@ defaultCfg =
              MyName: "",
           Node2Addr: (hash),
 NoBackgroundConnect: false,
-   BatchAccumateDur: (dur "100ms"),
+ BatchAccumulateDur: (dur "100ms"),
              RpcCfg: (rpc25519_Config
        QuietTestMode: true,
           ServerAddr: "127.0.0.1:0",
