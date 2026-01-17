@@ -87,7 +87,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, t0 time.
 	if v.VersionGT(s.members.Vers) {
 		// okay
 	} else {
-		vv("would be error, but overriding for now: RMVersionTuple must be monotone increasing, current='%v'; rejecting proposed new Vers '%v'", s.members.Vers, v)
+		vv("would be error, but overriding for now: RMVersionTuple must be monotone increasing, current='%v'; rejecting proposed new Vers '%v'", s.members.Vers, v) // TODO: reject?
 	}
 
 	s.members = list.Clone()
