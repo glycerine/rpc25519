@@ -140,7 +140,7 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	for _, insp := range sortByName(contacted) {
 		fmt.Printf(`%v %v  (lead: '%v')
    LastLog:{Term: '%v'; Index: '%v'; LeaderName: '%v'; TicketOp: %v}
-   LogIndexBaseC: %v      PID: %v     Hostname: %v
+   LogIndexBaseC: %v      Hostname: %v    PID: %v
    MC: %v   ShadowReplicas: %v   URL: %v%v
 `, insp.ResponderName, insp.Role, insp.CurrentLeaderName,
 			insp.LastLogTerm,
@@ -149,8 +149,8 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 			insp.LastLogTicketOp,
 			insp.LogIndexBaseC,
 
-			insp.PID,
 			insp.Hostname,
+			insp.PID,
 
 			insp.MC,
 			insp.ShadowReplicas,
