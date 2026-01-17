@@ -273,6 +273,9 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 // not be czar anymore after this.
 func (s *Czar) handlePing(rr *pingReqReply) {
 	vv("top of Czar.handlePing from '%v' PID: %v", rr.args.Det.Name, rr.args.Det.PID)
+	defer func() {
+		vv("end of Czar.handlePing from '%v' PID: %v; rr.err='%v'; rr.reply='%v'", rr.args.Det.Name, rr.args.Det.PID, rr.err, rr.reply)
+	}()
 
 	cur := czarState(s.cState.Load())
 	if cur != amCzar {
