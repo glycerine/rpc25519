@@ -247,7 +247,9 @@ func haveCircuitsTo(insp *tube.Inspection, show bool) (cktTo string) {
 		haveCktSlice = append(haveCktSlice, fmt.Sprintf("%v(%v)", nm, k))
 	}
 	sort.Strings(haveCktSlice)
-	cktTo = fmt.Sprintf("\ncktAllByName(%v):\n", len(haveCktSlice)) +
-		strings.Join(haveCktSlice, "\n") + "\n"
+	cktTo = fmt.Sprintf("\n   --- cktAllByName(count %v):\n", len(haveCktSlice))
+	for i, nm := range haveCktSlice {
+		cktTo += fmt.Sprintf("       [%02d] %v\n", i, nm)
+	}
 	return
 }
