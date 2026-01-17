@@ -14908,7 +14908,7 @@ func (s *TubeNode) garbageCollectOldSessions() {
 		if gte(now, ste.SessionEndxTm) {
 			desc := fmt.Sprintf("%v: about to replicate SESS_END for SessionID: '%v' b/c expired at '%v' <= now='%v'", s.name, id, nice(ste.SessionEndxTm), nice(now))
 
-			vv("%v ste.SessionEndxTm='%v' expired. garbageCollectOldSessions replicating SESS_END. WHY ARE THESE LEAKING SO MUCH??", s.me(), nice(ste.SessionEndxTm))
+			//vv("%v ste.SessionEndxTm='%v' expired. garbageCollectOldSessions replicating SESS_END.", s.me(), nice(ste.SessionEndxTm))
 
 			// this may be a major memory leak... why is this Ticket memory not cleaned up?
 			// I think every time a session is refreshed, something happens to extend memory?
