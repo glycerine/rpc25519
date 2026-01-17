@@ -1061,7 +1061,10 @@ fullRestart:
 				//pp("notCzar: rpcClient != nil, about to select")
 				select {
 				case <-refreshMembersCh:
-					refreshMemberInTube()
+					err := refreshMemberInTube()
+					if err != nil {
+						continue fullRestart
+					}
 
 				case <-rpcClientToCzarDoneCh:
 					//pp("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
