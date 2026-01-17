@@ -15417,10 +15417,8 @@ type cktPlus struct {
 	// we will try to auto-cli the same name 2x
 	// and our simnet will properly crash us for that.
 	//pending                          atomic.Bool
-	perCktWatchdogHalt *idem.Halter
 
-	// not in use at the moment; leave nil:
-	perCktWatchdogRequestReconnectCh chan *packReconnect
+	perCktWatchdogHalt *idem.Halter
 
 	// must hold requestReconnectMut while accessing
 	// requestReconnect or requestReconnectLastBeganTm
@@ -15462,8 +15460,6 @@ func (s *TubeNode) newCktPlus(peerName, peerServiceName string) *cktPlus {
 		PeerServiceName:    peerServiceName,
 		perCktWatchdogHalt: idem.NewHalter(),
 
-		// not in use at the moment; leave nil:
-		//perCktWatchdogRequestReconnectCh: make(chan *packReconnect),
 		requestReconnectPulse: make(chan bool),
 	}
 	s.Halt.AddChild(c.perCktWatchdogHalt)

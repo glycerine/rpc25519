@@ -258,6 +258,10 @@ func (c *cktPlus) startWatchdog() {
 				lastReconnAttempt = now
 			}
 
+			var cktHalt chan struct{}
+			if c.ckt != nil {
+				cktHalt = c.ckt.Halt.ReqStop.Chan
+			}
 			select {
 			case <-c.requestReconnectPulse:
 				// immediately check the requestReconnect
@@ -320,6 +324,10 @@ func (c *cktPlus) startWatchdog() {
 			case <-c.perCktWatchdogHalt.ReqStop.Chan:
 				//alwaysPrintf("%v shutting down watchdog(%p) because <-c.perCktWatchdogHalt.ReqStop.Chan", s.name, c)
 				return
+			case <-cktHalt:
+				//alwaysPrintf("%v shutting down watchdog(%p) because <-c.ckt.ReqStop.Chan", s.name, c)
+				return
+
 			case <-s.Halt.ReqStop.Chan:
 				//alwaysPrintf("%v shutting down watchdog(%p) because <-s.Halt.ReqStop.Chan", s.name, c)
 				return
