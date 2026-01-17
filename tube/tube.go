@@ -4250,24 +4250,27 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 		}
 		// add ourselves too.
 		ins.CktAll[s.PeerID] = s.URL
+	}
+	// tubels wants cktAllByName now
+	for name, cktP := range s.cktAllByName {
+		ckt := cktP.ckt
 
-		for name, cktP := range s.cktAllByName {
-			ckt := cktP.ckt
-
-			var url string
-			switch {
-			case cktP.isPending():
-				url = "pending"
-			case ckt == nil:
-				// racy
-				//panic(fmt.Sprintf("why is ckt nil if not pending? cktP='%#v'", cktP))
-			default:
-				url = ckt.RemoteCircuitURL()
-			}
-			ins.CktAllByName[name] = url
+		var url string
+		switch {
+		case cktP.isPending():
+			url = "pending"
+		case ckt == nil:
+			// racy
+			//panic(fmt.Sprintf("why is ckt nil if not pending? cktP='%#v'", cktP))
+		default:
+			url = ckt.RemoteCircuitURL()
 		}
-		// add ourselves too.
-		ins.CktAllByName[s.name] = s.URL
+		ins.CktAllByName[name] = url
+	}
+	// add ourselves too.
+	ins.CktAllByName[s.name] = s.URL
+
+	if !minimize {
 
 		ins.WaitingAtLeader = s.cloneWaitingAtLeaderToMap()
 		ins.WaitingAtFollow = s.cloneWaitingAtFollowToMap()
