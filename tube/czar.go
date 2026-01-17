@@ -272,9 +272,11 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 // we may change the s.cState, be prepared to
 // not be czar anymore after this.
 func (s *Czar) handlePing(rr *pingReqReply) {
+	vv("top of Czar.handlePing from '%v' PID: %v", rr.args.Det.Name, rr.args.Det.PID)
 
 	cur := czarState(s.cState.Load())
 	if cur != amCzar {
+		vv("Czar.handlePing: not czar atm, rejecting straight off.")
 		rr.err = ErrNotCzar
 		return
 	}
@@ -282,9 +284,12 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	now := time.Now()
 	if now.After(s.members.Vers.CzarLeaseUntilTm) {
 		s.cState.Store(int32(unknownCzarState))
+		vv("Czar.handlePing: lease has expired, so not czar atm, rejecting.")
 		rr.err = ErrNotCzar
 		return
 	}
+	vv("Czar.handlePing: am czar, process this ping from '%v'", rr.args.Det.Name)
+
 	args := rr.args
 	orig := s.members.Vers
 
@@ -562,7 +567,7 @@ func (membr *RMember) start() {
 	cliCfg.RpcCfg.QuietTestMode = false
 	tubeCliName := cliCfg.MyName
 
-	vv("tubeCliName = '%v'", tubeCliName)
+	vv("tubeCliName = '%v'", tubeCliName) // e.g. member_suM7r8JkqBYkgUm1U4AS
 
 	cli := NewTubeNode(tubeCliName, cliCfg)
 	err = cli.InitAndStart()
