@@ -641,17 +641,18 @@ func (membr *RMember) start() {
 
 fullRestart:
 	for j := 0; ; j++ {
-		//vv("top of fullRestart j=%v", j)
-		//if j > 0 {
-		//	time.Sleep(time.Second) // pace it.
-		//}
+		vv("top of fullRestart j=%v", j)
+		if j > 0 {
+			time.Sleep(time.Second) // pace it.
+		}
 
 		ctx := context.Background()
 		const requireOnlyContact = false
 		const keepCktUp = true // false
 		for k := 0; ; k++ {
-			//pp("find leaader loop k = %v", k)
-			leaderURL, _, _, _, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp)
+			vv("find leader loop k = %v", k)
+			leaderURL, _, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp)
+			vv("helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", leaderURL, reallyLeader, err)
 			panicOn(err)
 
 			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
@@ -664,7 +665,7 @@ fullRestart:
 			alwaysPrintf("got err from CreateNewSession, sleep 1 sec and try again: '%v'", err)
 			time.Sleep(time.Second)
 		}
-		////vv("got sess = '%v'", sess)
+		vv("got sess = '%v'", czar.sess)
 
 		// tell user it is safe to listen on
 		// membr.UpcallMembershipChangeCh now.
@@ -952,7 +953,15 @@ fullRestart:
 					//pp("notCzar top: rpcClientToCzar is nil")
 
 					list := nonCzarMembers
-					czarDetPlus, ok := list.PeerNames.Get2(list.CzarName)
+					if list == nil {
+						alwaysPrintf("wat? in notCzar, why is nonCzarMembers nil?")
+						continue fullRestart
+					}
+					if list.PeerNames == nil {
+						alwaysPrintf("wat? in notCzar, why is nonCzarMembers.PeerNames nil?")
+						continue fullRestart
+					}
+					czarDetPlus, ok := list.PeerNames.Get2(list.CzarName) // segfault!
 					if !ok {
 						panicf("list with winning czar did not include czar itself?? list='%v'", list)
 					}
