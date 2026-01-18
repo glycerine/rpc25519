@@ -1965,8 +1965,7 @@ func (s *TubeNode) handleNewCircuit(
 		frag.SetUserArg(pruneKeeperKey, earlierCkt.CircuitID)
 		s.SendOneWay(ckt, frag, -1, 1)
 		s.SendOneWay(earlierCkt, frag, -1, 0)
-		//vv("accept but tell other side this ckt was redundant.") // 052 green.
-		return // 052 red if uncommented.
+		return // good: all tests green with this return (pruning fully on).
 	}
 
 	// this _was_ the only place where ckt are added to s.cktall.
@@ -2192,18 +2191,20 @@ func (s *TubeNode) shouldPruneRedundantCkt(cktQuery *rpc.Circuit) (isRedund bool
 	if pruneLocal == nil {
 		return
 	}
+	// INVAR: isRedund is false so caller will accept new cktQuery,
+	// but pruneLocal is redundant with cktQuery...
+	// we delete pruneLocal next.
+
 	// swap in new, swap out old.
 	// well, the new will added... by caller.
 	// so just need to delete the old.
 
-	if true {
-		vv("%v: shouldPruneRedundantCkt will prune old as redundant; and swap in new cktQuery (to remote: '%v')", s.name, remoteQ)
-		oldCktPlus, ok := s.cktall[pruneLocal.RemotePeerID]
-		if ok && oldCktPlus.ckt != nil {
-			s.pruneRedundantCircuitMessageTo(pruneLocal, pruneLocal.CircuitID, cktQuery.CircuitID)
-			s.deleteFromCktAll(oldCktPlus)
-			oldCktPlus.ckt.Close(ErrPruned)
-		}
+	vv("%v: shouldPruneRedundantCkt will prune old as redundant; caller should swap in new cktQuery (to remote: '%v')", s.name, remoteQ)
+	oldCktPlus, ok := s.cktall[pruneLocal.RemotePeerID]
+	if ok && oldCktPlus.ckt != nil {
+		s.pruneRedundantCircuitMessageTo(pruneLocal, pruneLocal.CircuitID, cktQuery.CircuitID)
+		s.deleteFromCktAll(oldCktPlus)
+		oldCktPlus.ckt.Close(ErrPruned)
 	}
 	return
 }
