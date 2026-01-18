@@ -2171,6 +2171,22 @@ allLoop:
 			}
 			vv("%v dup ckts detected more than 10s ago, check if we should prune '%v'", s.name, cktP.PeerName)
 			s.pruneCheck(cktP.ckt)
+			cktContextCancelled := false
+			select {
+			case <-cktP.ckt.Context.Done():
+				cktContextCancelled = true
+			default:
+
+			}
+			if cktContextCancelled {
+				// seeing tube.go:15392 SendOneWay: non nil error on 'PruneRedundantCircuitReq': 'rpc25519 error: context cancelled... but not sure this is a sufficient check.
+				// contexts that could have been cancelled:
+				// ckt.Context
+				// LocalPeer.Ctx
+				vv("%v naturally pruning context cancelled circuit... how was this missed?", s.name)
+				cktP.Close() // stop watchdog, fire cancel func.
+				cktP.ckt.Close(rpc.ErrContextCancelled)
+			}
 		}
 	}
 	s.pruneDupClientCktCheckCh = time.After(s.pruneDupDur)
@@ -17233,7 +17249,7 @@ func (s *TubeNode) handlePruneRedundantCircuit(frag *rpc.Fragment, onckt *rpc.Ci
 			s.deleteFromCktAll(plusV)
 		}
 		s.addToCktall(cktK.ckt)
-		cktV.Close() // stop watchdog, file cancel func.
+		cktV.Close() // stop watchdog, fire cancel func.
 		cktV.ckt.Close(ErrPruned)
 	}
 }
