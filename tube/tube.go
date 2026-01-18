@@ -17237,7 +17237,7 @@ func (s *TubeNode) handlePruneRedundantCircuit(frag *rpc.Fragment, onckt *rpc.Ci
 		panicf("PruneRedundantCircuit should have been sent to nobody else except keeper and victim ckt")
 	}
 	if seenK && seenV {
-		//vv("%v prunable circuit confirmed. We got the same prune request over two different circuits from '%v'", s.name, onckt.RemotePeerName)
+		vv("%v prunable circuit confirmed. We got the same prune request over two different circuits from '%v'. pruning now.", s.name, onckt.RemotePeerName)
 
 		//vv("%v acting on prune request: closing redundant circuit '%v'", s.name, cktV)
 		s.cktAuditByPeerID.Del(cktV.ckt.RemotePeerID)
