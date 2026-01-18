@@ -40,11 +40,11 @@ func init() {
 			m := make(map[string]int)
 			m2 := make(map[string]int)
 			for _, ckt := range ckts {
-				endpoints := fmt.Sprintf("local: %v  remote: %v", ckt.LocalServiceName, ckt.RemoteServiceName)
+				endpoints := fmt.Sprintf("local: %v  remote: %v [RemotePeerID: %v]", ckt.LocalPeerName, ckt.RemotePeerName, ckt.RemotePeerID)
 				n := m[endpoints]
 				m[endpoints] = n + 1
 
-				e2 := fmt.Sprintf("local: %v  remote: %v remotePeerName: %v", ckt.LocalServiceName, ckt.RemoteServiceName, ckt.RemotePeerName)
+				e2 := fmt.Sprintf("local: %v  remote: %v remotePeerName: %v", ckt.LocalPeerName, ckt.RemoteServiceName, ckt.RemotePeerName)
 				n = m2[e2]
 				m2[e2] = n + 1
 

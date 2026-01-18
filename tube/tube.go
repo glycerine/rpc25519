@@ -1956,6 +1956,19 @@ func (s *TubeNode) handleNewCircuit(
 	// TUBE_REPLICA is used now (instead of flag
 	// cktPlus.isReplica)
 
+	isRedund, earlierCkt := s.shouldPruneRedundantCkt(ckt)
+	if isRedund {
+		frag := s.newFrag()
+		frag.FragOp = PruneRedundantCircuit
+		frag.FragSubject = "PruneRedundantCircuit"
+		frag.SetUserArg(pruneVictimKey, ckt.CircuitID)
+		frag.SetUserArg(pruneKeeperKey, earlierCkt.CircuitID)
+		s.SendOneWay(ckt, frag, -1, 1)
+		s.SendOneWay(earlierCkt, frag, -1, 0)
+		//vv("accept but tell other side this ckt was redundant.") // 052 green.
+		return // 052 red if uncommented.
+	}
+
 	// this _was_ the only place where ckt are added to s.cktall.
 	// in <-newCircuitCh here.
 	//vv("%v in <-newCircuitCh here.", s.me())
@@ -2015,6 +2028,10 @@ func (s *TubeNode) handleNewCircuit(
 
 	//s.Halt.AddChild(ckt.Halt) // error: child already has parent!
 
+	debugGlobalCkt.Set(ckt.CircuitID, ckt)
+	s.cktAuditByCID.Set(ckt.CircuitID, ckt)
+	s.cktAuditByPeerID.Set(ckt.RemotePeerID, ckt)
+
 	// listen to this peer on a separate goro
 	go func(ckt *rpc.Circuit, cktP *cktPlus) (err0 error) {
 
@@ -2025,7 +2042,6 @@ func (s *TubeNode) handleNewCircuit(
 		//if ckt.RemoteServiceName != TUBE_REPLICA {
 		//vv("%v: (ckt '%v') 888888888888 got-incoming-ckt: from RemotePeerName:'%v' hostname '%v'; pid = %v; pointer-cktP=%p; ckt='%v'", s.name, ckt.Name, ckt.RemotePeerName, ckt.RpbTo.Hostname, ckt.RpbTo.PID, cktP, ckt)
 		//}
-		debugGlobalCkt.Set(ckt.CircuitID, ckt)
 
 		defer func() {
 			//vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.RemotePeerName) // , stack())
@@ -2033,6 +2049,11 @@ func (s *TubeNode) handleNewCircuit(
 			//vv("%v: (ckt '%v') defer running! finishing ckt for RemotePeer goro; from hostname '%v'; pid = %v", s.name, ckt.RemotePeerName, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID)
 			//}
 			debugGlobalCkt.Del(ckt.CircuitID)
+			s.cktAuditByCID.Del(ckt.CircuitID)
+			// this is okay. Since there can only be one, we
+			// must be deleting the one.
+			s.cktAuditByPeerID.Del(ckt.RemotePeerID)
+
 			ckt.Close(err0)
 			// subtract from peers, avoid race by using peerLeftCh.
 			//vv("%v reduce s.ckt peer set since peer went away: '%v'", s.me(), ckt.RemotePeerID)
@@ -2121,6 +2142,69 @@ func (s *TubeNode) handleNewCircuit(
 		}
 
 	}(ckt, cktP)
+	return
+}
+
+// answers the question: should this ckt be pruned?
+func (s *TubeNode) shouldPruneRedundantCkt(cktQuery *rpc.Circuit) (isRedund bool, earlierCkt *rpc.Circuit) {
+	remoteQ := cktQuery.RemotePeerName
+	if cktQuery.LocalPeerName != s.name {
+		panicf("why are we trying to prune a ckt that does not terminate locally with ourselves? my name='%v'; the cktQuery='%v'", s.name, cktQuery)
+	}
+
+	var pruneLocal *rpc.Circuit
+
+	// maintain the lock while we look through the many map entries
+	s.cktAuditByPeerID.Update(func(m map[string]*rpc.Circuit) {
+		ckt, ok := m[cktQuery.RemotePeerID]
+		if !ok {
+			return
+		}
+		if ckt.RemotePeerName == cktQuery.RemotePeerName &&
+			ckt.LocalPeerName == s.name &&
+			ckt.RemotePeerID == cktQuery.RemotePeerID {
+			vv("%v found a redundant ckt to '%v'", s.name, remoteQ)
+
+			// for stablity, keep the lesser (lexicographically)
+			if ckt.CircuitID < cktQuery.CircuitID {
+				vv("%v: shouldPruneRedundantCkt will prune cktQuery as redundant (to remote: '%v')", s.name, remoteQ)
+				isRedund = true
+				earlierCkt = ckt
+				return
+			}
+			if ckt.CircuitID > cktQuery.CircuitID {
+				// keep the new one, prune the old/existing
+				pruneLocal = ckt
+
+				// get rid of old value under this key... but technically
+				// this is redundant since the next assignment would
+				// blow it away; so skip:
+				// delete(m, cktQuery.RemotePeerID)
+				m[cktQuery.RemotePeerID] = cktQuery
+
+				s.cktAuditByCID.Update(func(m2 map[string]*rpc.Circuit) {
+					delete(m2, ckt.CircuitID)
+					m2[cktQuery.CircuitID] = cktQuery
+				})
+			}
+		}
+	})
+	if pruneLocal == nil {
+		return
+	}
+	// swap in new, swap out old.
+	// well, the new will added... by caller.
+	// so just need to delete the old.
+
+	if true {
+		vv("%v: shouldPruneRedundantCkt will prune old as redundant; and swap in new cktQuery (to remote: '%v')", s.name, remoteQ)
+		oldCktPlus, ok := s.cktall[pruneLocal.RemotePeerID]
+		if ok && oldCktPlus.ckt != nil {
+			s.pruneRedundantCircuitMessageTo(pruneLocal, pruneLocal.CircuitID, cktQuery.CircuitID)
+			s.deleteFromCktAll(oldCktPlus)
+			oldCktPlus.ckt.Close(ErrPruned)
+		}
+	}
 	return
 }
 
@@ -2917,6 +3001,13 @@ type TubeNode struct {
 	snapInProgressB3checksumWhole string
 	snapInProgressHasher          *blake3.Hasher
 	snapInProgress                []byte
+
+	// keep all circuits we spin up goroutine for,
+	// to figure out where we are leaking/prune back.
+	// This is the per TubeNode version of debugGlobalCkt.
+	// key is RemotePeerID
+	cktAuditByCID    *rpc.Mutexmap[string, *rpc.Circuit]
+	cktAuditByPeerID *rpc.Mutexmap[string, *rpc.Circuit]
 }
 
 type discoReq struct {
@@ -3905,6 +3996,8 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		leaderFullPongPQ: newPongPQ(name),
 		parked:           newParkedTree(),
 		sessByExpiry:     newSessTableByExpiry(),
+		cktAuditByCID:    rpc.NewMutexmap[string, *rpc.Circuit](),
+		cktAuditByPeerID: rpc.NewMutexmap[string, *rpc.Circuit](),
 	}
 	s.hlc.CreateSendOrLocalEvent()
 	s.cfg.MyName = name
@@ -17012,33 +17105,40 @@ func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 // Use the key in a user arg when FragOp == PruneRedundantCircuit,
 // the key maps to the value which holds the CircuitID to prune.
 const pruneVictimKey = "pruneVictimCircuitID"
+const pruneKeeperKey = "pruneKeeperCircuitID"
 
-var ErrPruneRedundant = fmt.Errorf("pruned redundant circuit")
+var ErrPruned = fmt.Errorf("pruned redundant circuit")
 
 func (s *TubeNode) handlePruneRedundantCircuit(frag *rpc.Fragment) {
 	victimCID, ok := frag.GetUserArg(pruneVictimKey)
 	if !ok {
 		panicf("expected to have user arg '%v' on frag: '%v'", pruneVictimKey, frag)
 	}
-	ckt, ok := debugGlobalCkt.Get(victimCID)
+	keeperCID, ok := frag.GetUserArg(pruneKeeperKey)
+	if !ok {
+		panicf("expected to have user arg '%v' on frag: '%v'", pruneKeeperKey, frag)
+	}
+	_, ok = debugGlobalCkt.Get(keeperCID)
+	if !ok {
+		vv("%v rejecting prune request: we do not have keeperCID '%v' in s.cktAudit.", s.name, keeperCID)
+		return
+	}
+	cktV, ok := debugGlobalCkt.Get(victimCID)
 	if ok {
-		vv("%v acting on prune request: closing redundant circuit '%v'", s.name, ckt)
-		debugGlobalCkt.Del(victimCID)
-		ckt.Close(ErrPruneRedundant)
+		vv("%v acting on prune request: closing redundant circuit '%v'", s.name, cktV)
+		// no! s.cktAuditByPeerID.Del(cktV.RemotePeerID)
+		s.cktAuditByCID.Del(cktV.CircuitID)
+		cktV.Close(ErrPruned)
 	}
 }
 
-func (s *TubeNode) tellRemoteToPruneRedundantCircuit(remoteName string, circuitID string) {
-	cktP, ok := s.cktAllByName[remoteName]
-	if !ok || cktP.ckt == nil {
-		vv("%v tellRemoteToPruneRedundantCircuit() could not find ckt to remoteName='%v'; ignoring request to prune circuitID='%v'", s.me(), remoteName, circuitID)
-		return
-	}
+func (s *TubeNode) pruneRedundantCircuitMessageTo(sendOnCkt *rpc.Circuit, victimCID, keeperCID string) {
 	frag := s.newFrag()
 	frag.FragOp = PruneRedundantCircuit
 	frag.FragSubject = "PruneRedundantCircuit"
-	frag.SetUserArg(pruneVictimKey, circuitID)
-	s.SendOneWay(cktP.ckt, frag, -1, 0)
+	frag.SetUserArg(pruneVictimKey, victimCID)
+	frag.SetUserArg(pruneKeeperKey, keeperCID)
+	s.SendOneWay(sendOnCkt, frag, -1, 0)
 }
 
 // possible TODO: use Ticket system instead? We don't,
