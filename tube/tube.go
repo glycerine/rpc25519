@@ -1950,10 +1950,16 @@ func (s *TubeNode) handleNewCircuit(
 	// TUBE_REPLICA is used now (instead of flag
 	// cktPlus.isReplica)
 
-	// the _was_ the only place where ckt are added to s.cktall.
+	// this _was_ the only place where ckt are added to s.cktall.
 	// in <-newCircuitCh here.
 	//vv("%v in <-newCircuitCh here.", s.me())
-	cktP := s.addToCktall(ckt)
+	cktP, rejected := s.addToCktall(ckt)
+	_ = rejected
+	if rejected {
+		alwaysPrintf("ouch 555555555 ckt rejected from cktall: '%v'", ckt.RemotePeerName)
+		panic("when ckt rejected?")
+	}
+
 	// NB: myPeer.PeerID == ckt.LocalPeerID
 
 	if s.cfg.isTest && s.verifyPeerReplicaOrNot != nil {
@@ -2004,7 +2010,7 @@ func (s *TubeNode) handleNewCircuit(
 	//s.Halt.AddChild(ckt.Halt) // error: child already has parent!
 
 	// listen to this peer on a separate goro
-	go func(ckt *rpc.Circuit) (err0 error) {
+	go func(ckt *rpc.Circuit, cktP *cktPlus) (err0 error) {
 
 		//var lastHeard time.Time // track liveness
 		ctx := ckt.Context
@@ -2108,7 +2114,7 @@ func (s *TubeNode) handleNewCircuit(
 			}
 		}
 
-	}(ckt)
+	}(ckt, cktP)
 	return
 }
 
@@ -8448,7 +8454,12 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 			// ckt remote is node 2
 			// node2 is establishing the grid, and this is our first
 			// encounter with them. So we just need to register them.
-			cktP = s.addToCktall(ckt)
+			var rejected bool
+			cktP, rejected = s.addToCktall(ckt)
+			if rejected {
+				alwaysPrintf("ouch 777777777 ckt rejected from cktall: '%v'", ckt.RemotePeerName)
+				panic("when ckt rejected? 777")
+			}
 		}
 	}
 
@@ -15235,7 +15246,7 @@ func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur 
 
 // called by <-newCircuitCh
 // called by peerJoin()
-func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
+func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) {
 	//defer func() {
 	//vv("%v addToCktall finished processing ckt.RemotePeerName='%v' RemotePeerID='%v'", s.me(), ckt.RemotePeerName, ckt.RemotePeerID)
 	//}()
@@ -15259,7 +15270,9 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 	if haveOld && oldCktP.PeerServiceName == ckt.RemoteServiceName {
 		if oldCktP.PeerServiceNameVersion > ckt.RemotePeerServiceNameVersion {
 			alwaysPrintf("%v dropping update to RemotePeerName='%v'; PeerServiceName='%v' with version '%v' that is stale versus our current version '%v'", s.name, ckt.RemotePeerName, oldCktP.PeerServiceName, ckt.RemotePeerServiceNameVersion, oldCktP.PeerServiceNameVersion)
-			return nil
+			rejected = true
+			cktP = nil
+			return
 		}
 	}
 	// moved from <-incomingNewCkt :
@@ -15267,7 +15280,9 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 	oldCktP, haveOld = s.cktall[ckt.RemotePeerID]
 	if haveOld && oldCktP.ckt.CircuitID == ckt.CircuitID { // && oldCktP.ckt == ckt {
 		//vv("%v ignoring redunant notice of circuitID from '%v'", s.me(), ckt.RemotePeerName) // not seen 057
-		return oldCktP
+		cktP = oldCktP
+		rejected = true
+		return
 	}
 	// INVAR: any oldCktP has a different ckt.CircuitID, or a different instance
 
@@ -15307,7 +15322,9 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 				if ckt != oldCktP.ckt {
 					panic(fmt.Sprintf("how did we get two different ckt that look the same? ckt='%v'; oldCktP.ckt = '%v'", ckt, oldCktP.ckt))
 				}
-				return oldCktP
+				cktP = oldCktP
+				rejected = true
+				return
 			}
 		} else {
 			//vv("%v addToCktall: PeerID is different for '%v', let us take the new one only.", s.me(), oldCktP.PeerName) // not seen 057

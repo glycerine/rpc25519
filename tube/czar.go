@@ -100,6 +100,8 @@ type Czar struct {
 
 	myDetail      *PeerDetailPlus
 	myDetailBytes []byte
+
+	nonCzarMembers *ReliableMembershipList
 }
 
 func NewCzar(tableSpace, tubeCliName string, cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
@@ -135,6 +137,16 @@ func NewCzar(tableSpace, tubeCliName string, cli *TubeNode, clockDriftBound time
 	s.refreshMembersTableDur = s.membersTableLeaseDur / 3
 
 	return s
+}
+
+func (czar *Czar) getNonCzarMembers() *ReliableMembershipList {
+	return czar.nonCzarMembers
+}
+func (czar *Czar) setNonCzarMembers(list *ReliableMembershipList) {
+	if list == nil {
+		panic("cannot set nonCzarMembers to nil!")
+	}
+	czar.nonCzarMembers = list
 }
 
 func (czar *Czar) refreshMemberInTubeMembersTable(ctx context.Context) (err error) {
@@ -706,8 +718,6 @@ fullRestart:
 		//halt := idem.NewHalter()
 		//defer halt.Done.Close()
 
-		var nonCzarMembers *ReliableMembershipList
-
 		// TODO: handle needing new session, maybe it times out?
 		// should survive leader change, but needs checking.
 
@@ -736,6 +746,7 @@ fullRestart:
 				// I think this is borked and giving us split brain:
 
 				// start with the highest version list we can find.
+				nonCzarMembers := czar.getNonCzarMembers()
 				if nonCzarMembers != nil {
 					if nonCzarMembers.Vers.VersionGT(list.Vers) {
 						//vv("nonCzarMembers.Vers(%v) sz=%v; was > list.Vers(%v) sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
@@ -828,7 +839,7 @@ fullRestart:
 						panicf("why not ReliableMembershipListType back? got '%v'", czarTkt.Vtype)
 					}
 
-					nonCzarMembers = &ReliableMembershipList{}
+					nonCzarMembers := &ReliableMembershipList{}
 					_, err = nonCzarMembers.UnmarshalMsg(czarTkt.Val)
 					panicOn(err)
 					nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
@@ -840,6 +851,7 @@ fullRestart:
 					if vers.VersionGT(nonCzarMembers.Vers) {
 						nonCzarMembers.Vers = vers
 					}
+					czar.setNonCzarMembers(nonCzarMembers)
 
 					// do the upcall? or should we wait until
 					// we ping the czar for a more reliable/centralized
@@ -969,9 +981,10 @@ fullRestart:
 				if rpcClientToCzar == nil {
 					//pp("notCzar top: rpcClientToCzar is nil")
 
-					list := nonCzarMembers
+					list := czar.getNonCzarMembers()
 					if list == nil {
-						alwaysPrintf("wat? in notCzar, why is nonCzarMembers nil?")
+						alwaysPrintf("wat? in notCzar, why is nonCzarMembers nil?") // too many?
+						panic("nonCzarMembers should never be nil now")
 						continue fullRestart
 					}
 					if list.PeerNames == nil {
@@ -1027,10 +1040,16 @@ fullRestart:
 						continue fullRestart
 					}
 					//pp("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply of %v nodes", tubeCliName, reply.PeerNames.Len()) // seen regularly
+
+					if reply == nil {
+						panicf("err was nil, how can reply be nil??")
+					}
 					// store view of membership as non-czar
+					nonCzarMembers := czar.getNonCzarMembers()
 					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(reply.Vers) {
 						nonCzarMembers = reply
 						nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
+						czar.setNonCzarMembers(nonCzarMembers)
 						select {
 						case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
 						default:
@@ -1078,6 +1097,10 @@ fullRestart:
 
 						continue fullRestart
 					}
+					if reply == nil {
+						panicf("err was nil, how can reply be nil??")
+					}
+
 					if reply != nil && reply.PeerNames != nil {
 						//pp("member called to Czar.Ping, got reply with member count='%v'; rpcClientToCzar.RemoteAddr = '%v':\n reply = %v\n", reply.PeerNames.Len(), rpcClientToCzar.RemoteAddr(), reply)
 						// check for bug in czar: did they add me to the list?
@@ -1105,10 +1128,12 @@ fullRestart:
 							continue fullRestart
 						}
 					}
+					nonCzarMembers := czar.getNonCzarMembers()
 					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(reply.Vers) {
 
 						nonCzarMembers = reply
 						nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
+						czar.setNonCzarMembers(nonCzarMembers)
 
 						select {
 						case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
