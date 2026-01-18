@@ -450,6 +450,7 @@ const (
 	InstallEmptyMC                 int = 16
 	NotifyClientNewLeader          int = 17
 	ReliableMemberHeartBeatToCzar  int = 18
+	PruneRedundantCircuit          int = 19
 	// PAR means the leader must get log
 	// information from followers, but actually
 	// an empty AE and then AEack should suffice
@@ -497,6 +498,8 @@ func msgop(o int) string {
 		return "NotifyClientNewLeader"
 	case ReliableMemberHeartBeatToCzar: // 18
 		return "ReliableMemberHeartBeatToCzar"
+	case PruneRedundantCircuit: // 19
+		return "PruneRedundantCircuit"
 	}
 	return fmt.Sprintf("unknown MsgOp: %v", o)
 }
@@ -1579,6 +1582,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			//now := time.Now()
 			switch frag.FragOp {
 
+			case PruneRedundantCircuit:
+				s.handlePruneRedundantCircuit(frag)
+
 			case NotifyClientNewLeader:
 				// only for clients
 				if s.role != CLIENT && s.cfg.PeerServiceName != TUBE_CLIENT {
@@ -2017,7 +2023,7 @@ func (s *TubeNode) handleNewCircuit(
 		cktContextDone := ctx.Done()
 
 		//if ckt.RemoteServiceName != TUBE_REPLICA {
-		vv("%v: (ckt '%v') 888888888888 got-incoming-ckt: from RemotePeerName:'%v' hostname '%v'; pid = %v; pointer-cktP=%p; ckt='%v'", s.name, ckt.Name, ckt.RemotePeerName, ckt.RpbTo.Hostname, ckt.RpbTo.PID, cktP, ckt)
+		//vv("%v: (ckt '%v') 888888888888 got-incoming-ckt: from RemotePeerName:'%v' hostname '%v'; pid = %v; pointer-cktP=%p; ckt='%v'", s.name, ckt.Name, ckt.RemotePeerName, ckt.RpbTo.Hostname, ckt.RpbTo.PID, cktP, ckt)
 		//}
 		debugGlobalCkt.Set(ckt.CircuitID, ckt)
 
@@ -2048,7 +2054,7 @@ func (s *TubeNode) handleNewCircuit(
 				//zz("%v: (ckt '%v') top func halt.ReqStop seen", s.name, ckt.Name)
 			}
 			//if ckt.RemoteServiceName != TUBE_REPLICA {
-			vv("%v: (ckt '%v') 999999999999 got-departing-ckt: from hostname '%v'; pid = %v; pointer-cktP=%p", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID, cktP)
+			//vv("%v: (ckt '%v') 999999999999 got-departing-ckt: from hostname '%v'; pid = %v; pointer-cktP=%p", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID, cktP)
 		}()
 
 		//zz("%v: (ckt '%v') <- got new incoming ckt", s.name, ckt.Name)
@@ -17001,6 +17007,38 @@ func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 	for _, ticketID := range goner {
 		delete(s.ticketsAwaitingLeader, ticketID)
 	}
+}
+
+// Use the key in a user arg when FragOp == PruneRedundantCircuit,
+// the key maps to the value which holds the CircuitID to prune.
+const pruneVictimKey = "pruneVictimCircuitID"
+
+var ErrPruneRedundant = fmt.Errorf("pruned redundant circuit")
+
+func (s *TubeNode) handlePruneRedundantCircuit(frag *rpc.Fragment) {
+	victimCID, ok := frag.GetUserArg(pruneVictimKey)
+	if !ok {
+		panicf("expected to have user arg '%v' on frag: '%v'", pruneVictimKey, frag)
+	}
+	ckt, ok := debugGlobalCkt.Get(victimCID)
+	if ok {
+		vv("%v acting on prune request: closing redundant circuit '%v'", s.name, ckt)
+		debugGlobalCkt.Del(victimCID)
+		ckt.Close(ErrPruneRedundant)
+	}
+}
+
+func (s *TubeNode) tellRemoteToPruneRedundantCircuit(remoteName string, circuitID string) {
+	cktP, ok := s.cktAllByName[remoteName]
+	if !ok || cktP.ckt == nil {
+		vv("%v tellRemoteToPruneRedundantCircuit() could not find ckt to remoteName='%v'; ignoring request to prune circuitID='%v'", s.me(), remoteName, circuitID)
+		return
+	}
+	frag := s.newFrag()
+	frag.FragOp = PruneRedundantCircuit
+	frag.FragSubject = "PruneRedundantCircuit"
+	frag.SetUserArg(pruneVictimKey, circuitID)
+	s.SendOneWay(cktP.ckt, frag, -1, 0)
 }
 
 // possible TODO: use Ticket system instead? We don't,
