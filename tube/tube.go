@@ -2017,7 +2017,7 @@ func (s *TubeNode) handleNewCircuit(
 		cktContextDone := ctx.Done()
 
 		//if ckt.RemoteServiceName != TUBE_REPLICA {
-		vv("%v: (ckt '%v') 888888888888 got-incoming-ckt: from RemotePeerName:'%v' hostname '%v'; pid = %v; ckt='%v'", s.name, ckt.Name, ckt.RemotePeerName, ckt.RpbTo.Hostname, ckt.RpbTo.PID, ckt)
+		vv("%v: (ckt '%v') 888888888888 got-incoming-ckt: from RemotePeerName:'%v' hostname '%v'; pid = %v; pointer-cktP=%p; ckt='%v'", s.name, ckt.Name, ckt.RemotePeerName, ckt.RpbTo.Hostname, ckt.RpbTo.PID, cktP, ckt)
 		//}
 		debugGlobalCkt.Set(ckt.CircuitID, ckt)
 
@@ -2048,7 +2048,7 @@ func (s *TubeNode) handleNewCircuit(
 				//zz("%v: (ckt '%v') top func halt.ReqStop seen", s.name, ckt.Name)
 			}
 			//if ckt.RemoteServiceName != TUBE_REPLICA {
-			vv("%v: (ckt '%v') 999999999999 got-departing-ckt: from hostname '%v'; pid = %v", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID)
+			vv("%v: (ckt '%v') 999999999999 got-departing-ckt: from hostname '%v'; pid = %v; pointer-cktP=%p", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID, cktP)
 		}()
 
 		//zz("%v: (ckt '%v') <- got new incoming ckt", s.name, ckt.Name)
