@@ -1131,6 +1131,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 		//vv("%v about wait at Start() select point; s.electionTimeoutCh=%p; s.nextElection in '%v'", s.name, s.electionTimeoutCh, time.Until(s.nextElection))
 		select {
+		case <-s.pruneDupClientCktCheckCh:
+			s.globalPruneCktCheck()
 
 		case <-s.leaderSendsHeartbeatsCh:
 			//if s.cfg.testNum != 52 && s.cfg.testNum != 51 {
@@ -2016,41 +2018,7 @@ func (s *TubeNode) handleNewCircuit(
 
 	//s.Halt.AddChild(ckt.Halt) // error: child already has parent!
 
-	// within the tube raft cluster, do not prune
-	// connections; we saw trouble restoring service.
-	if ckt.RemoteServiceName == TUBE_CLIENT ||
-		ckt.LocalServiceName == TUBE_CLIENT {
-		isRedund, earlierCktP := s.shouldPruneRedundantCkt(ckt)
-		if isRedund {
-			frag := s.newFrag()
-			frag.FragOp = PruneRedundantCircuitReq
-			frag.FragSubject = "PruneRedundantCircuitReq"
-
-			var keeper, goner string
-			if earlierCktP.ckt.CircuitID < ckt.CircuitID {
-				// keep the lesser, lexigraphically
-				keeper = earlierCktP.ckt.CircuitID
-				goner = ckt.CircuitID
-			} else {
-				keeper = ckt.CircuitID
-				goner = earlierCktP.ckt.CircuitID
-			}
-
-			frag.SetUserArg(pruneVictimKey, goner)
-			frag.SetUserArg(pruneKeeperKey, keeper)
-			frag.SetUserArg(pruneMatchNonce, rpc.NewCallID(""))
-			s.SendOneWay(earlierCktP.ckt, frag, -1, 1)
-			s.SendOneWay(ckt, frag, -1, 0)
-
-			// we let the remote side close the lexigraphically
-			// larger CircuitID (goner) if it actually is redundant
-			// (with keeper) as evidenced by both the circuits delivering
-			// the same pruneMatchNonce. Logical races are
-			// inherent and still we only do this for client -> replica
-			// since it hurt our tube/raft replica-replica
-			// communications.
-		}
-	}
+	s.pruneCheck(ckt)
 
 	debugGlobalCkt.Set(ckt.CircuitID, cktP)
 	s.cktAuditByCID.Set(ckt.CircuitID, cktP)
@@ -2185,6 +2153,69 @@ func (s *TubeNode) handleNewCircuit(
 	return
 }
 
+func (s *TubeNode) globalPruneCktCheck() {
+	// like a fine cheese, our dups must be this old or older.
+	tooYoung := time.Now().Add(-10 * time.Second)
+
+allLoop:
+	for _, cktP := range s.cktall {
+		if cktP.PeerServiceName != TUBE_CLIENT || cktP.dups == nil {
+			continue
+		}
+		if cktP.dups.Len() > 1 {
+			for _, dupSeenTm := range cktP.dups.GetMapCloneAtomic() {
+				if dupSeenTm.After(tooYoung) {
+					// let it age more
+					continue allLoop
+				}
+			}
+			vv("%v dup ckts detected more than 10s ago, check if we should prune '%v'", s.name, cktP.PeerName)
+			s.pruneCheck(cktP.ckt)
+		}
+	}
+	s.pruneDupClientCktCheckCh = time.After(s.pruneDupDur)
+}
+
+// called by handleNewCircuit
+func (s *TubeNode) pruneCheck(ckt *rpc.Circuit) {
+	// within the tube raft cluster, do not prune
+	// connections; we saw trouble restoring service.
+	if ckt.RemoteServiceName == TUBE_CLIENT ||
+		ckt.LocalServiceName == TUBE_CLIENT {
+		isRedund, earlierCktP := s.shouldPruneRedundantCkt(ckt)
+		if isRedund {
+			frag := s.newFrag()
+			frag.FragOp = PruneRedundantCircuitReq
+			frag.FragSubject = "PruneRedundantCircuitReq"
+
+			var keeper, goner string
+			if earlierCktP.ckt.CircuitID < ckt.CircuitID {
+				// keep the lesser, lexigraphically
+				keeper = earlierCktP.ckt.CircuitID
+				goner = ckt.CircuitID
+			} else {
+				keeper = ckt.CircuitID
+				goner = earlierCktP.ckt.CircuitID
+			}
+
+			frag.SetUserArg(pruneVictimKey, goner)
+			frag.SetUserArg(pruneKeeperKey, keeper)
+			frag.SetUserArg(pruneMatchNonce, rpc.NewCallID(""))
+			s.SendOneWay(earlierCktP.ckt, frag, -1, 1)
+			s.SendOneWay(ckt, frag, -1, 0)
+
+			// we let the remote side close the lexigraphically
+			// larger CircuitID (goner) if it actually is redundant
+			// (with keeper) as evidenced by both the circuits delivering
+			// the same pruneMatchNonce. Logical races are
+			// inherent and still we only do this for client -> replica
+			// since it hurt our tube/raft replica-replica
+			// communications.
+		}
+	}
+}
+
+// helper for pruneCheck() above.
 // answers the question: should this ckt be pruned? should
 // be called by handleNewCircuit _before_ adding cktQuery
 // to s.cktAuditByPeerID. We only return isRedund true
@@ -3012,6 +3043,11 @@ type TubeNode struct {
 	// key is RemotePeerID
 	cktAuditByCID    *rpc.Mutexmap[string, *cktPlus]
 	cktAuditByPeerID *rpc.Mutexmap[string, *cktPlus]
+
+	// every minute, check to see if we should prune
+	// back redundant circuits to clients.
+	pruneDupClientCktCheckCh <-chan time.Time
+	pruneDupDur              time.Duration
 }
 
 type discoReq struct {
@@ -4002,7 +4038,9 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		sessByExpiry:     newSessTableByExpiry(),
 		cktAuditByCID:    rpc.NewMutexmap[string, *cktPlus](),
 		cktAuditByPeerID: rpc.NewMutexmap[string, *cktPlus](),
+		pruneDupDur:      time.Second * 20,
 	}
+	s.pruneDupClientCktCheckCh = time.After(s.pruneDupDur)
 	s.hlc.CreateSendOrLocalEvent()
 	s.cfg.MyName = name
 	// non-testing default is talk to ourselves.

@@ -12,9 +12,9 @@ beg:
 	(grep "remote\ URL" log.*) || true
 	(ps -ef |grep tube |grep -v grep) || true
 	./taillogs
-	tubeadd node_0
-	tubeadd node_4
-	tubeadd node_5
+	tubeadd node_0 || true
+	tubeadd node_4 || true
+	tubeadd node_5 || true
 	sleep 1
 	tubels
 
