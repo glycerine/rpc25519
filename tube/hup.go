@@ -17,7 +17,7 @@ import (
 	_ "net/http/pprof" // for web based profiling while running
 )
 
-var debugGlobalCkt = rpc.NewMutexmap[string, *rpc.Circuit]()
+var debugGlobalCkt = rpc.NewMutexmap[string, *cktPlus]()
 
 var sigHupCh chan os.Signal
 
@@ -39,12 +39,15 @@ func init() {
 			// sort and circuits to detect redundacy. this
 			// is how we originally diagnosed the (now
 			// fixed by circuit pruning) circuit+goroutine leaks.
-			ckts := debugGlobalCkt.GetValSlice()
+			cktPs := debugGlobalCkt.GetValSlice()
 
 			// count by endpoint pairs
 			m := make(map[string]int)
 			m2 := make(map[string]int)
-			for _, ckt := range ckts {
+			var ckts []*rpc.Circuit
+			for _, cktP := range cktPs {
+				ckt := cktP.ckt
+				ckts = append(ckts, ckt)
 				endpoints := fmt.Sprintf("local: %v  remote: %v [RemotePeerID: %v]", ckt.LocalPeerName, ckt.RemotePeerName, ckt.RemotePeerID)
 				n := m[endpoints]
 				m[endpoints] = n + 1

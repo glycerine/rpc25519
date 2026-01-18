@@ -2052,15 +2052,16 @@ func (s *TubeNode) handleNewCircuit(
 		}
 	}
 
-	debugGlobalCkt.Set(ckt.CircuitID, cktP.ckt)
+	debugGlobalCkt.Set(ckt.CircuitID, cktP)
 	s.cktAuditByCID.Set(ckt.CircuitID, cktP)
 	prior, havePrior := s.cktAuditByPeerID.Get(ckt.RemotePeerID)
 	if havePrior {
+		now := time.Now()
 		if prior.dups == nil {
-			prior.dups = rpc.NewMutexmap[*cktPlus, string]()
-			prior.dups.Set(prior, ckt.RemotePeerID)
+			prior.dups = rpc.NewMutexmap[*cktPlus, time.Time]()
+			prior.dups.Set(prior, now)
 		}
-		prior.dups.Set(cktP, ckt.RemotePeerID)
+		prior.dups.Set(cktP, now)
 		cktP.dups = prior.dups // all duplicates share the same dups mutmap
 	} else {
 		s.cktAuditByPeerID.Set(ckt.RemotePeerID, cktP)
@@ -15670,10 +15671,10 @@ type cktPlus struct {
 	stalledOnSeenTkt []*Ticket
 
 	// fast dedup of redundant links
-	// value is RemotePeerID. RemotePeerID
-	// cannot be the key or the first dup
-	// would blow away the previous.
-	dups *rpc.Mutexmap[*cktPlus, string]
+	// value is time we saw this duplicated
+	// RemotePeerID, so we can amortize dup
+	// checking over a long enough period.
+	dups *rpc.Mutexmap[*cktPlus, time.Time]
 
 	// helper for handlePruneRedundantCircuit() method
 	pruner map[string]bool
