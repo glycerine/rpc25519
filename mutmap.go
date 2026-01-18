@@ -81,11 +81,13 @@ func (m *Mutexmap[K, V]) Set(key K, val V) {
 	m.mut.Unlock()
 }
 
-// Del deletes key from the map.
-func (m *Mutexmap[K, V]) Del(key K) {
+// Del deletes key from the map. Returns new size.
+func (m *Mutexmap[K, V]) Del(key K) (newSz int) {
 	m.mut.Lock()
 	delete(m.m, key)
+	newSz = len(m.m)
 	m.mut.Unlock()
+	return
 }
 
 // GetValNDel returns the val for key, and deletes it.
