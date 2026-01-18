@@ -1957,32 +1957,37 @@ func (s *TubeNode) handleNewCircuit(
 	// TUBE_REPLICA is used now (instead of flag
 	// cktPlus.isReplica)
 
-	isRedund, earlierCkt := s.shouldPruneRedundantCkt(ckt)
-	if isRedund {
-		frag := s.newFrag()
-		frag.FragOp = PruneRedundantCircuitReq
-		frag.FragSubject = "PruneRedundantCircuitReq"
+	// within the tube raft cluster, do not prune
+	// connections; we saw trouble restoring service.
+	if ckt.RemoteServiceName == TUBE_CLIENT ||
+		ckt.LocalServiceName == TUBE_CLIENT {
+		isRedund, earlierCkt := s.shouldPruneRedundantCkt(ckt)
+		if isRedund {
+			frag := s.newFrag()
+			frag.FragOp = PruneRedundantCircuitReq
+			frag.FragSubject = "PruneRedundantCircuitReq"
 
-		var keeper, goner string
-		if earlierCkt.CircuitID < ckt.CircuitID {
-			// keep the lesser
-			keeper = earlierCkt.CircuitID
-			goner = ckt.CircuitID
-		} else {
-			keeper = ckt.CircuitID
-			goner = earlierCkt.CircuitID
+			var keeper, goner string
+			if earlierCkt.CircuitID < ckt.CircuitID {
+				// keep the lesser
+				keeper = earlierCkt.CircuitID
+				goner = ckt.CircuitID
+			} else {
+				keeper = ckt.CircuitID
+				goner = earlierCkt.CircuitID
+			}
+
+			frag.SetUserArg(pruneVictimKey, goner)
+			frag.SetUserArg(pruneKeeperKey, keeper)
+			frag.SetUserArg(pruneMatchNonce, rpc.NewCallID(""))
+			s.SendOneWay(earlierCkt, frag, -1, 1)
+			s.SendOneWay(ckt, frag, -1, 0)
+
+			// we let the remote side close the lexigraphically
+			// larger CircuitID if it actually is redundant
+			// as evidenced by both the circuits delivering
+			// the same prune request.
 		}
-
-		frag.SetUserArg(pruneVictimKey, goner)
-		frag.SetUserArg(pruneKeeperKey, keeper)
-		frag.SetUserArg(pruneMatchNonce, rpc.NewCallID(""))
-		s.SendOneWay(earlierCkt, frag, -1, 1)
-		s.SendOneWay(ckt, frag, -1, 0)
-
-		// we let the remote side close the lexigraphically
-		// larger CircuitID if it actually is redundant
-		// as evidenced by both the circuits delivering
-		// the same prune request.
 	}
 
 	// this _was_ the only place where ckt are added to s.cktall.
