@@ -1584,7 +1584,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			switch frag.FragOp {
 
 			case PruneRedundantCircuitReq:
-				s.handlePruneRedundantCircuit(frag)
+				s.handlePruneRedundantCircuit(frag, fragCkt.ckt)
 
 			case NotifyClientNewLeader:
 				// only for clients
@@ -1962,14 +1962,27 @@ func (s *TubeNode) handleNewCircuit(
 		frag := s.newFrag()
 		frag.FragOp = PruneRedundantCircuitReq
 		frag.FragSubject = "PruneRedundantCircuitReq"
-		frag.SetUserArg(pruneVictimKey, ckt.CircuitID)
-		frag.SetUserArg(pruneKeeperKey, earlierCkt.CircuitID)
-		s.SendOneWay(ckt, frag, -1, 1)
-		s.SendOneWay(earlierCkt, frag, -1, 0)
-		// we still add the circuit, else 051 red intermittant.
-		// We let the remote side close it iff they actually
-		// do have the redundant circuit; which they do not
-		// always in the 051 test transcripts.
+
+		var keeper, goner string
+		if earlierCkt.CircuitID < ckt.CircuitID {
+			// keep the lesser
+			keeper = earlierCkt.CircuitID
+			goner = ckt.CircuitID
+		} else {
+			keeper = ckt.CircuitID
+			goner = earlierCkt.CircuitID
+		}
+
+		frag.SetUserArg(pruneVictimKey, goner)
+		frag.SetUserArg(pruneKeeperKey, keeper)
+		frag.SetUserArg(pruneMatchNonce, rpc.NewCallID(""))
+		s.SendOneWay(earlierCkt, frag, -1, 1)
+		s.SendOneWay(ckt, frag, -1, 0)
+
+		// we let the remote side close the lexigraphically
+		// larger CircuitID if it actually is redundant
+		// as evidenced by both the circuits delivering
+		// the same prune request.
 	}
 
 	// this _was_ the only place where ckt are added to s.cktall.
@@ -2155,62 +2168,40 @@ func (s *TubeNode) shouldPruneRedundantCkt(cktQuery *rpc.Circuit) (isRedund bool
 		panicf("why are we trying to prune a ckt that does not terminate locally with ourselves? my name='%v'; the cktQuery='%v'", s.name, cktQuery)
 	}
 
-	var pruneLocal *rpc.Circuit
-
-	// maintain the lock while we look through the many map entries
-	s.cktAuditByPeerID.Update(func(m map[string]*rpc.Circuit) {
-		ckt, ok := m[cktQuery.RemotePeerID]
-		if !ok {
-			return
-		}
-		if ckt.RemotePeerName == cktQuery.RemotePeerName &&
-			ckt.LocalPeerName == s.name &&
-			ckt.RemotePeerID == cktQuery.RemotePeerID {
-			vv("%v found a redundant ckt to '%v'", s.name, remoteQ)
-
-			// for stablity, keep the lesser (lexicographically)
-			if ckt.CircuitID < cktQuery.CircuitID {
-				vv("%v: shouldPruneRedundantCkt will prune cktQuery as redundant (to remote: '%v')", s.name, remoteQ)
-				isRedund = true
-				earlierCkt = ckt
-				return
-			}
-			if ckt.CircuitID > cktQuery.CircuitID {
-				// keep the new one, prune the old/existing
-				pruneLocal = ckt
-
-				// get rid of old value under this key... but technically
-				// this is redundant since the next assignment would
-				// blow it away; so skip:
-				// delete(m, cktQuery.RemotePeerID)
-				m[cktQuery.RemotePeerID] = cktQuery
-			}
-		}
-	})
-	if pruneLocal == nil {
+	ckt, ok := s.cktAuditByPeerID.Get(cktQuery.RemotePeerID)
+	if !ok {
 		return
 	}
-	// INVAR: isRedund is false so caller will accept new cktQuery,
-	// but pruneLocal is redundant with cktQuery...
-	// we delete pruneLocal next.
+	if ckt.RemotePeerName == cktQuery.RemotePeerName &&
+		ckt.LocalPeerName == s.name &&
+		ckt.RemotePeerID == cktQuery.RemotePeerID {
+		vv("%v found a redundant ckt to '%v'", s.name, remoteQ)
 
-	s.cktAuditByCID.Update(func(m2 map[string]*rpc.Circuit) {
-		delete(m2, pruneLocal.CircuitID)
-		m2[cktQuery.CircuitID] = cktQuery
-	})
+		isRedund = true
+		earlierCkt = ckt
+	}
+	return
+
+	// how to delete...
+
+	//s.cktAuditByPeerID.Set(cktQuery.RemotePeerID, cktQuery)
+	//s.cktAuditByCID.Update(func(m2 map[string]*rpc.Circuit) {
+	//	delete(m2, pruneLocal.CircuitID)
+	//	m2[cktQuery.CircuitID] = cktQuery
+	//})
 
 	// swap in new, swap out old.
 	// well, the new will added... by caller.
 	// so just need to delete the old.
 
-	vv("%v: shouldPruneRedundantCkt will prune old as redundant; caller should swap in new cktQuery (to remote: '%v')", s.name, remoteQ)
-	oldCktPlus, ok := s.cktall[pruneLocal.RemotePeerID]
-	if ok && oldCktPlus.ckt != nil {
-		s.pruneRedundantCircuitMessageTo(pruneLocal, pruneLocal.CircuitID, cktQuery.CircuitID)
-		s.deleteFromCktAll(oldCktPlus)
-		oldCktPlus.ckt.Close(ErrPruned)
-	}
-	return
+	// vv("%v: shouldPruneRedundantCkt will prune old as redundant; caller should swap in new cktQuery (to remote: '%v')", s.name, remoteQ)
+	// oldCktPlus, ok := s.cktall[pruneLocal.RemotePeerID]
+	// if ok && oldCktPlus.ckt != nil {
+	// 	s.pruneRedundantCircuitMessageTo(pruneLocal, pruneLocal.CircuitID, cktQuery.CircuitID)
+	// 	s.deleteFromCktAll(oldCktPlus)
+	// 	oldCktPlus.ckt.Close(ErrPruned)
+	// }
+	// return
 }
 
 func (s *TubeNode) deleteFromCktAll(oldCktP *cktPlus) {
@@ -17111,10 +17102,19 @@ func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 // the key maps to the value which holds the CircuitID to prune.
 const pruneVictimKey = "pruneVictimCircuitID"
 const pruneKeeperKey = "pruneKeeperCircuitID"
+const pruneMatchNonce = "pruneMatchNonce"
 
 var ErrPruned = fmt.Errorf("pruned redundant circuit")
 
-func (s *TubeNode) handlePruneRedundantCircuit(frag *rpc.Fragment) {
+// we do the pruning only after confirming that the
+// circuit is redundant by receiving the same
+// random nonce sent over both suspected circuits.
+func (s *TubeNode) handlePruneRedundantCircuit(frag *rpc.Fragment, onckt *rpc.Circuit) {
+
+	nonceFrag, ok := frag.GetUserArg(pruneMatchNonce)
+	if !ok {
+		panicf("expected frag have user arg '%v' on frag: '%v'", pruneMatchNonce, frag)
+	}
 	victimCID, ok := frag.GetUserArg(pruneVictimKey)
 	if !ok {
 		panicf("expected to have user arg '%v' on frag: '%v'", pruneVictimKey, frag)
@@ -17123,17 +17123,57 @@ func (s *TubeNode) handlePruneRedundantCircuit(frag *rpc.Fragment) {
 	if !ok {
 		panicf("expected to have user arg '%v' on frag: '%v'", pruneKeeperKey, frag)
 	}
-	_, ok = s.cktAuditByCID.Get(keeperCID)
+	cktK, ok := s.cktAuditByCID.Get(keeperCID)
 	if !ok {
 		vv("%v rejecting prune request: we do not have keeperCID '%v' in s.cktAudit.", s.name, keeperCID) // seen! on Test051_partition_and_rejoin red: tube.go:17124 [goID 45] 2000-01-01T00:00:06.799000001+00:00 node_2 rejecting prune request: we do not have keeperCID 'N6FSpP0-AcPZBoZcbzdJHl8K5Loc' in s.cktAudit.
 		return
 	}
 	cktV, ok := s.cktAuditByCID.Get(victimCID)
-	if ok {
-		vv("%v acting on prune request: closing redundant circuit '%v'", s.name, cktV)
-		// no! s.cktAuditByPeerID.Del(cktV.RemotePeerID)
-		s.cktAuditByCID.Del(cktV.CircuitID)
-		cktV.Close(ErrPruned)
+	if !ok {
+		vv("%v rejecting prune request: we do not have victimCID '%v' in s.cktAudit.", s.name, victimCID)
+	}
+	// We re-use the FirstFrag/its map
+	switch {
+	case onckt == cktV:
+		if cktV.FirstFrag == nil {
+			cktV.FirstFrag = frag
+		} else {
+			// just re-use the map
+			cktV.FirstFrag.SetUserArg(pruneMatchNonce, nonceFrag)
+		}
+	case onckt == cktK:
+		if cktK.FirstFrag == nil {
+			cktK.FirstFrag = frag
+		} else {
+			// just re-use the map
+			cktK.FirstFrag.SetUserArg(pruneMatchNonce, nonceFrag)
+		}
+	default:
+		panicf("PruneRedundantCircuit should have been sent on both but only keeper and victim ckt")
+	}
+	if cktK.FirstFrag != nil && cktV.FirstFrag != nil {
+		// have we seen it on both?
+		nonceK, ok := cktK.FirstFrag.GetUserArg(pruneMatchNonce)
+		if ok {
+			nonceV, ok := cktV.FirstFrag.GetUserArg(pruneMatchNonce)
+			if ok {
+				if nonceK == nonceV {
+					vv("%v prunable circuit confirmed. We got the same prune request over two different circuits from '%v'", s.name, onckt.RemotePeerName)
+
+					vv("%v acting on prune request: closing redundant circuit '%v'", s.name, cktV)
+					s.cktAuditByPeerID.Del(cktV.RemotePeerID)
+					s.cktAuditByPeerID.Set(cktK.RemotePeerID, cktK)
+					s.cktAuditByCID.Del(cktV.CircuitID)
+					s.cktAuditByCID.Set(cktK.CircuitID, cktK)
+					plusV, ok := s.cktall[cktV.RemotePeerID]
+					if ok && plusV.ckt != nil && plusV.ckt.CircuitID == cktV.CircuitID {
+						s.deleteFromCktAll(plusV)
+					}
+					s.addToCktall(cktK)
+					cktV.Close(ErrPruned)
+				}
+			}
+		}
 	}
 }
 
