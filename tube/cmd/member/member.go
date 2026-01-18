@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	verbose := false
+	verbose := true
 	tube.VerboseVerbose.Store(verbose)
 	fmt.Printf("pid = %v\n", os.Getpid())
 

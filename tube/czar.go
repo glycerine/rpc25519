@@ -642,11 +642,23 @@ func (membr *RMember) start() {
 fullRestart:
 	for j := 0; ; j++ {
 		vv("top of fullRestart j=%v", j)
-		if j > 0 {
-			time.Sleep(time.Second) // pace it.
-		}
+
+		// let the close session pace it now...
+		//if j > 0 {
+		//	time.Sleep(time.Second) // pace it.
+		//}
 
 		ctx := context.Background()
+
+		if czar.sess != nil {
+			ctx2, canc := context.WithTimeout(ctx, time.Second*2)
+			err = cli.CloseSession(ctx2, czar.sess)
+			canc()
+			if err != nil {
+				vv("closing prior session err='%v'", err)
+			}
+		}
+
 		const requireOnlyContact = false
 		const keepCktUp = true // false
 		for k := 0; ; k++ {

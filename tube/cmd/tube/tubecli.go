@@ -381,6 +381,7 @@ func startOnlineWebProfiling() (port int) {
 	// for a full dump.
 	port = ipaddr.GetAvailPort()
 	go func() {
+		alwaysPrintf("actually... web profiling at 127.0.0.1:%v now", port)
 		err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%v", port), nil)
 		if err != nil {
 			panic(err)
