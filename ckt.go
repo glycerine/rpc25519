@@ -679,10 +679,10 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 		err = ErrHaltRequested
 		return
 	case <-ckt.Context.Done():
-		err = ErrContextCancelled
+		err = ErrContextCancelledCkt
 		return
 	case <-s.Ctx.Done():
-		err = ErrContextCancelled
+		err = ErrContextCancelledPeer
 		return
 	default:
 	}
@@ -743,10 +743,10 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 			err = ErrHaltRequested
 			return
 		case <-ckt.Context.Done():
-			err = ErrContextCancelled
+			err = ErrContextCancelledCkt
 			return
 		case <-s.Ctx.Done():
-			err = ErrContextCancelled
+			err = ErrContextCancelledPeer
 			return
 		}
 	}

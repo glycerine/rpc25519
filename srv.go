@@ -40,6 +40,8 @@ const yesIsClient = true
 //var serverAddress = "192.168.254.151:8443"
 
 var ErrContextCancelled = fmt.Errorf("rpc25519 error: context cancelled")
+var ErrContextCancelledCkt = fmt.Errorf("rpc25519 error: context cancelled: LocalPeer.")
+var ErrContextCancelledPeer = fmt.Errorf("rpc25519 error: context cancelled: Circuit.")
 
 var ErrHaltRequested = fmt.Errorf("rpc25519 error: halt requested")
 var ErrSendTimeout = fmt.Errorf("rpc25519 error: send timeout")

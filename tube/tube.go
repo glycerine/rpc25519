@@ -15405,7 +15405,7 @@ func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur 
 	anew, err = ckt.SendOneWay(frag, errWriteDur, keepFragIfPositive)
 	_ = anew
 	if err != nil {
-		alwaysPrintf("%v SendOneWay: non nil error on '%v': '%v'", s.me(), frag.FragSubject, err)
+		alwaysPrintf("%v SendOneWay: non nil error on '%v': '%v'; frag.ToPeerName='%v'", s.me(), frag.FragSubject, err, frag.ToPeerName)
 		if s.wasConnRefused(err, ckt) {
 			return
 		}
