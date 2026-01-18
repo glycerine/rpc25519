@@ -17131,6 +17131,7 @@ func (s *TubeNode) handlePruneRedundantCircuit(frag *rpc.Fragment, onckt *rpc.Ci
 	cktV, ok := s.cktAuditByCID.Get(victimCID)
 	if !ok {
 		vv("%v rejecting prune request: we do not have victimCID '%v' in s.cktAudit.", s.name, victimCID)
+		return
 	}
 	// We re-use the FirstFrag/its map
 	switch {
