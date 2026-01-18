@@ -4421,7 +4421,11 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	// tubels wants cktAuditByCID now
 	ins.CktAuditByCID = make(map[string]string)
 	for circuitID, ckt := range s.cktAuditByCID.GetMapCloneAtomic() {
-		ins.CktAuditByCID[circuitID] = ckt.RemotePeerName
+		if ckt.RemotePeerName != "" {
+			ins.CktAuditByCID[circuitID] = ckt.RemotePeerName
+		} else {
+			ins.CktAuditByCID[circuitID] = ckt.RemoteCircuitURL()
+		}
 	}
 
 	if ins.done != nil {

@@ -248,7 +248,7 @@ func haveCircuitsTo(insp *tube.Inspection, show bool) (cktTo string) {
 		haveCktSlice = append(haveCktSlice, fmt.Sprintf("%v(%v)", nm, k))
 	}
 	sort.Strings(haveCktSlice)
-	cktTo = fmt.Sprintf("\n   --- cktAuditByCircuitID(count %v):\n", len(haveCktSlice))
+	cktTo = fmt.Sprintf("\n   --- cktAuditByCircuitID(uniq %v / total %v):\n", len(haveCktSlice), len(insp.CktAuditByCID))
 	for i, nm := range haveCktSlice {
 		cktTo += fmt.Sprintf("       [%02d] %v\n", i, nm)
 	}
