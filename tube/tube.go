@@ -1965,7 +1965,7 @@ func (s *TubeNode) handleNewCircuit(
 		frag.SetUserArg(pruneKeeperKey, earlierCkt.CircuitID)
 		s.SendOneWay(ckt, frag, -1, 1)
 		s.SendOneWay(earlierCkt, frag, -1, 0)
-		return // good: all tests green with this return (pruning fully on).
+		return // pruning fully on
 	}
 
 	// this _was_ the only place where ckt are added to s.cktall.
