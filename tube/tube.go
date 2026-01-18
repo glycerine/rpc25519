@@ -450,7 +450,8 @@ const (
 	InstallEmptyMC                 int = 16
 	NotifyClientNewLeader          int = 17
 	ReliableMemberHeartBeatToCzar  int = 18
-	PruneRedundantCircuit          int = 19
+	PruneRedundantCircuitReq       int = 19
+
 	// PAR means the leader must get log
 	// information from followers, but actually
 	// an empty AE and then AEack should suffice
@@ -498,8 +499,8 @@ func msgop(o int) string {
 		return "NotifyClientNewLeader"
 	case ReliableMemberHeartBeatToCzar: // 18
 		return "ReliableMemberHeartBeatToCzar"
-	case PruneRedundantCircuit: // 19
-		return "PruneRedundantCircuit"
+	case PruneRedundantCircuitReq: // 19
+		return "PruneRedundantCircuitReq"
 	}
 	return fmt.Sprintf("unknown MsgOp: %v", o)
 }
@@ -1582,7 +1583,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			//now := time.Now()
 			switch frag.FragOp {
 
-			case PruneRedundantCircuit:
+			case PruneRedundantCircuitReq:
 				s.handlePruneRedundantCircuit(frag)
 
 			case NotifyClientNewLeader:
@@ -1959,13 +1960,16 @@ func (s *TubeNode) handleNewCircuit(
 	isRedund, earlierCkt := s.shouldPruneRedundantCkt(ckt)
 	if isRedund {
 		frag := s.newFrag()
-		frag.FragOp = PruneRedundantCircuit
-		frag.FragSubject = "PruneRedundantCircuit"
+		frag.FragOp = PruneRedundantCircuitReq
+		frag.FragSubject = "PruneRedundantCircuitReq"
 		frag.SetUserArg(pruneVictimKey, ckt.CircuitID)
 		frag.SetUserArg(pruneKeeperKey, earlierCkt.CircuitID)
 		s.SendOneWay(ckt, frag, -1, 1)
 		s.SendOneWay(earlierCkt, frag, -1, 0)
-		return // pruning fully on
+		// we still add the circuit, else 051 red intermittant.
+		// We let the remote side close it iff they actually
+		// do have the redundant circuit; which they do not
+		// always in the 051 test transcripts.
 	}
 
 	// this _was_ the only place where ckt are added to s.cktall.
@@ -2180,11 +2184,6 @@ func (s *TubeNode) shouldPruneRedundantCkt(cktQuery *rpc.Circuit) (isRedund bool
 				// blow it away; so skip:
 				// delete(m, cktQuery.RemotePeerID)
 				m[cktQuery.RemotePeerID] = cktQuery
-
-				s.cktAuditByCID.Update(func(m2 map[string]*rpc.Circuit) {
-					delete(m2, ckt.CircuitID)
-					m2[cktQuery.CircuitID] = cktQuery
-				})
 			}
 		}
 	})
@@ -2194,6 +2193,11 @@ func (s *TubeNode) shouldPruneRedundantCkt(cktQuery *rpc.Circuit) (isRedund bool
 	// INVAR: isRedund is false so caller will accept new cktQuery,
 	// but pruneLocal is redundant with cktQuery...
 	// we delete pruneLocal next.
+
+	s.cktAuditByCID.Update(func(m2 map[string]*rpc.Circuit) {
+		delete(m2, pruneLocal.CircuitID)
+		m2[cktQuery.CircuitID] = cktQuery
+	})
 
 	// swap in new, swap out old.
 	// well, the new will added... by caller.
@@ -17119,12 +17123,12 @@ func (s *TubeNode) handlePruneRedundantCircuit(frag *rpc.Fragment) {
 	if !ok {
 		panicf("expected to have user arg '%v' on frag: '%v'", pruneKeeperKey, frag)
 	}
-	_, ok = debugGlobalCkt.Get(keeperCID)
+	_, ok = s.cktAuditByCID.Get(keeperCID)
 	if !ok {
-		vv("%v rejecting prune request: we do not have keeperCID '%v' in s.cktAudit.", s.name, keeperCID)
+		vv("%v rejecting prune request: we do not have keeperCID '%v' in s.cktAudit.", s.name, keeperCID) // seen! on Test051_partition_and_rejoin red: tube.go:17124 [goID 45] 2000-01-01T00:00:06.799000001+00:00 node_2 rejecting prune request: we do not have keeperCID 'N6FSpP0-AcPZBoZcbzdJHl8K5Loc' in s.cktAudit.
 		return
 	}
-	cktV, ok := debugGlobalCkt.Get(victimCID)
+	cktV, ok := s.cktAuditByCID.Get(victimCID)
 	if ok {
 		vv("%v acting on prune request: closing redundant circuit '%v'", s.name, cktV)
 		// no! s.cktAuditByPeerID.Del(cktV.RemotePeerID)
@@ -17135,8 +17139,8 @@ func (s *TubeNode) handlePruneRedundantCircuit(frag *rpc.Fragment) {
 
 func (s *TubeNode) pruneRedundantCircuitMessageTo(sendOnCkt *rpc.Circuit, victimCID, keeperCID string) {
 	frag := s.newFrag()
-	frag.FragOp = PruneRedundantCircuit
-	frag.FragSubject = "PruneRedundantCircuit"
+	frag.FragOp = PruneRedundantCircuitReq
+	frag.FragSubject = "PruneRedundantCircuitReq"
 	frag.SetUserArg(pruneVictimKey, victimCID)
 	frag.SetUserArg(pruneKeeperKey, keeperCID)
 	s.SendOneWay(sendOnCkt, frag, -1, 0)
