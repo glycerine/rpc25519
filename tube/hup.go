@@ -29,11 +29,16 @@ func init() {
 	signal.Notify(sigHupCh, syscall.SIGHUP)
 	go func() {
 		for range sigHupCh {
-			rnd8 := cryrand.RandomStringWithUp(8)
-			fn := path + ".memprof." + rnd8
-			alwaysPrintf("got HUP, write mem profile to '%v'.", fn)
-			writeMemProfiles(fn)
+			if false { // skip mem profile dump for now
+				rnd8 := cryrand.RandomStringWithUp(8)
+				fn := path + ".memprof." + rnd8
+				alwaysPrintf("got HUP, write mem profile to '%v'.", fn)
+				writeMemProfiles(fn)
+			}
 
+			// sort and circuits to detect redundacy. this
+			// is how we originally diagnosed the (now
+			// fixed by circuit pruning) circuit+goroutine leaks.
 			ckts := debugGlobalCkt.GetValSlice()
 
 			// count by endpoint pairs
