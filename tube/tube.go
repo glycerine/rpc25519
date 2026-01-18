@@ -4381,16 +4381,15 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.MC = s.state.MC.Clone() // in inspectHandler
 	ins.ShadowReplicas = s.state.ShadowReplicas.Clone()
 
-	// tubels wants cktAll now
-	for _, cktP := range s.cktall {
-		ckt := cktP.ckt
-		url := ckt.RemoteCircuitURL()
-		ins.CktAll[url] = ckt.RemotePeerName
-	}
-	// add ourselves too.
-	ins.CktAll[s.URL] = s.name
-
 	if !minimize {
+		for _, cktP := range s.cktall {
+			ckt := cktP.ckt
+			url := ckt.RemoteCircuitURL()
+			ins.CktAll[url] = ckt.RemotePeerName
+		}
+		// add ourselves too.
+		ins.CktAll[s.URL] = s.name
+
 		for name, cktP := range s.cktAllByName {
 			ckt := cktP.ckt
 
@@ -4418,6 +4417,12 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 			ins.Known[name] = det.URL
 		}
 	} // end if minimize
+
+	// tubels wants cktAuditByCID now
+	ins.CktAuditByCID = make(map[string]string)
+	for circuitID, ckt := range s.cktAuditByCID.GetMapCloneAtomic() {
+		ins.CktAuditByCID[circuitID] = ckt.RemotePeerName
+	}
 
 	if ins.done != nil {
 		close(ins.done)
@@ -4689,6 +4694,8 @@ type Inspection struct {
 
 	Hostname string `zid:"28"`
 	PID      string `zid:"29"`
+
+	CktAuditByCID map[string]string `zid:"30"`
 
 	// internal use only. tests/users call TubeNode.Inpsect()
 	done chan struct{}

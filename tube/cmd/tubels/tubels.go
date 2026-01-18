@@ -238,8 +238,8 @@ func haveCircuitsTo(insp *tube.Inspection, show bool) (cktTo string) {
 		return
 	}
 	haveCkt := make(map[string]int)
-	for url, nm := range insp.CktAll {
-		_ = url
+	for cid, nm := range insp.CktAuditByCID {
+		_ = cid
 		k := haveCkt[nm]
 		haveCkt[nm] = k + 1
 	}
