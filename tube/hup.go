@@ -19,6 +19,9 @@ import (
 
 var debugGlobalCkt = rpc.NewMutexmap[string, *cktPlus]()
 
+// for single node per process, HUP debug below; not tests.
+var hupDebugGlobalLastNode *TubeNode
+
 var sigHupCh chan os.Signal
 
 func init() {
@@ -73,6 +76,10 @@ func init() {
 			}
 
 			//fmt.Printf("allstacks = \n%v\n", allstacks())
+
+			if hupDebugGlobalLastNode != nil {
+				hupDebugGlobalLastNode.hupRequestCIDsCh <- true
+			}
 		}
 	}()
 }

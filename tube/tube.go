@@ -1131,6 +1131,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 		//vv("%v about wait at Start() select point; s.electionTimeoutCh=%p; s.nextElection in '%v'", s.name, s.electionTimeoutCh, time.Until(s.nextElection))
 		select {
+		case <-s.hupRequestCIDsCh:
+			s.handleLoggingCIDs()
+
 		case <-s.pruneDupClientCktCheckCh:
 			s.globalPruneCktCheck()
 
@@ -1909,6 +1912,23 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 	return nil
 }
 
+// HUP sent by user, requesting CircuitID breakdown.
+func (s *TubeNode) handleLoggingCIDs() {
+	vv("handleLoggingCIDs() top: we see HUP request for CircuitID details.")
+	for _, cktP := range s.cktall {
+		if cktP.ckt != nil {
+			fmt.Printf("%v (%v)\n", cktP.ckt.CircuitID, cktP.ckt.RemotePeerName)
+			if cktP.dups != nil {
+				cktps := cktP.dups.GetKeySlice()
+				for _, cktP2 := range cktps {
+					fmt.Printf("    dup CID: %v  [age: %v]\n", cktP2.ckt.CircuitID, time.Since(cktP2.dupSeen))
+				}
+				fmt.Println()
+			}
+		}
+	}
+}
+
 // local request on node, no replication or Ticket needed.
 func (s *TubeNode) handleLocalCircuitDisconnectRequest(disco *discoReq) {
 	for name := range disco.who {
@@ -2247,7 +2267,7 @@ func (s *TubeNode) pruneDown(goner, keeper *cktPlus) {
 	if !ctxLive(goner.ckt.Context) {
 		readerGoroGone := goner.perCktReaderHalt.ReqStop.IsClosed()
 
-		vv("goner is already cancelled! to '%v'; how did we miss this? is its reader goro live? goner.perCktReaderHalt.ReqStop.IsClosed = %v", goner.PeerName, readerGoroGone) // seen
+		vv("goner is already cancelled! to '%v'; how did we miss this? is its reader goro live? goner.perCktReaderHalt.ReqStop.IsClosed = %v", goner.PeerName, readerGoroGone)
 
 		if readerGoroGone {
 			vv("cleanup goner to '%v'. better late than never.", goner.PeerName)
@@ -3086,6 +3106,8 @@ type TubeNode struct {
 	// back redundant circuits to clients.
 	pruneDupClientCktCheckCh <-chan time.Time
 	pruneDupDur              time.Duration
+
+	hupRequestCIDsCh chan bool
 }
 
 type discoReq struct {
@@ -4077,6 +4099,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		cktAuditByCID:    rpc.NewMutexmap[string, *cktPlus](),
 		cktAuditByPeerID: rpc.NewMutexmap[string, *cktPlus](),
 		pruneDupDur:      time.Second * 20,
+		hupRequestCIDsCh: make(chan bool, 100),
 	}
 	s.pruneDupClientCktCheckCh = time.After(s.pruneDupDur)
 	s.hlc.CreateSendOrLocalEvent()
@@ -4084,6 +4107,8 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 	// non-testing default is talk to ourselves.
 	// simae_test will switch this to its TubeSim instance.
 	s.host = s
+
+	hupDebugGlobalLastNode = s
 
 	if cfg.isTest {
 		// avoid allocating all this for the 800K simae runs

@@ -2343,8 +2343,8 @@ func (a *Fragment) Compare(b *Fragment) int {
 //
 // It may seem like this does not allow end-to-end
 // contact with an existing peer, and you are
-// correct in that surmise. However for the
-// remote side address an existing peer, it
+// correct in that surmise. For the
+// remote side to address an existing peer, it
 // needs to discover its PeerID, and this
 // callback gives exactly that needed
 // information: the answering msg.HDR.FromPeerID.
