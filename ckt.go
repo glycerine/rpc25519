@@ -679,6 +679,7 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 		err = ErrHaltRequested
 		return
 	case <-ckt.Context.Done():
+		//alwaysPrintf("ckt.Context has already been cancelled. top of LocalPeer.SendOneWay")
 		err = ErrContextCancelledCkt
 		return
 	case <-s.Ctx.Done():
@@ -743,10 +744,12 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 			err = ErrHaltRequested
 			return
 		case <-ckt.Context.Done():
+			//alwaysPrintf("ckt.Context has been cancelled.")
 			err = ErrContextCancelledCkt
 			return
 		case <-s.Ctx.Done():
 			err = ErrContextCancelledPeer
+			err = ErrContextCancelled
 			return
 		}
 	}

@@ -68,3 +68,13 @@ func sorted[K cmp.Ordered, V any](m map[K]V) iter.Seq2[K, V] {
 		}
 	} // end seq2 definition
 }
+
+type byCircuitID []*cktPlus
+
+func (p byCircuitID) Len() int { return len(p) }
+func (p byCircuitID) Less(i, j int) bool {
+	return p[i].ckt.CircuitID < p[j].ckt.CircuitID
+}
+func (p byCircuitID) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}

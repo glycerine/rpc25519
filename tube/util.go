@@ -1,6 +1,7 @@
 package tube
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -8,6 +9,16 @@ import (
 
 	"github.com/glycerine/ipaddr"
 )
+
+// returns false if ctx has been cancelled, else true
+func ctxLive(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	default:
+		return true
+	}
+}
 
 func fileExists(name string) bool {
 	fi, err := os.Stat(name)

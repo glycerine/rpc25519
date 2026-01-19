@@ -2018,22 +2018,38 @@ func (s *TubeNode) handleNewCircuit(
 
 	//s.Halt.AddChild(ckt.Halt) // error: child already has parent!
 
-	s.pruneCheck(ckt)
+	// messing with our first tubels
+	//s.pruneCheck(ckt)
 
 	debugGlobalCkt.Set(ckt.CircuitID, cktP)
 	s.cktAuditByCID.Set(ckt.CircuitID, cktP)
 	prior, havePrior := s.cktAuditByPeerID.Get(ckt.RemotePeerID)
+	if havePrior && prior.ckt.CircuitID == cktP.ckt.CircuitID {
+		panicf("wat? how can we have shared CircuitID here?? prior.ckt='%v'; cktP.ckt='%v'", prior.ckt, cktP.ckt)
+	}
 	if havePrior {
 		now := time.Now()
 		if prior.dups == nil {
 			prior.dups = rpc.NewMutexmap[*cktPlus, time.Time]()
 			prior.dups.Set(prior, now)
+			prior.dupSeen = now
+		}
+		// ensure we update timestamp if somehow prior not in prior.dups
+		_, isPriorInDups := prior.dups.Get(prior)
+		if !isPriorInDups {
+			prior.dups.Set(prior, now)
+			prior.dupSeen = now
 		}
 		prior.dups.Set(cktP, now)
+		cktP.dupSeen = now
 		cktP.dups = prior.dups // all duplicates share the same dups mutmap
 	} else {
 		s.cktAuditByPeerID.Set(ckt.RemotePeerID, cktP)
 	}
+	// INVAR: s.cktAuditByPeerID has ckt.RemotePeerID as a key.
+	// INVAR: cktP.dups has a mutmap of all the duplicates.
+
+	cktP.perCktReaderHalt = idem.NewHalter()
 
 	// listen to this peer on a separate goro
 	go func(ckt *rpc.Circuit, cktP *cktPlus) (err0 error) {
@@ -2047,43 +2063,41 @@ func (s *TubeNode) handleNewCircuit(
 		//}
 
 		defer func() {
-			//vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.RemotePeerName) // , stack())
+			vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.RemotePeerName) // , stack())
 
 			//vv("%v: (ckt '%v') defer running! finishing ckt for RemotePeer goro; from hostname '%v'; pid = %v", s.name, ckt.RemotePeerName, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID)
 			//}
-			debugGlobalCkt.Del(ckt.CircuitID)
-			s.cktAuditByCID.Del(ckt.CircuitID)
-			if cktP.dups != nil {
-				newSz := cktP.dups.Del(cktP)
-				if newSz == 0 {
-					s.cktAuditByPeerID.Del(ckt.RemotePeerID)
-					cktP.dups = nil
-				}
-			} else {
-				s.cktAuditByPeerID.Del(ckt.RemotePeerID)
-			}
+
+			allGone := s.cleanupGoneCktP(cktP)
 			ckt.Close(err0)
-			// subtract from peers, avoid race by using peerLeftCh.
-			//vv("%v reduce s.ckt peer set since peer went away: '%v'", s.me(), ckt.RemotePeerID)
-			// try to not have a race between shutdowns keep us
-			// from garbage collecting the ckt.
-			t0gc := time.Now()
-			_ = t0gc
-			select {
-			case s.peerLeftCh <- ckt.RemotePeerID:
-				//vv("peerLeftCh after %v", time.Since(t0gc))
-			case <-time.After(time.Millisecond * 10):
-				//vv("arg! could not send on peerLeftCh for 10ms")
+
+			if allGone {
+				// subtract from peers, avoid race by using peerLeftCh.
+				//vv("%v reduce s.ckt peer set since peer went away: '%v'", s.me(), ckt.RemotePeerID)
+				// try to not have a race between shutdowns keep us
+				// from garbage collecting the ckt.
+				t0gc := time.Now()
+				_ = t0gc
+				select {
+				case s.peerLeftCh <- ckt.RemotePeerID:
+					//vv("peerLeftCh after %v", time.Since(t0gc))
+				case <-time.After(time.Millisecond * 10):
+					//vv("arg! could not send on peerLeftCh for 10ms")
+				}
+				select {
+				case s.peerLeftCh <- ckt.RemotePeerID:
+				case <-done0:
+					//zz("%v: (ckt '%v') done0!", s.name, ckt.Name)
+				case <-s.Halt.ReqStop.Chan:
+					//zz("%v: (ckt '%v') top func halt.ReqStop seen", s.name, ckt.Name)
+				}
+				//if ckt.RemoteServiceName != TUBE_REPLICA {
+				//vv("%v: (ckt '%v') 999999999999 got-departing-ckt: from hostname '%v'; pid = %v; pointer-cktP=%p", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID, cktP)
+				//}
 			}
-			select {
-			case s.peerLeftCh <- ckt.RemotePeerID:
-			case <-done0:
-				//zz("%v: (ckt '%v') done0!", s.name, ckt.Name)
-			case <-s.Halt.ReqStop.Chan:
-				//zz("%v: (ckt '%v') top func halt.ReqStop seen", s.name, ckt.Name)
-			}
-			//if ckt.RemoteServiceName != TUBE_REPLICA {
-			//vv("%v: (ckt '%v') 999999999999 got-departing-ckt: from hostname '%v'; pid = %v; pointer-cktP=%p", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID, cktP)
+
+			cktP.perCktReaderHalt.RequestStop()
+			cktP.perCktReaderHalt.MarkDone()
 		}()
 
 		//zz("%v: (ckt '%v') <- got new incoming ckt", s.name, ckt.Name)
@@ -2132,7 +2146,7 @@ func (s *TubeNode) handleNewCircuit(
 				return
 
 			case <-cktContextDone:
-				//vv("%v: cktContextDone (ckt '%v' to RemotePeerName:'%v') ", s.name, ckt.Name, ckt.RemotePeerName) // NOW SEEN, SO WE no longer leak this goro always, but have 8415 such open with only 200 members so hmm...
+				vv("%v: cktContextDone (ckt '%v' to RemotePeerName:'%v') ", s.name, ckt.Name, ckt.RemotePeerName) // NOW SEEN, SO WE no longer leak this goro in every case...
 				select {
 				case cktHasDied <- ckt:
 				case <-s.Halt.ReqStop.Chan:
@@ -2146,6 +2160,9 @@ func (s *TubeNode) handleNewCircuit(
 			case <-s.Halt.ReqStop.Chan:
 				//zz("%v: (ckt '%v') top func halt.ReqStop seen", s.name, ckt.Name)
 				return
+			case <-cktP.perCktReaderHalt.ReqStop.Chan:
+				vv("%v: (ckt '%v') cktP.perCktReaderHalt.ReqStop seen", s.name, ckt.Name)
+				return
 			}
 		}
 
@@ -2153,110 +2170,117 @@ func (s *TubeNode) handleNewCircuit(
 	return
 }
 
-func (s *TubeNode) globalPruneCktCheck() {
-	// like a fine cheese, our dups must be this old or older.
-	tooYoung := time.Now().Add(-10 * time.Second)
+func (s *TubeNode) cleanupGoneCktP(cktP *cktPlus) (allGone bool) {
 
-allLoop:
+	ckt := cktP.ckt
+	debugGlobalCkt.Del(ckt.CircuitID)
+	s.cktAuditByCID.Del(ckt.CircuitID)
+
+	if cktP.dups != nil {
+		newSz := cktP.dups.Del(cktP)
+		vv("deleted ckt to '%v' from dups, left newSz=%v", cktP.PeerName, newSz)
+		if newSz == 0 {
+			s.cktAuditByPeerID.Del(ckt.RemotePeerID)
+			cktP.dups = nil
+			allGone = true
+		}
+	} else {
+		s.cktAuditByPeerID.Del(ckt.RemotePeerID)
+		allGone = true
+	}
+	return
+}
+
+func (s *TubeNode) globalPruneCktCheck() {
+
 	for _, cktP := range s.cktall {
-		if cktP.PeerServiceName != TUBE_CLIENT || cktP.dups == nil {
+		if cktP.dups == nil || cktP.dups.Len() < 2 {
 			continue
 		}
-		if cktP.dups.Len() > 1 {
-			for _, dupSeenTm := range cktP.dups.GetMapCloneAtomic() {
-				if dupSeenTm.After(tooYoung) {
-					// let it age more
-					continue allLoop
-				}
-			}
-			vv("%v dup ckts detected more than 10s ago, check if we should prune '%v'", s.name, cktP.PeerName)
-			s.pruneCheck(cktP.ckt)
-			cktContextCancelled := false
-			select {
-			case <-cktP.ckt.Context.Done():
-				cktContextCancelled = true
-			default:
+		if cktP.PeerServiceName != TUBE_CLIENT {
+			continue
+		}
+		if cktP.ckt.RemoteServiceName == TUBE_REPLICA &&
+			cktP.ckt.LocalServiceName == TUBE_REPLICA {
+			// for now, we never dedup intra-raft traffic ckts, too risky.
+			continue
+		}
 
+		// scan dups, if old enough, evict/gc
+		var goners []*cktPlus
+
+		// like a fine cheese, our dups must be this old or older.
+		tooYoung := time.Now().Add(-10 * time.Second)
+
+		all := cktP.dups.GetKeySlice()
+		sort.Sort(byCircuitID(all))
+		// always keep the lexi lowest as the stable choice, young or not.
+		// so start at all[1:].
+		keeper := all[0]
+		// and keep any too young to gc yet.
+		for _, g := range all[1:] {
+			if g.dupSeen.After(tooYoung) {
+				// cannot gc yet, too young.
+			} else {
+				goners = append(goners, g)
 			}
-			if cktContextCancelled {
-				// seeing tube.go:15392 SendOneWay: non nil error on 'PruneRedundantCircuitReq': 'rpc25519 error: context cancelled... but not sure this is a sufficient check.
-				// contexts that could have been cancelled:
-				// ckt.Context
-				// LocalPeer.Ctx
-				vv("%v naturally pruning context cancelled circuit... how was this missed?", s.name)
-				cktP.Close() // stop watchdog, fire cancel func.
-				cktP.ckt.Close(rpc.ErrContextCancelled)
-			}
+		}
+
+		for _, gone := range goners {
+			s.pruneDown(gone, keeper)
+
+			// The actual Del from .dups only happens
+			// once the remote side closes the circuit and
+			// we see that. This prevents false positives.
+			// We only close once both circuits have deliver
+			// the same prune request message. Since
+			// both circuits worked, end-to-end, we know
+			// have true redundancy; plus the return path
+			// worked too to get us the message that the
+			// ckt has closed.
 		}
 	}
 	s.pruneDupClientCktCheckCh = time.After(s.pruneDupDur)
 }
 
-// called by handleNewCircuit
-func (s *TubeNode) pruneCheck(ckt *rpc.Circuit) {
-	// within the tube raft cluster, do not prune
-	// connections; we saw trouble restoring service.
-	if ckt.RemoteServiceName == TUBE_CLIENT ||
-		ckt.LocalServiceName == TUBE_CLIENT {
-		isRedund, earlierCktP := s.shouldPruneRedundantCkt(ckt)
-		if isRedund {
-			frag := s.newFrag()
-			frag.FragOp = PruneRedundantCircuitReq
-			frag.FragSubject = "PruneRedundantCircuitReq"
+// called by globalPruneCktCheck()
+func (s *TubeNode) pruneDown(goner, keeper *cktPlus) {
 
-			var keeper, goner string
-			if earlierCktP.ckt.CircuitID < ckt.CircuitID {
-				// keep the lesser, lexigraphically
-				keeper = earlierCktP.ckt.CircuitID
-				goner = ckt.CircuitID
-			} else {
-				keeper = ckt.CircuitID
-				goner = earlierCktP.ckt.CircuitID
-			}
+	if !ctxLive(goner.ckt.Context) {
+		readerGoroGone := goner.perCktReaderHalt.ReqStop.IsClosed()
 
-			frag.SetUserArg(pruneVictimKey, goner)
-			frag.SetUserArg(pruneKeeperKey, keeper)
-			frag.SetUserArg(pruneMatchNonce, rpc.NewCallID(""))
-			s.SendOneWay(earlierCktP.ckt, frag, -1, 1)
-			s.SendOneWay(ckt, frag, -1, 0)
+		vv("goner is already cancelled! to '%v'; how did we miss this? is its reader goro live? goner.perCktReaderHalt.ReqStop.IsClosed = %v", goner.PeerName, readerGoroGone) // seen
 
-			// we let the remote side close the lexigraphically
-			// larger CircuitID (goner) if it actually is redundant
-			// (with keeper) as evidenced by both the circuits delivering
-			// the same pruneMatchNonce. Logical races are
-			// inherent and still we only do this for client -> replica
-			// since it hurt our tube/raft replica-replica
-			// communications.
+		if readerGoroGone {
+			vv("cleanup goner to '%v'. better late than never.", goner.PeerName)
+			s.cleanupGoneCktP(goner)
 		}
+		return // no point in sending a message on a closed circuit, will always fail.
 	}
-}
-
-// helper for pruneCheck() above.
-// answers the question: should this ckt be pruned? should
-// be called by handleNewCircuit _before_ adding cktQuery
-// to s.cktAuditByPeerID. We only return isRedund true
-// if earlierCktP.ckt != nil.
-func (s *TubeNode) shouldPruneRedundantCkt(cktQuery *rpc.Circuit) (isRedund bool, earlierCktP *cktPlus) {
-
-	if cktQuery.LocalPeerName != s.name {
-		panicf("why are we trying to prune a ckt that does not terminate locally with ourselves? my name='%v'; the cktQuery='%v'", s.name, cktQuery)
+	if !ctxLive(keeper.ckt.Context) {
+		panicf("keeper.ctx is already cancelled?!? to '%v'", keeper.ckt.RemotePeerName)
 	}
 
-	cktP, ok := s.cktAuditByPeerID.Get(cktQuery.RemotePeerID)
-	if !ok || cktP.ckt == nil {
-		return
-	}
-	ckt := cktP.ckt
-	if ckt.RemotePeerName == cktQuery.RemotePeerName &&
-		ckt.LocalPeerName == s.name &&
-		ckt.RemotePeerID == cktQuery.RemotePeerID &&
-		ckt.CircuitID != cktQuery.CircuitID {
-		//vv("%v found a redundant ckt to '%v'", s.name, cktQuery.RemotePeerName)
+	frag := s.newFrag()
+	frag.FragOp = PruneRedundantCircuitReq
+	frag.FragSubject = "PruneRedundantCircuitReq"
 
-		isRedund = true
-		earlierCktP = cktP
-	}
-	return
+	keeperCID := keeper.ckt.CircuitID
+	gonerCID := goner.ckt.CircuitID
+
+	frag.SetUserArg(pruneVictimKey, gonerCID)
+	frag.SetUserArg(pruneKeeperKey, keeperCID)
+	frag.SetUserArg(pruneMatchNonce, rpc.NewCallID(""))
+	s.SendOneWay(goner.ckt, frag, -1, 1)
+	s.SendOneWay(keeper.ckt, frag, -1, 0)
+
+	// we let the remote side close the lexigraphically
+	// larger CircuitID (goner) if it actually is redundant
+	// (with keeper) as evidenced by both the circuits delivering
+	// the same pruneMatchNonce. Logical races are
+	// inherent and still we only do this for client -> replica
+	// since it hurt our tube/raft replica-replica
+	// communications.
 }
 
 func (s *TubeNode) deleteFromCktAll(oldCktP *cktPlus) {
@@ -15405,7 +15429,7 @@ func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur 
 	anew, err = ckt.SendOneWay(frag, errWriteDur, keepFragIfPositive)
 	_ = anew
 	if err != nil {
-		alwaysPrintf("%v SendOneWay: non nil error on '%v': '%v'; frag.ToPeerName='%v'", s.me(), frag.FragSubject, err, frag.ToPeerName)
+		alwaysPrintf("%v SendOneWay: non nil error on '%v': '%v'; ckt.RemotePeerName='%v'; is ckt.Context live: %v", s.me(), frag.FragSubject, err, ckt.RemotePeerName, ctxLive(ckt.Context))
 		if s.wasConnRefused(err, ckt) {
 			return
 		}
@@ -15694,6 +15718,8 @@ type cktPlus struct {
 
 	perCktWatchdogHalt *idem.Halter
 
+	perCktReaderHalt *idem.Halter
+
 	// must hold requestReconnectMut while accessing
 	// requestReconnect or requestReconnectLastBeganTm
 	requestReconnectMut         sync.Mutex
@@ -15728,7 +15754,8 @@ type cktPlus struct {
 	// value is time we saw this duplicated
 	// RemotePeerID, so we can amortize dup
 	// checking over a long enough period.
-	dups *rpc.Mutexmap[*cktPlus, time.Time]
+	dups    *rpc.Mutexmap[*cktPlus, time.Time]
+	dupSeen time.Time
 
 	// helper for handlePruneRedundantCircuit() method
 	pruner map[string]bool
