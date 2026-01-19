@@ -145,7 +145,7 @@ func (s *grid) Start() {
 			// conn to the existing server.
 
 			//vv("about to connect i=%v to j=%v", i, j)
-			ckt, _, _, err := n0.lpb.NewCircuitToPeerURL("grid-ckt", n1.URL, nil, 0)
+			ckt, _, _, err := n0.lpb.NewCircuitToPeerURL("grid-ckt", n1.URL, nil, 0, "")
 			panicOn(err)
 			n0.lpb.NewCircuitCh <- ckt
 			n0.ckts = append(n0.ckts, ckt)

@@ -326,7 +326,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					case frag := <-s.passiveSideStartAnotherCkt:
 
 						//vv("%v: (ckt '%v') (passive) passiveSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
-						ckt2, _, _, err := ckt.NewCircuit(frag.FragSubject, frag)
+						ckt2, _, _, err := ckt.NewCircuit(frag.FragSubject, frag, "")
 						panicOn(err)
 						//vv("%v: (ckt '%v') (passive) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
 						go passiveSide(ckt2)
@@ -386,7 +386,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 		case remoteURL := <-s.startCircuitWith:
 			//vv("%v: requested startCircuitWith: '%v'", name, remoteURL) // not seen 410
-			ckt, _, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
+			ckt, _, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0, "")
 			s.nextCktNo++
 			//panicOn(err)
 			if err != nil {
@@ -444,7 +444,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 					case frag := <-s.activeSideStartAnotherCkt:
 						//vv("%v: (ckt '%v') (active) activeSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
-						ckt2, _, _, err := ckt.NewCircuit(frag.FragSubject, frag)
+						ckt2, _, _, err := ckt.NewCircuit(frag.FragSubject, frag, "")
 						panicOn(err)
 						//vv("%v: (ckt '%v') (active) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
 						go activeSide(ckt2)

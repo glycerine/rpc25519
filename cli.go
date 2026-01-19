@@ -497,6 +497,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		case CallPeerCircuitEstablishedAck:
 			err := c.PeerAPI.gotCircuitEstablishedAck(yesIsClient, msg, ctx, c.loopy)
 			if err != nil {
+				//vv("cli c.PeerAPI.gotCircuitEstablishedAck returned err = '%v'", err)
 				// only error is on shutdown request received.
 				return
 			}
@@ -504,7 +505,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		}
 
 		if c.notifies.handleReply_to_CallID_ToPeerID(true, ctx, msg) {
-			//vv("client side (%v) notifies says we are done after msg = '%v'", cliLocalAddr, msg.HDR.String())
+			//vv("client side (%v) notifies says we [continue readLoop] after msg = '%v'", cliLocalAddr, msg.HDR.String())
 			continue
 		} else {
 			//vv("client side (%v) notifies says we are NOT done after msg = '%v'", cliLocalAddr, msg.HDR.String())
@@ -513,6 +514,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			msg.HDR.Typ == CallPeerTrafficWithServiceFallback ||
 			msg.HDR.Typ == CallPeerError {
 			// we can get here on shutdown, don't freak.
+			vv("cli readLoop shutting down on unexpected CallPeerTraffic/WithServiceFallback/Error")
 			return
 		}
 
@@ -563,6 +565,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 
 		for ckt := range c.cktServed {
 			// this should notify the pump too.
+			vv("cli '%v' sendLoop shutdown, halting ckt to '%v': %v", c.name, ckt.RemotePeerName, ckt.CircuitID)
 			ckt.Halt.ReqStop.CloseWithReason(fmt.Errorf("conn shut: %v", stopReason))
 		}
 
@@ -571,7 +574,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		// used by the OneWaySend
 		for i, g := range gcMe {
 			_ = i
-			//vv("client sendLoop cleanup %v of %v: calling g.srv.deletePair on g=%p", i, len(gcMe), g)
+			vv("client sendLoop cleanup %v of %v: calling g.srv.deletePair on g=%p", i, len(gcMe), g)
 			// needed? methinks the above handles it, but maybe...
 			//for ckt := range gcMe.pair.cktServed {
 			//	ckt.Halt.ReqStop.CloseWithReason("conn shut: " + stopReason)
@@ -2336,9 +2339,9 @@ type UniversalCliSrv interface {
 
 	StartRemotePeer(ctx context.Context, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, preferExtant bool) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, onlyPossibleAddr string, err error)
 
-	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, waitForAck bool, autoSendNewCircuitCh chan *Circuit, preferExtant bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error)
+	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName, userName string, frag *Fragment, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, waitForAck bool, autoSendNewCircuitCh chan *Circuit, preferExtant bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error)
 
-	PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, autoSendNewCircuitCh chan *Circuit, waitForAck bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error)
+	PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName, userString string, frag *Fragment, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, autoSendNewCircuitCh chan *Circuit, waitForAck bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error)
 
 	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch *LoopComm, err error)
 

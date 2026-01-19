@@ -3209,6 +3209,7 @@ func (s *Server) StartRemotePeer(
 func (s *Client) StartRemotePeerAndGetCircuit(
 	lpb *LocalPeer,
 	circuitName string,
+	userString string,
 	frag *Fragment,
 	peerServiceName,
 	peerServiceNameVersion,
@@ -3228,7 +3229,7 @@ func (s *Client) StartRemotePeerAndGetCircuit(
 		}
 	}()
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
-		lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
+		lpb, circuitName, userString, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
 }
 
 // StartRemotePeerAndGetCircuit is the main way to bootstrap
@@ -3238,6 +3239,7 @@ func (s *Client) StartRemotePeerAndGetCircuit(
 func (s *Server) StartRemotePeerAndGetCircuit(
 	lpb *LocalPeer,
 	circuitName string,
+	userString string,
 	frag *Fragment,
 	peerServiceName,
 	peerServiceNameVersion,
@@ -3267,7 +3269,7 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 	}()
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
-		lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
+		lpb, circuitName, userString, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
 }
 
 // PreferExtantRemotePeerGetCircuit is similar
@@ -3290,6 +3292,7 @@ func (s *Server) PreferExtantRemotePeerGetCircuit(
 	callCtx context.Context,
 	lpb *LocalPeer,
 	circuitName string,
+	userString string,
 	frag *Fragment,
 	peerServiceName,
 	peerServiceNameVersion,
@@ -3301,7 +3304,7 @@ func (s *Server) PreferExtantRemotePeerGetCircuit(
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
-		callCtx, lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, autoSendNewCircuitCh, waitForAck)
+		callCtx, lpb, circuitName, userString, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, autoSendNewCircuitCh, waitForAck)
 }
 
 // PreferExtantRemotePeerGetCircuit is similar
@@ -3324,6 +3327,7 @@ func (s *Client) PreferExtantRemotePeerGetCircuit(
 	callCtx context.Context,
 	lpb *LocalPeer,
 	circuitName string,
+	userString string,
 	frag *Fragment,
 	peerServiceName,
 	peerServiceNameVersion,
@@ -3335,7 +3339,7 @@ func (s *Client) PreferExtantRemotePeerGetCircuit(
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
-		callCtx, lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, autoSendNewCircuitCh, waitForAck)
+		callCtx, lpb, circuitName, userString, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, autoSendNewCircuitCh, waitForAck)
 }
 
 // GetConfig returns the Server's Config.

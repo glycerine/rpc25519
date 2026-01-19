@@ -549,6 +549,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	peerURL string,
 	frag *Fragment,
 	errWriteDur time.Duration,
+	userString string,
 
 ) (ckt *Circuit, ctx context.Context, madeNewAutoCli bool, err error) {
 
@@ -599,7 +600,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	//vv("rpb = '%#v'", rpb)
 
 	preferExtant := false // can we know?
-	ckt, ctx, madeNewAutoCli, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, onOriginLocalSide, preferExtant)
+	ckt, ctx, madeNewAutoCli, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, onOriginLocalSide, preferExtant, userString)
 	if err != nil {
 		return nil, nil, madeNewAutoCli, err
 	}
@@ -977,8 +978,8 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 //
 // When select{}-ing on ckt.Reads and ckt.Errors, always also
 // select on ctx.Done() and in order to shutdown gracefully.
-func (origCkt *Circuit) NewCircuit(circuitName string, firstFrag *Fragment) (ckt *Circuit, ctx2 context.Context, madeNewAutoCli bool, err error) {
-	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, onOriginLocalSide, false)
+func (origCkt *Circuit) NewCircuit(circuitName string, firstFrag *Fragment, userString string) (ckt *Circuit, ctx2 context.Context, madeNewAutoCli bool, err error) {
+	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, onOriginLocalSide, false, userString)
 }
 
 // IsClosed returns true if the LocalPeer is shutting down
@@ -1074,6 +1075,7 @@ func (lpb *LocalPeer) newCircuit(
 	tellRemote bool, // send new circuit to remote?
 	isRemoteSide onRemoteSideVal,
 	preferExtant bool,
+	userString string,
 
 ) (ckt *Circuit, ctx2 context.Context, madeNewAutoCli bool, err error) {
 
@@ -1108,6 +1110,7 @@ func (lpb *LocalPeer) newCircuit(
 		Canc:                         canc2,
 		FirstFrag:                    firstFrag,
 		PreferExtant:                 preferExtant,
+		UserString:                   userString,
 	}
 	ckt.Halt = idem.NewHalterNamed(fmt.Sprintf("Circuit(%v %p)", circuitName, ckt))
 	if ckt.CircuitID == "" {
@@ -1163,6 +1166,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#toPeerServiceNameVersion"] = rpb.RemotePeerServiceNameVersion
 		msg.HDR.Args["#circuitName"] = circuitName
+		msg.HDR.Args["#userString"] = userString
 		msg.HDR.Args["#fromBaseServerName"] = lpb.BaseServerName
 		msg.HDR.Args["#fromBaseServerAddr"] = lpb.BaseServerAddr
 		msg.HDR.Args["#fromHostname"] = lpb.Hostname
@@ -1240,6 +1244,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#toPeerServiceNameVersion"] = rpb.RemotePeerServiceNameVersion
 		msg.HDR.Args["#circuitName"] = circuitName
+		msg.HDR.Args["#userString"] = userString
 		// No need to explicity set the
 		// msg.HDR.Args["#fragRPCtoken"] as it was
 		// copied above in firstFrag.ToMessage()
@@ -1988,6 +1993,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		NetAddr:   msg.HDR.From,
 	}
 	circuitName := ""
+	userString := ""
 	gotServiceName := false
 	gotServiceNameVersion := false
 	if msg.HDR.Args != nil {
@@ -1997,6 +2003,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		//	AliasRegister(rpb.PeerID, rpb.PeerID+" ("+rpb.RemoteServiceName+")")
 		//}
 		circuitName = msg.HDR.Args["#circuitName"]
+		userString = msg.HDR.Args["#userString"]
 		rpb.BaseServerName = msg.HDR.Args["#fromBaseServerName"]
 		rpb.BaseServerAddr = msg.HDR.Args["#fromBaseServerAddr"]
 		rpb.Hostname = msg.HDR.Args["#fromHostname"]
@@ -2019,14 +2026,10 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		asFrag.SetSysArg("newPeerURL", lpb.URL())
 	}
 
-	ckt, ctx2, madeNewAutoCli, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, asFrag, -1, false, isRemoteSide, preferExtant)
+	ckt, ctx2, madeNewAutoCli, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, asFrag, -1, false, isRemoteSide, preferExtant, userString)
 	_ = madeNewAutoCli // not sure if we need to surface or not
 	if err != nil {
 		return err
-	}
-
-	if msg.HDR.Args != nil {
-		ckt.UserString = msg.HDR.Args["#UserString"]
 	}
 
 	rpb.IncomingCkt = ckt

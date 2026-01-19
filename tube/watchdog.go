@@ -401,9 +401,12 @@ func (c *cktPlus) reconnect(pack *packReconnect, why string) (isUp bool, err err
 	var ckt *rpc.Circuit
 	var madeNewAutoCli bool
 	var onlyPossibleAddr string
+	circuitName := "tube-ckt"
+	var userString string
 	ckt, _, madeNewAutoCli, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(
 		ctxCanc,
-		"tube-ckt",
+		circuitName,
+		userString,
 		nil,
 		c.PeerServiceName,
 		peerServiceNameVersion,

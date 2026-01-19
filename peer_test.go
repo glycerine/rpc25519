@@ -167,7 +167,7 @@ func Test408_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 	frag0 := NewFragment()
 	frag0.FragSubject = "initial setup frag0"
 
-	ckt, ctxCkt, _, err := cli_lpb.NewCircuitToPeerURL(cktname, server_lpb.URL(), frag0, 0)
+	ckt, ctxCkt, _, err := cli_lpb.NewCircuitToPeerURL(cktname, server_lpb.URL(), frag0, 0, "")
 	panicOn(err)
 	_ = ctxCkt
 	defer ckt.Close(nil)
@@ -251,7 +251,7 @@ func Test408_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 	frag2.FragSubject = "initial setup frag2"
 
 	cktname2 := "proxy_the_server407"
-	ckt2, ctxCkt2, _, err := server_lpb.NewCircuitToPeerURL(cktname2, cli_lpb.URL(), frag2, 0)
+	ckt2, ctxCkt2, _, err := server_lpb.NewCircuitToPeerURL(cktname2, cli_lpb.URL(), frag2, 0, "")
 	panicOn(err)
 	_ = ctxCkt2
 	defer ckt2.Close(nil)

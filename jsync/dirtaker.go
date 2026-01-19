@@ -876,7 +876,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				frag.Payload = data
 				frag.SetUserArg("structType", "RequestToSyncPath")
 				cktName := rsyncRemoteGivesString // vs rsyncRemoteTakesString
-				ckt2, ctx2, _, err := ckt.NewCircuit(cktName, frag)
+				ckt2, ctx2, _, err := ckt.NewCircuit(cktName, frag, "")
 				panicOn(err)
 
 				if extraComing {

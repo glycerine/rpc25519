@@ -70,7 +70,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		wait := true
 		//	ckt, err := cli_lpb.U.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, serviceName, netAddr, 0, wait)
 
-		ckt, ackMsg, _, _, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, j.srvServiceName, "", netAddr, 0, wait, nil, false)
+		ckt, ackMsg, _, _, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName, "", nil, j.srvServiceName, "", netAddr, 0, wait, nil, false)
 		_ = ackMsg
 		panicOn(err)
 		_ = ctx
@@ -87,7 +87,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		// address we have, but we do not have its PeerID yet.x
 
 		cktName2 := "ckt-410-2nd" // what to call our new circuit
-		ckt2, ackMsg, _, _, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb.Ctx, cli_lpb, cktName2, nil, j.srvServiceName, "", netAddr, 0, nil, true)
+		ckt2, ackMsg, _, _, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb.Ctx, cli_lpb, cktName2, "", nil, j.srvServiceName, "", netAddr, 0, nil, true)
 		_ = ackMsg
 		panicOn(err)
 		//vv("ckt2 = '%v'", ckt2)
@@ -108,7 +108,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		cktName4 := "cli_cktname_will_never_be_used"
 		var ckt4 *Circuit
 		var madeNewAutoCli bool
-		ckt4, ackMsg, madeNewAutoCli, _, err = j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb.Ctx, cli_lpb, cktName4, nil, wrongServiceNameSrv, "", netAddr, time.Second*2, nil, true)
+		ckt4, ackMsg, madeNewAutoCli, _, err = j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb.Ctx, cli_lpb, cktName4, "", nil, wrongServiceNameSrv, "", netAddr, time.Second*2, nil, true)
 		_ = ackMsg
 		if err == nil {
 			panic("should get no name found!")
@@ -170,7 +170,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	cktName3 := "ckt-410-3rd" // what to call our new circuit
 	if part3 {
 		// works
-		ckt3, ackMsg, _, _, err := j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb.Ctx, srv_lpb, cktName3, nil, cliServiceName, "", cliNetAddr, 0, nil, true)
+		ckt3, ackMsg, _, _, err := j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb.Ctx, srv_lpb, cktName3, "", nil, cliServiceName, "", cliNetAddr, 0, nil, true)
 		_ = ackMsg
 		if err != nil {
 			vv("PreferExtantRemotePeerGetCircuit error = '%v'", err)
@@ -190,7 +190,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		// works
 		// we should get an error if there is no such service name available!
 		wrongServiceName := "service_name_not_avail_on_client"
-		_, ackMsg, _, _, err = j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb.Ctx, srv_lpb, cktName3, nil, wrongServiceName, "", cliNetAddr, time.Second*2, nil, true)
+		_, ackMsg, _, _, err = j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb.Ctx, srv_lpb, cktName3, "", nil, wrongServiceName, "", cliNetAddr, time.Second*2, nil, true)
 		_ = ackMsg
 		if err == nil {
 			panic("should get no name found!")
@@ -204,7 +204,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	// verify ServiceLimit rejects more than 1 instance of a peer service name
 
 	// server -> client
-	ckt5, ackMsg, _, _, err := j.srv.PeerAPI.StartRemotePeerAndGetCircuit(srv_lpb, cktName3+"_over_1_limit", nil, cliServiceName, "", cliNetAddr, 0, true, nil, false)
+	ckt5, ackMsg, _, _, err := j.srv.PeerAPI.StartRemotePeerAndGetCircuit(srv_lpb, cktName3+"_over_1_limit", "", nil, cliServiceName, "", cliNetAddr, 0, true, nil, false)
 
 	if ckt5 != nil {
 		panic("wanted nil ckt5")
@@ -226,7 +226,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	if true {
 		// client -> server
 		//vv("ServiceLimit enforced client to server too ==========")
-		ckt6, ackMsg, _, _, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName3+"_over_1_limit", nil, j.srvServiceName, "", netAddr, 0, true, nil, false)
+		ckt6, ackMsg, _, _, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName3+"_over_1_limit", "", nil, j.srvServiceName, "", netAddr, 0, true, nil, false)
 		_ = ackMsg
 		if ckt6 != nil {
 			panic(fmt.Sprintf("wanted nil ckt6; got '%v'", ckt6))

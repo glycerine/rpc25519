@@ -3878,8 +3878,9 @@ func (s *TubeCluster) Start() {
 			//vv("n1.URL = '%v'", n1.URL)
 			//ckt, _, err := n0.MyPeer.NewCircuitToPeerURL("tube-ckt", n1.URL, firstFrag, 0)
 			var peerServiceNameVersion string
+			var userString string
 			// here we are in TubeCluster.Start()
-			ckt, ackMsg, madeNewAutoCli, onlyPossibleAddr, err := n0.MyPeer.PreferExtantRemotePeerGetCircuit(bkgCtx, "tube-ckt", firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, n1.URL, 0, nil, waitForAckTrue)
+			ckt, ackMsg, madeNewAutoCli, onlyPossibleAddr, err := n0.MyPeer.PreferExtantRemotePeerGetCircuit(bkgCtx, "tube-ckt", userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, n1.URL, 0, nil, waitForAckTrue)
 			_ = onlyPossibleAddr
 			if err != nil {
 				// don't freak out on shutdown
@@ -7011,7 +7012,8 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 						alwaysPrintf("ignoring error trying to contact clientURL='%v' about new leader: '%v", clientURL, r)
 					}
 				}()
-				ckt, _, _, _ = s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, firstFrag, 0)
+				var userString string
+				ckt, _, _, _ = s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, firstFrag, 0, userString)
 				if ckt != nil {
 					select {
 					case s.MyPeer.NewCircuitCh <- ckt:
@@ -12010,8 +12012,10 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderURL string, fir
 			//netAddr = cliRemote
 		}
 		// retry loop to attempt onlyPossibleAddr if we get that error.
+		circuitName := "tube-ckt"
+		var userString string
 		for try := 0; try < 2; try++ {
-			ckt, _, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, "tube-ckt", firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
+			ckt, _, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, circuitName, userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
 			// can get errors if we removed the leader and then
 			// got our ckt redirected to new leader, in a logical race.
 
