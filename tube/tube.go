@@ -2018,9 +2018,6 @@ func (s *TubeNode) handleNewCircuit(
 
 	//s.Halt.AddChild(ckt.Halt) // error: child already has parent!
 
-	// messing with our first tubels
-	//s.pruneCheck(ckt)
-
 	debugGlobalCkt.Set(ckt.CircuitID, cktP)
 	s.cktAuditByCID.Set(ckt.CircuitID, cktP)
 	prior, havePrior := s.cktAuditByPeerID.Get(ckt.RemotePeerID)
@@ -2246,6 +2243,7 @@ func (s *TubeNode) globalPruneCktCheck() {
 // called by globalPruneCktCheck()
 func (s *TubeNode) pruneDown(goner, keeper *cktPlus) {
 
+	vv("pruneDown(remote='%v') gonerCID='%v'; keeperCID='%v'", goner.PeerName, goner.ckt.CircuitID, keeper.ckt.CircuitID)
 	if !ctxLive(goner.ckt.Context) {
 		readerGoroGone := goner.perCktReaderHalt.ReqStop.IsClosed()
 

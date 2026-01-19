@@ -723,6 +723,7 @@ fullRestart:
 
 		err = czar.refreshMemberInTubeMembersTable(ctx)
 		if err != nil {
+			vv("about to fullRestart b/c/ czar.refreshMemberInTubeMembersTable() gave err='%v'", err)
 			continue fullRestart
 		}
 		//vv("begin main loop at haveSess")
@@ -802,7 +803,7 @@ fullRestart:
 					err = czar.setVers(vers, list, t0) // does upcall for us.
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
-						//vv("see err = '%v', doing full restart", err) // seen!?!
+						vv("see err = '%v', doing full restart", err) // seen!?!
 						continue fullRestart
 					}
 
@@ -879,7 +880,7 @@ fullRestart:
 				now := time.Now()
 				left := until.Sub(now)
 				if left < 0 {
-					//vv("ouch! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces. CzarLeaseUntil(%v) - now(%v) = left = '%v' on czar.members.Vers='%v'", nice(until), nice(now), left, czar.members.Vers)
+					vv("ouch! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces. CzarLeaseUntil(%v) - now(%v) = left = '%v' on czar.members.Vers='%v'", nice(until), nice(now), left, czar.members.Vers)
 					//cState = unknownCzarState
 					czar.cState.Store(int32(unknownCzarState))
 					continue fullRestart
@@ -897,11 +898,12 @@ fullRestart:
 					czar.handlePing(rr)
 					cur := czarState(czar.cState.Load())
 					if cur != amCzar {
+						vv("about to fullRestart b/c/ I am no longer czar after handlePing'", err)
 						continue fullRestart
 					}
 
 				case <-time.After(left):
-					//vv("ouch2! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces.")
+					vv("ouch2! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces.")
 					//cState = unknownCzarState
 					czar.cState.Store(int32(unknownCzarState))
 
@@ -910,6 +912,7 @@ fullRestart:
 				case <-czar.refreshMembersCh:
 					err := czar.refreshMemberInTubeMembersTable(ctx)
 					if err != nil {
+						vv("about to fullRestart b/c/ czar.refreshMemberInTubeMembersTable() gave err='%v'", err)
 						continue fullRestart
 					}
 
@@ -943,7 +946,7 @@ fullRestart:
 					czarTkt, err := czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
 					canc()
 					if err != nil {
-						//vv("renewCzarLeaseCh attempt to renew lease with Write to '%v' failed: err='%v'", keyCz, err)
+						vv("renewCzarLeaseCh attempt to renew lease with Write to keyCz:'%v' failed: err='%v'", czar.keyCz, err)
 
 						//cState = unknownCzarState
 						czar.cState.Store(int32(unknownCzarState))
@@ -1005,7 +1008,7 @@ fullRestart:
 					panicOn(err)
 					err = rpcClientToCzar.Start()
 					if err != nil {
-						//vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
+						vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}
@@ -1015,7 +1018,7 @@ fullRestart:
 						czar.cState.Store(int32(unknownCzarState))
 
 						waitDur := czarLeaseUntilTm.Sub(time.Now()) + time.Second
-						//pp("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
+						vv("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
 						time.Sleep(waitDur)
 						continue fullRestart
 					}
@@ -1027,7 +1030,7 @@ fullRestart:
 					err = rpcClientToCzar.Call("Czar.Ping", czar.myDetail, reply, nil)
 					//pp("rpcClientToCzar.Call(Czar.Ping) took %v; err = '%v'", time.Since(callStart), err)
 					if err != nil {
-						//pp("error back from Ping: '%v'", err)
+						vv("error back from Ping: '%v'", err)
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}
@@ -1064,11 +1067,12 @@ fullRestart:
 				case <-czar.refreshMembersCh:
 					err := czar.refreshMemberInTubeMembersTable(ctx)
 					if err != nil {
+						vv("about to fullRestart b/c/ czar.refreshMemberInTubeMembersTable() gave err='%v'", err)
 						continue fullRestart
 					}
 
 				case <-rpcClientToCzarDoneCh:
-					//pp("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
+					vv("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
 					rpcClientToCzar.Close()
 					rpcClientToCzar = nil
 					rpcClientToCzarDoneCh = nil
@@ -1086,7 +1090,7 @@ fullRestart:
 					err = rpcClientToCzar.Call("Czar.Ping", czar.myDetail, reply, nil)
 					////vv("member called to Czar.Ping, err='%v'", err)
 					if err != nil {
-						//vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
+						vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}
@@ -1115,7 +1119,7 @@ fullRestart:
 						//vv("reply.Vers = '%v';\n deadline = '%v' \n now = '%v'", reply.Vers, nice(deadline), nice(now))
 						if lte(deadline, now) {
 							// this is causing too many restarts! and then we leak clients/auto-clients? hazard of mixing rpc and circuit stuff maybe. kinda want
-							//pp("stale czar answer (not really the czar now), reconnect/contend; deadline(%v) <= now(%v)", nice(deadline), nice(now))
+							vv("stale czar answer (not really the czar now), reconnect/contend; deadline(%v) <= now(%v)", nice(deadline), nice(now))
 
 							if rpcClientToCzar != nil {
 								rpcClientToCzar.Close()
