@@ -1915,17 +1915,24 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 // HUP sent by user, requesting CircuitID breakdown.
 func (s *TubeNode) handleLoggingCIDs() {
 	vv("handleLoggingCIDs() top: we see HUP request for CircuitID details.")
+	something := false
 	for _, cktP := range s.cktall {
 		if cktP.ckt != nil {
 			fmt.Printf("%v (%v)\n", cktP.ckt.CircuitID, cktP.ckt.RemotePeerName)
+			something = true
 			if cktP.dups != nil {
 				cktps := cktP.dups.GetKeySlice()
 				for _, cktP2 := range cktps {
 					fmt.Printf("    dup CID: %v  [age: %v]\n", cktP2.ckt.CircuitID, time.Since(cktP2.dupSeen))
 				}
 				fmt.Println()
+			} else {
+				fmt.Printf(" -- no dups\n")
 			}
 		}
+	}
+	if !something {
+		fmt.Printf(" -- no circuits\n")
 	}
 }
 
@@ -2299,6 +2306,10 @@ func (s *TubeNode) pruneDown(goner, keeper *cktPlus) {
 	// inherent and still we only do this for client -> replica
 	// since it hurt our tube/raft replica-replica
 	// communications.
+
+	if goner.prunePingSentTm.IsZero() {
+		goner.prunePingSentTm = time.Now()
+	}
 }
 
 func (s *TubeNode) deleteFromCktAll(oldCktP *cktPlus) {
@@ -15559,7 +15570,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	cktP.PeerServiceNameVersion = ckt.RemotePeerServiceNameVersion
 	// moved below to getting more accurate reporting: cktP.startWatchdog()
 
-	rpc.AliasRegister(ckt.RemotePeerID, ckt.RemotePeerName)
+	rpc.AliasRegister(ckt.RemotePeerID, "("+ckt.RemotePeerName+")"+ckt.RemotePeerID)
 
 	s.cktall[ckt.RemotePeerID] = cktP
 	s.cktAllByName[cktP.PeerName] = cktP
@@ -15777,8 +15788,9 @@ type cktPlus struct {
 	// value is time we saw this duplicated
 	// RemotePeerID, so we can amortize dup
 	// checking over a long enough period.
-	dups    *rpc.Mutexmap[*cktPlus, time.Time]
-	dupSeen time.Time
+	dups            *rpc.Mutexmap[*cktPlus, time.Time]
+	dupSeen         time.Time
+	prunePingSentTm time.Time
 
 	// helper for handlePruneRedundantCircuit() method
 	pruner map[string]bool
