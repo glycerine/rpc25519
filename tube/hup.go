@@ -17,6 +17,8 @@ import (
 	_ "net/http/pprof" // for web based profiling while running
 )
 
+var _ = sort.Sort
+
 var debugGlobalCkt = rpc.NewMutexmap[string, *cktPlus]()
 
 // for single node per process, HUP debug below; not tests.
@@ -70,15 +72,19 @@ func init() {
 				fmt.Printf("%v   -> count: %v\n", endp, count)
 			}
 			fmt.Println()
-			sort.Sort(byCircuitSN(ckts))
-			for i, ckt := range ckts {
-				fmt.Printf("[%02d] %v\n", i, ckt)
-			}
+			// too much!
+			//sort.Sort(byCircuitSN(ckts))
+			//for i, ckt := range ckts {
+			//	fmt.Printf("[%02d] %v\n", i, ckt)
+			//}
 
 			//fmt.Printf("allstacks = \n%v\n", allstacks())
 
 			if hupDebugGlobalLastNode != nil {
 				hupDebugGlobalLastNode.hupRequestCIDsCh <- true
+				vv("requested CID dup analysis on hupDebugGlobalLastNode")
+			} else {
+				vv("hupDebugGlobalLastNode was nil")
 			}
 		}
 	}()
