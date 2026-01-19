@@ -1132,7 +1132,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		//vv("%v about wait at Start() select point; s.electionTimeoutCh=%p; s.nextElection in '%v'", s.name, s.electionTimeoutCh, time.Until(s.nextElection))
 		select {
 		case <-s.hupRequestCIDsCh:
-			s.handleLoggingCIDs()
+			s.handleHUPLoggingCIDs()
 
 		case <-s.pruneDupClientCktCheckCh:
 			s.globalPruneCktCheck()
@@ -1913,8 +1913,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 }
 
 // HUP sent by user, requesting CircuitID breakdown.
-func (s *TubeNode) handleLoggingCIDs() {
-	vv("handleLoggingCIDs() top: we see HUP request for CircuitID details.")
+func (s *TubeNode) handleHUPLoggingCIDs() {
+	vv("handleHUPLoggingCIDs() top: we see HUP request for CircuitID details.")
 	something := false
 	for _, cktP := range s.cktall {
 		if cktP.ckt != nil {
@@ -1924,7 +1924,8 @@ func (s *TubeNode) handleLoggingCIDs() {
 				cktps := cktP.dups.GetKeySlice()
 				sort.Sort(byCircuitID(cktps))
 				for _, cktP2 := range cktps {
-					fmt.Printf("    dup CID: %v  [age: %v]\n", cktP2.ckt.CircuitID, time.Since(cktP2.dupSeen))
+					ckt := cktP2.ckt
+					fmt.Printf("    dup CID: %v  [age: %v][cktName:'%v' cktUse:'%v']\n", ckt.CircuitID, time.Since(cktP2.dupSeen), ckt.Name, ckt.UserString)
 				}
 				fmt.Println()
 			} else {
