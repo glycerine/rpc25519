@@ -1922,6 +1922,7 @@ func (s *TubeNode) handleLoggingCIDs() {
 			something = true
 			if cktP.dups != nil {
 				cktps := cktP.dups.GetKeySlice()
+				sort.Sort(byCircuitID(cktps))
 				for _, cktP2 := range cktps {
 					fmt.Printf("    dup CID: %v  [age: %v]\n", cktP2.ckt.CircuitID, time.Since(cktP2.dupSeen))
 				}
