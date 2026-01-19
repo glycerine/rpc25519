@@ -433,7 +433,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 		// and so sends the next Read off into the void at the old dead leader.
 		// getCircuitToLeader sets the updated s.leaderName.
 		//ckt2, onlyPossibleAddr2, _, err2 :=
-		_, _, _, err2 := cli.getCircuitToLeader(bkg, leaderURL, nil, false)
+		_, _, _, err2 := cli.getCircuitToLeader(bkg, leaderURL, nil, false, "Test710_client_linz")
 		panicOn(err2)
 
 		if !reallyLeader {

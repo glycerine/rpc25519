@@ -11955,7 +11955,7 @@ func justEpoch(term int64) int32 {
 // internals e.g. s.leaderID here.
 // but also now internal, because handleLocalModifyMembership()
 // calls it too... ugh. must be a useful routine :)
-func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderURL string, firstFrag *rpc.Fragment, insideCaller bool) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, err error) {
+func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderURL string, firstFrag *rpc.Fragment, insideCaller bool, circuitName string) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, err error) {
 	//vv("%v top getCircuitToLeader('%v')", s.me(), leaderURL)
 
 	//if strings.Contains(leaderURL, "100.114.32.72") {
@@ -12012,8 +12012,8 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderURL string, fir
 			//netAddr = cliRemote
 		}
 		// retry loop to attempt onlyPossibleAddr if we get that error.
-		circuitName := "tube-ckt"
-		var userString string
+
+		userString := "getCircuitToLeader"
 		for try := 0; try < 2; try++ {
 			ckt, _, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, circuitName, userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
 			// can get errors if we removed the leader and then
@@ -12089,7 +12089,7 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderURL string, fir
 // so have to be told where to find the leader/cluster
 // initially.
 func (s *TubeNode) UseLeaderURL(ctx context.Context, leaderURL string) (onlyPossibleAddr string, err error) {
-	_, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderURL, nil, false)
+	_, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderURL, nil, false, "UseLeaderURL")
 	return
 }
 
@@ -12111,7 +12111,7 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName st
 		panic("ugh. self-circuit? TODO figure out self-circuit or what?")
 	}
 
-	ckt, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderURL, nil, false)
+	ckt, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderURL, nil, false, "GetPeerListFrom")
 
 	if err != nil {
 		//vv("%v GetPeerListFrom got error from getCircuitToLeader('%v') err='%v'; s.electionTimeoutCh='%p', s.nextElection in '%v'", s.me(), leaderURL, err, s.electionTimeoutCh, time.Until(s.nextElection))
@@ -13064,7 +13064,7 @@ func (s *TubeNode) handleLocalModifyMembership(tkt *Ticket) (onlyPossibleAddr st
 
 				// returned now: var ckt *rpc.Circuit
 				//vv("%v handleLocalModifyMembership calling getCircuitToLeader", s.me())
-				ckt, onlyPossibleAddr, sentOnNewCkt, err = s.getCircuitToLeader(s.MyPeer.Ctx, tkt.GuessLeaderURL, firstFrag, true)
+				ckt, onlyPossibleAddr, sentOnNewCkt, err = s.getCircuitToLeader(s.MyPeer.Ctx, tkt.GuessLeaderURL, firstFrag, true, "handleLocalModifyMembership")
 
 				if err != nil {
 					alwaysPrintf("%v don't know how to contact tkt.GuessLeaderURL='%v' to redirect to leader; err='%v'; for tkt '%v'. Assuming they died. s.cktall = '%#v'", s.me(), tkt.GuessLeaderURL, err, tkt, s.cktall)
@@ -14932,7 +14932,7 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderURL string) (r *S
 	var ckt *rpc.Circuit
 	var onlyPossibleAddr string
 	if leaderURL != "" {
-		ckt, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderURL, nil, false)
+		ckt, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderURL, nil, false, "CreateNewSession")
 		if err != nil {
 			return
 		}
@@ -16909,7 +16909,7 @@ func (s *TubeNode) InjectEmptyMC(ctx context.Context, targetURL, nodeName string
 	emptyFrag.FragOp = InstallEmptyMC
 	emptyFrag.FragSubject = "InstallEmptyMC"
 	emptyFrag.SetUserArg("target", nodeName)
-	_, _, _, err = s.getCircuitToLeader(ctx, targetURL, emptyFrag, false)
+	_, _, _, err = s.getCircuitToLeader(ctx, targetURL, emptyFrag, false, "InjectEmptyMC")
 	return
 }
 
