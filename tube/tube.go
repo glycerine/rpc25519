@@ -15570,7 +15570,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	cktP.PeerServiceNameVersion = ckt.RemotePeerServiceNameVersion
 	// moved below to getting more accurate reporting: cktP.startWatchdog()
 
-	rpc.AliasRegister(ckt.RemotePeerID, "("+ckt.RemotePeerName+")"+ckt.RemotePeerID)
+	rpc.AliasRegister(ckt.RemotePeerID, "("+ckt.RemotePeerName+") "+ckt.RemotePeerID)
 
 	s.cktall[ckt.RemotePeerID] = cktP
 	s.cktAllByName[cktP.PeerName] = cktP
