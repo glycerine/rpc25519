@@ -677,8 +677,8 @@ fullRestart:
 		if j > 0 {
 			beenSinceTop := time.Since(topT0)
 			if beenSinceTop < time.Second {
-				wait := time.Second - beenSinceTop
-				time.Sleep(wait) // pace it to at most 1 per second.
+				wait := time.Second*5 - beenSinceTop
+				time.Sleep(wait) // pace it to at most 5 per second.
 			}
 		}
 

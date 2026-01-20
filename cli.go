@@ -565,7 +565,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 
 		for ckt := range c.cktServed {
 			// this should notify the pump too.
-			vv("cli '%v' sendLoop shutdown, halting ckt to '%v': %v", c.name, ckt.RemotePeerName, ckt.CircuitID)
+			//vv("cli '%v' sendLoop shutdown, halting ckt to '%v': %v", c.name, ckt.RemotePeerName, ckt.CircuitID)
 			ckt.Halt.ReqStop.CloseWithReason(fmt.Errorf("conn shut: %v", stopReason))
 		}
 
@@ -574,7 +574,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		// used by the OneWaySend
 		for i, g := range gcMe {
 			_ = i
-			vv("client sendLoop cleanup %v of %v: calling g.srv.deletePair on g=%p", i, len(gcMe), g)
+			//vv("client sendLoop cleanup %v of %v: calling g.srv.deletePair on g=%p", i, len(gcMe), g)
 			// needed? methinks the above handles it, but maybe...
 			//for ckt := range gcMe.pair.cktServed {
 			//	ckt.Halt.ReqStop.CloseWithReason("conn shut: " + stopReason)

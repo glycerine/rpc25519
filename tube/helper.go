@@ -101,6 +101,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			}
 			var ckt *rpc.Circuit
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
+			// notice this updates leaderURL to be the actual found leader URL
 			_, insp, leaderURL, leaderName, _, ckt, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
 			canc5()
 			if ckt != nil {

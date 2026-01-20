@@ -108,10 +108,10 @@ func (pb *LocalPeer) peerbackPump() {
 				_ = madeAutoCli
 				if err == ErrAntiDeadlockMustQueue {
 					countErrAntiDeadlockMustQueue++
-					vv("ErrAntiDeadlockMustQueue count=%v", countErrAntiDeadlockMustQueue)
+					//vv("ErrAntiDeadlockMustQueue count=%v", countErrAntiDeadlockMustQueue)
 					go closeCktInBackgroundToAvoidDeadlock(queueSendCh.sendCh, msg, pb.Halt)
 				} else {
-					vv("pump cleanupCkt() sent CallPeerEndCircuit msg to '%v' for cktID '%v'", msg.HDR.ToPeerName, ckt.CircuitID)
+					//vv("pump cleanupCkt() sent CallPeerEndCircuit msg to '%v' for cktID '%v'", msg.HDR.ToPeerName, ckt.CircuitID)
 				}
 			}()
 		}
@@ -176,7 +176,7 @@ func (pb *LocalPeer) peerbackPump() {
 			pb.Halt.AddChild(ckt.Halt)
 
 		case ckt := <-pb.HandleCircuitClose:
-			vv("%v pump: ckt := <-pb.HandleCircuitClose: for ckt='%v'", name, ckt.Name) // not seen
+			//vv("%v pump: ckt := <-pb.HandleCircuitClose: for ckt='%v'", name, ckt.Name) // not seen
 			cleanupCkt(ckt, true)
 
 		case msg := <-pb.ReadsIn:
@@ -217,10 +217,10 @@ func (pb *LocalPeer) peerbackPump() {
 				continue
 			}
 			if msg.HDR.FromPeerID == "node_0" {
-				vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
+				//vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
 			}
 			if msg.HDR.Typ == CallPeerEndCircuit {
-				vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg)
+				//vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg)
 				cleanupCkt(ckt, false)
 				//zz("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg. back from cleanupCkt, about to continue: '%v'", name, ckt.Name, msg)
 				continue

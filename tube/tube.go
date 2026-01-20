@@ -1916,17 +1916,19 @@ func hupPrintHelper(cktP *cktPlus, auditByCID map[string]*cktPlus) {
 	if cktP == nil || cktP.ckt == nil {
 		return
 	}
-	fmt.Printf("%v (%v) [age: %v][cktName:'%v' cktUse:'%v'; peer:'%v']\n", cktP.ckt.CircuitID, cktP.ckt.RemotePeerName, time.Since(cktP.ckt.T0), cktP.ckt.Name, cktP.ckt.UserString, cktP.PeerName)
+	now := time.Now()
+
+	fmt.Printf("%v (%v) [age: %v][cktName:'%v' cktUse:'%v'; peer:'%v']\n", cktP.ckt.CircuitID, cktP.ckt.RemotePeerName, cktP.ckt.T0.Sub(now), cktP.ckt.Name, cktP.ckt.UserString, cktP.PeerName)
 	if cktP.dups != nil {
 		cktps := cktP.dups.GetKeySlice()
 		sort.Sort(byCircuitID(cktps))
 		for _, cktP2 := range cktps {
 			ckt := cktP2.ckt
 			delete(auditByCID, ckt.CircuitID)
-			//if ckt.CircuitID == cktP.ckt.CircuitID {
-			//	continue // no need to report ourselves twice. hiding stuff hmm...
-			//}
-			fmt.Printf("    dup CID: %v  [age: %v][cktName:'%v' cktUse:'%v' remote:'%v']\n", ckt.CircuitID, time.Since(cktP2.ckt.T0), ckt.Name, ckt.UserString, ckt.RemotePeerName)
+			if ckt.CircuitID == cktP.ckt.CircuitID {
+				continue // no need to report ourselves twice.
+			}
+			fmt.Printf("    dup CID: %v  [age: %v][cktName:'%v' cktUse:'%v' remote:'%v']\n", ckt.CircuitID, cktP2.ckt.T0.Sub(now), ckt.Name, ckt.UserString, ckt.RemotePeerName)
 		}
 		fmt.Println()
 	} else {
@@ -2116,7 +2118,7 @@ func (s *TubeNode) handleNewCircuit(
 		//}
 
 		defer func() {
-			vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.RemotePeerName) // , stack())
+			//vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.RemotePeerName) // , stack())
 
 			//vv("%v: (ckt '%v') defer running! finishing ckt for RemotePeer goro; from hostname '%v'; pid = %v", s.name, ckt.RemotePeerName, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID)
 			//}
@@ -2145,7 +2147,7 @@ func (s *TubeNode) handleNewCircuit(
 					//zz("%v: (ckt '%v') top func halt.ReqStop seen", s.name, ckt.Name)
 				}
 				//if ckt.RemoteServiceName != TUBE_REPLICA {
-				vv("%v: (ckt '%v') 999999999999 got-departing-ckt: from hostname '%v'; pid = %v; finished: ckt.CircuitID='%v'", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID, ckt.CircuitID) // not seen at all during our 1 member 1 tube (bounced) -> 9 ckts open test.
+				//vv("%v: (ckt '%v') 999999999999 got-departing-ckt: from hostname '%v'; pid = %v; finished: ckt.CircuitID='%v'", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID, ckt.CircuitID) // not seen at all during our 1 member 1 tube (bounced) -> 9 ckts open test.
 				//}
 			}
 
@@ -2231,7 +2233,7 @@ func (s *TubeNode) cleanupGoneCktP(cktP *cktPlus) (allGone bool) {
 
 	if cktP.dups != nil {
 		newSz := cktP.dups.Del(cktP)
-		vv("deleted ckt to '%v' from dups, left newSz=%v", cktP.PeerName, newSz)
+		//vv("deleted ckt to '%v' from dups, left newSz=%v", cktP.PeerName, newSz)
 		if newSz == 0 {
 			s.cktAuditByPeerID.Del(ckt.RemotePeerID)
 			cktP.dups = nil
@@ -2246,8 +2248,17 @@ func (s *TubeNode) cleanupGoneCktP(cktP *cktPlus) (allGone bool) {
 
 func (s *TubeNode) globalPruneCktCheck() {
 
+	auditByCID := s.cktAuditByCID.GetMapCloneAtomic() // map[string]*cktPlus
 	for _, cktP := range s.cktall {
-		if cktP.dups == nil || cktP.dups.Len() < 2 {
+		if cktP.ckt == nil {
+			continue
+		}
+		delete(auditByCID, cktP.ckt.CircuitID)
+
+		if cktP.dups == nil {
+			continue
+		}
+		if cktP.dups.Len() < 2 {
 			continue
 		}
 		if cktP.PeerServiceName != TUBE_CLIENT {
@@ -2292,6 +2303,13 @@ func (s *TubeNode) globalPruneCktCheck() {
 			// worked too to get us the message that the
 			// ckt has closed.
 		}
+	}
+	for _, cktP := range auditByCID {
+		// this garbage collects the circuits that
+		// pruning otherwise misses.
+		//vv("deleting cktP in auditByCID but not in cktall: '%v'", cktP.ckt.CircuitID)
+		cktP.Close() // stop watchdog, fire cancel func.
+		cktP.ckt.Close(ErrPruned)
 	}
 	s.pruneDupClientCktCheckCh = time.After(s.pruneDupDur)
 }
@@ -12028,12 +12046,26 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderURL string, fir
 	}
 	if ok {
 		ckt = remotePeer.IncomingCkt
-		vv("%v getCircuitToLeader(): already have ckt to leaderURL '%v' -> leaderPeerID: '%v'; remotePeer = '%#v'", leaderURL, ckt, remotePeer)
+		//vv("%v getCircuitToLeader(): already have ckt to leaderURL '%v' -> leaderPeerID: '%v'; remotePeer = '%#v'", leaderURL, ckt, remotePeer)
 		if ckt == nil {
 			panic(fmt.Sprintf("no ckt avail??? leaderURL = '%v'; remotePeer = '%#v'", leaderURL, remotePeer))
 		}
 	} else {
-		vv("%v getCircuitToLeader(): no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
+		// TODO: consider solutions here:
+		// The leaderPeerID can be an empty string here.
+		// And this is the problem. Since we are looking
+		// checking for an empty PeerID, and no empty
+		// peerIDs are recorded in the maps, we would never
+		// re-use an existing circuit. Ugh.
+		// The problem is that we either
+		// 1) need to update our knowledge of the leaders peerID
+		// 2) be able to recognize leaders just from their
+		//    address and URL after they come back. Well the
+		//    problem is that lead is a fleeting role; it can
+		//    change.
+		// cache what we get back and re-use it?
+
+		//vv("%v getCircuitToLeader(): no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
 
 		// lets confirm that with our other trackers...
 		cktP, cktallFoundIt := s.cktall[leaderPeerID]
@@ -14976,7 +15008,7 @@ func (s *TubeNode) CloseSession(ctx context.Context, sess *Session) (err error) 
 // external, client callable
 func (s *TubeNode) CreateNewSession(ctx context.Context, leaderURL string) (r *Session, err error) {
 
-	vv("CreateNewSession() called. stack = \n%v\n", stack())
+	//vv("CreateNewSession() called. stack = \n%v\n", stack())
 
 	var ckt *rpc.Circuit
 	var onlyPossibleAddr string

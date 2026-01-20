@@ -20,16 +20,20 @@ func Test010_HDR_generation(t *testing.T) {
 	shdr := hdr.String()
 	jhdr := hdr.JSON()
 
-	vv("shdr = '%v'", shdr)
-	vv("jhdr = '%v'", string(jhdr))
+	//vv("shdr = '%v'", shdr)
+	_ = shdr
+	//vv("jhdr = '%v'", string(jhdr))
+	_ = jhdr
 
 	// response:
 	hdr2 := NewHDR(to, from, subject, CallRPC, 0)
 	shdr2 := hdr2.String()
 	jhdr2 := hdr2.JSON()
 
-	vv("shdr2 = '%v'", shdr2)
-	vv("jhdr2 = '%v'", string(jhdr2))
+	//vv("shdr2 = '%v'", shdr2)
+	_ = shdr2
+	//vv("jhdr2 = '%v'", string(jhdr2))
+	_ = jhdr2
 
 	//friendly := hdr2.OpaqueURLFriendly()
 	//vv("friendly = '%v'", friendly)
