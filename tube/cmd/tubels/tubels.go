@@ -238,14 +238,18 @@ func haveCircuitsTo(insp *tube.Inspection, show bool) (cktTo string) {
 		return
 	}
 	haveCkt := make(map[string]int)
+	cktPerName := make(map[string]string)
 	for cid, nm := range insp.CktAuditByCID {
-		_ = cid
 		k := haveCkt[nm]
 		haveCkt[nm] = k + 1
+		ckts := cktPerName[nm]
+		ckts += "            " + cid + "\n"
+		cktPerName[nm] = ckts
 	}
 	var haveCktSlice []string
 	for nm, k := range haveCkt {
-		haveCktSlice = append(haveCktSlice, fmt.Sprintf("%v(%v)", nm, k))
+		ckts := cktPerName[nm]
+		haveCktSlice = append(haveCktSlice, fmt.Sprintf("%v(%v)  circuitID:\n%v", nm, k, ckts))
 	}
 	sort.Strings(haveCktSlice)
 	cktTo = fmt.Sprintf("\n   --- cktAuditByCircuitID(uniq %v / total %v):\n", len(haveCktSlice), len(insp.CktAuditByCID))

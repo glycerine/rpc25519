@@ -150,10 +150,16 @@ func (czar *Czar) setNonCzarMembers(list *ReliableMembershipList) {
 }
 
 func (czar *Czar) refreshMemberInTubeMembersTable(ctx context.Context) (err error) {
+	vv("begin refreshMemberInTubeMembersTable()")
+	t1 := time.Now()
 
-	// an approximation, the tube Leaf.LeaseUntilTm
-	// is the actual decider, but should be similar.
-	// mostly so that it does not print (current czar)! :)
+	// we submit an approximation to provide rough information
+	// about the remaining lease duration -- even though
+	// the tube Leaf.LeaseUntilTm
+	// is the actual decider. Hopefully they should be similar.
+	// Also we mostly do this so that our table key/value dumps
+	// do not print (current czar) next to them (the current czar
+	// writes 0 time to its own hermes/czar list entry).
 	czar.myDetail.RMemberLeaseUntilTm = time.Now().Add(czar.membersTableLeaseDur)
 	czar.myDetail.RMemberLeaseDur = czar.membersTableLeaseDur
 	czar.myDetailBytes, err = czar.myDetail.MarshalMsg(nil)
@@ -162,7 +168,7 @@ func (czar *Czar) refreshMemberInTubeMembersTable(ctx context.Context) (err erro
 	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 	_, err = czar.sess.Write(ctx5, Key(czar.tableSpace), Key("members/"+czar.TubeCliName), Val(czar.myDetailBytes), czar.writeAttemptDur, PeerDetailPlusType, czar.membersTableLeaseDur, leaseAutoDelTrue)
 	canc()
-	//vv("members table every 10s refresh attempt done. err = '%v'", err)
+	vv("members table every 10s refresh attempt done (took %v). err = '%v'", time.Since(t1), err)
 
 	czar.refreshMembersCh = time.After(czar.refreshMembersTableDur)
 	return err

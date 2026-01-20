@@ -23,6 +23,10 @@ magic:
 
 z:
 	nohup tube tube.0.cfg &> log.0 &
+	sleep 1
+	tubeadd node_0
+	sleep 1
+	mkdir tmp; cd tmp; member &>log.1 &
 
 one:
 	nohup tube tube.1.cfg &> log.1 &
@@ -40,13 +44,16 @@ build:
 
 clean:
 	pkill -9 -x tube || true
+	pkill -9 -x member || true
 	sleep 1 # let them die so they don't replicate log after we wipe it
 	rm -rf ${HOME}/.local/state/tube/123/
 	rm -f log.*
+	rm -rf tmp/
 	(ps -ef |grep tube |grep -v grep) || true
 
 kill:
 	pkill -9 -x tube || true
+	pkill -9 -x member || true
 	(ps -ef |grep tube |grep -v grep) || true
 
 who:
