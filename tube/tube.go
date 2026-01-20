@@ -1912,7 +1912,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 	return nil
 }
 
-func hupPrintHelper(cktP *cktPlus) {
+func hupPrintHelper(cktP *cktPlus, auditByCID map[string]*cktPlus) {
 	if cktP == nil || cktP.ckt == nil {
 		return
 	}
@@ -1922,6 +1922,7 @@ func hupPrintHelper(cktP *cktPlus) {
 		sort.Sort(byCircuitID(cktps))
 		for _, cktP2 := range cktps {
 			ckt := cktP2.ckt
+			delete(auditByCID, ckt.CircuitID)
 			//if ckt.CircuitID == cktP.ckt.CircuitID {
 			//	continue // no need to report ourselves twice. hiding stuff hmm...
 			//}
@@ -1946,7 +1947,7 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 		}
 		delete(auditByCID, cktP.ckt.CircuitID)
 		sawSomething = true
-		hupPrintHelper(cktP)
+		hupPrintHelper(cktP, auditByCID)
 	}
 	left := len(auditByCID)
 	if left > 0 {
@@ -1956,7 +1957,7 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 				continue
 			}
 			sawSomething = true
-			hupPrintHelper(cktP)
+			fmt.Printf("%v (%v) [age: %v][cktName:'%v' cktUse:'%v'; peer:'%v']\n", cktP.ckt.CircuitID, cktP.ckt.RemotePeerName, time.Since(cktP.ckt.T0), cktP.ckt.Name, cktP.ckt.UserString, cktP.PeerName)
 		}
 	}
 	if !sawSomething {
