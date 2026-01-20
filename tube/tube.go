@@ -2330,7 +2330,9 @@ func (s *TubeNode) pruneDown(goner, keeper *cktPlus) {
 		return // no point in sending a message on a closed circuit, will always fail.
 	}
 	if !ctxLive(keeper.ckt.Context) {
-		panicf("keeper.ctx is already cancelled?!? to '%v'", keeper.ckt.RemotePeerName)
+		// it happens. don't freak.
+		vv("keeper.ctx is already cancelled?!? to '%v'", keeper.ckt.RemotePeerName)
+		return
 	}
 
 	if goner.pruneDownCount >= 2 {
