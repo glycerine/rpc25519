@@ -12028,12 +12028,23 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderURL string, fir
 	}
 	if ok {
 		ckt = remotePeer.IncomingCkt
-		//vv("already have ckt to leaderURL '%v' -> leaderPeerID: '%v'; remotePeer = '%#v'", leaderURL, ckt, remotePeer)
+		vv("%v getCircuitToLeader(): already have ckt to leaderURL '%v' -> leaderPeerID: '%v'; remotePeer = '%#v'", leaderURL, ckt, remotePeer)
 		if ckt == nil {
 			panic(fmt.Sprintf("no ckt avail??? leaderURL = '%v'; remotePeer = '%#v'", leaderURL, remotePeer))
 		}
 	} else {
-		//vv("%v no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
+		vv("%v getCircuitToLeader(): no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
+
+		// lets confirm that with our other trackers...
+		cktP, cktallFoundIt := s.cktall[leaderPeerID]
+		if cktallFoundIt {
+			panicf("arg! s.cktall has but s.MyPeer.Remotes does not have leaderPeerID='%v'; \n full cktP.URL='%v'\n leaderURL='%v'", leaderPeerID, cktP.ckt.RemoteCircuitURL(), leaderURL)
+		}
+
+		cktP, auditFoundIt := s.cktAuditByPeerID.Get(leaderPeerID)
+		if auditFoundIt && cktP.ckt != nil {
+			panicf("arg! s.cktAuditByPeerID has but s.MyPeer.Remotes does not have leaderPeerID='%v'; \n full cktP.URL='%v'\n leaderURL='%v'", leaderPeerID, cktP.ckt.RemoteCircuitURL(), leaderURL)
+		}
 
 		var peerServiceNameVersion string
 		// here we are in getCircuitToLeader()
