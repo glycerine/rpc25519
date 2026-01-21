@@ -550,7 +550,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	frag *Fragment,
 	errWriteDur time.Duration,
 	userString string,
-	remotePeerName string, // might be empty or best guess
+	remotePeerName string, // might be empty or best guess, but often known.
 
 ) (ckt *Circuit, ctx context.Context, madeNewAutoCli bool, err error) {
 
