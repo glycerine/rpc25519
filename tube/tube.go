@@ -4092,13 +4092,14 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		panic(fmt.Sprintf("name '%v' cannot have whitespace, as it will be in the log path", name))
 	}
 
-	if !cfg.RpcCfg.CompressionOff {
-		cfg.RpcCfg.CompressionOff = true
-		if !cfg.isTest {
-			//alwaysPrintf("we set cfg.RpcCfg.CompressionOff = true to keep memory use low.")
+	if false { // false=>allow compression again.
+		if !cfg.RpcCfg.CompressionOff {
+			cfg.RpcCfg.CompressionOff = true
+			if !cfg.isTest {
+				//alwaysPrintf("we set cfg.RpcCfg.CompressionOff = true to keep memory use low.")
+			}
 		}
 	}
-
 	if cfg.ClusterID == "" {
 		panic("must have clusterID")
 		// client wants us to pick one.
