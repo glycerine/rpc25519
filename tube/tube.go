@@ -7084,7 +7084,7 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 		}
 
 		s.SendOneWay(ckt, fragUpdateLeader, -1, 0)
-		vv("%v sent new leader(me) notification to %v", s.name, ste.ClientName)
+		//vv("%v sent new leader(me) notification to %v", s.name, ste.ClientName)
 	}
 }
 
