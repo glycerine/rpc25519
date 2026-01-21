@@ -1720,7 +1720,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				s.FinishTicket(question, false)
 
 			case RedirectTicketToLeaderMsg:
-				vv("%v RedirectTicketToLeaderMsg", s.me())
+				//vv("%v RedirectTicketToLeaderMsg", s.me())
 
 				tkt := &Ticket{}
 				_, err := tkt.UnmarshalMsg(frag.Payload)
@@ -3977,7 +3977,7 @@ func (s *TubeCluster) Close() {
 		// the synctest bubble exit... otherwise we get:
 		// panic: deadlock: main bubble goroutine has exited but blocked goroutines remain
 		time.Sleep(10 * time.Second)
-		vv("cluster.Close slept 10 sec")
+		//vv("cluster.Close slept 10 sec")
 	}
 }
 
@@ -13322,7 +13322,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 // Any new config installed (and not stalled) will start
 // with IsCommitted false.
 func (s *TubeNode) changeMembership(tkt *Ticket) {
-	vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc) // top of changeMembership(); tkt.Desc='SingleUpdateClusterMemberConfig() ADD node_4, tkt4=zPUz targetPeerID='Ikmdq4d-bIKW23saAkV39gQYho_Hm3XU_xFcCfuT4qr_'' <<< on just starting node_4, we see an automatic ADD membership request come through!
+	//vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
 
 	if tkt.finishTicketCalled {
 		//vv("%v tkt.finishTicketCalled so exit changeMembership early; tkt.Desc='%v'", s.me(), tkt.Desc)
@@ -13350,7 +13350,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	if s.role != LEADER {
 		panic("changeMembership should only be called on leader")
 	}
-	vv("%v: changeMembership top (we are leader). tkt='%v'", s.me(), tkt.Short())
+	//vv("%v: changeMembership top (we are leader). tkt='%v'", s.me(), tkt.Short())
 
 	// too early to do an Inspection! ticket is
 	// not committed yet so we get stale MC
@@ -13621,7 +13621,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 				//vv("%v no existing connection to tkt.AddPeerName='%v', try to spin one up in background", s.me(), target)
 				cktP := s.newCktPlus(target, TUBE_REPLICA)
 				cktP.PeerBaseServerAddr = tkt.AddPeerBaseServerHostPort
-				vv("%v calling startWatchdog in changeMembership on cktP=%p for '%v'", s.me(), cktP, cktP.PeerName)
+				//vv("%v calling startWatchdog in changeMembership on cktP=%p for '%v'", s.me(), cktP, cktP.PeerName)
 				cktP.startWatchdog()
 
 				det := &PeerDetail{
