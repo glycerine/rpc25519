@@ -2092,6 +2092,16 @@ func (s *TubeNode) handleNewCircuit(
 		prior.dups.Set(cktP, now)
 		cktP.dupSeen = now
 		cktP.dups = prior.dups // all duplicates share the same dups mutmap
+
+		// try aggressively sending first prune request immediately
+		goner := cktP
+		keeper := prior
+		if goner.ckt.CircuitID < keeper.ckt.CircuitID {
+			// always keep the lexi lowest as the stable choice
+			goner = prior
+			keeper = cktP
+		}
+		s.pruneDown(goner, keeper) // sends a prune request message over both ckt
 	} else {
 		s.cktAuditByPeerID.Set(ckt.RemotePeerID, cktP)
 	}
