@@ -45,6 +45,7 @@ type ConfigTubeCli struct {
 	ShowLog    bool
 
 	NonVotingShadowFollower bool   // -shadow add as non-voting-follower ("shadow replica")
+	AddRegularFollower      bool   // -addmc add as regular member
 	ShowStateArchive        string // -a path
 
 	Help bool // -h for help, false, show this help
@@ -71,11 +72,16 @@ func (c *ConfigTubeCli) SetFlags(fs *flag.FlagSet) {
 	// profiling
 	fs.StringVar(&c.Cpuprofile, "cpuprofile", "", "write cpu profile to file")
 	fs.StringVar(&c.Memprofile, "memprofile", "", "write memory profile to this file")
-	fs.BoolVar(&c.NonVotingShadowFollower, "shadow", false, "add node as non-voting shadow follower replica")
+	fs.BoolVar(&c.NonVotingShadowFollower, "shadow", false, "add node as non-voting shadow follower replica (conflicts with -add)")
+	fs.BoolVar(&c.AddRegularFollower, "add", false, "auto-add this node to regular member config after start up (conflicts with -shadow)")
 	fs.BoolVar(&c.Verbose, "v", false, "verbose diagnostics logging to stdout")
 }
 
 func (c *ConfigTubeCli) FinishConfig(fs *flag.FlagSet) (err error) {
+	if c.NonVotingShadowFollower &&
+		c.AddRegularFollower {
+		return fmt.Errorf("cannot have both -shadow and -add at once")
+	}
 	return
 }
 func (c *ConfigTubeCli) SetDefaults() {}
@@ -323,47 +329,50 @@ func main() {
 
 	default:
 		vv("%v non-empty leaderName='%v' reallyLeader='%v'", cfg.MyName, leaderName, reallyLeader)
+		if cmdCfg.AddRegularFollower || cmdCfg.NonVotingShadowFollower {
+			// we want to add ourselves to the cluster
 
-		baseServerHostPort := node.BaseServerHostPort()
-		errWriteDur := time.Second * 10
-	retryLoop:
-		for retry := 0; retry < 2; retry++ {
-			// note that this can result in dupliate
-			// entries in the log for this operation if
-			// we have to timeout and try again. That is
-			// fine. We don't use the session logic since
-			// this is for replicas not clients.
-			// See cmd/tup/tup.go for client and session
-			// examples.
-			actualLeaderURL := leaderURL
+			baseServerHostPort := node.BaseServerHostPort()
+			errWriteDur := time.Second * 10
+		retryLoop:
+			for retry := 0; retry < 2; retry++ {
+				// note that this can result in dupliate
+				// entries in the log for this operation if
+				// we have to timeout and try again. That is
+				// fine. We don't use the session logic since
+				// this is for replicas not clients.
+				// See cmd/tup/tup.go for client and session
+				// examples.
+				actualLeaderURL := leaderURL
 
-			const forceAdd = false
-			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-			memlistAfterAdd, stateSnapshot, err := node.AddPeerIDToCluster(ctx5sec, forceAdd, cmdCfg.NonVotingShadowFollower, cfg.MyName, node.PeerID, node.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
-			canc5()
-			// can have network unavail at first. Yes freak since otherwise we won't be up!
-			//panicOn(err)
-			if err == nil {
-				pp("good: no error on AddPeerIDToCluster('%v'); shadow/nonVoting='%v'; contacting leader '%v'", cfg.MyName, cmdCfg.NonVotingShadowFollower, actualLeaderURL)
-				if memlistAfterAdd.CurrentLeaderName != cfg.MyName {
-					if stateSnapshot != nil {
-						select {
-						case node.ApplyNewStateSnapshotCh <- stateSnapshot:
-							vv("%v tubecli sent node.ApplyNewStateSnapshotCh <- stateSnapshot", cfg.MyName)
-						case <-node.Halt.Done.Chan:
-							return
+				const forceAdd = false
+				ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
+				memlistAfterAdd, stateSnapshot, err := node.AddPeerIDToCluster(ctx5sec, forceAdd, cmdCfg.NonVotingShadowFollower, cfg.MyName, node.PeerID, node.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
+				canc5()
+				// can have network unavail at first. Yes freak since otherwise we won't be up!
+				//panicOn(err)
+				if err == nil {
+					pp("good: no error on AddPeerIDToCluster('%v'); shadow/nonVoting='%v'; contacting leader '%v'", cfg.MyName, cmdCfg.NonVotingShadowFollower, actualLeaderURL)
+					if memlistAfterAdd.CurrentLeaderName != cfg.MyName {
+						if stateSnapshot != nil {
+							select {
+							case node.ApplyNewStateSnapshotCh <- stateSnapshot:
+								vv("%v tubecli sent node.ApplyNewStateSnapshotCh <- stateSnapshot", cfg.MyName)
+							case <-node.Halt.Done.Chan:
+								return
+							}
 						}
 					}
+					_ = memlistAfterAdd
+					vv("%v: memlistAfterAdd = '%v'", cfg.MyName, memlistAfterAdd)
+					break retryLoop
+					//break tryNextOne
+				} else {
+					alwaysPrintf("initial add myself to cluster problem: '%v' ... wait 2 sec and try again", err) // 'error timeout' much better than 'connect: connection refused'; or JobErrs: 'no local peerServiceName 'tube-replica' available'.
+					time.Sleep(time.Second * 2)
+					//continue tryNextOne
+					continue retryLoop
 				}
-				_ = memlistAfterAdd
-				vv("%v: memlistAfterAdd = '%v'", cfg.MyName, memlistAfterAdd)
-				break retryLoop
-				//break tryNextOne
-			} else {
-				alwaysPrintf("initial add myself to cluster problem: '%v' ... wait 2 sec and try again", err) // 'error timeout' much better than 'connect: connection refused'; or JobErrs: 'no local peerServiceName 'tube-replica' available'.
-				time.Sleep(time.Second * 2)
-				//continue tryNextOne
-				continue retryLoop
 			}
 		}
 	}

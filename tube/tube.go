@@ -1720,7 +1720,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				s.FinishTicket(question, false)
 
 			case RedirectTicketToLeaderMsg:
-				//vv("%v RedirectTicketToLeaderMsg", s.me())
+				vv("%v RedirectTicketToLeaderMsg", s.me())
 
 				tkt := &Ticket{}
 				_, err := tkt.UnmarshalMsg(frag.Payload)
@@ -1728,7 +1728,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				//vv("%v RedirectTicketToLeaderMsg; tkt=%v", s.me(), tkt)
 
 				if tkt.ClusterID != s.ClusterID {
-					//vv("%v wrong ClusterID in RedirectTicketToLeaderMsg tkt'%v'", s.me(), tkt)
+					alwaysPrintf("%v wrong ClusterID in RedirectTicketToLeaderMsg tkt'%v'", s.me(), tkt)
 					panic("wrong ClusterID")
 					continue
 				}
@@ -1912,13 +1912,12 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 	return nil
 }
 
-func hupPrintHelper(cktP *cktPlus, auditByCID map[string]*cktPlus) {
+func hupPrintHelper(cktP *cktPlus, auditByCID map[string]*cktPlus, now time.Time) {
 	if cktP == nil || cktP.ckt == nil {
 		return
 	}
-	now := time.Now()
 
-	fmt.Printf("%v (%v) [age: %v][cktName:'%v' cktUse:'%v'; peer:'%v']\n", cktP.ckt.CircuitID, cktP.ckt.RemotePeerName, cktP.ckt.T0.Sub(now), cktP.ckt.Name, cktP.ckt.UserString, cktP.PeerName)
+	fmt.Printf("%v (%v) [age: %v][cktName:'%v' cktUse:'%v'; peer:'%v']\n", cktP.ckt.CircuitID, cktP.ckt.RemotePeerName, now.Sub(cktP.ckt.T0), cktP.ckt.Name, cktP.ckt.UserString, cktP.PeerName)
 	if cktP.dups != nil {
 		cktps := cktP.dups.GetKeySlice()
 		sort.Sort(byCircuitID(cktps))
@@ -1928,7 +1927,7 @@ func hupPrintHelper(cktP *cktPlus, auditByCID map[string]*cktPlus) {
 			if ckt.CircuitID == cktP.ckt.CircuitID {
 				continue // no need to report ourselves twice.
 			}
-			fmt.Printf("    dup CID: %v  [age: %v][cktName:'%v' cktUse:'%v' remote:'%v']\n", ckt.CircuitID, cktP2.ckt.T0.Sub(now), ckt.Name, ckt.UserString, ckt.RemotePeerName)
+			fmt.Printf("    dup CID: %v  [age: %v][cktName:'%v' cktUse:'%v' remote:'%v']\n", ckt.CircuitID, now.Sub(cktP2.ckt.T0), ckt.Name, ckt.UserString, ckt.RemotePeerName)
 		}
 		fmt.Println()
 	} else {
@@ -1942,6 +1941,7 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 	// compare to cktAuditByCID; key is CircuitID
 	auditByCID := s.cktAuditByCID.GetMapCloneAtomic() // map[string]*cktPlus
 
+	now := time.Now()
 	sawSomething := false
 	for _, cktP := range s.cktall {
 		if cktP.ckt == nil {
@@ -1949,7 +1949,7 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 		}
 		delete(auditByCID, cktP.ckt.CircuitID)
 		sawSomething = true
-		hupPrintHelper(cktP, auditByCID)
+		hupPrintHelper(cktP, auditByCID, now)
 	}
 	left := len(auditByCID)
 	if left > 0 {
@@ -1959,7 +1959,7 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 				continue
 			}
 			sawSomething = true
-			fmt.Printf("%v (%v) [age: %v][cktName:'%v' cktUse:'%v'; peer:'%v']\n", cktP.ckt.CircuitID, cktP.ckt.RemotePeerName, time.Since(cktP.ckt.T0), cktP.ckt.Name, cktP.ckt.UserString, cktP.PeerName)
+			fmt.Printf("%v (%v) [age: %v][cktName:'%v' cktUse:'%v'; peer:'%v']\n", cktP.ckt.CircuitID, cktP.ckt.RemotePeerName, now.Sub(cktP.ckt.T0), cktP.ckt.Name, cktP.ckt.UserString, cktP.PeerName)
 		}
 	}
 	if !sawSomething {
@@ -4761,7 +4761,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	if tkt.FromID == s.PeerID {
 		//vv("%v ticket from ourself, we are not leader (%v), tkt: '%v'", s.me(), alias(s.leaderID), tkt)
 	}
-	//vv("%v in redirectToLeader (we are %v): will send to: s.leaderName = '%v' the tkt='%v'", s.name, s.role, s.leaderName, tkt.Short())
+	vv("%v in redirectToLeader (we are %v): will send to: s.leaderName = '%v' the tkt='%v'", s.name, s.role, s.leaderName, tkt.Short())
 
 	// In redirectToLeader() bool here.
 	// Per Ch 4 on config changes, the leader might not
@@ -6311,7 +6311,7 @@ func (s *TubeNode) beginElection() {
 	// a new nodes think they are leadership material??
 	// maybe we need to set a really high configured membership count.
 	if s.clusterSize() == 1 {
-		//vv("%v beginElection sees single node! about to becomeLeader directly... c.clusterSize() = 1; s.clusterSize()=%v; s.state.MC = %v", s.me(), s.clusterSize(), s.state.MC)
+		vv("%v beginElection sees single node! about to becomeLeader directly... c.clusterSize() = 1; s.clusterSize()=%v; s.state.MC = %v", s.me(), s.clusterSize(), s.state.MC)
 
 		// AM I THE DESIGNATED LEADER?
 		amDesignated := (s.cfg.InitialLeaderName == s.name)
@@ -6319,7 +6319,7 @@ func (s *TubeNode) beginElection() {
 
 		// AM I THE EVEN IN THE CLUSTER; let alone the designated leader?
 		_, iAmReplica := s.state.MC.PeerNames.Get2(s.name)
-		//vv("%v iAmReplica = %v; amDesignated = %v; (s.cfg.isTest && s.cfg.testNum < 400) = %v; s.state.MC.PeerNames = '%v'; s.cfg.InitialLeaderName = '%v'", s.me(), iAmReplica, amDesignated, (s.cfg.isTest && s.cfg.testNum < 400), s.state.MC, s.cfg.InitialLeaderName)
+		vv("%v iAmReplica = %v; amDesignated = %v; (s.cfg.isTest && s.cfg.testNum < 400) = %v; s.state.MC.PeerNames = '%v'; s.cfg.InitialLeaderName = '%v'", s.me(), iAmReplica, amDesignated, (s.cfg.isTest && s.cfg.testNum < 400), s.state.MC, s.cfg.InitialLeaderName)
 
 		//if (iAmReplica && amDesignated) || (s.cfg.isTest && s.cfg.testNum < 400) {
 		// seems too restrictive for live prod single node cluster.
@@ -6329,6 +6329,7 @@ func (s *TubeNode) beginElection() {
 
 			// no point in waiting for votes because it
 			// is only us, all alone, and there is no one to ask.
+			vv("%v beginElection() sees we are a single node and a replica, becoming leader", s.name)
 			s.becomeLeader()
 			return
 		}
@@ -9953,7 +9954,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		//vv("%v applying committed ticket %v at s.state.CommitIndex=%v; s.state.LastApplied=%v", s.me(), tkt.Op, s.state.CommitIndex, s.state.LastApplied)
 		switch tkt.Op {
 		case MEMBERSHIP_SET_UPDATE, MEMBERSHIP_BOOTSTRAP:
-			//vv("%v tkt='%v' Applying new MemberConfig(%v) = %v", s.me(), tkt.TicketID[:4], tkt.Op, tkt.MemberConfig.Short()) // seen 403 only on leader node_0
+			vv("%v tkt='%v' IN THE APPLY: Applying new MemberConfig(%v) = %v", s.me(), tkt.TicketID[:4], tkt.Op, tkt.MC.Short()) // seen 403 only on leader node_0
 
 			// setMC calls
 			// adjustCktReplicaForNewMembership,
@@ -12298,7 +12299,7 @@ func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, forceChange, non
 // results in call to handleLocalModifyMembership inside.
 func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, forceChange, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL string, addNotRemove bool, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
 
-	//vv("%v top SingleUpdateClusterMemberConfig; leaderURL='%v'", s.me(), leaderURL)
+	vv("%v top SingleUpdateClusterMemberConfig; leaderURL='%v'; addNotRemove=%v; nonVoting=%v", s.me(), leaderURL, addNotRemove, nonVoting)
 
 	if targetPeerServiceName != TUBE_REPLICA {
 		err = fmt.Errorf("error in SingleUpdateClusterMemberConfig: targetPeerServiceName is not TUBE_REPLICA but '%v'", targetPeerServiceName)
@@ -13071,7 +13072,7 @@ func (a *MemberConfig) Diff(b *MemberConfig) (diff map[string]bool) {
 // If we are leader we simply call s.changeMembership(tkt);
 // if not we forward the request to the leader.
 func (s *TubeNode) handleLocalModifyMembership(tkt *Ticket) (onlyPossibleAddr string, sentOnNewCkt bool, ckt *rpc.Circuit, err error) {
-	//vv("%v: top handleLocalModifyMembership(tkt='%v')", s.me(), tkt.Short())
+	vv("%v: top handleLocalModifyMembership(tkt='%v')", s.me(), tkt.Short())
 	//defer func() {
 	//vv("%v: end of handleLocalModifyMembership(tkt='%v')", s.me(), tkt.Short())
 	//}()
@@ -13321,7 +13322,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 // Any new config installed (and not stalled) will start
 // with IsCommitted false.
 func (s *TubeNode) changeMembership(tkt *Ticket) {
-	//vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
+	vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc) // top of changeMembership(); tkt.Desc='SingleUpdateClusterMemberConfig() ADD node_4, tkt4=zPUz targetPeerID='Ikmdq4d-bIKW23saAkV39gQYho_Hm3XU_xFcCfuT4qr_'' <<< on just starting node_4, we see an automatic ADD membership request come through!
 
 	if tkt.finishTicketCalled {
 		//vv("%v tkt.finishTicketCalled so exit changeMembership early; tkt.Desc='%v'", s.me(), tkt.Desc)
@@ -13349,7 +13350,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	if s.role != LEADER {
 		panic("changeMembership should only be called on leader")
 	}
-	//vv("%v: changeMembership top (we are leader). tkt='%v'", s.me(), tkt.Short())
+	vv("%v: changeMembership top (we are leader). tkt='%v'", s.me(), tkt.Short())
 
 	// too early to do an Inspection! ticket is
 	// not committed yet so we get stale MC
@@ -16758,7 +16759,7 @@ func (s *TubeNode) refreshSession(from time.Time, ste *SessionTableEntry) (refre
 // called by case RedirectTicketToLeaderMsg
 func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 	// allow bootstrapping by handling ADD of self here.
-	//vv("%v top bootstrappedOrForcedMembership", s.name)
+	vv("%v top bootstrappedOrForcedMembership", s.name)
 
 	// we can be leader but not in membership and
 	// need to allow ourselves to be added back
@@ -16786,7 +16787,7 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 	n := s.state.MC.PeerNames.Len()
 	//	if n > 1 {
 	if n > 0 {
-		//vv("%v not just me; MC=%v", s.name, s.state.MC)
+		vv("%v in bootstrappedOrForcedMembership(): not just me, n=%v; return false; MC=%v", s.name, n, s.state.MC)
 		return false
 	}
 	// We experimented with letting a node add another
@@ -16817,7 +16818,7 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 	s.state.Known.PeerNames.Set(s.name, detail)
 
 	s.state.ShadowReplicas.PeerNames.Delkey(s.name)
-	//vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
+	vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
 	if s.role != LEADER {
 		s.becomeLeader()
 	}
