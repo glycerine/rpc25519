@@ -4761,7 +4761,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	if tkt.FromID == s.PeerID {
 		//vv("%v ticket from ourself, we are not leader (%v), tkt: '%v'", s.me(), alias(s.leaderID), tkt)
 	}
-	vv("%v in redirectToLeader (we are %v): will send to: s.leaderName = '%v' the tkt='%v'", s.name, s.role, s.leaderName, tkt.Short())
+	//vv("%v in redirectToLeader (we are %v): will send to: s.leaderName = '%v' the tkt='%v'", s.name, s.role, s.leaderName, tkt.Short())
 
 	// In redirectToLeader() bool here.
 	// Per Ch 4 on config changes, the leader might not
@@ -12299,7 +12299,7 @@ func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, forceChange, non
 // results in call to handleLocalModifyMembership inside.
 func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, forceChange, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL string, addNotRemove bool, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
 
-	vv("%v top SingleUpdateClusterMemberConfig; leaderURL='%v'; addNotRemove=%v; nonVoting=%v", s.me(), leaderURL, addNotRemove, nonVoting)
+	//vv("%v top SingleUpdateClusterMemberConfig; leaderURL='%v'; addNotRemove=%v; nonVoting=%v", s.me(), leaderURL, addNotRemove, nonVoting)
 
 	if targetPeerServiceName != TUBE_REPLICA {
 		err = fmt.Errorf("error in SingleUpdateClusterMemberConfig: targetPeerServiceName is not TUBE_REPLICA but '%v'", targetPeerServiceName)
@@ -13072,7 +13072,7 @@ func (a *MemberConfig) Diff(b *MemberConfig) (diff map[string]bool) {
 // If we are leader we simply call s.changeMembership(tkt);
 // if not we forward the request to the leader.
 func (s *TubeNode) handleLocalModifyMembership(tkt *Ticket) (onlyPossibleAddr string, sentOnNewCkt bool, ckt *rpc.Circuit, err error) {
-	vv("%v: top handleLocalModifyMembership(tkt='%v')", s.me(), tkt.Short())
+	//vv("%v: top handleLocalModifyMembership(tkt='%v')", s.me(), tkt.Short())
 	//defer func() {
 	//vv("%v: end of handleLocalModifyMembership(tkt='%v')", s.me(), tkt.Short())
 	//}()

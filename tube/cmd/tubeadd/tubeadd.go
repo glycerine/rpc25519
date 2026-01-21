@@ -236,7 +236,16 @@ if it comes to that.
 				insp.ResponderPeerURL)
 		}
 	}
-	pp("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
+	if len(contacted) == 1 {
+		// might be bootstrapping from 1 node, contact them
+		// since they are all we have. Without this logic,
+		// we don't even try unless that also happen to
+		// be the pre-configured guess at who is leader
+		// in our config file(!)
+		leaderName = contacted[0].ResponderName
+		leaderURL = contacted[0].ResponderPeerURL
+	}
+	vv("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	targetPeerID := "" // empty string allowed now
 	var errWriteDur time.Duration
