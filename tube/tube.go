@@ -1207,9 +1207,6 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			//s.ay("%v got ticket on %v <-s.writeReqCh: '%v'", s.me(), s.countWriteCh, tkt)
 			//vv("%v got ticket on %v <-s.writeReqCh: '%v'", s.me(), s.countWriteCh, tkt)
 			tkt.Stage += ":writeReqCh"
-			//tkt.localHistIndex = len(s.tkthist)
-			//s.tkthist = append(s.tkthist, tkt)
-			//s.tkthistQ.add(tkt)
 
 			if s.redirectToLeader(tkt) {
 				if tkt.Err != nil {
@@ -1240,9 +1237,6 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			s.countReadCh++
 			//vv("%v got ticket on %v <-s.readReqCh: '%v'", s.me(), s.countReadCh, tkt)
 			tkt.Stage += ":readReqCh"
-			//tkt.localHistIndex = len(s.tkthist)
-			//s.tkthistQ.add(tkt)
-			//s.tkthist = append(s.tkthist, tkt)
 
 			if s.redirectToLeader(tkt) {
 				if tkt.Err != nil {
@@ -1272,9 +1266,6 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			s.countDeleteKeyCh++
 			//s.ay("%v got ticket on %v <-s.deleteKeyReqCh: '%v'", s.me(), s.countDeleteKeyCh, tkt)
 			tkt.Stage += ":deleteKeyReqCh"
-			//tkt.localHistIndex = len(s.tkthist)
-			//s.tkthistQ.add(tkt)
-			//s.tkthist = append(s.tkthist, tkt)
 
 			if s.redirectToLeader(tkt) {
 				if tkt.Err != nil {
@@ -2961,26 +2952,8 @@ type TubeNode struct {
 
 	haveCheckedAdvanceOnceAfterNoFaultExpired bool
 
-	// Because we had an issue with a "lost" Ticket
-	// being deleted prematurely from the Waiting maps,
-	// now the tkthist is the authoritative
-	// record (mostly append-only -- only trimmed
-	// after enough time has elapsed) and the
-	// Waiting maps become just fast indexes
-	// into tkthist. Thus it is harder to lose
-	// Tickets, as we can find them with a linear
-	// search if need be, and figure our where
-	// we were going wrong. Since clients may need
-	// to reconnect and get recent transactions
-	// anyway, this design serves that purpose too.
-	// (in TubeNode here).
 	WaitingAtLeader *imap `msg:"-"` // map[string]*Ticket
 	WaitingAtFollow *imap `msg:"-"` // map[string]*Ticket
-
-	// conjecture: ?actually not using these anymore?
-	//and might be leaking memory?
-	//tkthist  []*Ticket
-	//tkthistQ *tkthistQ
 
 	ticketsAwaitingLeader map[string]*Ticket
 
@@ -4092,14 +4065,16 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		panic(fmt.Sprintf("name '%v' cannot have whitespace, as it will be in the log path", name))
 	}
 
-	if false { // false=>allow compression again.
-		if !cfg.RpcCfg.CompressionOff {
-			cfg.RpcCfg.CompressionOff = true
-			if !cfg.isTest {
-				//alwaysPrintf("we set cfg.RpcCfg.CompressionOff = true to keep memory use low.")
-			}
+	// Ugh: without CompressionOff = true, we allocating
+	// increasing ammounts of memories on a tube server
+	// cluster of 3 with a 50 member load.
+	if !cfg.RpcCfg.CompressionOff {
+		cfg.RpcCfg.CompressionOff = true
+		if !cfg.isTest {
+			//alwaysPrintf("we set cfg.RpcCfg.CompressionOff = true to keep memory use low.")
 		}
 	}
+
 	if cfg.ClusterID == "" {
 		panic("must have clusterID")
 		// client wants us to pick one.
@@ -4125,7 +4100,6 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		// client Tickets that are waiting for logs to replicate.
 		WaitingAtLeader: newImap(),
 		WaitingAtFollow: newImap(),
-		//tkthistQ:        newTkthistQ(),
 
 		cktall:       make(map[string]*cktPlus), // by PeerID
 		cktAllByName: make(map[string]*cktPlus),
@@ -4476,9 +4450,6 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	}
 
 	if !minimize {
-		//for _, tkt := range s.tkthist {
-		//	ins.Tkthist = append(ins.Tkthist, tkt.clone())
-		//}
 
 		for id, info := range s.peers {
 			if minimize && info.PeerServiceName == TUBE_CLIENT {
@@ -4867,8 +4838,6 @@ type Inspection struct {
 
 	CurrentLeaderFirstObservedTm time.Time `zid:"26"`
 
-	Tkthist []*Ticket `msg:"-"`
-
 	Minimal bool `zid:"27"`
 
 	Hostname string `zid:"28"`
@@ -5150,9 +5119,6 @@ type Ticket struct {
 	// This recursion should only ever be one level deep.
 	// The tickets in this Batch may only have their own Batch = nil.
 	Batch []*Ticket `zid:"75"`
-
-	// where in tkthist we were entered locally.
-	localHistIndex int
 
 	// should we return early and stop waiting
 	// after a preset duration? 0 means wait forever.
@@ -12553,13 +12519,6 @@ func (s *TubeNode) peerListRequestHandler(frag *rpc.Fragment, ckt *rpc.Circuit) 
 		return ErrShutDown
 	}
 
-	// trim down the details to keep remote
-	// message size not overly large. e.g.
-	// we probably don't need the full
-	// ticket history. It is marked msg:"-"
-	// too, but just in case.
-	insp.Tkthist = nil
-
 	frag1 := s.newFrag()
 	frag1.FragOp = PeerListReply
 	frag1.FragSubject = "PeerListReply"
@@ -13376,9 +13335,6 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		} else {
 			//vv("%v overload! must stall this 2nd (or greater) config change. tkt has '%v'", s.me(), tkt.Short())
 			tkt.Stage += ":stalledAsHavePreviousConfigChangeUncommitted"
-			//tkt.localHistIndex = len(s.tkthist)
-			//s.tkthist = append(s.tkthist, tkt)
-			//s.tkthistQ.add(tkt)
 
 			// en-queue at end
 			s.stalledMembershipConfigChangeTkt =
@@ -15116,9 +15072,6 @@ func (s *TubeNode) handleNewSessionRequestTicket(tkt *Ticket) {
 	//vv("%v top handleNewSessionRequestTicket", s.me())
 
 	tkt.Stage += ":newSessionRequestCh"
-	//tkt.localHistIndex = len(s.tkthist)
-	//s.tkthistQ.add(tkt)
-	//s.tkthist = append(s.tkthist, tkt)
 
 	if s.redirectToLeader(tkt) {
 		if tkt.Err != nil {
@@ -15244,6 +15197,7 @@ func (s *TubeNode) garbageCollectOldSessions() {
 			// and also validate any session used on a ticket and kick it back if
 			// the session "would" have been deleted already.
 			tkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, SESS_END, 0, s.MyPeer.Ctx)
+			vv("in-garbageCollectOldSessions-NewTicket-gave-tkt= %p", tkt)
 			tkt.EndSessReq_SessionID = id
 			s.replicateTicket(tkt)
 

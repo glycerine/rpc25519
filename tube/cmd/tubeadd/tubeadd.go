@@ -245,7 +245,7 @@ if it comes to that.
 		leaderName = contacted[0].ResponderName
 		leaderURL = contacted[0].ResponderPeerURL
 	}
-	vv("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
+	//vv("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	targetPeerID := "" // empty string allowed now
 	var errWriteDur time.Duration

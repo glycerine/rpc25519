@@ -239,9 +239,6 @@ func Test016_tube_parallel_linz(t *testing.T) {
 					if got, want := nWaitF, 0; got != want {
 						panic(fmt.Sprintf("should be nothing waitingF; we see '%v'", pect.WaitingAtFollow))
 					}
-					for k, tkt := range pect.Tkthist {
-						vv("[node %v] Tkthist[%v]='%v'", j, k, tkt)
-					}
 				}
 				// dump the tube nodes with their waiting queues?
 				// well, but from the above, we know they are empty!
