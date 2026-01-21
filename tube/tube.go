@@ -15026,17 +15026,17 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderURL string) (r *S
 
 func (s *TubeNode) newSessionRequest(ctx context.Context) (r *Session) {
 	r = &Session{
-		ctx:                ctx,
-		CliName:            s.name,
-		CliPeerID:          s.PeerID,
-		CliURL:             s.URL,
-		CliPeerServiceName: s.PeerServiceName,
-		CliRndOnce:         rpc.NewCallID(""),
-		CliLastKnownIndex0: 0,
-		//SessRequestedInitialDur: time.Minute * 10,
-		SessRequestedInitialDur: time.Minute, // lets see the SESS_END storm more quickly
-		ClusterID:               s.ClusterID,
-		readyCh:                 make(chan struct{}),
+		ctx:                     ctx,
+		CliName:                 s.name,
+		CliPeerID:               s.PeerID,
+		CliURL:                  s.URL,
+		CliPeerServiceName:      s.PeerServiceName,
+		CliRndOnce:              rpc.NewCallID(""),
+		CliLastKnownIndex0:      0,
+		SessRequestedInitialDur: time.Minute * 10,
+		//SessRequestedInitialDur: time.Minute, // lets see the SESS_END storm more quickly, but makes 710 test red.
+		ClusterID: s.ClusterID,
+		readyCh:   make(chan struct{}),
 	}
 	return
 }
