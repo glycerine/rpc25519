@@ -16759,7 +16759,7 @@ func (s *TubeNode) refreshSession(from time.Time, ste *SessionTableEntry) (refre
 // called by case RedirectTicketToLeaderMsg
 func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 	// allow bootstrapping by handling ADD of self here.
-	vv("%v top bootstrappedOrForcedMembership", s.name)
+	//vv("%v top bootstrappedOrForcedMembership", s.name)
 
 	// we can be leader but not in membership and
 	// need to allow ourselves to be added back
@@ -16787,7 +16787,7 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 	n := s.state.MC.PeerNames.Len()
 	//	if n > 1 {
 	if n > 0 {
-		vv("%v in bootstrappedOrForcedMembership(): not just me, n=%v; return false; MC=%v", s.name, n, s.state.MC)
+		//vv("%v in bootstrappedOrForcedMembership(): not just me, n=%v; return false; MC=%v", s.name, n, s.state.MC)
 		return false
 	}
 	// We experimented with letting a node add another
@@ -16818,7 +16818,7 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 	s.state.Known.PeerNames.Set(s.name, detail)
 
 	s.state.ShadowReplicas.PeerNames.Delkey(s.name)
-	vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
+	//vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
 	if s.role != LEADER {
 		s.becomeLeader()
 	}
