@@ -79,7 +79,7 @@ func (me *PeerImpl) Start(
 
 				circuitName := "echo-circuit"
 				userString := "user-string"
-				ckt, ctx, _, err := myPeer.NewCircuitToPeerURL(circuitName, echoToURL, outFrag, 0, userString)
+				ckt, ctx, _, err := myPeer.NewCircuitToPeerURL(circuitName, echoToURL, outFrag, 0, userString, "")
 				panicOn(err)
 				defer func() {
 					ckt.Close(err0) // close when echo heard.

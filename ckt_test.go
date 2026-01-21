@@ -386,7 +386,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 		case remoteURL := <-s.startCircuitWith:
 			//vv("%v: requested startCircuitWith: '%v'", name, remoteURL) // not seen 410
-			ckt, _, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0, "")
+			ckt, _, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0, "", "")
 			s.nextCktNo++
 			//panicOn(err)
 			if err != nil {

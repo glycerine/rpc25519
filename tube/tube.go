@@ -1995,6 +1995,9 @@ func (s *TubeNode) handleNewCircuit(
 	if ckt.RemotePeerID == "" {
 		panic(fmt.Sprintf("cannot have ckt.RemotePeerID empty: ckt='%v'", ckt))
 	}
+	if ckt.RemotePeerName == "" {
+		panic(fmt.Sprintf("cannot have ckt.RemotePeerName empty: ckt='%v'", ckt))
+	}
 	//vv("%v top handleNewCircuit ckt from '%v'", s.name, ckt.RemotePeerName)
 
 	// below we work hard to distinguish
@@ -7037,7 +7040,7 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 					}
 				}()
 				var userString string
-				ckt, _, _, _ = s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, firstFrag, 0, userString)
+				ckt, _, _, _ = s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, firstFrag, 0, userString, ste.ClientName)
 				if ckt != nil {
 					select {
 					case s.MyPeer.NewCircuitCh <- ckt:

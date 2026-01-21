@@ -144,13 +144,14 @@ func Test031_client_ckt_is_not_replica_ckt(t *testing.T) {
 		cliFrag := cliPeer.NewFragment()
 		cliFrag.FragSubject = "client query"
 		pushToURL := c.Nodes[0].URL
+		pushToPeerName := c.Nodes[0].name
 		var userString string
 		vv("pushToURL = '%v'", pushToURL)
 		// e.g.
 		// tcp://127.0.0.1:50421/tube/FiA8WviFasBF6xLieszav7cnVmqX
 		// or
 		// simnet://srv_node_0/tube/RdS_qaJGypwiNX91APbw5QVLuChQ
-		ckt, ctx, _, err := cliPeer.NewCircuitToPeerURL("tube-replica", pushToURL, cliFrag, 0, userString)
+		ckt, ctx, _, err := cliPeer.NewCircuitToPeerURL("tube-replica", pushToURL, cliFrag, 0, userString, pushToPeerName)
 		vv("client made new ctk = '%v'", ckt.CircuitID)
 		_ = ckt
 		_ = ctx

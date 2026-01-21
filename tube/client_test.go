@@ -458,7 +458,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 		// the HelperFindLeader() call, we got
 		// sporadic context deadline exceeded here
 		// due to s.leaderName still pointing to the dead leader.
-		panicOn(err)
+		panicOn(err) // panic: node_2 leader error: unknown Ticket.SessionID='18pxU7t2gWmkFJmT4MEJMy61cKIB' (SessionSerial='3'). Must call CreateNewSession first to generate/register a new SessionID. In leaderServedLocalRead(). [recovered, repanicked]
 		canc()
 		vj = tktj.Val
 

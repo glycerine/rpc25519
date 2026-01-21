@@ -550,6 +550,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	frag *Fragment,
 	errWriteDur time.Duration,
 	userString string,
+	remotePeerName string, // might be empty or best guess
 
 ) (ckt *Circuit, ctx context.Context, madeNewAutoCli bool, err error) {
 
@@ -589,9 +590,9 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	frag.FromPeerServiceName = s.PeerServiceName
 
 	rpb := &RemotePeer{
-		LocalPeer: s,
-		PeerID:    peerID,
-		//PeerName:        // unknown?
+		LocalPeer:         s,
+		PeerID:            peerID,
+		PeerName:          remotePeerName, // might be empty or best guess
 		NetAddr:           netAddr,
 		RemoteServiceName: serviceName,
 		//RemotePeerServiceNameVersion: ?

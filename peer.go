@@ -66,7 +66,7 @@ func (s *syncer) Start(
 			//zz("%v: sees pushToURL '%v'", s.name, pushToURL)
 
 			//zz("%v: about to new up the server. pushToURL='%v'", s.name, pushToURL)
-			ckt, ctx, _, err := myPeer.NewCircuitToPeerURL("push-cicuit", pushToURL, nil, 0, "")
+			ckt, ctx, _, err := myPeer.NewCircuitToPeerURL("push-cicuit", pushToURL, nil, 0, "", "")
 			//zz("%v: back from myPeer.NewCircuitToPeerURL(pushToURL: '%v'): err='%v'", s.name, pushToURL, err)
 			panicOn(err)
 			//zz("%v: got ckt = '%v' back from NewCircuitToPeerURL '%v'", s.name, ckt.Name, pushToURL)
