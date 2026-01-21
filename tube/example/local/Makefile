@@ -53,7 +53,7 @@ clean:
 
 kill:
 	pkill -9 -x tube || true
-	pkill -9 -x member || true
+	##pkill -9 -x member || true
 	(ps -ef |grep tube |grep -v grep) || true
 
 who:
