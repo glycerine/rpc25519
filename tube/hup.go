@@ -34,7 +34,7 @@ func init() {
 	signal.Notify(sigHupCh, syscall.SIGHUP)
 	go func() {
 		for range sigHupCh {
-			if false { // skip mem profile dump for now
+			if true { // false => skip mem profile dump for now
 				rnd8 := cryrand.RandomStringWithUp(8)
 				fn := path + ".memprof." + rnd8
 				alwaysPrintf("got HUP, write mem profile to '%v'.", fn)
@@ -62,7 +62,7 @@ func init() {
 				m2[e2] = n + 1
 
 			}
-			alwaysPrintf("HUP: here are the %v active ckt, most recently made first:\n", len(ckts))
+			alwaysPrintf("%v: HUP: here are the %v active ckt, most recently made first:\n", hupDebugGlobalLastNode.me(), len(ckts))
 			alwaysPrintf("(and counted by endpoints):\n")
 			for endp, count := range m {
 				fmt.Printf("%v   -> count: %v\n", endp, count)

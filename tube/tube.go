@@ -11258,7 +11258,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 	// fast local reads also return tkt.MC, just
 	// like replicated tickets.
 	if s.state != nil && s.state.MC != nil {
-		tkt.MC = s.state.MC.Clone()
+		tkt.MC = s.state.MC.Clone() // major source of persistent object allocation
 	}
 
 	if tkt.SessionID != "" {
