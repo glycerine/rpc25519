@@ -17,7 +17,9 @@ import (
 )
 
 type set struct {
-	nodes []string
+	node string
+	lli  int64
+	llt  int64
 }
 
 // HelperFindLeader assists clients like
@@ -163,16 +165,20 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 				continue // extra protection
 			}
 			//vv("%v: candidate leader = '%v', url = '%v' ; insp = '%v'", node.name, leaderName, leaderURL, insp)
-			insps = append(insps, insp)
-			lastInsp = insp
+			var lli, llt int64
+			if insp != nil {
+				insps = append(insps, insp)
+				lastInsp = insp
+				lli = insp.LastLogIndex
+				llt = insp.LastLogTerm
+			}
 			lastLeaderName = leaderName
 			lastLeaderURL = leaderURL
 			reallyLeader = true // else leaderName is empty string
 			s := leaders[leaderName]
-			if s == nil {
-				leaders[leaderName] = &set{nodes: []string{remoteName}}
-			} else {
-				s.nodes = append(s.nodes, remoteName)
+			if s == nil || llt > s.llt {
+				// just keep the highest term (latest leader)
+				leaders[leaderName] = &set{node: remoteName, lli: lli, llt: llt}
 			}
 		}
 	}
@@ -240,8 +246,11 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 		if ckt != nil {
 			ckt.Close(nil)
 		}
+		var lli, llt int64
 		if err == nil && insp != nil {
 			contacted = append(contacted, insp)
+			lli = insp.LastLogIndex
+			llt = insp.LastLogTerm
 		}
 
 		if err != nil {
@@ -254,25 +263,32 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			lastInsp = insp
 			pp("extra candidate leader = '%v', url = '%v", leaderName, leaderURL)
 			s := leaders[leaderName]
-			if s == nil {
-				leaders[leaderName] = &set{nodes: []string{xname}}
-			} else {
-				s.nodes = append(s.nodes, xname)
+			if s == nil || llt > s.llt {
+				// just keep the highst term laeder
+				leaders[leaderName] = &set{node: xname, lli: lli, llt: llt}
 			}
 		}
 	}
 
 	if len(leaders) > 1 {
-		if contactName == "" {
-			errs := fmt.Sprintf("error: ugh. we see multiple leaders in our nodes\n     --not sure which one to talk to...\n")
-			for lead, s := range leaders {
-				for _, n := range s.nodes {
-					errs += fmt.Sprintf("  '%v' sees leader '%v'\n", n, lead)
-				}
+		// take the highest term leader
+		var highestTerm int64
+		var highestTermLeader string
+		var highestTermSet *set
+		for leaderName, s := range leaders {
+			if highestTermLeader == "" {
+				highestTermLeader = leaderName
+				highestTerm = s.llt
+				highestTermSet = s
+				continue
 			}
-			err0 = fmt.Errorf("%v", errs)
-			return
+			if s.llt > highestTerm {
+				highestTermLeader = leaderName
+				highestTerm = s.llt
+				highestTermSet = s
+			}
 		}
+		leaders = map[string]*set{highestTermLeader: highestTermSet}
 	}
 	if len(leaders) == 1 {
 		if contactName == "" {
@@ -292,7 +308,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			}
 		}
 	} else {
-		// INVAR: len(leaders) == 0
+		// INVAR: len(leaders) == 0 || >= 2
 		if contactName == "" {
 			if cfg.InitialLeaderName == "" {
 				err0 = fmt.Errorf("error: no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node.")

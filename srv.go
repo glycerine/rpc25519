@@ -935,8 +935,8 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 				return
 			case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
 				return
-			case <-time.After(time.Second):
-				vv("warning: notifies sees difficult send/maybe hang: have ToPeerID msg = '%v'; for '%v'", msg.HDR.String(), msg.HDR.ToPeerID)
+				//case <-time.After(time.Second):
+				//	vv("warning: notifies sees difficult send/maybe hang: have ToPeerID msg = '%v'; for '%v'", msg.HDR.String(), msg.HDR.ToPeerID)
 			}
 
 			select {
@@ -946,8 +946,8 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 				return
 			case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
 				return
-			case <-time.After(4 * time.Second):
-				alwaysPrintf("deadlock prevention kicked in. dropping msg='%v'", msg)
+				//case <-time.After(4 * time.Second):
+				//	alwaysPrintf("deadlock prevention kicked in. dropping msg='%v'", msg)
 			}
 			return true // only send to ToPeerID, priority over CallID.
 		} else {
