@@ -379,7 +379,6 @@ doneWithStruct6zgensym_d4b91a75c2094c05_7:
 				if z.Det == nil {
 					z.Det = new(PeerDetail)
 				}
-				dc.DedupIndexEachPtr(z.Det)
 
 				err = z.Det.DecodeMsg(dc)
 				if err != nil {
@@ -1207,7 +1206,6 @@ doneWithStruct19zgensym_d4b91a75c2094c05_20:
 				if z.Vers == nil {
 					z.Vers = new(RMVersionTuple)
 				}
-				dc.DedupIndexEachPtr(z.Vers)
 
 				err = z.Vers.DecodeMsg(dc)
 				if err != nil {
@@ -1247,7 +1245,6 @@ doneWithStruct19zgensym_d4b91a75c2094c05_20:
 					if z.SerzPeerDetails[zgensym_d4b91a75c2094c05_18] == nil {
 						z.SerzPeerDetails[zgensym_d4b91a75c2094c05_18] = new(PeerDetailPlus)
 					}
-					dc.DedupIndexEachPtr(z.SerzPeerDetails[zgensym_d4b91a75c2094c05_18])
 
 					err = z.SerzPeerDetails[zgensym_d4b91a75c2094c05_18].DecodeMsg(dc)
 					if err != nil {

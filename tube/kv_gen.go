@@ -95,7 +95,6 @@ doneWithStruct0zgensym_4984ea5d1b909aec_1:
 				if z.Tree == nil {
 					z.Tree = new(art.Tree)
 				}
-				dc.DedupIndexEachPtr(z.Tree)
 
 				err = z.Tree.DecodeMsg(dc)
 				if err != nil {
@@ -471,7 +470,6 @@ doneWithStruct8zgensym_4984ea5d1b909aec_9:
 					if z.Vals[zgensym_4984ea5d1b909aec_7] == nil {
 						z.Vals[zgensym_4984ea5d1b909aec_7] = new(ArtTable)
 					}
-					dc.DedupIndexEachPtr(z.Vals[zgensym_4984ea5d1b909aec_7])
 
 					const maxFields12zgensym_4984ea5d1b909aec_13 = 1
 
@@ -544,7 +542,6 @@ doneWithStruct8zgensym_4984ea5d1b909aec_9:
 								if z.Vals[zgensym_4984ea5d1b909aec_7].Tree == nil {
 									z.Vals[zgensym_4984ea5d1b909aec_7].Tree = new(art.Tree)
 								}
-								dc.DedupIndexEachPtr(z.Vals[zgensym_4984ea5d1b909aec_7].Tree)
 
 								err = z.Vals[zgensym_4984ea5d1b909aec_7].Tree.DecodeMsg(dc)
 								if err != nil {
