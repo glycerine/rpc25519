@@ -777,7 +777,14 @@ fullRestart:
 
 				// in cState == unknownCzarState here
 
-				czarTkt, err := czar.sess.Write(ctx, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+				// stuck here 35 minutes huh. use a timeout.
+				ctx5, canc := context.WithTimeout(ctx, time.Second*5)
+				czarTkt, err := czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+				canc()
+				if czarTkt == nil {
+					// context timeout, retry.
+					continue fullRestart
+				}
 
 				// INVAR: state == unknownCzarState here
 				if err == nil {
