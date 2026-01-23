@@ -5654,11 +5654,15 @@ func newSessionTableEntry(sess *Session) *SessionTableEntry {
 		SessionReplicatedEndxTm: sess.SessionIndexEndxTm,
 		SessRequestedInitialDur: sess.SessRequestedInitialDur,
 		SessionID:               sess.SessionID,
-		Serial2Ticket:           NewOmap[int64, *Ticket](),
-		ticketID2tkt:            make(map[string]*Ticket),
-		ClientName:              sess.CliName,
-		ClientPeerID:            sess.CliPeerID,
-		ClientURL:               sess.CliURL,
+
+		// seem to be leaking alot of objects in the Serail2Ticket omap
+		// why are these not getting cleaned up after each session acknowledgement?
+		Serial2Ticket: NewOmap[int64, *Ticket](),
+
+		ticketID2tkt: make(map[string]*Ticket),
+		ClientName:   sess.CliName,
+		ClientPeerID: sess.CliPeerID,
+		ClientURL:    sess.CliURL,
 	}
 }
 
@@ -15442,6 +15446,10 @@ func (s *TubeNode) cleanupAcked(ste *SessionTableEntry, deleteBelow int64) {
 	if deleteBelow <= 0 {
 		return
 	}
+	defer func() {
+		vv("%v after cleanupAcked(deleteBelow=%v), for this ste: ste.Serial2Ticket.Len=%v, len(ste.ticketID2tkt)=%v", s.me(), deleteBelow, ste.Serial2Ticket.Len(), len(ste.ticketID2tkt))
+	}()
+
 	for ser, tkt := range ste.Serial2Ticket.All() {
 		if ser < deleteBelow {
 			//vv("%v cleanupAcked: deleting acked SessionSerial %v in SessionID '%v'", s.name, ser, tkt.SessionID)
