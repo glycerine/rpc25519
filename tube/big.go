@@ -26,7 +26,9 @@ func (z *Ticket) Footprint() (r string) {
 		r += fmt.Sprintf("                --- begin Insp ---\n%v\n", z.Insp.Footprint())
 	}
 	r += fmt.Sprintf("                ---  end Insp ---\n\n")
-	r += fmt.Sprintf("                          MC: %v,\n", z.MC.Msgsize())
+	if z.MC != nil {
+		r += fmt.Sprintf("                          MC: %v,\n", z.MC.Msgsize())
+	}
 	if z.NewSessReq != nil {
 		r += fmt.Sprintf("                  NewSessReq: %v,\n", z.NewSessReq.Msgsize())
 	}
@@ -97,7 +99,9 @@ func (z *Inspection) Footprint() (r string) {
 func (z *RaftState) Footprint() (r string) {
 	r = "&RaftState{\n"
 	r += fmt.Sprintf("                KVstore: %v\n", z.KVstore.Msgsize())
-	r += fmt.Sprintf("                     MC: %v\n", z.MC.Msgsize())
+	if z.MC != nil {
+		r += fmt.Sprintf("                     MC: %v\n", z.MC.Msgsize())
+	}
 	r += fmt.Sprintf("                  Known: %v\n", z.Known.Msgsize())
 	r += fmt.Sprintf("              Observers: %v\n", z.Observers.Msgsize())
 	r += fmt.Sprintf("         ShadowReplicas: %v\n", z.ShadowReplicas.Msgsize())

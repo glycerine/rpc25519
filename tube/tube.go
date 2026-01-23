@@ -5068,6 +5068,8 @@ type Ticket struct {
 	// note that the tickets in the wal show very
 	// out of date MC and we don't pull MC from the wal
 	// only the state on disk now.
+	// Ugh: MC was a major source of leaking object allocations
+	// comment out to find and eliminate all uses.
 	MC *MemberConfig `zid:"45"`
 
 	// =======  end MEMBERSHIP_SET_UPDATE  ===========
@@ -5919,6 +5921,10 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		// each server always uses the latest
 		// configuration found in its log.
 
+		if tkt.MC == nil {
+			panicf("must have tkt.MC for MEMBERSHIP_SET_UPDATE or MEMBERSHIP_BOOTSTRAP")
+		}
+
 		// Prov was appended above.
 		amInLatest, _ := s.setMC(tkt.MC.Clone(), fmt.Sprintf("replicateTicket() on '%v'", s.name))
 		_ = amInLatest
@@ -6001,7 +6007,8 @@ func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64) *RaftLogEntry 
 	} else {
 		// not a membership action
 		if tkt.MC == nil && s.state.MC != nil {
-			tkt.MC = s.state.MC.Clone()
+			// try to avoid putting MC on all tickets now, was a major object count leak.
+			//tkt.MC = s.state.MC.Clone()
 		}
 		// note that all replicated tickets will have tkt.MC because
 		// of the above, unless they are
@@ -11258,7 +11265,8 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 	// fast local reads also return tkt.MC, just
 	// like replicated tickets.
 	if s.state != nil && s.state.MC != nil {
-		tkt.MC = s.state.MC.Clone() // major source of persistent object allocation
+		// major source of persistent object allocation! cease for now.
+		//tkt.MC = s.state.MC.Clone()
 	}
 
 	if tkt.SessionID != "" {
@@ -13666,6 +13674,9 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	numDiffs := len(memDiff)
 	_ = numDiffs
 	//vv("cur vs new config; diff='%#v'\n\n newConfig = \n'%v'", memDiff, newConfig)
+
+	// tkt.MC set here in changeMembership for
+	// MEMBERSHIP_SET_UPDATE, MEMBERSHIP_BOOTSTRAP cases:
 	tkt.MC = newConfig
 	//vv("%v we set (%p)tkt.MemberConfig = newConfig(%p)", s.me(), tkt, newConfig)
 
