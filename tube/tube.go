@@ -1552,8 +1552,10 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			}
 			//vv("%v good: sent inspection request to itkt.ckt.RemotePeerName='%v'", s.me(), itkt.ckt.RemotePeerName)
 
-		case fragCkt := <-arrivingNetworkFrag:
-			frag := fragCkt.frag
+		case fragCkt2 := <-arrivingNetworkFrag:
+			frag := fragCkt2.frag
+			ckt := fragCkt2.ckt
+			fragCkt2 = nil
 
 			s.countFrag++
 			//s.ay("%v <-net sees %v [%v] (seen: %v) total=%v", s.me(), msgop(frag.FragOp), frag.Typ, s.statString(frag), s.countFrag)
@@ -1574,13 +1576,13 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				panic("what? no cluster tests yet!")
 				continue
 			}
-			s.peerJoin(frag, fragCkt.ckt)
+			s.peerJoin(frag, ckt)
 
 			//now := time.Now()
 			switch frag.FragOp {
 
 			case PruneRedundantCircuitReq:
-				s.handlePruneRedundantCircuit(frag, fragCkt.ckt)
+				s.handlePruneRedundantCircuit(frag, ckt)
 
 			case NotifyClientNewLeader:
 				// only for clients
@@ -1601,14 +1603,14 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				}
 
 			case InstallEmptyMC:
-				s.handleInstallEmptyMC(frag, fragCkt.ckt)
+				s.handleInstallEmptyMC(frag, ckt)
 
 			case RequestStateSnapshot:
 				//vv("%v sees frag.FragOp RequestStateSnapshot", s.name)
-				s.handleRequestStateSnapshot(frag, fragCkt.ckt, fmt.Sprintf("frag.FragOp=RequestStateSnapshot from '%v'", frag.FromPeerName))
+				s.handleRequestStateSnapshot(frag, ckt, fmt.Sprintf("frag.FragOp=RequestStateSnapshot from '%v'", frag.FromPeerName))
 
 			case StateSnapshotEnclosed:
-				s.handleStateSnapshotEnclosed(frag, fragCkt.ckt, fmt.Sprintf("frag with FragOp==StateSnapshotEnclosed from '%v'", fragCkt.ckt.RemotePeerName))
+				s.handleStateSnapshotEnclosed(frag, ckt, fmt.Sprintf("frag with FragOp==StateSnapshotEnclosed from '%v'", ckt.RemotePeerName))
 
 			case CircuitSetupHasBaseServerAddr:
 				// the first frag of a new circuit setup.
@@ -1618,7 +1620,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					//vv("%v new first frag from baseServerHostPort='%v'", s.me(), baseServerHostPort)
 				}
 			case PeerListReq:
-				err = s.peerListRequestHandler(frag, fragCkt.ckt)
+				err = s.peerListRequestHandler(frag, ckt)
 				if err != nil {
 					panic(err)
 					return err
@@ -1646,7 +1648,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					continue // drop
 				}
 				//vv("%v sees RequestPreVote '%v'", s.me(), reqPreVote)
-				s.handleRequestPreVote(reqPreVote, fragCkt.ckt)
+				s.handleRequestPreVote(reqPreVote, ckt)
 
 			case PreVoteMsg:
 				//s.ay("%v PreVoteMsg", s.me())
@@ -1755,7 +1757,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					panic("wrong ClusterID")
 					// drop or reply? probably drop.
 				}
-				s.handleRequestVote(reqVote, fragCkt.ckt)
+				s.handleRequestVote(reqVote, ckt)
 				continue
 
 			case VoteMsg:
@@ -1784,7 +1786,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					panic("wrong ClusterID")
 					continue // drop
 				}
-				s.handleAppendEntries(ae, fragCkt.ckt)
+				s.handleAppendEntries(ae, ckt)
 
 				// Ugh. checking isFollowerKaput causes
 				// pre-mature shutdown of node_4
@@ -1814,7 +1816,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					panic("wrong ClusterID")
 					continue // drop
 				}
-				err0 = s.handleAppendEntriesAck(aeAck, fragCkt.ckt)
+				err0 = s.handleAppendEntriesAck(aeAck, ckt)
 				if err0 != nil {
 					return // try shutdown on commited MC without us.
 				}
@@ -1843,10 +1845,10 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				//vv("%v TODO: submit tickets to new leader instead.", s.me())
 
 			case ObserveMembershipChange:
-				s.handleObserveMembershipChange(frag, fragCkt.ckt)
+				s.handleObserveMembershipChange(frag, ckt)
 
 			//case ReliableMemberHeartBeatToCzar:
-			//	s.handleReliableMemberHeartBeatToCzar(frag, fragCkt.ckt)
+			//	s.handleReliableMemberHeartBeatToCzar(frag, ckt)
 
 			default:
 				panic(fmt.Sprintf("unknown raft message: not CallPeerStartCircuit frag.FragOp='%v'; frag='%v'", frag.FragOp, frag.String()))
