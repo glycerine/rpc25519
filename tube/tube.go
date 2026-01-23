@@ -2394,6 +2394,7 @@ func (s *TubeNode) deleteFromCktAll(oldCktP *cktPlus) {
 	//}
 	// do we want? think so.
 	delete(s.cktReplica, oldCktP.PeerID)
+
 }
 
 func lte(a, b time.Time) bool {
@@ -15870,6 +15871,7 @@ func (s *TubeNode) newCktPlus(peerName, peerServiceName string) *cktPlus {
 
 		requestReconnectPulse: make(chan bool),
 	}
+	// mem leak unless we RemoveChild too! see tube.go:15884 in cktPlus.Close()
 	s.Halt.AddChild(c.perCktWatchdogHalt)
 	return c
 }
@@ -15878,6 +15880,9 @@ func (c *cktPlus) Close() {
 	// caller include :1244 in <-s.electionTimeoutCh:
 	//vv("%v cktPlus.Close called by stack=\n\n%v\n", c.node.me(), stack())
 	c.perCktWatchdogHalt.RequestStop()
+
+	// try to avoid leaking cktPlus -- counter-part to tube.go:15875 in newCktPlus().
+	c.node.Halt.RemoveChild(c.perCktWatchdogHalt)
 
 	c.latestCancFuncMut.Lock()
 	cancelFunc := c.latestCancFunc
