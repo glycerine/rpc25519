@@ -2765,12 +2765,49 @@ type RaftState struct {
 	// key is SessionID
 	SessTable map[string]*SessionTableEntry `zid:"22"`
 
+	// also index by ste.ClientName so we can delete their old
+	// session if they start a new one. otherwise we can end
+	// up with thousands of old sessions waiting to time out
+	// that consume memory.
+	sessTableByClientName map[string]*SessionTableEntry
+
 	// ====================================
 	// Raft: Volatile state on leaders (reinitilized after election)
 	//   re-initialized after election (e.g. the
 	//   []matchIndex for each server): See the RaftNodeInfo
 	//   struct above.
 	// ====================================
+}
+
+// called after snapshot uptake
+func (s *TubeNode) updateSessTableByClientName() {
+
+	if s.state.sessTableByClientName == nil {
+		s.state.sessTableByClientName = make(map[string]*SessionTableEntry)
+	}
+	var goners []*SessionTableEntry
+	for _, ste := range s.state.SessTable {
+		prior, ok := s.state.sessTableByClientName[ste.ClientName]
+		if ok && prior != ste {
+			// which is latest, keep only it.
+			if gte(prior.T0, ste.T0) {
+				// prior is more recently made. keep it.
+				s.state.sessTableByClientName[ste.ClientName] = prior
+				goners = append(goners, ste)
+				continue
+			} else {
+				// ste is more recently made. keep it.
+				goners = append(goners, prior)
+				s.state.sessTableByClientName[ste.ClientName] = ste
+			}
+			continue
+		}
+		s.state.sessTableByClientName[ste.ClientName] = ste
+	}
+	for _, goner := range goners {
+		delete(s.state.SessTable, goner.SessionID)
+		s.sessByExpiry.Delete(goner)
+	}
 }
 
 type IndexTerm struct {
@@ -5557,10 +5594,13 @@ type SessionTableEntry struct {
 	ClientName              string        `zid:"7"`
 	ClientPeerID            string        `zid:"8"`
 	ClientURL               string        `zid:"9"`
+
+	T0 time.Time `zid:"10"`
 }
 
 func (z *SessionTableEntry) String() (r string) {
 	r = "&SessionTableEntry{\n"
+	r += fmt.Sprintf("                         T0: \"%v\",\n", nice(z.T0))
 	r += fmt.Sprintf("                  SessionID: \"%v\",\n", z.SessionID)
 	r += fmt.Sprintf("HighestSerialSeenFromClient: %v,\n", z.HighestSerialSeenFromClient)
 	r += fmt.Sprintf("           MaxAppliedSerial: %v,\n", z.MaxAppliedSerial)
@@ -5580,6 +5620,7 @@ func (z *SessionTableEntry) String() (r string) {
 func (s *SessionTableEntry) Clone() (r *SessionTableEntry) {
 
 	r = &SessionTableEntry{
+		T0:                          s.T0,
 		SessionID:                   s.SessionID,
 		HighestSerialSeenFromClient: s.HighestSerialSeenFromClient,
 		MaxAppliedSerial:            s.MaxAppliedSerial,
@@ -5650,6 +5691,7 @@ func newSessionTableEntry(sess *Session) *SessionTableEntry {
 
 		// initial--updates should happen here on the outer
 		// so we get saved with state.
+		T0:                      sess.T0,
 		SessionEndxTm:           sess.SessionIndexEndxTm,
 		SessionReplicatedEndxTm: sess.SessionIndexEndxTm,
 		SessRequestedInitialDur: sess.SessRequestedInitialDur,
@@ -14921,6 +14963,9 @@ type Session struct {
 
 	MinSessSerialWaiting int64 `zid:"18"`
 
+	// assigned on server when SessionIndexEndxTm is set.
+	T0 time.Time `zid:"20"`
+
 	readyCh chan struct{}
 	cli     *TubeNode // local only, allow calling Write/Read on Session.
 
@@ -14953,6 +14998,7 @@ func (z *Session) String() (r string) {
 	r += fmt.Sprintf("  //----- initial response  -----\n")
 	r += fmt.Sprintf(" SessionAssignedIndex: %v,\n", z.SessionAssignedIndex)
 	r += fmt.Sprintf("            SessionID: \"%v\",\n", z.SessionID)
+	r += fmt.Sprintf("                   T0: %v,\n", nice(z.T0))
 	r += fmt.Sprintf("   SessionIndexEndxTm: %v,\n", nice(z.SessionIndexEndxTm))
 	r += fmt.Sprintf("           LeaderName: \"%v\",\n", z.LeaderName)
 	r += fmt.Sprintf("         LeaderPeerID: \"%v\",\n", z.LeaderPeerID)
@@ -15151,7 +15197,9 @@ func (s *TubeNode) leaderSideCreateNewSess(tkt *Ticket) {
 	if r.SessRequestedInitialDur < 10*time.Second {
 		r.SessRequestedInitialDur = 10 * time.Second
 	}
-	r.SessionIndexEndxTm = time.Now().Add(r.SessRequestedInitialDur)
+	now := time.Now()
+	r.T0 = now
+	r.SessionIndexEndxTm = now.Add(r.SessRequestedInitialDur)
 
 	r.LeaderName = s.name
 	r.LeaderPeerID = s.PeerID
@@ -15176,6 +15224,14 @@ func (s *TubeNode) applyEndSess(tkt *Ticket, calledOnLeader bool) {
 	if ok {
 		delete(s.state.SessTable, tkt.EndSessReq_SessionID)
 		s.sessByExpiry.Delete(ste)
+		// clear the client name from sessTableByClientName
+		// if this was their last session.
+		prior, ok := s.state.sessTableByClientName[ste.ClientName]
+		if ok {
+			if prior.SessionID == tkt.EndSessReq_SessionID {
+				delete(s.state.sessTableByClientName, ste.ClientName)
+			}
+		}
 	}
 
 	// have any others expired?
@@ -15193,11 +15249,15 @@ func (s *TubeNode) applyNewSess(tkt *Ticket, calledOnLeader bool) {
 	if s.state.SessTable == nil {
 		s.state.SessTable = make(map[string]*SessionTableEntry)
 	}
+	if s.state.sessTableByClientName == nil {
+		s.state.sessTableByClientName = make(map[string]*SessionTableEntry)
+	}
 	ste, already := s.state.SessTable[sess.SessionID]
 	if !already {
 		ste = newSessionTableEntry(sess.Clone()) // only call
 		s.state.SessTable[sess.SessionID] = ste
 		s.sessByExpiry.tree.Insert(ste)
+		s.updateSessTableByClientName()
 	} else {
 		panic(fmt.Sprintf("%v: arg: already have SessionID='%v' in s.state.SessTable. This should not happen right? what about log replay?", s.me(), sess.SessionID))
 	}
@@ -16652,7 +16712,9 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	//vv("%v snapshot set s.state.CompactionDiscardedLastIndex=%v; s.state.CompactionDiscardedLast.Term=%v", s.name, s.state.CompactionDiscardedLastIndex, s.state.CompactionDiscardedLast.Term)
 
 	if state2.SessTable != nil {
+		// why is this not already done? because we applie state2 field-by-field.
 		s.state.SessTable = state2.SessTable
+		s.updateSessTableByClientName()
 	}
 
 	s.saver.save(s.state)
