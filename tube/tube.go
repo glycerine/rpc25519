@@ -2101,7 +2101,9 @@ func (s *TubeNode) handleNewCircuit(
 			goner = prior
 			keeper = cktP
 		}
-		s.pruneDown(goner, keeper) // sends a prune request message over both ckt
+		// too aggressive, tube replica nodes are killing their own
+		// connections transmitting snapshots, so the snapshot never arrives
+		//s.pruneDown(goner, keeper) // sends a prune request message over both ckt
 	} else {
 		s.cktAuditByPeerID.Set(ckt.RemotePeerID, cktP)
 	}
