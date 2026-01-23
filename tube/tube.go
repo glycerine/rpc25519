@@ -15213,7 +15213,7 @@ func (s *TubeNode) garbageCollectOldSessions() {
 			// and also validate any session used on a ticket and kick it back if
 			// the session "would" have been deleted already.
 			tkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, SESS_END, 0, s.MyPeer.Ctx)
-			vv("in-garbageCollectOldSessions-NewTicket-gave-tkt= %p", tkt)
+			//vv("in-garbageCollectOldSessions-NewTicket-gave-tkt= %p", tkt)
 			tkt.EndSessReq_SessionID = id
 			s.replicateTicket(tkt)
 
