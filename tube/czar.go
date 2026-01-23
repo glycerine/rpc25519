@@ -112,19 +112,24 @@ func NewCzar(tableSpace, tubeCliName string, cli *TubeNode, clockDriftBound time
 	members.MemberLeaseDur = memberLeaseDur
 
 	s = &Czar{
-		tableSpace:               tableSpace,
-		TubeCliName:              tubeCliName,
-		keyCz:                    "czar",
-		Halt:                     idem.NewHalter(),
-		members:                  members,
-		heard:                    make(map[string]time.Time),
-		t0:                       time.Now(),
-		memberLeaseDur:           memberLeaseDur,
-		memberHeartBeatDur:       memberHeartBeatDur,
-		UpcallMembershipChangeCh: make(chan *ReliableMembershipList, 1000),
-		clockDriftBound:          clockDriftBound,
-		cli:                      cli,
-		requestPingCh:            make(chan *pingReqReply),
+		tableSpace:         tableSpace,
+		TubeCliName:        tubeCliName,
+		keyCz:              "czar",
+		Halt:               idem.NewHalter(),
+		members:            members,
+		heard:              make(map[string]time.Time),
+		t0:                 time.Now(),
+		memberLeaseDur:     memberLeaseDur,
+		memberHeartBeatDur: memberHeartBeatDur,
+
+		// memory leaks? make unbufferred for now to see, since
+		// we have no actual consumers at this point.
+		//UpcallMembershipChangeCh: make(chan *ReliableMembershipList, 1000),
+		UpcallMembershipChangeCh: make(chan *ReliableMembershipList),
+
+		clockDriftBound: clockDriftBound,
+		cli:             cli,
+		requestPingCh:   make(chan *pingReqReply),
 	}
 	// table hermes, key "czar"
 	s.leaseDurCzar = time.Second * 10
