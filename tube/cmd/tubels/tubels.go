@@ -28,6 +28,7 @@ type TubeListConfig struct {
 	Help        bool   // -h for help, false, show this help
 	Verbose     bool   // -v for verbose connection logging
 	CktTo       bool
+	CktTo2      bool
 }
 
 func (c *TubeListConfig) SetFlags(fs *flag.FlagSet) {
@@ -35,6 +36,7 @@ func (c *TubeListConfig) SetFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.Help, "h", false, "show this help")
 	fs.BoolVar(&c.Verbose, "v", false, "verbose connection logging")
 	fs.BoolVar(&c.CktTo, "ckt", false, "show circuits")
+	fs.BoolVar(&c.CktTo2, "ckt2", false, "show circuits with 2 or more dups only")
 }
 
 func (c *TubeListConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -155,7 +157,7 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 			insp.MC,
 			insp.ShadowReplicas,
 			insp.ResponderPeerURL,
-			haveCircuitsTo(insp, cmdCfg.CktTo),
+			haveCircuitsTo(insp, cmdCfg.CktTo, cmdCfg.CktTo2),
 		)
 	}
 	pp("tubels using leaderName = '%v'; leaderURL='%v'; err='%v'", leaderName, leaderURL, err)
@@ -233,8 +235,8 @@ func sortByName(s []*tube.Inspection) (r []*tube.Inspection) {
 	return s
 }
 
-func haveCircuitsTo(insp *tube.Inspection, show bool) (cktTo string) {
-	if insp == nil || !show {
+func haveCircuitsTo(insp *tube.Inspection, show, show2 bool) (cktTo string) {
+	if insp == nil || (!show && !show2) {
 		return
 	}
 	haveCkt := make(map[string]int)
@@ -248,6 +250,9 @@ func haveCircuitsTo(insp *tube.Inspection, show bool) (cktTo string) {
 	}
 	var haveCktSlice []string
 	for nm, k := range haveCkt {
+		if show2 && k < 2 {
+			continue
+		}
 		ckts := cktPerName[nm]
 		haveCktSlice = append(haveCktSlice, fmt.Sprintf("%v(%v)  circuitID:\n%v", nm, k, ckts))
 	}
