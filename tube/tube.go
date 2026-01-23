@@ -2323,13 +2323,15 @@ func (s *TubeNode) pruneDown(goner, keeper *cktPlus) {
 
 	//vv("pruneDown(remote='%v') gonerCID='%v'; keeperCID='%v'", goner.PeerName, goner.ckt.CircuitID, keeper.ckt.CircuitID)
 	if !ctxLive(goner.ckt.Context) {
-		readerGoroGone := goner.perCktReaderHalt.ReqStop.IsClosed()
+		if goner.perCktReaderHalt != nil {
+			readerGoroGone := goner.perCktReaderHalt.ReqStop.IsClosed()
 
-		//vv("goner is already cancelled! to '%v'; how did we miss this? is its reader goro live? goner.perCktReaderHalt.ReqStop.IsClosed = %v", goner.PeerName, readerGoroGone)
+			//vv("goner is already cancelled! to '%v'; how did we miss this? is its reader goro live? goner.perCktReaderHalt.ReqStop.IsClosed = %v", goner.PeerName, readerGoroGone)
 
-		if readerGoroGone {
-			//vv("cleanup goner to '%v'. better late than never.", goner.PeerName)
-			s.cleanupGoneCktP(goner)
+			if readerGoroGone {
+				//vv("cleanup goner to '%v'. better late than never.", goner.PeerName)
+				s.cleanupGoneCktP(goner)
+			}
 		}
 		return // no point in sending a message on a closed circuit, will always fail.
 	}
