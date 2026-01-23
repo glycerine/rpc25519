@@ -927,7 +927,6 @@ doneWithStruct13zgensym_b52703b292455617_14:
 					if z.Pack[zgensym_b52703b292455617_12] == nil {
 						z.Pack[zgensym_b52703b292455617_12] = new(File)
 					}
-					dc.DedupIndexEachPtr(z.Pack[zgensym_b52703b292455617_12])
 
 					err = z.Pack[zgensym_b52703b292455617_12].DecodeMsg(dc)
 					if err != nil {
@@ -1360,7 +1359,6 @@ doneWithStruct22zgensym_b52703b292455617_23:
 					if z.Pack[zgensym_b52703b292455617_21] == nil {
 						z.Pack[zgensym_b52703b292455617_21] = new(File)
 					}
-					dc.DedupIndexEachPtr(z.Pack[zgensym_b52703b292455617_21])
 
 					err = z.Pack[zgensym_b52703b292455617_21].DecodeMsg(dc)
 					if err != nil {

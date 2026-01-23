@@ -115,7 +115,6 @@ doneWithStruct2zgensym_9db0ba711f6a3e5a_3:
 					if zgensym_9db0ba711f6a3e5a_1 == nil {
 						zgensym_9db0ba711f6a3e5a_1 = new(Chunk)
 					}
-					dc.DedupIndexEachPtr(zgensym_9db0ba711f6a3e5a_1)
 
 					err = zgensym_9db0ba711f6a3e5a_1.DecodeMsg(dc)
 					if err != nil {
@@ -940,7 +939,6 @@ doneWithStruct17zgensym_9db0ba711f6a3e5a_18:
 					if z.Chunks[zgensym_9db0ba711f6a3e5a_16] == nil {
 						z.Chunks[zgensym_9db0ba711f6a3e5a_16] = new(Chunk)
 					}
-					dc.DedupIndexEachPtr(z.Chunks[zgensym_9db0ba711f6a3e5a_16])
 
 					err = z.Chunks[zgensym_9db0ba711f6a3e5a_16].DecodeMsg(dc)
 					if err != nil {
@@ -1692,7 +1690,6 @@ doneWithStruct25zgensym_9db0ba711f6a3e5a_26:
 				if z.CDC_Config == nil {
 					z.CDC_Config = new(jcdc.CDC_Config)
 				}
-				dc.DedupIndexEachPtr(z.CDC_Config)
 
 				err = z.CDC_Config.DecodeMsg(dc)
 				if err != nil {
@@ -2671,7 +2668,6 @@ doneWithStruct31zgensym_9db0ba711f6a3e5a_32:
 				if z.SenderPrecis == nil {
 					z.SenderPrecis = new(FilePrecis)
 				}
-				dc.DedupIndexEachPtr(z.SenderPrecis)
 
 				err = z.SenderPrecis.DecodeMsg(dc)
 				if err != nil {
@@ -2700,7 +2696,6 @@ doneWithStruct31zgensym_9db0ba711f6a3e5a_32:
 				if z.SenderPlan == nil {
 					z.SenderPlan = new(Chunks)
 				}
-				dc.DedupIndexEachPtr(z.SenderPlan)
 
 				err = z.SenderPlan.DecodeMsg(dc)
 				if err != nil {
@@ -3171,7 +3166,6 @@ doneWithStruct37zgensym_9db0ba711f6a3e5a_38:
 				if z.ReaderPrecis == nil {
 					z.ReaderPrecis = new(FilePrecis)
 				}
-				dc.DedupIndexEachPtr(z.ReaderPrecis)
 
 				err = z.ReaderPrecis.DecodeMsg(dc)
 				if err != nil {
@@ -3200,7 +3194,6 @@ doneWithStruct37zgensym_9db0ba711f6a3e5a_38:
 				if z.ReaderChunks == nil {
 					z.ReaderChunks = new(Chunks)
 				}
-				dc.DedupIndexEachPtr(z.ReaderChunks)
 
 				err = z.ReaderChunks.DecodeMsg(dc)
 				if err != nil {
@@ -3950,7 +3943,6 @@ doneWithStruct49zgensym_9db0ba711f6a3e5a_50:
 				if z.A == nil {
 					z.A = new(Chunk)
 				}
-				dc.DedupIndexEachPtr(z.A)
 
 				err = z.A.DecodeMsg(dc)
 				if err != nil {
@@ -3979,7 +3971,6 @@ doneWithStruct49zgensym_9db0ba711f6a3e5a_50:
 				if z.B == nil {
 					z.B = new(Chunk)
 				}
-				dc.DedupIndexEachPtr(z.B)
 
 				err = z.B.DecodeMsg(dc)
 				if err != nil {
@@ -4741,7 +4732,6 @@ doneWithStruct61zgensym_9db0ba711f6a3e5a_62:
 				if z.SenderPrecis == nil {
 					z.SenderPrecis = new(FilePrecis)
 				}
-				dc.DedupIndexEachPtr(z.SenderPrecis)
 
 				err = z.SenderPrecis.DecodeMsg(dc)
 				if err != nil {
@@ -4770,7 +4760,6 @@ doneWithStruct61zgensym_9db0ba711f6a3e5a_62:
 				if z.SenderChunksNoSlice == nil {
 					z.SenderChunksNoSlice = new(Chunks)
 				}
-				dc.DedupIndexEachPtr(z.SenderChunksNoSlice)
 
 				err = z.SenderChunksNoSlice.DecodeMsg(dc)
 				if err != nil {

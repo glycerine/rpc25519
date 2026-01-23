@@ -523,7 +523,6 @@ doneWithStruct6zgensym_5b8048e47f8e3c5c_7:
 				if z.SR == nil {
 					z.SR = new(RequestToSyncPath)
 				}
-				dc.DedupIndexEachPtr(z.SR)
 
 				err = z.SR.DecodeMsg(dc)
 				if err != nil {
@@ -1294,7 +1293,6 @@ doneWithStruct12zgensym_5b8048e47f8e3c5c_13:
 				if z.Precis == nil {
 					z.Precis = new(FilePrecis)
 				}
-				dc.DedupIndexEachPtr(z.Precis)
 
 				err = z.Precis.DecodeMsg(dc)
 				if err != nil {
@@ -1323,7 +1321,6 @@ doneWithStruct12zgensym_5b8048e47f8e3c5c_13:
 				if z.Chunks == nil {
 					z.Chunks = new(Chunks)
 				}
-				dc.DedupIndexEachPtr(z.Chunks)
 
 				err = z.Chunks.DecodeMsg(dc)
 				if err != nil {
