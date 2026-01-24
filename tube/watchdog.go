@@ -29,13 +29,22 @@ func (c *cktPlus) seen(mc *MemberConfig, lastLogIndex, lastLogTerm, currentTerm 
 	}
 	c.lastSeenMut.Unlock()
 
-	// want an accurate, update-to-date view, so
-	// avoid any VersionGT checks here.
-	latest := mc.Clone() // nil returns nil
-
-	if latest != nil {
-		c.MC = latest
+	// too much cloning of same object here! reduce it
+	// by comparing if we are just cloning the same thing.
+	// membership should be very stable most of the time.
+	copyNeeded := true
+	if c.MC != nil && mc != nil {
+		if c.MC.ConfigVersion == mc.ConfigVersion &&
+			c.MC.ConfigTerm == mc.ConfigTerm &&
+			c.MC.CreateTm.Equal(mc.CreateTm) {
+			// dup, can skip the copy
+			copyNeeded = false
+		}
 	}
+	if copyNeeded && mc != nil {
+		c.MC = mc.Clone() // nil returns nil
+	}
+
 	if lastLogTerm > 0 {
 		c.LastLogTerm = lastLogTerm
 	}
