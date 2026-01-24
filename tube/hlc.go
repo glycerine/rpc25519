@@ -45,6 +45,31 @@ import (
 // read its HLC with Aload() first before passing it to
 // ReceiveMessageWithHLC().
 //
+// Warning about 32-bit CPU systems:
+// this package uses atomic.LoadInt64()
+// which is safe and fine on 64-bit systems but
+// which can be buggy on 32-bit systems if the compiler
+// happens to not 64-bit align your data in memory.
+//
+// So: if you need this package on a 32-bit system,
+// insure your HLCs are always the very first
+// field(s) in your struct, so they are 64-bit
+// aligned.
+//
+// See https://pkg.go.dev/sync/atomic#pkg-note-BUG
+// where it discusses 32-bit systems (i.e. ARM not ARM64):
+//
+// "On ARM, 386, and 32-bit MIPS, it is the caller's
+// responsibility to arrange for 64-bit alignment of
+// 64-bit words accessed atomically via the primitive
+// atomic functions (types atomic.Int64 and atomic.Uint64 are
+// automatically aligned). The first word in an
+// allocated struct, array, or slice; in a global variable;
+// or in a local variable (because on 32-bit
+// architectures, the subject of 64-bit atomic operations
+// will escape to the heap) can be relied upon to be 64-bit
+// aligned."
+//
 // HLC is defined in tube.go now for greenpack serialization
 // purposes, to get effective inlining.
 //type HLC int64
