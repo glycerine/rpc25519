@@ -2778,6 +2778,8 @@ type RaftState struct {
 	// that consume memory.
 	sessTableByClientName map[string]*SessionTableEntry
 
+	LastAppliedLogHLC HLC `zid:"23"`
+
 	// ====================================
 	// Raft: Volatile state on leaders (reinitilized after election)
 	//   re-initialized after election (e.g. the
@@ -6012,6 +6014,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		}
 		// -------- commitWhatWeCan does for us:
 		// s.state.LastApplied = idx
+		// s.state.LastAppliedLogHLC.ReceiveMessageWithHLC(entry.LogHLC)
 		// entry.commited = true
 		// tkt.Committed = true
 		// s.FinishTicket(tkt)
@@ -9964,7 +9967,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 	for ; s.state.LastApplied < s.state.CommitIndex; s.state.LastApplied++ {
 
 		if s.state.LastApplied >= n {
-			panic("shouldn't be possible for CommitIndex to be > n")
+			panic("shouldn't be possible for CommitIndex to be >= n")
 			// (this is also a bounds assertion on LastApplied)
 		}
 		// If we are already compacted away, then for
@@ -9982,10 +9985,15 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 			panic(err)
 			break // TODO: not sure if this is correct... but prob do not want to panic(err) just above...
 		}
+
 		if do.committed {
 			// update: we can hit this? 055 intermit so racy?
 			continue
 		}
+
+		// update LastAppliedLogHLC from the RaftLogEntry.LogHLC
+		s.state.LastAppliedLogHLC.ReceiveMessageWithHLC(do.LogHLC)
+
 		// record this to remember the Term with the
 		// state.LastApplied index.
 		// quick sanity check that we are not writing a zero or decreasing term:
