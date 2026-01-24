@@ -1356,7 +1356,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				// so if we are getting here it means
 				// we have not gotten a heartbeat in too long.
 				// Assume the leader failed... force a reconnection.
-				cktP, ok := s.cktAllByName.Get(s.leaderName)
+				cktP, ok := s.cktAllByName[s.leaderName]
 				if ok {
 					//vv("%v assuming leader is down and definitely deleting our ckt to it. leaderName='%v'", s.me(), s.leaderName)
 					s.deleteFromCktAll(cktP)
@@ -1967,7 +1967,7 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 // local request on node, no replication or Ticket needed.
 func (s *TubeNode) handleLocalCircuitDisconnectRequest(disco *discoReq) {
 	for name := range disco.who {
-		cktP, ok := s.cktAllByName.Get(name)
+		cktP, ok := s.cktAllByName[name]
 		if ok {
 			if cktP.ckt != nil {
 				cktP.ckt.Close(nil)
@@ -2394,7 +2394,7 @@ func (s *TubeNode) deleteFromCktAll(oldCktP *cktPlus) {
 		oldCktP.isGone = true
 		oldCktP.goneTm = time.Now()
 	}
-	s.cktAllByName.Del(oldCktP.PeerName)
+	delete(s.cktAllByName, oldCktP.PeerName)
 
 	// do we want this generally? nope! park instead
 	//if oldCktP.ckt != nil {
@@ -2956,7 +2956,7 @@ type TubeNode struct {
 
 	// same as cktall but by PeerName for fast
 	// lookup. also can be pending.
-	cktAllByName *rpc.Mutexmap[string, *cktPlus]
+	cktAllByName map[string]*cktPlus
 
 	// parked tracks all circuits for a given peerName,
 	// so that multiple circuits to a given remote peerName
@@ -3383,7 +3383,7 @@ func (s *TubeNode) shadowReplicasShortString() (membr string, numMember int) {
 		if peerName == s.name {
 			up = "*"
 		} else {
-			cktP, ok := s.cktAllByName.Get(peerName)
+			cktP, ok := s.cktAllByName[peerName]
 			if ok {
 				if cktP.isPending() {
 					up = "p"
@@ -3416,7 +3416,7 @@ func (s *TubeNode) memberNewestShortString() (membr string, numMember int) {
 		if peerName == s.name {
 			up = "*"
 		} else {
-			cktP, ok := s.cktAllByName.Get(peerName)
+			cktP, ok := s.cktAllByName[peerName]
 			if ok {
 				if cktP.isPending() {
 					up = "p"
@@ -4181,7 +4181,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		WaitingAtFollow: newImap(),
 
 		cktall:       make(map[string]*cktPlus), // by PeerID
-		cktAllByName: rpc.NewMutexmap[string, *cktPlus](),
+		cktAllByName: make(map[string]*cktPlus),
 
 		// explicit BootstrapRegisterAsReplica now
 		// required to go from ckt to cktReplica now.
@@ -4614,7 +4614,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 		// add ourselves too.
 		ins.CktAll[s.URL] = s.name
 
-		for name, cktP := range s.cktAllByName.GetMapCloneAtomic() {
+		for name, cktP := range s.cktAllByName {
 			ckt := cktP.ckt
 
 			var url string
@@ -7115,7 +7115,7 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 		}
 
 		ste := it.Item().(*SessionTableEntry)
-		cktP0, ok := s.cktAllByName.Get(ste.ClientName) // ste.ClientPeerID avail too
+		cktP0, ok := s.cktAllByName[ste.ClientName] // ste.ClientPeerID avail too
 		var ckt *rpc.Circuit
 		if !ok || cktP0.ckt == nil {
 			//vv("%v ugh: no circuit to ste.ClientName: '%v'. making one on a background goro...", s.name, ste.ClientName)
@@ -10464,7 +10464,7 @@ func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
 		// for these old tickets? Don't freak out.
 
 		// did we get a replacement ckt maybe? try to recover...
-		cktP, ok = s.cktAllByName.Get(tkt.FromName)
+		cktP, ok = s.cktAllByName[tkt.FromName]
 		if !ok {
 			// still nope
 
@@ -12095,11 +12095,6 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderName, leaderURL
 	//vv("top getCircuitToLeader() stack = '%v'", stack())
 	//}
 
-	cktP, ok := s.cktAllByName.Get(s.leaderName)
-	if ok {
-
-	}
-
 	// do we already have a ckt to requested leaderURL? if so, use it.
 
 	netAddr, serviceName, leaderPeerID, _, err1 := rpc.ParsePeerURL(leaderURL)
@@ -13631,7 +13626,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	curTerm := s.state.CurrentTerm
 	for peerName, detail := range curConfig.PeerNames.All() {
 		_ = detail
-		cktP0, ok := s.cktAllByName.Get(peerName)
+		cktP0, ok := s.cktAllByName[peerName]
 		if ok && cktP0.ckt != nil {
 			if peerName == s.name {
 				// sanity check our inCurrentConfigCount logic.
@@ -13714,7 +13709,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			return
 		}
 
-		cktP, ok := s.cktAllByName.Get(tkt.AddPeerName)
+		cktP, ok := s.cktAllByName[tkt.AddPeerName]
 		if ok && cktP.ckt != nil {
 			peerID := tkt.AddPeerID
 			if peerID == "" {
@@ -13766,7 +13761,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 				newConfig.setNameDetail(target, det, s)
 
 				// INVAR: target != s.name, from above.
-				s.cktAllByName.Set(target, cktP)
+				s.cktAllByName[target] = cktP
 				// should s.cktall get it too? for now, no. We
 				// only put pending into cktAllByName and set cktall
 				// once an actual circuit arrives.
@@ -14416,7 +14411,7 @@ func (s *TubeNode) connectToMC(origin string) {
 			continue // no need to connect to self.
 		}
 		// can have isPending
-		cktP, ok := s.cktAllByName.Get(target)
+		cktP, ok := s.cktAllByName[target]
 		_ = cktP
 		if !ok {
 			//vv("%v sees no ckt to '%v', adding to wantConnection", s.me(), target)
@@ -14426,7 +14421,7 @@ func (s *TubeNode) connectToMC(origin string) {
 			// call to connectInBackgroundIfNoCircuitTo().
 			//cktP := s.newCktPlus(target, TUBE_REPLICA)
 			//cktP.startWatchdog()
-			//s.cktAllByName.Set(target, cktP)
+			//s.cktAllByName[target] = cktP
 
 			//vv("%v: setting up isPending cktP for target = '%v'", s.name, target)
 		} else {
@@ -14492,7 +14487,7 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 		}
 	} // end have det from MC
 
-	cktP, okPeerNameInCktAllByName := s.cktAllByName.Get(peerName)
+	cktP, okPeerNameInCktAllByName := s.cktAllByName[peerName]
 	if !okPeerNameInCktAllByName {
 		// notice that all we have is the peerName
 		cktP = s.newCktPlus(peerName, TUBE_REPLICA)
@@ -14500,7 +14495,7 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 		cktP.startWatchdog()
 
 		//vv("%v set up isPending cktP for peerName = '%v'; cktP='%v'", s.name, peerName, cktP) // seen 055 for node_0 only though.
-		s.cktAllByName.Set(peerName, cktP)
+		s.cktAllByName[peerName] = cktP
 	} else {
 		//vv("%v ok = true, will connect in background below!", s.name)
 		//url = cktP.URL
@@ -14614,7 +14609,7 @@ func (s *TubeNode) serviceMembershipObservers() {
 		return
 	}
 	var observers []*rpc.Circuit
-	for name, cktP := range s.cktAllByName.GetMapCloneAtomic() {
+	for name, cktP := range s.cktAllByName {
 		_ = name
 		if cktP.isPending() {
 			continue
@@ -14754,7 +14749,7 @@ func (s *TubeNode) haveActualCktAllConnTo(remotePeerName string) (ok bool) {
 		panic("remotePeerName cannot be empty")
 	}
 	var cktP *cktPlus
-	cktP, ok = s.cktAllByName.Get(remotePeerName)
+	cktP, ok = s.cktAllByName[remotePeerName]
 	if ok && cktP.isPending() {
 		ok = false
 	}
@@ -15742,7 +15737,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	// decide to keep one that sortes lexicographically lower
 	// based on cktID.
 
-	oldCktP, haveOld := s.cktAllByName.Get(ckt.RemotePeerName)
+	oldCktP, haveOld := s.cktAllByName[ckt.RemotePeerName]
 	if haveOld && oldCktP.PeerServiceName == ckt.RemoteServiceName {
 		if oldCktP.PeerServiceNameVersion > ckt.RemotePeerServiceNameVersion {
 			alwaysPrintf("%v dropping update to RemotePeerName='%v'; PeerServiceName='%v' with version '%v' that is stale versus our current version '%v'", s.name, ckt.RemotePeerName, oldCktP.PeerServiceName, ckt.RemotePeerServiceNameVersion, oldCktP.PeerServiceNameVersion)
@@ -15822,7 +15817,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	rpc.AliasRegister(ckt.RemotePeerID, "("+ckt.RemotePeerName+") "+ckt.RemotePeerID)
 
 	s.cktall[ckt.RemotePeerID] = cktP
-	s.cktAllByName.Set(cktP.PeerName, cktP)
+	s.cktAllByName[cktP.PeerName] = cktP
 
 	// avoid spurious "-" down (and spurious pending)
 	// on node in watchdog report by
@@ -16257,7 +16252,7 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 		}
 		// we should stop any watchdog for them:
 
-		cktP, ok := s.cktAllByName.Get(tkt.RemovePeerName)
+		cktP, ok := s.cktAllByName[tkt.RemovePeerName]
 		if ok && cktP != nil {
 			s.deleteFromCktAll(cktP)
 			vv("REMOVE_SHADOW_NON_VOTING: did deleteFromCktAll(cktP) for '%v'", tkt.RemovePeerName)
@@ -16467,7 +16462,7 @@ func (s *TubeNode) onLeaderIsCurrentMCcommitted() (curCommited bool) {
 	}
 	curTerm := s.state.CurrentTerm
 	for peerName, _ := range curConfig.PeerNames.All() {
-		cktP0, ok := s.cktAllByName.Get(peerName)
+		cktP0, ok := s.cktAllByName[peerName]
 		if ok && cktP0.ckt != nil {
 			if peerName == s.name {
 				// sanity check our inCurrentConfigCount logic.
@@ -17257,7 +17252,7 @@ func (s *TubeNode) doRemoveShadow(tkt *Ticket) {
 	//vv("%v top of doRemoveShadow() tkt='%v'", s.me(), tkt.Short())
 
 	s.state.ShadowReplicas.PeerNames.Delkey(tkt.RemovePeerName)
-	cktP, ok := s.cktAllByName.Get(tkt.RemovePeerName)
+	cktP, ok := s.cktAllByName[tkt.RemovePeerName]
 	if ok && cktP != nil {
 		s.deleteFromCktAll(cktP)
 	}
