@@ -12738,6 +12738,38 @@ type PeerDetail struct {
 	gcAfterHeartbeatCount int
 }
 
+func (a *PeerDetail) equal(b *PeerDetail) bool {
+
+	if a.Name != b.Name {
+		return false
+	}
+	if a.URL != b.URL {
+		return false
+	}
+	if a.PeerID != b.PeerID {
+		return false
+	}
+	if a.Addr != b.Addr {
+		return false
+	}
+	if a.PeerServiceName != b.PeerServiceName {
+		return false
+	}
+	if a.PeerServiceNameVersion != b.PeerServiceNameVersion {
+		return false
+	}
+	if a.NonVoting != b.NonVoting {
+		return false
+	}
+	if a.PID != b.PID {
+		return false
+	}
+	if a.Hostname != b.Hostname {
+		return false
+	}
+	return true
+}
+
 func (s *PeerDetail) Clone() *PeerDetail {
 	return &PeerDetail{
 		Name:                   s.Name,
@@ -12852,6 +12884,31 @@ func peerNamesUnion(peerNamesA, peerNamesB *Omap[string, *PeerDetail]) (r *Omap[
 		r.Set(okv.key, okv.val)
 	}
 	return
+}
+
+func (mc *MemberConfig) equal(b *MemberConfig) bool {
+	for nameA, detA := range mc.PeerNames.All() {
+		detB, ok := b.PeerNames.Get2(nameA)
+		if !ok {
+			return false
+		}
+		if !detB.equal(detA) {
+			return false
+		}
+	}
+	if mc.ConfigVersion != b.ConfigVersion {
+		return false
+	}
+	if mc.ConfigTerm != b.ConfigTerm {
+		return false
+	}
+	if !mc.CreateTm.Equal(b.CreateTm) {
+		return false
+	}
+	if mc.CreateWho != b.CreateWho {
+		return false
+	}
+	return true
 }
 
 func (mc *MemberConfig) majority() int {

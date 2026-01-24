@@ -34,9 +34,7 @@ func (c *cktPlus) seen(mc *MemberConfig, lastLogIndex, lastLogTerm, currentTerm 
 	// membership should be very stable most of the time.
 	copyNeeded := true
 	if c.MC != nil && mc != nil {
-		if c.MC.ConfigVersion == mc.ConfigVersion &&
-			c.MC.ConfigTerm == mc.ConfigTerm &&
-			c.MC.CreateTm.Equal(mc.CreateTm) {
+		if c.MC.equal(mc) {
 			// dup, can skip the copy
 			copyNeeded = false
 		}
