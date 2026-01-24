@@ -34,7 +34,7 @@ func init() {
 	signal.Notify(sigHupCh, syscall.SIGHUP)
 	go func() {
 		for range sigHupCh {
-			if true { // false => skip mem profile dump for now
+			if false { // false => skip mem profile dump for now
 				rnd8 := cryrand.RandomStringWithUp(8)
 				fn := path + ".memprof." + rnd8
 				alwaysPrintf("got HUP, write mem profile to '%v'.", fn)
