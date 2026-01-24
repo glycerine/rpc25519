@@ -2,7 +2,7 @@ package tube
 
 import (
 	"fmt"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -46,37 +46,34 @@ import (
 // rather than in hlc.go
 //type HLC int64
 
-// Both external and internal users of TubeNode call
-// NewTicket, which creates a new HLC, and so we
-// get data races under test without synchronization.
-//
-// A single hlcMut lock, at least for now, avoids
-// the deadlock risk inherent in having
-// two un-ordered locking operations needed
-// in the comparisons GTE/LTE/GT/LT.
-var hlcMut sync.Mutex
-
 const getCount HLC = HLC(1<<16) - 1 // low 16 bits are 1
 const getLC HLC = ^getCount         // low 16 bits are 0
 
 func (hlc *HLC) LC() int64 {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
-	r := *hlc
+	r := HLC(atomic.LoadInt64((*int64)(hlc)))
 	return int64(r & getLC)
 }
 
 func (hlc *HLC) Count() int64 {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
-	r := *hlc
+	r := HLC(atomic.LoadInt64((*int64)(hlc)))
 	return int64(r & getCount)
 }
 
+// Aload does an atomic load of hlc and returns it.
+// Both external and internal users of TubeNode call
+// NewTicket, which creates a new HLC, and so we
+// get data races under test without synchronization.
+// We use atomic loads to Load/Store in methods.
+// The arguments to methods should use Aload() to
+// read their HLC atomically before calling the method,
+// in the possibility of data races exists.
+func (hlc *HLC) Aload() (r HLC) {
+	r = HLC(atomic.LoadInt64((*int64)(hlc)))
+	return
+}
+
 func (hlc *HLC) String() string {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
-	r := *hlc
+	r := HLC(atomic.LoadInt64((*int64)(hlc)))
 
 	lc := int64(r & getLC)
 	count := int64(r & getCount)
@@ -123,10 +120,8 @@ func PhysicalTime48() HLC {
 // POST: r == *hlc
 func (hlc *HLC) CreateSendOrLocalEvent() (r HLC) {
 
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
-
-	j := *hlc
+	j := HLC(atomic.LoadInt64((*int64)(hlc)))
+	// equivalent to: j := *hlc
 
 	ptj := PhysicalTime48()
 	jLC := j & getLC
@@ -142,7 +137,10 @@ func (hlc *HLC) CreateSendOrLocalEvent() (r HLC) {
 		jCount = 0
 	}
 	r = (jLC + jCount)
-	*hlc = r
+
+	// equivalent to: *hlc = r
+	atomic.StoreInt64((*int64)(hlc), int64(r))
+
 	return
 }
 
@@ -151,10 +149,7 @@ func (hlc *HLC) CreateSendOrLocalEvent() (r HLC) {
 // hlc conversion of the low 16 bits.
 func (hlc *HLC) CreateAndNow() (r HLC, now time.Time) {
 
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
-
-	j := *hlc
+	j := HLC(atomic.LoadInt64((*int64)(hlc)))
 
 	//inlined ptj := PhysicalTime48()
 	now = time.Now()
@@ -174,20 +169,19 @@ func (hlc *HLC) CreateAndNow() (r HLC, now time.Time) {
 		jCount = 0
 	}
 	r = (jLC + jCount)
-	*hlc = r
+	atomic.StoreInt64((*int64)(hlc), int64(r))
 	return
 }
 
 // ReceiveMessageWithHLC
-// updates the local hybrid clock j based on the
+// updates the local hybrid clock hlc based on the
 // received message m's hybrid clock.
+// PRE: m should be owned exclusively or the result of an
+// atomic load with Aload() to avoid data races.
 // POST: r == *hlc
 func (hlc *HLC) ReceiveMessageWithHLC(m HLC) (r HLC) {
 
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
-
-	j := *hlc
+	j := HLC(atomic.LoadInt64((*int64)(hlc)))
 
 	jLC := j & getLC
 	jCount := j & getCount
@@ -213,7 +207,7 @@ func (hlc *HLC) ReceiveMessageWithHLC(m HLC) (r HLC) {
 		jCount = 0
 	}
 	r = (jLC + jCount)
-	*hlc = r
+	atomic.StoreInt64((*int64)(hlc), int64(r))
 	return
 }
 
@@ -226,106 +220,10 @@ func (hlc HLC) ToTime() time.Time {
 // of hlc; the lower 16 bits of r.UnixNano() will be all 0.
 // See ToTime to include the Count as well.
 func (hlc *HLC) ToTime48() (r time.Time) {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
 
-	lc := int64(*hlc & getLC)
+	j := HLC(atomic.LoadInt64((*int64)(hlc)))
+
+	lc := int64(j & getLC)
 	r = time.Unix(0, int64(lc))
 	return
-}
-
-// GT returns (hlc > b), in the hybrid
-// logical clock math.
-// PRE: b must not be concurrently modified
-// during our execution. Only hlc
-// is accessed atomically. Use LT if need be.
-func (hlc *HLC) GT(b HLC) bool {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
-	a := *hlc
-
-	aLC := a & getLC
-	bLC := b & getLC
-	if aLC > bLC {
-		return true
-	}
-	if aLC < bLC {
-		return false
-	}
-	// INVAR: aLC == bLC
-	aCount := a & getCount
-	bCount := b & getCount
-	return aCount > bCount
-}
-
-// GTE returns (hlc >= b), in the hybrid
-// logical clock math.
-// PRE: b must not be concurrently modified
-// during our execution. Only hlc
-// is accessed atomically. Use LTE if need be.
-func (hlc *HLC) GTE(b HLC) bool {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
-	a := *hlc
-
-	aLC := a & getLC
-	bLC := b & getLC
-	if aLC > bLC {
-		return true
-	}
-	if aLC < bLC {
-		return false
-	}
-	// INVAR: aLC == bLC
-	aCount := a & getCount
-	bCount := b & getCount
-	return aCount >= bCount
-}
-
-// LT returns (hlc < b), in the hybrid
-// logical clock math.
-// PRE: b must not be concurrently modified
-// during our execution. Only hlc
-// is accessed atomically. Use GT if need be.
-func (hlc *HLC) LT(b HLC) bool {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
-	a := *hlc
-
-	aLC := a & getLC
-	bLC := b & getLC
-	if aLC < bLC {
-		return true
-	}
-	if aLC > bLC {
-		return false
-	}
-	// INVAR: aLC == bLC
-	aCount := a & getCount
-	bCount := b & getCount
-	return aCount < bCount
-}
-
-// LTE returns (hlc <= b), in the hybrid
-// logical clock math.
-// PRE: b must not be concurrently modified
-// during our execution. Only hlc
-// is accessed atomically. Use GTE if need be.
-func (hlc *HLC) LTE(b HLC) bool {
-	hlcMut.Lock()
-	defer hlcMut.Unlock()
-	a := *hlc
-
-	aLC := a & getLC
-	bLC := b & getLC
-	if aLC < bLC {
-		return true
-	}
-	if aLC > bLC {
-		return false
-	}
-	// INVAR: aLC == bLC
-	aCount := a & getCount
-	bCount := b & getCount
-	return aCount <= bCount
 }

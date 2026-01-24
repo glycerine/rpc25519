@@ -46,7 +46,7 @@ func Test_HLC_Monotonicity(t *testing.T) {
 		for i := 0; i < 1000; i++ {
 			prev := j
 			j.CreateSendOrLocalEvent()
-			if !j.GT(prev) {
+			if j <= prev {
 				t.Errorf("Monotonicity violation: new %v not > old %v (iter %d)", j, prev, i)
 			}
 			if j.LC() < prev.LC() {
@@ -129,7 +129,7 @@ func Test_HLC_ReceiveMessage(t *testing.T) {
 				initialJ:  PhysicalTime48(),
 				receivedM: 0,
 				check: func(oldJ, newJ, m HLC) error {
-					if !newJ.GT(oldJ) {
+					if newJ <= oldJ {
 						return fmt.Errorf("should increase")
 					}
 					// Since m is very old, newJ should likely be driven by PhysicalTime or oldJ logic
@@ -179,7 +179,7 @@ func Test_HLC_ReceiveMessage(t *testing.T) {
 			if err := tc.check(tc.initialJ, j, tc.receivedM); err != nil {
 				t.Error(err)
 			}
-			if !j.GT(tc.initialJ) {
+			if j <= tc.initialJ {
 				t.Errorf("Monotonicity violation in receive: new %v not > old %v", j, tc.initialJ)
 			}
 			//})
@@ -223,16 +223,16 @@ func Test_HLC_Comparison(t *testing.T) {
 		for _, tc := range tests {
 			fmt.Printf("RUN test '%v'\n", tc.desc)
 			//t.Run(tc.desc, func(t *testing.T) {
-			if tc.lhs.GT(tc.rhs) != tc.gt {
+			if (tc.lhs > tc.rhs) != tc.gt {
 				t.Errorf("GT mismatch for %v, %v", tc.lhs, tc.rhs)
 			}
-			if tc.lhs.GTE(tc.rhs) != tc.gte {
+			if (tc.lhs >= tc.rhs) != tc.gte {
 				t.Errorf("GTE mismatch")
 			}
-			if tc.lhs.LT(tc.rhs) != tc.lt {
+			if (tc.lhs < tc.rhs) != tc.lt {
 				t.Errorf("LT mismatch")
 			}
-			if tc.lhs.LTE(tc.rhs) != tc.lte {
+			if (tc.lhs <= tc.rhs) != tc.lte {
 				t.Errorf("LTE mismatch")
 			}
 			//})
