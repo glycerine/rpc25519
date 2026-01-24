@@ -2625,6 +2625,10 @@ type RaftLogEntry struct {
 	Tm         time.Time `zid:"6"`
 	LeaderName string    `zid:"7"`
 
+	// the LogHLC is set from the leader's HLC
+	// when the entry is written, just like Tm.
+	LogHLC HLC `zid:"8"`
+
 	committed bool   // for safety assertions (but local and leader only!)
 	msgbytes  []byte // to sustain the hash-chain
 	node      *TubeNode
@@ -5916,7 +5920,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		return
 	}
 
-	now := time.Now()
+	logHLC, now := s.hlc.CreateAndNow()
 	var idx int64
 	lli, llt := s.wal.LastLogIndexAndTerm()
 	if lli > 0 {
@@ -5927,7 +5931,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		idx = 1
 	}
 
-	entry := s.prepOne(tkt, now, idx)
+	entry := s.prepOne(tkt, now, idx, logHLC)
 
 	// index of log entry immediately preceeding new ones
 	var prevLogIndex int64
@@ -6025,7 +6029,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	// end of replicateTicket
 }
 
-func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64) *RaftLogEntry {
+func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64, logHLC HLC) *RaftLogEntry {
 
 	tkt.LogIndex = idx // tkt.LogIndex is assigned here.
 	if tkt.Op == SESS_NEW {
@@ -6073,6 +6077,7 @@ func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64) *RaftLogEntry 
 	tkt.Term = s.state.CurrentTerm
 	entry := &RaftLogEntry{
 		Tm:                 now,
+		LogHLC:             logHLC,
 		LeaderName:         s.name,
 		Term:               s.state.CurrentTerm,
 		Index:              idx,
@@ -6099,7 +6104,6 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 		return
 	}
 
-	now := time.Now()
 	clusterSz := s.clusterSize()
 	var idx int64
 
@@ -6129,7 +6133,9 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 		//}
 		// else replicate it
 		idx++
-		entry := s.prepOne(tkt, now, idx)
+		logHLC, now := s.hlc.CreateAndNow()
+
+		entry := s.prepOne(tkt, now, idx, logHLC)
 
 		if tkt.Op == MEMBERSHIP_SET_UPDATE ||
 			tkt.Op == MEMBERSHIP_BOOTSTRAP {
@@ -13310,8 +13316,11 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 	tkt.MC.RaftLogIndex = 1
 	//tkt.MC.ConfigVersion = 1
 
+	logHLC, now := s.hlc.CreateAndNow()
+
 	entry := &RaftLogEntry{
-		Tm:                 time.Now(),
+		Tm:                 now,
+		LogHLC:             logHLC,
 		LeaderName:         s.name,
 		Term:               1, // s.state.CurrentTerm,
 		Index:              1, // idx,
@@ -14705,8 +14714,11 @@ func (s *TubeNode) testSetupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntr
 	tkt.MC = boot.NewConfig.Clone()
 	tkt.MC.RaftLogIndex = 1
 
+	logHLC, now := s.hlc.CreateAndNow()
+
 	entry := &RaftLogEntry{
-		Tm:                 time.Now(),
+		Tm:                 now,
+		LogHLC:             logHLC,
 		LeaderName:         s.name,
 		Term:               1, // s.state.CurrentTerm,
 		Index:              1, // idx,
