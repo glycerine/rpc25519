@@ -2788,14 +2788,19 @@ type RaftState struct {
 	// ====================================
 }
 
-// called after snapshot uptake
-func (s *TubeNode) updateSessTableByClientName() {
+// called after snapshot uptake. set justOne = nil to update
+// the whole table, or use it to only update a single ste.
+func (s *TubeNode) updateSessTableByClientName(justOne *SessionTableEntry) {
 
 	if s.state.sessTableByClientName == nil {
 		s.state.sessTableByClientName = make(map[string]*SessionTableEntry)
 	}
 	var goners []*SessionTableEntry
-	for _, ste := range s.state.SessTable {
+	scanMe := s.state.SessTable
+	if justOne != nil {
+		scanMe = map[string]*SessionTableEntry{"": justOne}
+	}
+	for _, ste := range scanMe {
 		prior, ok := s.state.sessTableByClientName[ste.ClientName]
 		if ok && prior != ste {
 			// which is latest, keep only it.
@@ -9993,6 +9998,8 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 
 		// update LastAppliedLogHLC from the RaftLogEntry.LogHLC
 		s.state.LastAppliedLogHLC.ReceiveMessageWithHLC(do.LogHLC)
+		// below do s.garbageCollectOldSessions() to let session
+		// refresh have a chance.
 
 		// record this to remember the Term with the
 		// state.LastApplied index.
@@ -10188,6 +10195,9 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 			// end client session implementation
 			// =========================================
 		}
+		// after refresh above has had a chance.
+		s.garbageCollectOldSessions()
+
 		if tkt.FromID == s.PeerID {
 			//vv("%v commitWhatWeCan (from self), calling FinishTicket for tkt4=%v", s.me(), tkt.TicketID[:4])
 			s.FinishTicket(tkt, calledOnLeader) // deleting from WAF while waiting for reply! 2nd call on leader
@@ -15285,7 +15295,7 @@ func (s *TubeNode) applyNewSess(tkt *Ticket, calledOnLeader bool) {
 		ste = newSessionTableEntry(sess.Clone()) // only call
 		s.state.SessTable[sess.SessionID] = ste
 		s.sessByExpiry.tree.Insert(ste)
-		s.updateSessTableByClientName()
+		s.updateSessTableByClientName(ste)
 	} else {
 		panic(fmt.Sprintf("%v: arg: already have SessionID='%v' in s.state.SessTable. This should not happen right? what about log replay?", s.me(), sess.SessionID))
 	}
@@ -15297,41 +15307,35 @@ func (s *TubeNode) applyNewSess(tkt *Ticket, calledOnLeader bool) {
 	}
 }
 
+// delete anything past s.state.LastAppliedLogHLC
 func (s *TubeNode) garbageCollectOldSessions() {
-	if s.role != LEADER {
-		return
-	}
+	//if s.role != LEADER {
+	//	return
+	//}
 	if s.state == nil || s.state.SessTable == nil {
 		return
 	}
-	now := time.Now()
+
+	lnow := s.state.LastAppliedLogHLC.ToTime()
+
 	//for id, ste := range s.state.SessTable {
 	for it := s.sessByExpiry.tree.Min(); !it.Limit(); {
 		ste := it.Item().(*SessionTableEntry)
 		id := ste.SessionID
 
-		if gte(now, ste.SessionEndxTm) {
-			desc := fmt.Sprintf("%v: about to replicate SESS_END for SessionID: '%v' b/c expired at '%v' <= now='%v'", s.name, id, nice(ste.SessionEndxTm), nice(now))
-
-			//vv("%v ste.SessionEndxTm='%v' expired. garbageCollectOldSessions replicating SESS_END.", s.me(), nice(ste.SessionEndxTm))
-
-			// this may be a major memory leak... why is this Ticket memory not cleaned up?
-			// I think every time a session is refreshed, something happens to extend memory?
-			// What if we just scan for expired sessions at a regular interval?
-			// and also validate any session used on a ticket and kick it back if
-			// the session "would" have been deleted already.
-			tkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, SESS_END, 0, s.MyPeer.Ctx)
-			//vv("in-garbageCollectOldSessions-NewTicket-gave-tkt= %p", tkt)
-			tkt.EndSessReq_SessionID = id
-			s.replicateTicket(tkt)
-
-			// let applyEndSess() do the actual deletion,
-			// so that it happens in the correct serial order
-			// on all state machines.
-		} else {
+		if lnow.Before(ste.SessionEndxTm) {
 			break // since sessByExpiry is sorted, all others are later.
 		}
+		delit := it
 		it = it.Next()
+		s.sessByExpiry.tree.DeleteWithIterator(delit)
+		delete(s.state.SessTable, id)
+		prior, ok := s.state.sessTableByClientName[ste.ClientName]
+		if ok {
+			if prior.SessionID == id {
+				delete(s.state.sessTableByClientName, ste.ClientName)
+			}
+		}
 	}
 }
 
@@ -16742,7 +16746,7 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	if state2.SessTable != nil {
 		// why is this not already done? because we applie state2 field-by-field.
 		s.state.SessTable = state2.SessTable
-		s.updateSessTableByClientName()
+		s.updateSessTableByClientName(nil)
 	}
 
 	s.saver.save(s.state)

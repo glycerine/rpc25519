@@ -211,9 +211,11 @@ func (hlc *HLC) ReceiveMessageWithHLC(m HLC) (r HLC) {
 	return
 }
 
-// ToTime returns the Count as the nanoseconds.
-func (hlc HLC) ToTime() time.Time {
-	return time.Unix(0, int64(hlc))
+// ToTime returns the LC and Count as the nanoseconds since Unix epoch
+// using the time.Unix() call directly.
+func (hlc *HLC) ToTime() time.Time {
+	j := atomic.LoadInt64((*int64)(hlc))
+	return time.Unix(0, j)
 }
 
 // ToTime48 returns only the LC in the upper 48 bits
