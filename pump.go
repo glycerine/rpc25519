@@ -184,7 +184,7 @@ func (pb *LocalPeer) peerbackPump() {
 			if msg.HDR.Typ == CallPeerFromIsShutdown && msg.HDR.FromPeerID != pb.PeerID {
 				rpb, n, ok := pb.Remotes.GetValNDel(msg.HDR.FromPeerID)
 				if ok {
-					vv("%v: got notice of shutdown of peer '%v'", name, AliasDecode(msg.HDR.FromPeerID))
+					//vv("%v: got notice of shutdown of peer '%v'", name, AliasDecode(msg.HDR.FromPeerID))
 					_ = rpb
 					//zz("what more do we need to do with rpb on its shutdown?")
 				}
