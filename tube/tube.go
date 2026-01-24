@@ -352,12 +352,15 @@ func init() {
 // https://cse.buffalo.edu/~demirbas/publications/augmentedTime.pdf
 // https://github.com/AugmentedTimeProject/AugmentedTimeProject
 //
-// Currently there is no mutual exclusion / synchronization
-// provided, and the user must arrange for that separately if
-// required.
+// Goroutine safety: all HLC routines are goroutine
+// safe except for the argument m to ReceiveMessageWithHLC(m)
+// by default, since m is typically from a network
+// message that is exclusive owned. If m could be shared,
+// read its HLC with Aload() first before passing it to
+// ReceiveMessageWithHLC().
 //
-// defined in tube.go now for greenpack serz purposes,
-// rather than in hlc.go
+// HLC is defined in tube.go now for greenpack serialization
+// purposes, to get effective inlining, rather than in hlc.go.
 type HLC int64
 
 // if we run out out test-coordination channel buffer

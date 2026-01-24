@@ -38,12 +38,15 @@ import (
 // https://cse.buffalo.edu/~demirbas/publications/augmentedTime.pdf
 // https://github.com/AugmentedTimeProject/AugmentedTimeProject
 //
-// Currently there is no mutual exclusion / synchronization
-// provided, and the user must arrange for that separately if
-// required.
-// .
-// defined in tube.go now for greenpack serz purposes,
-// rather than in hlc.go
+// Goroutine safety: all HLC routines are goroutine
+// safe except for the argument m to ReceiveMessageWithHLC(m)
+// by default, since m is typically from a network
+// message that is exclusive owned. If m could be shared,
+// read its HLC with Aload() first before passing it to
+// ReceiveMessageWithHLC().
+//
+// HLC is defined in tube.go now for greenpack serialization
+// purposes, to get effective inlining.
 //type HLC int64
 
 const getCount HLC = HLC(1<<16) - 1 // low 16 bits are 1
