@@ -1032,7 +1032,7 @@ func (s *TubeNode) Start(
 	// centralize all peer incomming messages here,
 	// to avoid locking in a million places.
 	// (sent on in <-newCircuitCh handling below).
-	arrivingNetworkFrag := make(chan *fragCkt)
+	arrivingNetworkFrag := make(chan fragCkt)
 
 	//vv("%v about to enter for/select loop. nextElection timeout '%v'; MC=%v ; cfg.Node2Addr = '%v'", s.me(), time.Until(s.nextElection), s.state.MC, s.cfg.Node2Addr)
 
@@ -1555,7 +1555,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		case fragCkt2 := <-arrivingNetworkFrag:
 			frag := fragCkt2.frag
 			ckt := fragCkt2.ckt
-			fragCkt2 = nil
+			fragCkt2.frag = nil
+			fragCkt2.ckt = nil
 
 			s.countFrag++
 			//s.ay("%v <-net sees %v [%v] (seen: %v) total=%v", s.me(), msgop(frag.FragOp), frag.Typ, s.statString(frag), s.countFrag)
@@ -1989,7 +1990,7 @@ func (s *TubeNode) clientInstallNewTubeClusterMC(mc *MemberConfig) {
 func (s *TubeNode) handleNewCircuit(
 	ckt *rpc.Circuit,
 	done0 <-chan struct{},
-	arrivingNetworkFrag chan *fragCkt,
+	arrivingNetworkFrag chan fragCkt,
 	cktHasError chan *cktAndError,
 	cktHasDied chan *rpc.Circuit,
 
@@ -2184,7 +2185,7 @@ func (s *TubeNode) handleNewCircuit(
 				//}
 				// centralize to avoid locking in a bajillion places
 				select {
-				case arrivingNetworkFrag <- &fragCkt{frag: frag, ckt: ckt}:
+				case arrivingNetworkFrag <- fragCkt{frag: frag, ckt: ckt}:
 				case <-s.Halt.ReqStop.Chan:
 					//zz("%v: halt.ReqStop seen", s.name)
 					return rpc.ErrHaltRequested
