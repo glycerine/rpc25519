@@ -43,7 +43,7 @@ func Test707_client_linz_semantics(t *testing.T) {
 		// seems like we want RPC semantics for this
 		// and maybe for other calls?
 		_ = bkg.Done()
-		sess, err := cli.CreateNewSession(bkg, leaderURL)
+		sess, err := cli.CreateNewSession(bkg, leaderNode.name, leaderURL)
 		panicOn(err)
 		if sess.ctx == nil {
 			panic(fmt.Sprintf("sess.ctx should be not nil"))
@@ -134,7 +134,7 @@ func Test708_client_linz_SessionSerial_gap_caught(t *testing.T) {
 		// request new session
 		// seems like we want RPC semantics for this
 		// and maybe for other calls?
-		sess, err := cli.CreateNewSession(bkg, leaderURL)
+		sess, err := cli.CreateNewSession(bkg, leaderNode.name, leaderURL)
 		panicOn(err)
 		//vv("got sess = '%v'", sess)
 
@@ -373,7 +373,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 		panicOn(err)
 		defer cli.Close()
 
-		sess, err := cli.CreateNewSession(bkg, leaderURL0)
+		sess, err := cli.CreateNewSession(bkg, leaderNode0.name, leaderURL0)
 		panicOn(err)
 		//vv("got sess = '%v'", sess)
 
@@ -435,7 +435,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 		// and so sends the next Read off into the void at the old dead leader.
 		// getCircuitToLeader sets the updated s.leaderName.
 		//ckt2, onlyPossibleAddr2, _, err2 :=
-		_, _, _, err2 := cli.getCircuitToLeader(bkg, leaderURL, nil, false, "Test710_client_linz")
+		_, _, _, err2 := cli.getCircuitToLeader(bkg, leaderName, leaderURL, nil, false, "Test710_client_linz")
 		panicOn(err2)
 
 		if !reallyLeader {

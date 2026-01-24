@@ -233,7 +233,7 @@ func Test401_add_node(t *testing.T) {
 			// we stopped sending AE to clients. but maybe we
 			// do need to heartbeat to them (no data) so they
 			// know who the leader is(!)
-			_, err = node4.UseLeaderURL(bkg, leaderURL)
+			_, err = node4.UseLeaderURL(bkg, leaderNode.name, leaderURL)
 			panicOn(err)
 			tkt, err := node4.Write(bkg, "", "xmem", xmem.SerzBytes(), 0, nil, "", 0, leaseAutoDelFalse)
 			panicOn(err)

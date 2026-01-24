@@ -135,7 +135,7 @@ func main() {
 
 	// when no leader, we hang, our tkt in awaitingLeader.
 	pp("%v: calling node.CreateNewSession(leaderURL = '%v')", cfg.MyName, leaderURL)
-	sess, err := node.CreateNewSession(ctx, leaderURL)
+	sess, err := node.CreateNewSession(ctx, leaderName, leaderURL)
 	panicOn(err)
 	defer sess.Close()
 	//pp("back from node.CreateNewSession(leaderURL='%v')", leaderURL)
@@ -147,7 +147,7 @@ func main() {
 		errs := err.Error()
 		if strings.Contains(errs, "call CreateNewSession first") {
 			sess.Close()
-			s2, err := node.CreateNewSession(ctx, leaderURL)
+			s2, err := node.CreateNewSession(ctx, leaderName, leaderURL)
 			panicOn(err)
 			return s2
 		}

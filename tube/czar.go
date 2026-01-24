@@ -691,12 +691,12 @@ fullRestart:
 		const keepCktUp = true // false
 		for k := 0; ; k++ {
 			vv("find leader loop k = %v", k)
-			leaderURL, _, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp)
+			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp)
 			vv("helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", leaderURL, reallyLeader, err)
 			panicOn(err)
 
 			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-			czar.sess, err = cli.CreateNewSession(ctx5, leaderURL)
+			czar.sess, err = cli.CreateNewSession(ctx5, leaderName, leaderURL)
 			canc()
 			//panicOn(err) // panic: hmm. no leader known to me (node 'node_0')
 			if err == nil {

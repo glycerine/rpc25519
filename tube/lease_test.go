@@ -60,7 +60,7 @@ func Test079_lease_from_leader(t *testing.T) {
 		leader := nodes[0]
 		ctx := context.Background()
 
-		sess, err := nodes[1].CreateNewSession(ctx, leader.URL)
+		sess, err := nodes[1].CreateNewSession(ctx, leader.name, leader.URL)
 		panicOn(err)
 		defer sess.Close()
 		vv("good: got session to leader (maybe from leader to leader, but meh, we cannot always know who is leader...). sess=%p", sess)
@@ -84,7 +84,7 @@ func Test079_lease_from_leader(t *testing.T) {
 		// server. It should fail because the key is already leased out.
 
 		time.Sleep(15 * time.Second)
-		sess2, err := nodes[2].CreateNewSession(ctx, leader.URL)
+		sess2, err := nodes[2].CreateNewSession(ctx, leader.name, leader.URL)
 		leaseTkt2, err2 := sess2.Write(ctx, leaseTable, leaseKey, leaseVal, 0, leaseVtype, leaseRequestDur, leaseAutoDelFalse)
 		if leaseTkt2.Err == nil || err2 == nil {
 			panic("expected error from re-lease attempt")
