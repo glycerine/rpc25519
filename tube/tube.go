@@ -2251,6 +2251,7 @@ func (s *TubeNode) cleanupGoneCktP(cktP *cktPlus) (allGone bool) {
 		s.cktAuditByPeerID.Del(ckt.RemotePeerID)
 		allGone = true
 	}
+	s.deleteFromCktAll(cktP)
 	return
 }
 
