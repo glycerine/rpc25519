@@ -15067,6 +15067,8 @@ type Session struct {
 	// assigned on server when SessionIndexEndxTm is set.
 	T0 time.Time `zid:"20"`
 
+	LastAppliedLogHLC HLC `zid:"21"`
+
 	readyCh chan struct{}
 	cli     *TubeNode // local only, allow calling Write/Read on Session.
 
@@ -15098,6 +15100,7 @@ func (z *Session) String() (r string) {
 
 	r += fmt.Sprintf("  //----- initial response  -----\n")
 	r += fmt.Sprintf(" SessionAssignedIndex: %v,\n", z.SessionAssignedIndex)
+	r += fmt.Sprintf("    LastAppliedLogHLC: %v,\n", z.LastAppliedLogHLC.String())
 	r += fmt.Sprintf("            SessionID: \"%v\",\n", z.SessionID)
 	r += fmt.Sprintf("                   T0: %v,\n", nice(z.T0))
 	r += fmt.Sprintf("   SessionIndexEndxTm: %v,\n", nice(z.SessionIndexEndxTm))
@@ -15301,6 +15304,7 @@ func (s *TubeNode) leaderSideCreateNewSess(tkt *Ticket) {
 	now := time.Now()
 	r.T0 = now
 	r.SessionIndexEndxTm = now.Add(r.SessRequestedInitialDur)
+	r.LastAppliedLogHLC = s.state.LastAppliedLogHLC
 
 	r.LeaderName = s.name
 	r.LeaderPeerID = s.PeerID
