@@ -2132,6 +2132,7 @@ func (s *TubeNode) handleNewCircuit(
 			//}
 
 			allGone := s.cleanupGoneCktP(cktP)
+			// data race on s.cktall if: s.deleteFromCktAll(cktP); peerLeftCh below cleans up.
 			ckt.Close(err0)
 
 			if allGone {
@@ -2251,7 +2252,6 @@ func (s *TubeNode) cleanupGoneCktP(cktP *cktPlus) (allGone bool) {
 		s.cktAuditByPeerID.Del(ckt.RemotePeerID)
 		allGone = true
 	}
-	s.deleteFromCktAll(cktP)
 	return
 }
 
@@ -2336,6 +2336,7 @@ func (s *TubeNode) pruneDown(goner, keeper *cktPlus) {
 			if readerGoroGone {
 				//vv("cleanup goner to '%v'. better late than never.", goner.PeerName)
 				s.cleanupGoneCktP(goner)
+				s.deleteFromCktAll(goner)
 			}
 		}
 		return // no point in sending a message on a closed circuit, will always fail.
@@ -3915,7 +3916,11 @@ func (s *TubeCluster) Start() {
 	for i, n := range s.Nodes {
 		if i < s.Cfg.deadOnStartCount {
 			// leave this node off, 024 election test.
+			// internal only:
 			n.shutdown()
+			// external friendly, but main goro never started so insufficient:
+			//n.Halt.RequestStop()
+			//n.Halt.Done.Close()
 			continue
 		}
 		err := n.InitAndStart()
@@ -4024,10 +4029,11 @@ func (s *TubeNode) CloseWithReason(reason error) {
 	<-s.Halt.Done.Chan
 }
 
+// should be internally only
 func (s *TubeNode) shutdown() {
 	//vv("%v shutdown; started=%v; cluster: '%v'", s.name, s.started, s.cfg.ClusterID)
 
-	for _, ckt := range s.cktall {
+	for _, ckt := range s.cktall { // panic: concurrent map iteration & map write; called by :1167 in Start()
 		ckt.ckt.LpbFrom.Close()
 	}
 	s.Halt.ReqStop.Close()
