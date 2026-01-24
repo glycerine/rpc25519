@@ -12887,6 +12887,9 @@ func peerNamesUnion(peerNamesA, peerNamesB *Omap[string, *PeerDetail]) (r *Omap[
 }
 
 func (mc *MemberConfig) equal(b *MemberConfig) bool {
+	if mc.PeerNames.Len() != b.PeerNames.Len() {
+		return false
+	}
 	for nameA, detA := range mc.PeerNames.All() {
 		detB, ok := b.PeerNames.Get2(nameA)
 		if !ok {
