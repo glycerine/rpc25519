@@ -123,27 +123,31 @@ func PhysicalTime48() HLC {
 // POST: r == *hlc
 func (hlc *HLC) CreateSendOrLocalEvent() (r HLC) {
 
-	j := HLC(atomic.LoadInt64((*int64)(hlc)))
-	// equivalent to: j := *hlc
+	for {
+		j := HLC(atomic.LoadInt64((*int64)(hlc)))
+		// equivalent to: j := *hlc
 
-	ptj := PhysicalTime48()
-	jLC := j & getLC
-	jCount := j & getCount
+		ptj := PhysicalTime48()
+		jLC := j & getLC
+		jCount := j & getCount
 
-	jLC1 := jLC
-	if ptj > jLC {
-		jLC = ptj
+		jLC1 := jLC
+		if ptj > jLC {
+			jLC = ptj
+		}
+		if jLC == jLC1 {
+			jCount++
+		} else {
+			jCount = 0
+		}
+		r = (jLC + jCount)
+
+		// equivalent to: *hlc = r
+		if atomic.CompareAndSwapInt64((*int64)(hlc), int64(j), int64(r)) {
+			return
+		}
+		// collision with another writer, try again.
 	}
-	if jLC == jLC1 {
-		jCount++
-	} else {
-		jCount = 0
-	}
-	r = (jLC + jCount)
-
-	// equivalent to: *hlc = r
-	atomic.StoreInt64((*int64)(hlc), int64(r))
-
 	return
 }
 
@@ -152,27 +156,33 @@ func (hlc *HLC) CreateSendOrLocalEvent() (r HLC) {
 // hlc conversion of the low 16 bits.
 func (hlc *HLC) CreateAndNow() (r HLC, now time.Time) {
 
-	j := HLC(atomic.LoadInt64((*int64)(hlc)))
+	for {
+		j := HLC(atomic.LoadInt64((*int64)(hlc)))
 
-	//inlined ptj := PhysicalTime48()
-	now = time.Now()
-	pt := now.UnixNano()
-	ptj := (HLC(pt) + getCount) & getLC
+		//inlined ptj := PhysicalTime48()
+		now = time.Now()
+		pt := now.UnixNano()
+		ptj := (HLC(pt) + getCount) & getLC
 
-	jLC := j & getLC
-	jCount := j & getCount
+		jLC := j & getLC
+		jCount := j & getCount
 
-	jLC1 := jLC
-	if ptj > jLC {
-		jLC = ptj
+		jLC1 := jLC
+		if ptj > jLC {
+			jLC = ptj
+		}
+		if jLC == jLC1 {
+			jCount++
+		} else {
+			jCount = 0
+		}
+		r = (jLC + jCount)
+
+		if atomic.CompareAndSwapInt64((*int64)(hlc), int64(j), int64(r)) {
+			return
+		}
+		// collision with another writer, try again.
 	}
-	if jLC == jLC1 {
-		jCount++
-	} else {
-		jCount = 0
-	}
-	r = (jLC + jCount)
-	atomic.StoreInt64((*int64)(hlc), int64(r))
 	return
 }
 
@@ -184,33 +194,39 @@ func (hlc *HLC) CreateAndNow() (r HLC, now time.Time) {
 // POST: r == *hlc
 func (hlc *HLC) ReceiveMessageWithHLC(m HLC) (r HLC) {
 
-	j := HLC(atomic.LoadInt64((*int64)(hlc)))
+	for {
+		j := HLC(atomic.LoadInt64((*int64)(hlc)))
 
-	jLC := j & getLC
-	jCount := j & getCount
-	jlcOrig := jLC
+		jLC := j & getLC
+		jCount := j & getCount
+		jlcOrig := jLC
 
-	mLC := m & getLC
-	mCount := m & getCount
+		mLC := m & getLC
+		mCount := m & getCount
 
-	ptj := PhysicalTime48()
-	if ptj > jLC {
-		jLC = ptj
+		ptj := PhysicalTime48()
+		if ptj > jLC {
+			jLC = ptj
+		}
+		if mLC > jLC {
+			jLC = mLC
+		}
+		if jLC == jlcOrig && jlcOrig == mLC {
+			jCount = max(jCount, mCount) + 1
+		} else if jLC == jlcOrig {
+			jCount++
+		} else if jLC == mLC {
+			jCount = mCount + 1
+		} else {
+			jCount = 0
+		}
+		r = (jLC + jCount)
+
+		if atomic.CompareAndSwapInt64((*int64)(hlc), int64(j), int64(r)) {
+			return
+		}
+		// collision with another writer, try again.
 	}
-	if mLC > jLC {
-		jLC = mLC
-	}
-	if jLC == jlcOrig && jlcOrig == mLC {
-		jCount = max(jCount, mCount) + 1
-	} else if jLC == jlcOrig {
-		jCount++
-	} else if jLC == mLC {
-		jCount = mCount + 1
-	} else {
-		jCount = 0
-	}
-	r = (jLC + jCount)
-	atomic.StoreInt64((*int64)(hlc), int64(r))
 	return
 }
 
