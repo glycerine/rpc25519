@@ -2244,6 +2244,14 @@ func (s *TubeNode) cleanupGoneCktP(cktP *cktPlus) (allGone bool) {
 	debugGlobalCkt.Del(ckt.CircuitID)
 	s.cktAuditByCID.Del(ckt.CircuitID)
 
+	// cleanup cktAuditByName, only if we have the exact same circuit.
+	if cktP.PeerName != "" {
+		ckt2, ok := s.cktAuditByName.Get(cktP.PeerName)
+		if ok && ckt2.CircuitID == ckt.CircuitID {
+			s.cktAuditByName.Del(cktP.PeerName)
+		}
+	}
+
 	if cktP.dups != nil {
 		newSz := cktP.dups.Del(cktP)
 		//vv("deleted ckt to '%v' from dups, left newSz=%v", cktP.PeerName, newSz)
@@ -2403,6 +2411,11 @@ func (s *TubeNode) deleteFromCktAll(oldCktP *cktPlus) {
 	// do we want? think so.
 	delete(s.cktReplica, oldCktP.PeerID)
 
+	// cktAuditByName
+	ckt, ok := s.cktAuditByName.Get(oldCktP.PeerName)
+	if ok && oldCktP.ckt.CircuitID == ckt.CircuitID {
+		s.cktAuditByName.Del(oldCktP.PeerName)
+	}
 }
 
 func lte(a, b time.Time) bool {
@@ -3214,8 +3227,9 @@ type TubeNode struct {
 	// to figure out where we are leaking/prune back.
 	// This is the per TubeNode version of debugGlobalCkt.
 	//
-	cktAuditByCID    *rpc.Mutexmap[string, *cktPlus] // key is CircuitID
-	cktAuditByPeerID *rpc.Mutexmap[string, *cktPlus] // key is RemotePeerID
+	cktAuditByCID    *rpc.Mutexmap[string, *cktPlus]     // key is CircuitID
+	cktAuditByPeerID *rpc.Mutexmap[string, *cktPlus]     // key is RemotePeerID
+	cktAuditByName   *rpc.Mutexmap[string, *rpc.Circuit] // key is RemotePeerName
 
 	// every minute, check to see if we should prune
 	// back redundant circuits to clients.
@@ -4221,6 +4235,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		sessByExpiry:     newSessTableByExpiry(),
 		cktAuditByCID:    rpc.NewMutexmap[string, *cktPlus](),
 		cktAuditByPeerID: rpc.NewMutexmap[string, *cktPlus](),
+		cktAuditByName:   rpc.NewMutexmap[string, *rpc.Circuit](),
 		pruneDupDur:      time.Second * 20,
 		hupRequestCIDsCh: make(chan bool, 100),
 	}
@@ -12095,19 +12110,28 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderName, leaderURL
 	//vv("top getCircuitToLeader() stack = '%v'", stack())
 	//}
 
-	// try to cut down on the large (2-10) redundnat circuit
-	// accumulation on leader disconnect that then we need
-	// to prune back.
-	if insideCaller {
-		cktP, ok := s.cktAllByName[leaderName]
-		if ok && cktP.ckt != nil {
-			ckt = cktP.ckt
-			// already have it so no need to handleNewCircuit again.
-			sentOnNewCkt = true
-			return
+	if leaderName != "" {
+		// try to cut down on the large (2-10) redundnat circuit
+		// accumulation on leader disconnect that then we need
+		// to prune back.
+		if insideCaller {
+			cktP, ok := s.cktAllByName[leaderName]
+			if ok && cktP.ckt != nil {
+				ckt = cktP.ckt
+				// already have it so no need to handleNewCircuit again.
+				sentOnNewCkt = true
+				return
+			}
+		} else {
+			ckt2, ok := s.cktAuditByName.Get(leaderName)
+			if ok {
+				ckt = ckt2
+				// already have it so no need to handleNewCircuit again.
+				sentOnNewCkt = true
+				return
+			}
 		}
 	}
-
 	// do we already have a ckt to requested leaderURL? if so, use it.
 
 	netAddr, serviceName, leaderPeerID, _, err1 := rpc.ParsePeerURL(leaderURL)
@@ -15832,6 +15856,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 
 	s.cktall[ckt.RemotePeerID] = cktP
 	s.cktAllByName[cktP.PeerName] = cktP
+	s.cktAuditByName.Set(ckt.RemotePeerName, ckt)
 
 	// avoid spurious "-" down (and spurious pending)
 	// on node in watchdog report by
