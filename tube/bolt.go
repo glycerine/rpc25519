@@ -4,6 +4,8 @@ import (
 	bolt "github.com/glycerine/bbolt"
 )
 
+// interesting experiment but might be slower.
+
 const sessBucket = "sessBucket"
 
 type sessionsDB struct {
