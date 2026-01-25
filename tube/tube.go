@@ -796,11 +796,6 @@ func (s *TubeNode) Start(
 	s.state.PeerID = s.PeerID
 	s.state.ClusterID = s.ClusterID
 
-	//could add TubeNode.HomeDir string `zid:"1"`
-	//s.HomeDir = filepath.Join(s.cfg.DataDir, "clusterID_"+cfg.ClusterID, s.name, "peerID_"+s.PeerID)
-	//err = os.MkdirAll(homeDir)
-	//panicOn(err)
-
 	//vv("%v TubeNode.Start() started with url = '%v'; s.PeerID = '%v'; peerServiceName='%v'", s.name, s.URL, rpc.AliasDecode(s.PeerID), myPeer.ServiceName())
 
 	now := time.Now()
@@ -821,58 +816,68 @@ func (s *TubeNode) Start(
 	s.role = FOLLOWER
 	//vv("%v TubeNode.Start(): set role to FOLLOWER")
 
-	if s.cfg.PeerServiceName == TUBE_CLIENT {
+	// this switch is to avoid having
+	// TUBE_CLIENTS litter .local/state/tube/clusterID with
+	// directories and empty wal/persistor files that they will never use.
+	// Only replicas need those files, so keep the area clean.
+	// Otherwise every new client call (tubeadd, tup, tubels, member)
+	// makes a directory and set of files that never get used.
+	switch s.cfg.PeerServiceName {
+	case TUBE_CLIENT:
 		//vv("%v setting role to CLIENT b/c PeerServiceName is TUBE_CLIENT", s.me())
 		s.role = CLIENT
-	}
 
-	// allow test setups like to have
-	// given us a wal or memwal especailly;
-	// in testSetupFirstRaftLogEntryBootstrapLog().
-	err := s.initWalOnce()
-	if err != nil {
-		return
-	}
+	case TUBE_REPLICA:
 
-	if false && s.isTest() {
-		err = s.viewCurLog()
+		// allow test setups like to have
+		// given us a wal or memwal especailly;
+		// in testSetupFirstRaftLogEntryBootstrapLog().
+		err := s.initWalOnce()
+		if err != nil {
+			return
+		}
+
+		if false && s.isTest() {
+			err = s.viewCurLog()
+			panicOn(err)
+			if err != nil {
+				return
+			}
+		}
+
+		// checks insaneConfig so even tests should always be sanely configured.
+		// loads s.state.MC from disk if available.
+		err = s.onRestartRecoverPersistentRaftStateFromDisk()
 		panicOn(err)
 		if err != nil {
 			return
 		}
-	}
 
-	// checks insaneConfig so even tests should always be sanely configured.
-	// loads s.state.MC from disk if available.
-	err = s.onRestartRecoverPersistentRaftStateFromDisk()
-	panicOn(err)
-	if err != nil {
-		return
-	}
+		// make sure our wal and state are sycned at load time;
+		// if we crashed before the state could be updated to match
+		// the wal, for instance.
+		s.state.CompactionDiscardedLast.Index = s.wal.logIndex.BaseC
+		s.state.CompactionDiscardedLast.Term = s.wal.logIndex.CompactTerm
+		s.assertCompactOK() // previously, out of sync even here: s.state.CompactionDiscardedLast.Index(1088) != s.wal.logIndex.BaseC(1187)
 
-	// make sure our wal and state are sycned at load time;
-	// if we crashed before the state could be updated to match
-	// the wal, for instance.
-	s.state.CompactionDiscardedLast.Index = s.wal.logIndex.BaseC
-	s.state.CompactionDiscardedLast.Term = s.wal.logIndex.CompactTerm
-	s.assertCompactOK() // previously, out of sync even here: s.state.CompactionDiscardedLast.Index(1088) != s.wal.logIndex.BaseC(1187)
+		if s.cfg.ZapMC {
+			alwaysPrintf("%v -zap of MC requested, about to clear restored MC which is currently: '%v' and will clear this set of ShadowReplicas: '%v'", s.me(), s.state.MC, s.state.ShadowReplicas)
+			s.state.MC = s.NewMemberConfig("ZapMC")
+			s.state.ShadowReplicas = s.NewMemberConfig("ZapMC")
+			s.saver.save(s.state)
+		}
+		//recoveredDiskMC := s.state.MC
 
-	if s.cfg.ZapMC {
-		alwaysPrintf("%v -zap of MC requested, about to clear restored MC which is currently: '%v' and will clear this set of ShadowReplicas: '%v'", s.me(), s.state.MC, s.state.ShadowReplicas)
-		s.state.MC = s.NewMemberConfig("ZapMC")
-		s.state.ShadowReplicas = s.NewMemberConfig("ZapMC")
-		s.saver.save(s.state)
-	}
-	//recoveredDiskMC := s.state.MC
+		if !strings.HasPrefix(s.name, "tup") {
+			// for tup we expect nil MC, do not bark.
+			//alwaysPrintf("%v on start up, after onRestartRecoverPersistentRaftStateFromDisk(), our s.state.MC = %v", s.name, s.state.MC.Short())
+		}
 
-	if !strings.HasPrefix(s.name, "tup") {
-		// for tup we expect nil MC, do not bark.
-		//alwaysPrintf("%v on start up, after onRestartRecoverPersistentRaftStateFromDisk(), our s.state.MC = %v", s.name, s.state.MC.Short())
-	}
-
-	if s.cachedMinElectionTimeoutDur == 0 {
-		panic("why? cachedMinElectionTimeoutDur == 0")
-	}
+		if s.cachedMinElectionTimeoutDur == 0 {
+			panic("why? cachedMinElectionTimeoutDur == 0")
+		}
+		// end case TUBE_REPLICA
+	} // end switch s.cfg.PeerServiceName
 
 	// when we reboot, we should update our own address
 	// in the config we recover from the log. So if we
@@ -1015,10 +1020,10 @@ func (s *TubeNode) Start(
 		}
 		s.state.Known.PeerNames.Set(s.name, updatedDetail)
 	} else {
-		if !strings.HasPrefix(s.name, "tup") {
-			// for tup we expect it. do not bark.
-			//alwaysPrintf("%v: we have nil s.state.MC here, ugh.", s.name)
-		}
+		//if !strings.HasPrefix(s.name, "tup") {
+		//	// for tup we expect it. do not bark.
+		//	//alwaysPrintf("%v: we have nil s.state.MC here, ugh.", s.name)
+		//}
 	}
 
 	// try getting 059/402/403 to work without needing
@@ -1110,6 +1115,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		// change entry as the first thing in the
 		// wal/raft log.
 
+		var err error
 		select {
 		case <-s.batchSubmitTimeCh:
 			//vv("%v <-s.batchSubmitTimeCh fired", s.name)
@@ -3254,7 +3260,7 @@ type discoReq struct {
 	err  error
 }
 
-// tuber uses to read the DataDir in use.
+// tube uses to read the DataDir in use.
 func (s *TubeNode) GetConfig() TubeConfig {
 	return s.cfg
 }
@@ -4500,13 +4506,15 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.LastLogTerm = s.lastLogTerm()
 	// (compaction means there is no correspondence between len(s.wal.raftLog)
 	// and LastLogIndex anymore).
-	n := len(s.wal.raftLog)
-	if ins.LastLogIndex > 0 && n > 0 {
-		rle := s.wal.raftLog[n-1]
-		ins.LastLogLeaderName = rle.LeaderName
-		ins.LastLogTicketOp = rle.Ticket.Op
+	if s.wal != nil && s.wal.raftLog != nil {
+		n := len(s.wal.raftLog)
+		if ins.LastLogIndex > 0 && n > 0 {
+			rle := s.wal.raftLog[n-1]
+			ins.LastLogLeaderName = rle.LeaderName
+			ins.LastLogTicketOp = rle.Ticket.Op
+		}
+		ins.LogIndexBaseC = s.wal.logIndex.BaseC
 	}
-	ins.LogIndexBaseC = s.wal.logIndex.BaseC
 
 	ins.ResponderPeerID = s.PeerID
 	ins.ResponderPeerURL = s.URL
@@ -16631,7 +16639,7 @@ func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circu
 	//fragEnc.FragPart = -4 or neg of max // the is the last of more to come.
 	// so typically either just 0, or: 1,2,3,-4
 	// (there should never need be a -1 on FragPart because that means the same as 0).
-	// so anytime we see FragPart <= 0, we know after appending to
+	// so anytime we see FragPart <= 0, we know after appending it to
 	// any prior stuff, we are done.
 
 	npay := len(bts)

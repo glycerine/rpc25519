@@ -444,7 +444,7 @@ func (cfg *TubeConfig) ProdConfigSaneOrPanic(isReplica bool) {
 		}
 	}
 	if cfg.ConfigDir != "" {
-		path := filepath.Join(cfg.ConfigDir, "tuber_on_start_writable_path_check_ConfigDir_"+rndstring())
+		path := filepath.Join(cfg.ConfigDir, "tube_on_start_writable_path_check_ConfigDir_"+rndstring())
 		fd, err := os.Create(path)
 		if err != nil {
 			panic(fmt.Sprintf("must be able to write into cfg.ConfigDir ('%v') but we could not: '%v'", cfg.ConfigDir, err))
@@ -452,8 +452,8 @@ func (cfg *TubeConfig) ProdConfigSaneOrPanic(isReplica bool) {
 		fd.Close()
 		os.Remove(path)
 	}
-	if cfg.DataDir != "" {
-		path := filepath.Join(cfg.DataDir, "tuber_on_start_writable_path_check_DataDir_"+rndstring())
+	if cfg.DataDir != "" && cfg.PeerServiceName != TUBE_CLIENT {
+		path := filepath.Join(cfg.DataDir, "tube_on_start_writable_path_check_DataDir_"+rndstring())
 		fd, err := os.Create(path)
 		if err != nil {
 			panic(fmt.Sprintf("must be able to write into cfg.DataDir ('%v') but we could not: '%v'", cfg.ConfigDir, err))
@@ -489,10 +489,10 @@ func (cfg *TubeConfig) ProdConfigSaneOrPanic(isReplica bool) {
 	}
 	if cfg.RpcCfg != nil {
 		//if cfg.RpcCfg.QuietTestMode {
-		//	panic("cannot have cfg.RpcCfg.QuietTestMode on in tuber")
+		//	panic("cannot have cfg.RpcCfg.QuietTestMode on in tube")
 		//}
 		if cfg.RpcCfg.UseSimNet {
-			panic("cannot have cfg.RpcCfg.UseSimNet on in tuber")
+			panic("cannot have cfg.RpcCfg.UseSimNet on in tube")
 		}
 		if !cfg.RpcCfg.ServerAutoCreateClientsToDialOtherServers {
 			panic("must have cfg.RpcCfg.ServerAutoCreateClientsToDialOtherServers or we will not auto-cli dial out!")
