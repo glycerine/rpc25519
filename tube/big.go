@@ -106,9 +106,9 @@ func (z *RaftState) Footprint() (r string) {
 	r += fmt.Sprintf("              Observers: %v\n", z.Observers.Msgsize())
 	r += fmt.Sprintf("         ShadowReplicas: %v\n", z.ShadowReplicas.Msgsize())
 	sz := 0
-	for key, ste := range z.SessTable {
-		sz += msgp.GuessSize(key) + ste.Msgsize()
-	}
+	//	for key, ste := range z.SessTable {
+	//		sz += msgp.GuessSize(key) + ste.Msgsize()
+	//	}
 	r += fmt.Sprintf("              SessTable: %v\n", sz)
 	r += "}\n"
 	return

@@ -808,6 +808,13 @@ func (s *TubeNode) Start(
 		return
 	}
 
+	if !s.isTest() {
+		s.sessDB, err = openSessDB(s.cfg.DataDir + sep + "sessions.boltdb")
+		if err != nil {
+			return
+		}
+	}
+
 	if false && s.isTest() {
 		err = s.viewCurLog()
 		panicOn(err)
@@ -2768,7 +2775,9 @@ type RaftState struct {
 	CompactionDiscardedLast IndexTerm `zid:"21"`
 
 	// ch6 client sessions for linz (linearizability).
-	// key is SessionID
+	// key is SessionID.
+	// Still needs to be serz to transmit in snapshot,
+	// even with sessDb.
 	SessTable map[string]*SessionTableEntry `zid:"22"`
 
 	// also index by ste.ClientName so we can delete their old
@@ -2820,6 +2829,9 @@ func (s *TubeNode) updateSessTableByClientName(justOne *SessionTableEntry) {
 	for _, goner := range goners {
 		delete(s.state.SessTable, goner.SessionID)
 		s.sessByExpiry.Delete(goner)
+		if s.sessDB != nil {
+			s.sessDB.deleteSTE(goner.SessionID)
+		}
 	}
 }
 
@@ -3220,6 +3232,8 @@ type TubeNode struct {
 	pruneDupDur              time.Duration
 
 	hupRequestCIDsCh chan bool
+
+	sessDB *sessionsDB
 }
 
 type discoReq struct {
@@ -8975,6 +8989,11 @@ func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
 	// the message received was really intended for
 	// us (and this incarnation of "us").
 
+	if s.sessDB != nil {
+		s.state.SessTable, err = s.sessDB.loadSessTable()
+		panicOn(err)
+	}
+
 	return
 } // end onRestartRecoverPersistentRaftStateFromDisk
 
@@ -10091,7 +10110,10 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 					// when it in replicateTicket().
 					ste.SessionReplicatedEndxTm = s.refreshSession(do.Tm, ste)
 				}
-			}
+				if s.sessDB != nil {
+					s.sessDB.saveSTE(ste)
+				}
+			} // end if not SESS_END
 			// end client session implementation
 			// =========================================
 		}
@@ -15255,6 +15277,9 @@ func (s *TubeNode) applyEndSess(tkt *Ticket, calledOnLeader bool) {
 	if ok {
 		delete(s.state.SessTable, tkt.EndSessReq_SessionID)
 		s.sessByExpiry.Delete(ste)
+		if s.sessDB != nil {
+			s.sessDB.deleteSTE(ste.SessionID)
+		}
 		// clear the client name from sessTableByClientName
 		// if this was their last session.
 		prior, ok := s.state.sessTableByClientName[ste.ClientName]
@@ -15289,6 +15314,9 @@ func (s *TubeNode) applyNewSess(tkt *Ticket, calledOnLeader bool) {
 		s.state.SessTable[sess.SessionID] = ste
 		s.sessByExpiry.tree.Insert(ste)
 		s.updateSessTableByClientName(ste)
+		if s.sessDB != nil {
+			s.sessDB.saveSTE(ste)
+		}
 	} else {
 		panic(fmt.Sprintf("%v: arg: already have SessionID='%v' in s.state.SessTable. This should not happen right? what about log replay?", s.me(), sess.SessionID))
 	}
@@ -15328,6 +15356,9 @@ func (s *TubeNode) garbageCollectOldSessions() {
 			if prior.SessionID == id {
 				delete(s.state.sessTableByClientName, ste.ClientName)
 			}
+		}
+		if s.sessDB != nil {
+			s.sessDB.deleteSTE(ste.SessionID)
 		}
 	}
 }
@@ -15408,6 +15439,9 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (doneEarly, needSa
 		// kill the session
 		delete(s.state.SessTable, tkt.SessionID)
 		s.sessByExpiry.Delete(ste)
+		if s.sessDB != nil {
+			s.sessDB.deleteSTE(ste.SessionID)
+		}
 		needSave = true
 		//s.saver.save(s.state)
 
@@ -15536,17 +15570,23 @@ func (s *TubeNode) cleanupAcked(ste *SessionTableEntry, deleteBelow int64) {
 	//vv("%v after cleanupAcked(deleteBelow=%v), for this ste: ste.Serial2Ticket.Len=%v, len(ste.ticketID2tkt)=%v;  number of open sessions: len(s.state.SessTable)=%v", s.me(), deleteBelow, ste.Serial2Ticket.Len(), len(ste.ticketID2tkt), len(s.state.SessTable))
 	//}()
 
+	changed := false
+
 	for ser, tkt := range ste.Serial2Ticket.All() {
 		if ser < deleteBelow {
 			//vv("%v cleanupAcked: deleting acked SessionSerial %v in SessionID '%v'", s.name, ser, tkt.SessionID)
 			delete(ste.ticketID2tkt, tkt.TicketID)
 			ste.Serial2Ticket.Delkey(ser)
+			changed = true
 		} else {
 			// since we are ordered by serial,
 			// all the others will be higher and we
 			// can stop now.
 			break
 		}
+	}
+	if changed && s.sessDB != nil {
+		s.sessDB.saveSTE(ste)
 	}
 }
 
@@ -16739,9 +16779,12 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	//vv("%v snapshot set s.state.CompactionDiscardedLastIndex=%v; s.state.CompactionDiscardedLast.Term=%v", s.name, s.state.CompactionDiscardedLastIndex, s.state.CompactionDiscardedLast.Term)
 
 	if state2.SessTable != nil {
-		// why is this not already done? because we applie state2 field-by-field.
+		// why is this not already done? because we apply state2 field-by-field.
 		s.state.SessTable = state2.SessTable
 		s.updateSessTableByClientName(nil)
+		if s.sessDB != nil {
+			s.sessDB.batchWriteSessTable(s.state.SessTable)
+		}
 	}
 
 	s.saver.save(s.state)

@@ -35,7 +35,7 @@ func (z *RaftState) String() (r string) {
 			sz += ste.Msgsize()
 			first = ste
 		}
-		r += fmt.Sprintf("       SessTable: len %v (est bytes: %v),\n", len(z.SessTable), sz)
+		r += fmt.Sprintf("       sessTable: len %v (est bytes: %v),\n", len(z.SessTable), sz)
 
 		r += fmt.Sprintf("     one random SessTable entry: %v\n  ...\n", first)
 
