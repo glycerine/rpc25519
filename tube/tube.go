@@ -1962,6 +1962,15 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 	if !sawSomething {
 		fmt.Printf(" -- no circuits\n")
 	}
+	// why 513 net.Conn open in rpc.Server with only 42 circuits?
+	if s.Srv != nil {
+		cs := s.Srv.ListClients()
+		fmt.Printf("\n remote2pair remotes(%v):\n", len(cs))
+		for i, c := range cs {
+			fmt.Printf("[%03d] %v\n", i, c)
+		}
+		fmt.Println()
+	}
 }
 
 // local request on node, no replication or Ticket needed.
@@ -10459,7 +10468,7 @@ func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
 	panicOn(err)
 	frag.Payload = bts
 	if len(bts) > rpc.UserMaxPayload { // 1_200_000
-		panicf("why so big? will not get through... len(bts) is %v > rpc.UserMaxPayload(%v) footprint = %v", len(bts), rpc.UserMaxPayload, tkt.Footprint())
+		panicf("why so big? will not get through... len(bts) is %v > rpc.UserMaxPayload(%v) footprint = %v", len(bts), rpc.UserMaxPayload, tkt.Footprint()) // a large keyrange scan failed here... KeyValRangeScan: 1274739 after reading dead zone after 2k clients gone.
 	}
 
 	frag.SetUserArg("leader", s.leaderID)

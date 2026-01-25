@@ -891,7 +891,7 @@ fullRestart:
 				}
 
 			case amCzar:
-				cs := cli.Srv.ListClients()
+				//cs := cli.Srv.ListClients()
 
 				until := czar.members.Vers.CzarLeaseUntilTm
 
@@ -904,13 +904,13 @@ fullRestart:
 					continue fullRestart
 				}
 
-				if false {
-					vv("%v: I am czar with (left on lease: %v) memberCount() = %v (from s.members.PeerNames.Len());  cli.Srv.ListClients() len %v", tubeCliName, left, czar.memberCount(), len(cs))
-					for i, c := range cs {
-						fmt.Printf("[%03d] %v\n", i, c)
-					}
-					fmt.Println()
-				}
+				// if false {
+				// 	vv("%v: I am czar with (left on lease: %v) memberCount() = %v (from s.members.PeerNames.Len());  cli.Srv.ListClients() len %v", tubeCliName, left, czar.memberCount(), len(cs))
+				// 	for i, c := range cs {
+				// 		fmt.Printf("[%03d] %v\n", i, c)
+				// 	}
+				// 	fmt.Println()
+				// }
 				select {
 				case rr := <-czar.requestPingCh:
 					czar.handlePing(rr)
