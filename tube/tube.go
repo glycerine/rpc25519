@@ -12111,9 +12111,14 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderName, leaderURL
 	//}
 
 	if leaderName != "" {
-		// try to cut down on the large (2-10) redundnat circuit
-		// accumulation on leader disconnect that then we need
-		// to prune back.
+		// Try to cut down on the relatively large (2-10 and
+		// probably more if the outage lasts longer) number
+		// of redundant circuits that accumulate
+		// when the leader fails and we
+		// have a leadership change-over. We then need
+		// to prune back all these duplicate circuits.
+		// Update: this (using cktAllByName and cktAuditByName)
+		// seems to help alot.
 		if insideCaller {
 			cktP, ok := s.cktAllByName[leaderName]
 			if ok && cktP.ckt != nil {
