@@ -714,7 +714,7 @@ func (bi *ServeBistreamState) ServeBistream(
 	return
 }
 
-// MinimalBistreamFunc stands in contract
+// MinimalBistreamFunc stands in contrast
 // to the fleshed on ServeBistream example above.
 // It attempts to illustrate only the bare minimal
 // needed to implement a BistreamFunc, so

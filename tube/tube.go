@@ -12115,12 +12115,10 @@ func justEpoch(term int64) int32 {
 	return int32(term >> 32)
 }
 
-// helper called by GetPeerListFrom, so is an
-// outside/external called func; therefore avoid accessing
-// internals e.g. s.leaderID here.
-// but also now internal, because handleLocalModifyMembership()
-// calls it too... ugh. must be a useful routine :)
-func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderName, leaderURL string, firstFrag *rpc.Fragment, insideCaller bool, circuitName string) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, err error) {
+// internal, because handleLocalModifyMembership()
+// calls it.
+// for external uses, see ExternalGetCircuitToLeader() below.
+func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, leaderURL string, firstFrag *rpc.Fragment, circuitName string) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, err error) {
 	//vv("%v top getCircuitToLeader('%v')", s.me(), leaderURL)
 
 	//if strings.Contains(leaderURL, "100.114.32.72") {
@@ -12136,22 +12134,12 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderName, leaderURL
 		// to prune back all these duplicate circuits.
 		// Update: this (using cktAllByName and cktAuditByName)
 		// seems to help alot.
-		if insideCaller {
-			cktP, ok := s.cktAllByName[leaderName]
-			if ok && cktP.ckt != nil {
-				ckt = cktP.ckt
-				// already have it so no need to handleNewCircuit again.
-				sentOnNewCkt = true
-				return
-			}
-		} else {
-			ckt2, ok := s.cktAuditByName.Get(leaderName)
-			if ok {
-				ckt = ckt2
-				// already have it so no need to handleNewCircuit again.
-				sentOnNewCkt = true
-				return
-			}
+		cktP, ok := s.cktAllByName[leaderName]
+		if ok && cktP.ckt != nil {
+			ckt = cktP.ckt
+			// already have it so no need to handleNewCircuit again.
+			sentOnNewCkt = true
+			return
 		}
 	}
 	// do we already have a ckt to requested leaderURL? if so, use it.
@@ -12206,11 +12194,9 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderName, leaderURL
 		//vv("%v getCircuitToLeader(): no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
 
 		// lets confirm that with our other trackers...
-		if insideCaller { // else data race to access s.cktall
-			cktP, cktallFoundIt := s.cktall[leaderPeerID]
-			if cktallFoundIt {
-				panicf("arg! s.cktall has but s.MyPeer.Remotes does not have leaderPeerID='%v'; \n full cktP.URL='%v'\n leaderURL='%v'", leaderPeerID, cktP.ckt.RemoteCircuitURL(), leaderURL)
-			}
+		cktP, cktallFoundIt := s.cktall[leaderPeerID]
+		if cktallFoundIt {
+			panicf("arg! s.cktall has but s.MyPeer.Remotes does not have leaderPeerID='%v'; \n full cktP.URL='%v'\n leaderURL='%v'", leaderPeerID, cktP.ckt.RemoteCircuitURL(), leaderURL)
 		}
 		cktP, auditFoundIt := s.cktAuditByPeerID.Get(leaderPeerID)
 		if auditFoundIt && cktP.ckt != nil {
@@ -12286,18 +12272,170 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderName, leaderURL
 		// made setLeaderCktChan buffered.
 		// but: buffering makes 707 intermit red without a leader! hmm.
 
-		if insideCaller {
-			// this is all that <-s.setLeaderCktChan does anyway.
-			s.leaderID = ckt.RemotePeerID
-			s.leaderName = ckt.RemotePeerName
-			s.leaderURL = ckt.RemoteServerURL("")
-		} else {
-			select {
-			case s.setLeaderCktChan <- ckt:
-			case <-s.Halt.ReqStop.Chan:
-				err = ErrShutDown
-				return
+		// this is all that <-s.setLeaderCktChan does anyway.
+		s.leaderID = ckt.RemotePeerID
+		s.leaderName = ckt.RemotePeerName
+		s.leaderURL = ckt.RemoteServerURL("")
+	}
+	return
+}
+
+// for external users like GetPeerList().
+func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, leaderURL string, firstFrag *rpc.Fragment, circuitName string) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, err error) {
+	//vv("%v top getCircuitToLeader('%v')", s.me(), leaderURL)
+
+	//if strings.Contains(leaderURL, "100.114.32.72") {
+	//vv("top getCircuitToLeader() stack = '%v'", stack())
+	//}
+
+	if leaderName != "" {
+		// Try to cut down on the relatively large (2-10 and
+		// probably more if the outage lasts longer) number
+		// of redundant circuits that accumulate
+		// when the leader fails and we
+		// have a leadership change-over. We then need
+		// to prune back all these duplicate circuits.
+		// Update: this (using cktAllByName and cktAuditByName)
+		// seems to help alot.
+		ckt2, ok := s.cktAuditByName.Get(leaderName)
+		if ok {
+			ckt = ckt2
+			// already have it so no need to handleNewCircuit again.
+			sentOnNewCkt = true
+			return
+		}
+	}
+	// do we already have a ckt to requested leaderURL? if so, use it.
+
+	netAddr, serviceName, leaderPeerID, _, err1 := rpc.ParsePeerURL(leaderURL)
+	panicOn(err1)
+	if err1 != nil {
+		err = fmt.Errorf("getCircuitToLeader error: bad leaderURL('%v') supplied, could not parse: '%v'", leaderURL, err1)
+		return
+	}
+	if serviceName != "" && serviceName != string(TUBE_REPLICA) {
+		panicf("sanity check failed, serviceName('%v') != '%v' in leaderURL = '%v'", serviceName, TUBE_REPLICA, leaderURL)
+	}
+	// INVAR: serviceName == "" || serviceName == string(TUBE_REPLICA),
+	// from the leaderURL parse (nothing to do with us and our s.PeerServiceName)
+
+	// remember we are external here. This is a Mutexmap so
+	// should be safe; and RemotePeer.IncomingCkt is
+	// goroutine safe.
+	if s.MyPeer == nil {
+		err = fmt.Errorf("getCircuitToLeader error: no MyPeer available")
+		return
+	}
+	var remotePeer *rpc.RemotePeer
+	ok := true
+	if s.MyPeer.Remotes == nil || leaderPeerID == "" {
+		ok = false
+	} else {
+		remotePeer, ok = s.MyPeer.Remotes.Get(leaderPeerID)
+	}
+	if ok {
+		ckt = remotePeer.IncomingCkt
+		//vv("%v getCircuitToLeader(): already have ckt to leaderURL '%v' -> leaderPeerID: '%v'; remotePeer = '%#v'", leaderURL, ckt, remotePeer)
+		if ckt == nil {
+			panic(fmt.Sprintf("no ckt avail??? leaderURL = '%v'; remotePeer = '%#v'", leaderURL, remotePeer))
+		}
+	} else { // !ok
+		// TODO: consider solutions here:
+		// The leaderPeerID can be an empty string here.
+		// And this is the problem. Since we are looking
+		// checking for an empty PeerID, and no empty
+		// peerIDs are recorded in the maps, we would never
+		// re-use an existing circuit. Ugh.
+		// The problem is that we either
+		// 1) need to update our knowledge of the leaders peerID
+		// 2) be able to recognize leaders just from their
+		//    address and URL after they come back. Well the
+		//    problem is that lead is a fleeting role; it can
+		//    change.
+		// cache what we get back and re-use it?
+
+		//vv("%v getCircuitToLeader(): no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
+
+		// lets confirm that with our other trackers...
+		cktP, auditFoundIt := s.cktAuditByPeerID.Get(leaderPeerID)
+		if auditFoundIt && cktP.ckt != nil {
+			panicf("arg! s.cktAuditByPeerID has but s.MyPeer.Remotes does not have leaderPeerID='%v'; \n full cktP.URL='%v'\n leaderURL='%v'", leaderPeerID, cktP.ckt.RemoteCircuitURL(), leaderURL)
+		}
+
+		var peerServiceNameVersion string
+		// here we are in getCircuitToLeader()
+		// got error from ckt2.go:
+		// client peer error on StartRemotePeer: remoteAddr should be 'tcp://100.89.245.101:7001' (that we are connected to), rather than the 'tcp://100.126.101.8:7006' which was requested. Otherwise your request will fail.
+		// but may not be a problem in here, just retry on tuberm.
+		cliRemote := s.MyPeer.U.RemoteAddr()
+		if cliRemote != "" {
+			//vv("substitute in '%v' in place of '%v'", cliRemote, netAddr)
+			// we are on a client, and only one remote is possible.
+			// that seems preferable to the guess that is leaderURL
+			//netAddr = cliRemote
+		}
+		// retry loop to attempt onlyPossibleAddr if we get that error.
+
+		userString := fmt.Sprintf("getCircuitToLeader on name:'%v'", s.name)
+		for try := 0; try < 2; try++ {
+			ckt, _, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, circuitName, userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
+			// can get errors if we removed the leader and then
+			// got our ckt redirected to new leader, in a logical race.
+
+			// can get errors on connection not working, don't freak.
+			// e.g. error requesting CallPeerStartCircuit from remote: 'error in SendMessage: net.Conn not found
+			if err == nil {
+				break
 			}
+			break // not working for tuberm:
+			if onlyPossibleAddr != "" {
+				//vv("%v substitute onlyPossibleAddr(%v) into netAddr(%v)", s.me(), onlyPossibleAddr, netAddr)
+				netAddr = onlyPossibleAddr
+				// retry once
+			}
+		}
+		//vv("%v getCircuitToLeader(netAddr='%v') back from PreferExtantRemotePeerGetCircuit: err='%v'", s.name, netAddr, err)
+		if err != nil {
+			err = fmt.Errorf("getCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL '%v' (netAddr='%v') (onlyPossibleAddr='%v') gave err = '%v'; ", leaderURL, netAddr, onlyPossibleAddr, err)
+			return
+		}
+		// must manually tell the service goro
+		// about the new ckt in this case.
+
+		// this will deadlock right? since we are
+		// called by main goro? is supposed to
+		// be external but is also internal now...
+		// so as of rpc v1.28.24, s.MyPeer.NewCircuitCh
+		// is 100 bufferred now...
+		select {
+		case s.MyPeer.NewCircuitCh <- ckt:
+			sentOnNewCkt = true
+			//vv("%v manually did: s.MyPeer.NewCircuitCh <- ckt; ckt='%v'", s.name, ckt)
+		case <-s.Halt.ReqStop.Chan:
+			err = ErrShutDown
+			return
+		default:
+			// let sentOnNewCkt false handle it now.
+			// if caller is handleLocalModifyMembership(), they
+			// will pass it up to main goro and it will in
+			// turn call into handleNewCircuit(); which we
+			// could do ourselves if we knew for sure we
+			// were internal here...
+			// don't return yet, so we service clients/observers below.
+		}
+	}
+	switch s.PeerServiceName {
+	case TUBE_CLIENT, TUBE_OBS_MEMBERS:
+		// hung here on tuberm, naturally enough, because
+		// we are occupying the mainline goro.
+		// made setLeaderCktChan buffered.
+		// but: buffering makes 707 intermit red without a leader! hmm.
+
+		select {
+		case s.setLeaderCktChan <- ckt:
+		case <-s.Halt.ReqStop.Chan:
+			err = ErrShutDown
+			return
 		}
 	}
 	return
@@ -12307,7 +12445,7 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderName, leaderURL
 // so have to be told where to find the leader/cluster
 // initially.
 func (s *TubeNode) UseLeaderURL(ctx context.Context, leaderName, leaderURL string) (onlyPossibleAddr string, err error) {
-	_, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderName, leaderURL, nil, false, "UseLeaderURL")
+	_, onlyPossibleAddr, _, err = s.ExternalGetCircuitToLeader(ctx, leaderName, leaderURL, nil, "UseLeaderURL")
 	return
 }
 
@@ -12329,7 +12467,7 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName st
 		panic("ugh. self-circuit? TODO figure out self-circuit or what?")
 	}
 
-	ckt, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderName, leaderURL, nil, false, "GetPeerListFrom")
+	ckt, onlyPossibleAddr, _, err = s.ExternalGetCircuitToLeader(ctx, leaderName, leaderURL, nil, "GetPeerListFrom")
 
 	if err != nil {
 		//vv("%v GetPeerListFrom got error from getCircuitToLeader('%v') err='%v'; s.electionTimeoutCh='%p', s.nextElection in '%v'", s.me(), leaderURL, err, s.electionTimeoutCh, time.Until(s.nextElection))
@@ -13336,7 +13474,7 @@ func (s *TubeNode) handleLocalModifyMembership(tkt *Ticket) (onlyPossibleAddr st
 				// returned now: var ckt *rpc.Circuit
 				//vv("%v handleLocalModifyMembership calling getCircuitToLeader", s.me())
 				// note: s.leaderName here is just a guess too(!)
-				ckt, onlyPossibleAddr, sentOnNewCkt, err = s.getCircuitToLeader(s.MyPeer.Ctx, s.leaderName, tkt.GuessLeaderURL, firstFrag, true, "handleLocalModifyMembership")
+				ckt, onlyPossibleAddr, sentOnNewCkt, err = s.internalGetCircuitToLeader(s.MyPeer.Ctx, s.leaderName, tkt.GuessLeaderURL, firstFrag, "handleLocalModifyMembership")
 
 				if err != nil {
 					alwaysPrintf("%v don't know how to contact tkt.GuessLeaderURL='%v' to redirect to leader; err='%v'; for tkt '%v'. Assuming they died. s.cktall = '%#v'", s.me(), tkt.GuessLeaderURL, err, tkt, s.cktall)
@@ -15219,7 +15357,7 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderName, leaderURL s
 	var ckt *rpc.Circuit
 	var onlyPossibleAddr string
 	if leaderURL != "" {
-		ckt, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderName, leaderURL, nil, false, "CreateNewSession")
+		ckt, onlyPossibleAddr, _, err = s.ExternalGetCircuitToLeader(ctx, leaderName, leaderURL, nil, "CreateNewSession")
 		if err != nil {
 			return
 		}
@@ -17217,7 +17355,7 @@ func (s *TubeNode) InjectEmptyMC(ctx context.Context, targetURL, nodeName string
 	emptyFrag.FragOp = InstallEmptyMC
 	emptyFrag.FragSubject = "InstallEmptyMC"
 	emptyFrag.SetUserArg("target", nodeName)
-	_, _, _, err = s.getCircuitToLeader(ctx, nodeName, targetURL, emptyFrag, false, "InjectEmptyMC")
+	_, _, _, err = s.ExternalGetCircuitToLeader(ctx, nodeName, targetURL, emptyFrag, "InjectEmptyMC")
 	return
 }
 
