@@ -123,8 +123,17 @@ func (s *raftStatePersistor) save(state *RaftState) (nw int64, err error) {
 	fd, err := os.Create(tmppath)
 	panicOn(err)
 
+	sessTable := state.SessTable
+
+	// moved SessTable to bolt now.
+	// so skip saving it
+	state.SessTable = nil
+
 	b, err := state.MarshalMsg(nil)
 	panicOn(err)
+
+	// restore SessTable in memory.
+	state.SessTable = sessTable
 
 	by, err := ByteSlice(b).MarshalMsg(nil)
 	panicOn(err)
