@@ -12095,6 +12095,19 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderName, leaderURL
 	//vv("top getCircuitToLeader() stack = '%v'", stack())
 	//}
 
+	// try to cut down on the large (2-10) redundnat circuit
+	// accumulation on leader disconnect that then we need
+	// to prune back.
+	if insideCaller {
+		cktP, ok := s.cktAllByName[leaderName]
+		if ok && cktP.ckt != nil {
+			ckt = cktP.ckt
+			// already have it so no need to handleNewCircuit again.
+			sentOnNewCkt = true
+			return
+		}
+	}
+
 	// do we already have a ckt to requested leaderURL? if so, use it.
 
 	netAddr, serviceName, leaderPeerID, _, err1 := rpc.ParsePeerURL(leaderURL)
@@ -12147,11 +12160,12 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderName, leaderURL
 		//vv("%v getCircuitToLeader(): no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
 
 		// lets confirm that with our other trackers...
-		cktP, cktallFoundIt := s.cktall[leaderPeerID]
-		if cktallFoundIt {
-			panicf("arg! s.cktall has but s.MyPeer.Remotes does not have leaderPeerID='%v'; \n full cktP.URL='%v'\n leaderURL='%v'", leaderPeerID, cktP.ckt.RemoteCircuitURL(), leaderURL)
+		if insideCaller { // else data race to access s.cktall
+			cktP, cktallFoundIt := s.cktall[leaderPeerID]
+			if cktallFoundIt {
+				panicf("arg! s.cktall has but s.MyPeer.Remotes does not have leaderPeerID='%v'; \n full cktP.URL='%v'\n leaderURL='%v'", leaderPeerID, cktP.ckt.RemoteCircuitURL(), leaderURL)
+			}
 		}
-
 		cktP, auditFoundIt := s.cktAuditByPeerID.Get(leaderPeerID)
 		if auditFoundIt && cktP.ckt != nil {
 			panicf("arg! s.cktAuditByPeerID has but s.MyPeer.Remotes does not have leaderPeerID='%v'; \n full cktP.URL='%v'\n leaderURL='%v'", leaderPeerID, cktP.ckt.RemoteCircuitURL(), leaderURL)
