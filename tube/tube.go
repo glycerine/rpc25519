@@ -15658,9 +15658,10 @@ func (s *TubeNode) cleanupAcked(ste *SessionTableEntry, deleteBelow int64) {
 	if deleteBelow <= 0 {
 		return
 	}
-	defer func() {
-		vv("%v after cleanupAcked(deleteBelow=%v), for this ste: ste.Serial2Ticket.Len=%v, len(ste.ticketID2tkt)=%v;  number of open sessions: len(s.state.SessTable)=%v", s.me(), deleteBelow, ste.Serial2Ticket.Len(), len(ste.ticketID2tkt), len(s.state.SessTable))
-	}()
+	// super noisy:
+	//defer func() {
+	//vv("%v after cleanupAcked(deleteBelow=%v), for this ste: ste.Serial2Ticket.Len=%v, len(ste.ticketID2tkt)=%v;  number of open sessions: len(s.state.SessTable)=%v", s.me(), deleteBelow, ste.Serial2Ticket.Len(), len(ste.ticketID2tkt), len(s.state.SessTable))
+	//}()
 
 	for ser, tkt := range ste.Serial2Ticket.All() {
 		if ser < deleteBelow {
