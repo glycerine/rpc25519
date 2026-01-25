@@ -27,6 +27,7 @@ func openSessDB(dbPath string) (sdb *sessionsDB, err0 error) {
 		_, err := tx.CreateBucketIfNotExists([]byte(sessBucket))
 		return err
 	})
+	panicOn(err0)
 	return
 }
 
@@ -34,12 +35,12 @@ func (s *sessionsDB) Close() error {
 	return s.db.Close()
 }
 
-func (s *sessionsDB) saveSTE(ste *SessionTableEntry) error {
+func (s *sessionsDB) saveSTE(ste *SessionTableEntry) (err0 error) {
 
 	bts, err := ste.MarshalMsg(nil)
 	panicOn(err)
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	err0 = s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(sessBucket))
 		if b == nil {
 			panicf("why did sessBucket not get created at startup?")
@@ -51,6 +52,8 @@ func (s *sessionsDB) saveSTE(ste *SessionTableEntry) error {
 
 		return nil
 	})
+	panicOn(err0)
+	return
 }
 
 func (s *sessionsDB) loadSTE(sessionID string) (ste *SessionTableEntry, err0 error) {
@@ -69,23 +72,26 @@ func (s *sessionsDB) loadSTE(sessionID string) (ste *SessionTableEntry, err0 err
 		_, err = ste.UnmarshalMsg(v)
 		return
 	})
+	panicOn(err0)
 	return
 }
 
-func (s *sessionsDB) deleteSTE(sessionID string) (err error) {
+func (s *sessionsDB) deleteSTE(sessionID string) (err0 error) {
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	err0 = s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(sessBucket))
 		if b == nil {
 			panicf("why did sessBucket not get created at startup?")
 		}
 		return b.Delete([]byte(sessionID))
 	})
+	panicOn(err0)
+	return
 }
 
-func (s *sessionsDB) batchWriteSessTable(sessTable map[string]*SessionTableEntry) error {
+func (s *sessionsDB) batchWriteSessTable(sessTable map[string]*SessionTableEntry) (err0 error) {
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	err0 = s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(sessBucket))
 		if b == nil {
 			panicf("why did sessBucket not get created at startup?")
@@ -102,6 +108,8 @@ func (s *sessionsDB) batchWriteSessTable(sessTable map[string]*SessionTableEntry
 		}
 		return nil
 	})
+	panicOn(err0)
+	return
 }
 
 func (s *sessionsDB) loadSessTable() (sessTable map[string]*SessionTableEntry, err0 error) {
@@ -124,5 +132,6 @@ func (s *sessionsDB) loadSessTable() (sessTable map[string]*SessionTableEntry, e
 		}
 		return
 	})
+	panicOn(err0)
 	return
 }
