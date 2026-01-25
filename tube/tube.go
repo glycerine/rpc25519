@@ -302,21 +302,9 @@ import (
 //go:generate greenpack
 
 func init() {
-	/* try to avoid OOM like this, where we only need 1MB but Go allocates 30 GB per process
-
-	[1085741.373606] Out of memory: Killed process 854413 (member) total-vm:65343076kB, anon-rss:28445568kB, file-rss:936kB, shmem-rss:0kB, UID:1000 pgtables:67976kB oom_score_adj:0
-	[1085743.597277] oom_reaper: reaped process 854413 (member), now anon-rss:0kB, file-rss:936kB, shmem-rss:0kB
-	[1085775.498923] member invoked oom-killer: gfp_mask=0x140cca(GFP_HIGHUSER_MOVABLE|__GFP_COMP), order=0, oom_score_adj=0
-	[1085775.498957]  oom_kill_process+0x118/0x280
-	[1085775.498962]  ? oom_evaluate_task+0x155/0x1e0
-	[1085775.498968]  __alloc_pages_may_oom+0x10b/0x1d0
-	[1085775.499239] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
-	[1085775.499259] [   1387]   990  1387     4400     1867      288     1579         0    77824        0          -900 systemd-oomd
-	[1085775.499478] oom-kill:constraint=CONSTRAINT_NONE,nodemask=(null),cpuset=user.slice,mems_allowed=0,global_oom,task_memcg=/user.slice/user-1000.slice/session-83.scope,task=member,pid=854415,uid=1000
-	[1085775.499595] Out of memory: Killed process 854415 (member) total-vm:1004092396kB, anon-rss:31270716kB, file-rss:296kB, shmem-rss:0kB, UID:1000 pgtables:334784kB oom_score_adj:0
-	[1085778.017586] oom_reaper: reaped process 854415 (member), now anon-rss:0kB, file-rss:296kB,shmem-rss:0kB
-
-	*/
+	// try to avoid being OOM killed, where we only need ~100 MB
+	// working set but Go allocates 30 GB per process, so we get OOM killed.
+	// does seem to help.
 	debug.SetMemoryLimit(10 << 30) // 10 GB. Was 2 GB but => grinding at 400% cpu sometimes.
 }
 
@@ -394,12 +382,11 @@ const (
 	// observe membership changes only. get pushes on changes.
 	TUBE_OBS_MEMBERS string = "tube-obs-members"
 
-	// Update: use TUBE_REPLICA for non-voting shadows
-	// but have them marked differently.
-	// shadow replicas observe all traffic but are non-voting,
+	// Update: use TUBE_REPLICA for non-voting shadow replicas,
+	// just have them marked differently; as non-voting.
+	// Shadow replicas observe all traffic but are non-voting,
 	// so they ignore votes/pre-votes.
-	// ack back on AE so as to stay current.
-	// TUBE_SHADOW string = "tube-shadow"
+	// They ack back on AE so as to stay current.
 )
 
 type RaftRole int
@@ -584,12 +571,6 @@ type TubeConfig struct {
 
 	ClockDriftBound time.Duration `zid:"12"` // time.Millisecond * 400 // even less chance of granting vote...
 
-	// tuber --boot flag will set this to non-nil
-	// get a fresh new cluster started.
-	// NB: should have BootCount > 0.
-	// Should be nil if not the designated leader
-	// on new cluster start.
-
 	// I think InitialLeaderName and ClusterSize is
 	// sufficient, simpler, and we won't have any
 	// PeerIDs until they are start up anyway, and
@@ -756,20 +737,13 @@ func (s *TubeNode) Start(
 				//vv("good: simnet.AlterHost(s.srvname, rpc.SHUTDOWN)")
 			}
 		}
-		// for _, cktP := range s.cktall {
-		// 	if cktP.ckt != nil { // could be pending
-		// 		cktP.ckt.Close(nil)
-		// 		//vv("%v ckt closed: '%v'", s.name, cktP.ckt)
-		// 	}
-		// }
-
 		s.Halt.Done.Close()
 		if r != nil {
 			panic(r)
 		}
 	}()
 
-	//s.Srv.PeerAPI.StartLocalPeer() at :2112 sets the PeerName already.
+	// PeerName is set already at s.Srv.PeerAPI.StartLocalPeer() at :2112
 	if s.name == "" {
 		panic("must have s.name not empty")
 	}
@@ -8715,107 +8689,6 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 			} else {
 				panic("fit this mis-directed packet!")
 			}
-			/*
-								panic: 2026-01-14T03:54:41.687Z sanity check failed, frag should be from ckt. frag.FromPeerID='2iC9T3fXs9WmvcRqihtFEd48OfGmrJ6P9MAvVQuKnrqy' but ckt.RemotePeerID='W_U8id0xDApdmaFJw3oMLVmpwCJNK0EIopYLeo5l1_8u';
-
-								 frag='&rpc25519.Fragment{
-								    "Created": 2026-01-14T03:54:41.687Z,
-								    "FromPeerID": "2iC9T3fXs9WmvcRqihtFEd48OfGmrJ6P9MAvVQuKnrqy" 2iC9T3fXs9WmvcRqihtFEd48OfGmrJ6P9MAvVQuKnrqy, // <<<<<<<< checking this failed!
-								    "FromPeerName": "member_SRxDCbOR3UjVYclM7rzQ",
-								    "FromPeerServiceName": "tube-client",
-								    "ToPeerID": "CBjzVlb6UoN6woxH9h7oxIHnxAH54nrrk5sNrqUMkrIw" (node_1) CBjzVlb6UoN6woxH9h7oxIHnxAH54nrrk5sNrqUMkrIw ,
-								    "ToPeerName": "node_1",
-								    "ToPeerServiceName": "tube-replica",
-								    "CircuitID": "PiSRITfW_jlqeim1n-P_A27YH2uWlv0oh3oxTdK8-aJx (tube-client)",
-								    "Serial": 413,
-								    "Typ": CallPeerTraffic,
-								    "FragOp": 5,
-								    "FragSubject": "RedirectTicketToLeader",
-								    "FragPart": 0,
-								    "Args": map[string]string{"#fromBaseServerAddr":"tcp://100.89.245.101:35817", "#fromBaseServerName":"srv_member_SRxDCbOR3UjVYclM7rzQ", "#fromPeerServiceNameVersion":"", "#fromServiceName":"tube-client", "ClusterID":"123", "leader":"CBjzVlb6UoN6woxH9h7oxIHnxAH54nrrk5sNrqUMkrIw", "leaderName":"node_1"},
-								    "Payload": (len 1295 bytes),
-								    "Err": "",
-								}'
-
-					 ckt = '&Circuit{
-					     CircuitSN: 362,
-					          Name: "tube-ckt",
-					     CircuitID: "PiSRITfW_jlqeim1n-P_A27YH2uWlv0oh3oxTdK8-aJx (tube-client)",
-
-					   LocalPeerID: "CBjzVlb6UoN6woxH9h7oxIHnxAH54nrrk5sNrqUMkrIw" (node_1) CBjzVlb6UoN6woxH9h7oxIHnxAH54nrrk5sNrqUMkrIw ,
-					 LocalPeerName: "node_1",
-
-					  RemotePeerID: "W_U8id0xDApdmaFJw3oMLVmpwCJNK0EIopYLeo5l1_8u" ,
-					RemotePeerName: "",
-
-					 LocalServiceName: "tube-replica",
-					RemoteServiceName: "tube-client",
-
-					 LocalPeerServiceNameVersion: "",
-					RemotePeerServiceNameVersion: "",
-
-					     PreferExtant: false,
-					   MadeNewAutoCli: true,
-
-					 // LocalCircuitURL: "tcp://100.89.245.101:7001/tube-replica/CBjzVlb6UoN6woxH9h7oxIHnxAH54nrrk5sNrqUMkrIw/PiSRITfW_jlqeim1n-P_A27YH2uWlv0oh3oxTdK8-aJx",
-					 // RemoteCircuitURL: "tcp://100.89.245.101:35817/tube-client/W_U8id0xDApdmaFJw3oMLVmpwCJNK0EIopYLeo5l1_8u/PiSRITfW_jlqeim1n-P_A27YH2uWlv0oh3oxTdK8-aJx",
-
-					   UserString: "",
-					    FirstFrag: &rpc25519.Fragment{
-					    "Created": 2026-01-14T03:54:27.640Z,
-					    "FromPeerID": "CBjzVlb6UoN6woxH9h7oxIHnxAH54nrrk5sNrqUMkrIw" (node_1) CBjzVlb6UoN6woxH9h7oxIHnxAH54nrrk5sNrqUMkrIw ,
-					    "FromPeerName": "node_1",
-					    "FromPeerServiceName": "tube-replica",
-					    "ToPeerID": "W_U8id0xDApdmaFJw3oMLVmpwCJNK0EIopYLeo5l1_8u" ,
-					    "ToPeerName": "",
-					    "ToPeerServiceName": "tube-client",
-					    "CircuitID": "PiSRITfW_jlqeim1n-P_A27YH2uWlv0oh3oxTdK8-aJx (tube-client)",
-					    "Serial": 22933,
-					    "Typ": CallNone,
-					    "FragOp": 17,
-					    "FragSubject": "NotifyClientNewLeader",
-					    "FragPart": 0,
-					    "Args": map[string]string{"ClusterID":"123", "leaderID":"CBjzVlb6UoN6woxH9h7oxIHnxAH54nrrk5sNrqUMkrIw", "leaderName":"node_1", "leaderURL":"tcp://100.89.245.101:7001/tube-replica/CBjzVlb6UoN6woxH9h7oxIHnxAH54nrrk5sNrqUMkrIw"},
-					    "Payload": (len 2069 bytes),
-					    "Err": "",
-					}
-					}' [recovered, repanicked]
-
-				goroutine 26 [running]:
-				github.com/glycerine/rpc25519/tube.(*TubeNode).Start.func1()
-					/home/jaten/rpc25519/tube/tube.go:739 +0xf5
-				panic({0xcadb00?, 0xcccf345040?})
-					/mnt/oldrog/usr/local/go1.25.3/src/runtime/panic.go:783 +0x132
-				github.com/glycerine/rpc25519/tube.(*TubeNode).peerJoin(0xc000181008, 0xcc8e198a20, 0xccac957560)
-					/home/jaten/rpc25519/tube/tube.go:8206 +0x65e
-				github.com/glycerine/rpc25519/tube.(*TubeNode).Start(0xc000181008, 0xc0001faa50, {0xf323e0, 0xc0001db9a0}, 0xc0004ce700)
-					/home/jaten/rpc25519/tube/tube.go:1549 +0x2d9a
-				github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer.func1()
-					/home/jaten/rpc25519/ckt.go:1449 +0x109
-				created by github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer in goroutine 1
-					/home/jaten/rpc25519/ckt.go:1443 +0x659
-
-
-			*/
-			// wtf. how did this happen??? still seen every with cryrand long PeerID.
-			/*
-				panic: sanity check failed, frag should be from ckt. frag.FromPeerID='CSVruwG6F6Z1sPs4hCJHgG6Xtige' but ckt.RemotePeerID='EK5_4sQPPAcbr5Rq0yE20Ub2cBP0' [recovered, repanicked]
-
-				goroutine 26 [running]:
-				github.com/glycerine/rpc25519/tube.(*TubeNode).Start.func1()
-					/home/jaten/rpc25519/tube/tube.go:729 +0xf5
-				panic({0xcab940?, 0xc3c937cb90?})
-					/mnt/oldrog/usr/local/go1.25.3/src/runtime/panic.go:783 +0x132
-				github.com/glycerine/rpc25519/tube.(*TubeNode).peerJoin(0xc0004b3c08, 0xc27e77d8c0, 0xc0371faea0)
-					/home/jaten/rpc25519/tube/tube.go:7935 +0x5d4
-				github.com/glycerine/rpc25519/tube.(*TubeNode).Start(0xc0004b3c08, 0xc0001faa50, {0xf2f2e0, 0xc0001db9a0}, 0xc0004ce700)
-					/home/jaten/rpc25519/tube/tube.go:1524 +0x2cda
-				github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer.func1()
-					/home/jaten/rpc25519/ckt.go:1449 +0x109
-				created by github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer in goroutine 1
-					/home/jaten/rpc25519/ckt.go:1443 +0x659
-
-			*/
 		}
 	}
 

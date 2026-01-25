@@ -30,7 +30,7 @@ require (
 	github.com/quic-go/quic-go v0.58.0
 	github.com/templexxx/cpu v0.1.1
 	golang.org/x/crypto v0.45.0
-	golang.org/x/sys v0.38.0
+	golang.org/x/sys v0.39.0
 	golang.org/x/term v0.37.0
 )
 
@@ -38,6 +38,7 @@ require (
 
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
+	github.com/glycerine/bbolt v1.4.4-jea3 // indirect
 	github.com/glycerine/blake2b v0.0.0-20151022103502-3c8c640cd7be // indirect
 	github.com/glycerine/fwd v1.1.4-beta.jea // indirect
 	github.com/glycerine/liner v0.0.0-20160121172638-72909af234e0 // indirect

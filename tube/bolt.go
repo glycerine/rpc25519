@@ -1,6 +1,5 @@
 package tube
 
-/*
 import (
 	bolt "github.com/glycerine/bbolt"
 )
@@ -17,4 +16,3 @@ func openBolt(dbPath string) (db *bolt.DB, err error) {
 func closeBolt(db *bolt.DB) error {
 	return db.Close()
 }
-*/
