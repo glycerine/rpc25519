@@ -2141,7 +2141,7 @@ func (s *TubeNode) handleNewCircuit(
 		cktContextDone := ctx.Done()
 
 		//if ckt.RemoteServiceName != TUBE_REPLICA {
-		vv("%v: (ckt '%v') 888888888888 got-incoming-ckt: from RemotePeerName:'%v' hostname '%v'; pid = %v; pointer-cktP=%p; ckt='%v'", s.me(), ckt.Name, ckt.RemotePeerName, ckt.RpbTo.Hostname, ckt.RpbTo.PID, cktP, ckt)
+		//vv("%v: (ckt '%v') 888888888888 got-incoming-ckt: from RemotePeerName:'%v' hostname '%v'; pid = %v; pointer-cktP=%p; ckt='%v'", s.me(), ckt.Name, ckt.RemotePeerName, ckt.RpbTo.Hostname, ckt.RpbTo.PID, cktP, ckt)
 		//}
 
 		defer func() {
@@ -2199,7 +2199,7 @@ func (s *TubeNode) handleNewCircuit(
 				//if frag.FragOp == 1 || frag.FragOp == 2 {
 				// AE and AEack so much noise, quiet for debug
 				//} else {
-				vv("%v: (ckt %v) ckt.Reads sees frag:'%s'; my PeerID='%v'", s.me(), ckt.Name, frag, s.PeerID)
+				//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'; my PeerID='%v'", s.me(), ckt.Name, frag, s.PeerID)
 				//}
 				// centralize to avoid locking in a bajillion places
 				select {
@@ -12267,15 +12267,12 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 	}
 	switch s.PeerServiceName {
 	case TUBE_CLIENT, TUBE_OBS_MEMBERS:
-		// hung here on tuberm, naturally enough, because
-		// we are occupying the mainline goro.
-		// made setLeaderCktChan buffered.
-		// but: buffering makes 707 intermit red without a leader! hmm.
-
-		// this is all that <-s.setLeaderCktChan does anyway.
-		s.leaderID = ckt.RemotePeerID
-		s.leaderName = ckt.RemotePeerName
-		s.leaderURL = ckt.RemoteServerURL("")
+		// I don't think we can assume that this is the actually the leader...
+		// and tubeadd is wrongly thinking the leader is the last contacted.
+		// comment out:
+		//s.leaderID = ckt.RemotePeerID
+		//s.leaderName = ckt.RemotePeerName
+		//s.leaderURL = ckt.RemoteServerURL("")
 	}
 	return
 }
