@@ -12281,10 +12281,10 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 	case TUBE_CLIENT, TUBE_OBS_MEMBERS:
 		// I don't think we can assume that this is the actually the leader...
 		// and tubeadd is wrongly thinking the leader is the last contacted.
-		// comment out? does putting this back in reduce our double-redirects?
-		s.leaderID = ckt.RemotePeerID
-		s.leaderName = ckt.RemotePeerName
-		s.leaderURL = ckt.RemoteServerURL("")
+		// comment out? does putting this back in reduce our double-redirects? nope.
+		//s.leaderID = ckt.RemotePeerID
+		//s.leaderName = ckt.RemotePeerName
+		//s.leaderURL = ckt.RemoteServerURL("")
 	}
 	return
 }
