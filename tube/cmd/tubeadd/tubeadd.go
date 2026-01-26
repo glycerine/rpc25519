@@ -211,17 +211,24 @@ if it comes to that.
 	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact, keepCktUp)
 	canc()
-	_ = reallyLeader
 	panicOn(err)
 	var contactURL string
-	if cmdCfg.ContactName != "" {
-		for _, insp := range contacted {
-			if insp.ResponderName == cmdCfg.ContactName {
-				contactURL = insp.ResponderPeerURL
-				break
-			}
+	var targetURL string
+	for _, insp := range contacted {
+		if insp.ResponderName == cmdCfg.ContactName {
+			contactURL = insp.ResponderPeerURL
+		}
+		if insp.ResponderName == target {
+			targetURL = insp.ResponderPeerURL
 		}
 	}
+	if !reallyLeader && targetURL != "" {
+		// leader not really known, guess it is target by default.
+		// below -c will override this.
+		leaderName = target
+		leaderURL = targetURL
+	}
+
 	if true {
 		fmt.Printf("tubeadd contacted:\n")
 		for _, insp := range contacted {
@@ -260,8 +267,6 @@ if it comes to that.
 			// contacted them, so target them with our Add request.
 			leaderName = cmdCfg.ContactName
 			leaderURL = contactURL
-		} else {
-			vv("cmdCfg.ContactName = '%v' but contactURL = '%v'", cmdCfg.ContactName, contactURL)
 		}
 	}
 	vv("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
