@@ -582,6 +582,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 	defer func() {
 		//vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'; remote='%v'; s.halt=%p; stopReason='%v'", conn.LocalAddr(), remote(conn), s.halt, stopReason)
 		canc()
+		s.Server.numRWPair.Add(-1)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 		conn.Close() // just the one, let other clients continue.
@@ -1329,6 +1330,8 @@ type Server struct {
 
 	// protect with mut to avoid data races.
 	autoClients []*Client
+
+	numRWPair atomic.Int64
 }
 
 type ServerClient struct {
@@ -1917,6 +1920,7 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 
 	key := remote(conn) // or p.to
 
+	s.numRWPair.Add(1)
 	s.mut.Lock() // want these two set together atomically.
 	s.remote2pair.Set(key, p)
 	s.pair2remote.Set(p, key)
@@ -3429,7 +3433,8 @@ func (s *Client) GetClient() *Client {
 	return s
 }
 
-func (s *Server) ListClients() (remotes []string) {
+func (s *Server) ListClients() (remotes []string, numRWPair int64) {
+	numRWPair = s.numRWPair.Load()
 	s.mut.Lock()
 	remotes = s.remote2pair.GetKeySlice()
 	s.mut.Unlock()

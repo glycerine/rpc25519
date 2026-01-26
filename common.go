@@ -260,7 +260,7 @@ func (w *workspace) readMessage(conn uConn) (msg *Message, err error) {
 	}
 
 	// why not use the w.buf here? are we afraid of sharing memory/
-	// having messages over-write early messages?
+	// having messages over-write earlier messages?
 	message := make([]byte, messageLen)
 	_, err = readFull(conn, message)
 	if err != nil {
@@ -399,7 +399,7 @@ var zeroTime = time.Time{}
 // Generally we want our read loop to wait forever because
 // if they cut off a read mid-message, it is hard to recover.
 // We now pass back numRead to allow recovery attempts;
-// but this is not much because it is not neede now, generally.
+// but this is not needed now, generally.
 // Instead we just dedicate a goroutine known as
 // a readLoop to only reading from a uConn. This is much simpler,
 // and more robust.
@@ -410,7 +410,7 @@ func readFull(conn uConn, buf []byte) (numRead int, err error) {
 
 	// We never want a deadline, as this can corrupt
 	// the wire, leaving a half-read message on it.
-	// So not let any previous deadlines contaminate this one.
+	// Do not let any previous deadlines contaminate this one.
 	conn.SetReadDeadline(zeroTime)
 
 	need := len(buf)

@@ -1970,8 +1970,8 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 	}
 	// why 513 net.Conn open in rpc.Server with only 42 circuits?
 	if s.Srv != nil {
-		cs := s.Srv.ListClients()
-		fmt.Printf("\n remote2pair remotes(%v):\n", len(cs))
+		cs, numRWPair := s.Srv.ListClients()
+		fmt.Printf("\n remote2pair remotes(%v) [numRWPair still live = %v]:\n", len(cs), numRWPair)
 		for i, c := range cs {
 			fmt.Printf("[%03d] %v\n", i, c)
 		}
@@ -12281,11 +12281,12 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 }
 
 // for external users like GetPeerList().
+// see above internalGetCircuitToLeader() for internal users.
 func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, leaderURL string, firstFrag *rpc.Fragment, circuitName string) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, err error) {
-	//vv("%v top getCircuitToLeader('%v')", s.me(), leaderURL)
+	//vv("%v top ExternalGetCircuitToLeader('%v')", s.me(), leaderURL)
 
 	//if strings.Contains(leaderURL, "100.114.32.72") {
-	//vv("top getCircuitToLeader() stack = '%v'", stack())
+	//vv("top ExternalGetCircuitToLeader() stack = '%v'", stack())
 	//}
 
 	if leaderName != "" {
