@@ -6428,7 +6428,7 @@ func (s *TubeNode) beginElection() {
 	// a new nodes think they are leadership material??
 	// maybe we need to set a really high configured membership count.
 	if s.clusterSize() == 1 {
-		vv("%v beginElection sees single node! about to becomeLeader directly... c.clusterSize() = 1; s.clusterSize()=%v; s.state.MC = %v", s.me(), s.clusterSize(), s.state.MC)
+		//vv("%v beginElection sees single node! about to becomeLeader directly... c.clusterSize() = 1; s.clusterSize()=%v; s.state.MC = %v", s.me(), s.clusterSize(), s.state.MC)
 
 		// AM I THE DESIGNATED LEADER?
 		amDesignated := (s.cfg.InitialLeaderName == s.name)
@@ -6446,7 +6446,7 @@ func (s *TubeNode) beginElection() {
 
 			// no point in waiting for votes because it
 			// is only us, all alone, and there is no one to ask.
-			vv("%v beginElection() sees we are a single node and a replica, becoming leader", s.name)
+			//vv("%v beginElection() sees we are a single node and a replica, becoming leader", s.name)
 			s.becomeLeader()
 			return
 		}
@@ -10091,7 +10091,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		//vv("%v applying committed ticket %v at s.state.CommitIndex=%v; s.state.LastApplied=%v", s.me(), tkt.Op, s.state.CommitIndex, s.state.LastApplied)
 		switch tkt.Op {
 		case MEMBERSHIP_SET_UPDATE, MEMBERSHIP_BOOTSTRAP:
-			vv("%v tkt='%v' IN THE APPLY: Applying new MemberConfig(%v) = %v", s.me(), tkt.TicketID[:4], tkt.Op, tkt.MC.Short()) // seen 403 only on leader node_0
+			//vv("%v tkt='%v' IN THE APPLY: Applying new MemberConfig(%v) = %v", s.me(), tkt.TicketID[:4], tkt.Op, tkt.MC.Short()) // seen 403 only on leader node_0
 
 			// setMC calls
 			// adjustCktReplicaForNewMembership,
@@ -12257,7 +12257,7 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 			// can get errors if we removed the leader and then
 			// got our ckt redirected to new leader, in a logical race.
 
-			vv("ackMsg = '%v'", ackMsg)
+			//vv("ackMsg = '%v'", ackMsg)
 
 			// can get errors on connection not working, don't freak.
 			// e.g. error requesting CallPeerStartCircuit from remote: 'error in SendMessage: net.Conn not found
@@ -12311,7 +12311,7 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 // for external users like GetPeerList().
 // see above internalGetCircuitToLeader() for internal users.
 func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, leaderURL string, firstFrag *rpc.Fragment, circuitName string) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, err error) {
-	vv("%v top ExternalGetCircuitToLeader(leaderName='%v'; leaderURL='%v')\n stack=\n%v\n", s.me(), leaderName, leaderURL, stack())
+	//vv("%v top ExternalGetCircuitToLeader(leaderName='%v'; leaderURL='%v')", s.me(), leaderName, leaderURL)
 
 	//if strings.Contains(leaderURL, "100.114.32.72") {
 	//vv("top ExternalGetCircuitToLeader() stack = '%v'", stack())
@@ -12411,7 +12411,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 
 			ckt, ackMsg, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, circuitName, userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
 
-			vv("ackMsg = '%v'", ackMsg)
+			//vv("ackMsg = '%v'", ackMsg)
 
 			// can get errors if we removed the leader and then
 			// got our ckt redirected to new leader, in a logical race.
@@ -12471,7 +12471,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 					// responder thinks they are leader, adopt that idea for now.
 					select {
 					case s.setLeaderCktChan <- ckt:
-						vv("sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
+						//vv("sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
 					case <-s.Halt.ReqStop.Chan:
 						err = ErrShutDown
 						return
@@ -17065,7 +17065,7 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	s.wal.installedSnapshot(s.state)
 	s.assertCompactOK()
 
-	vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli)
+	//vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli)
 }
 
 // properly set CompactionDiscardedLastIndex/Term
