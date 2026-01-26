@@ -1747,7 +1747,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				// no need to add to Waiting, just forward it on;
 				// leader will reply directly.
 				if s.redirectToLeader(tkt) {
-					vv("%v from was-leader redirect again to new leader '%v' for tkt=%v", s.me(), s.leaderName, tkt)
+					vv("%v from was-leader redirect again to new leader '%v' for tkt=%v", s.me(), s.leaderName, tkt) // lots of these from members... maybe we should tell them actual new leader instead.
+
 					continue // followers do not replicate tickets.
 				}
 				// INVAR: we are the leader.
