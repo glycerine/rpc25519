@@ -2199,7 +2199,7 @@ func (s *TubeNode) handleNewCircuit(
 				//if frag.FragOp == 1 || frag.FragOp == 2 {
 				// AE and AEack so much noise, quiet for debug
 				//} else {
-				//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'; my PeerID='%v'", s.name, ckt.Name, frag, s.PeerID)
+				vv("%v: (ckt %v) ckt.Reads sees frag:'%s'; my PeerID='%v'", s.me(), ckt.Name, frag, s.PeerID)
 				//}
 				// centralize to avoid locking in a bajillion places
 				select {
