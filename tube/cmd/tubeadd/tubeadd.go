@@ -218,6 +218,7 @@ if it comes to that.
 		for _, insp := range contacted {
 			if insp.ResponderName == cmdCfg.ContactName {
 				contactURL = insp.ResponderPeerURL
+				break
 			}
 		}
 	}
