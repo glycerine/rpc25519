@@ -254,10 +254,13 @@ if it comes to that.
 		leaderURL = contacted[0].ResponderPeerURL
 	} else {
 		if cmdCfg.ContactName != "" && contactURL != "" {
+			vv("enforce -c")
 			// enforce -c contactName request. We actually
 			// contacted them, so target them with our Add request.
 			leaderName = cmdCfg.ContactName
 			leaderURL = contactURL
+		} else {
+			vv("cmdCfg.ContactName = '%v' but contactURL = '%v'", cmdCfg.ContactName, contactURL)
 		}
 	}
 	vv("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
