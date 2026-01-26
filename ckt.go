@@ -489,6 +489,11 @@ type LocalPeer struct {
 	Hostname string
 	PID      string
 
+	// allow user metadata like leaderName/URL
+	// to be passed back on circuit creation by setting/
+	// updating them here.
+	UserMeta *Mutexmap[string, string]
+
 	// put this in b/c the pump and the peer service
 	// func were racing on recycled new frag. might have
 	// been solved since then. is safe to leave in, but
@@ -801,6 +806,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 		QueryCh:            make(chan *QueryLocalPeerPump),
 		Hostname:           hostname,
 		PID:                fmt.Sprintf("%v", os.Getpid()),
+		UserMeta:           NewMutexmap[string, string](),
 	}
 	pb.Halt = idem.NewHalterNamed(fmt.Sprintf("LocalPeer(%v %p)", peerServiceName, pb))
 
@@ -1172,6 +1178,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#fromBaseServerAddr"] = lpb.BaseServerAddr
 		msg.HDR.Args["#fromHostname"] = lpb.Hostname
 		msg.HDR.Args["#fromPID"] = lpb.PID
+		lpb.addUserMeta(msg)
 
 		madeNewAutoCli, ckt.loopy, err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 		ckt.MadeNewAutoCli = madeNewAutoCli
@@ -1250,6 +1257,10 @@ func (lpb *LocalPeer) newCircuit(
 		// msg.HDR.Args["#fragRPCtoken"] as it was
 		// copied above in firstFrag.ToMessage()
 
+		// allow user metadata like leaderName/URL to be passed back
+		// on CallPeerCircuitEstablishedAck messages too, if registerd.
+		lpb.addUserMeta(msg)
+
 		madeNewAutoCli, ckt.loopy, err = lpb.U.SendOneWayMessage(ctx2, msg, -1)
 		ckt.MadeNewAutoCli = madeNewAutoCli
 	}
@@ -1282,6 +1293,24 @@ func (lpb *LocalPeer) newCircuit(
 		}
 	}
 	return
+}
+
+func (lpb *LocalPeer) addUserMeta(msg *Message) {
+	if lpb.UserMeta == nil || lpb.UserMeta.Len() == 0 {
+		return
+	}
+	lpb.UserMeta.Update(func(meta map[string]string) {
+		for k, v := range meta {
+			if k == "" || k[0] == '#' {
+				panicf("disallow collision of user args with system args: key '%v' not allowed (has value: '%v')", k, v)
+				continue
+			}
+			if msg.HDR.Args == nil {
+				msg.HDR.Args = make(map[string]string)
+			}
+			msg.HDR.Args[k] = v
+		}
+	})
 }
 
 // Close must be called on a Circuit to release resources
@@ -1959,6 +1988,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 				"#fromPID":            lpb.PID,
 				//"#fragRPCtoken": msg.HDR.Args["#fragRPCtoken"] // but only CallPeerStartCircuitTakeToID atm, so here maybe not.
 			}
+			lpb.addUserMeta(ack)
 
 			ack.HDR.ToServiceName = msg.HDR.FromServiceName
 			ack.HDR.ToPeerServiceNameVersion = msg.HDR.FromPeerServiceNameVersion
@@ -2212,6 +2242,7 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 			"#fromHostname":               lpb.Hostname,
 			"#fromPID":                    lpb.PID,
 		}
+		lpb.addUserMeta(msg)
 	}
 	msg.HDR.FromServiceName, msg.HDR.ToServiceName = msg.HDR.ToServiceName, msg.HDR.FromServiceName
 	msg.HDR.FromPeerServiceNameVersion, msg.HDR.ToPeerServiceNameVersion = msg.HDR.ToPeerServiceNameVersion, msg.HDR.FromPeerServiceNameVersion

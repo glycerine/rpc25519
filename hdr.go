@@ -68,7 +68,7 @@ const (
 	// ack all circuit creation so as to make fragRPC possible;
 	// it was added later and is off the critical path so
 	// most frag/ckt operations need not stall waiting for it.
-	// But and RPC style frag op which wants to wait
+	// But an RPC style frag op which wants to wait
 	// for confirmation that the newly requested
 	// circuit has been made, can wait.
 	CallPeerCircuitEstablishedAck CallType = 114

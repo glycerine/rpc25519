@@ -1169,6 +1169,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			s.leaderID = ckt.RemotePeerID
 			s.leaderName = ckt.RemotePeerName
 			s.leaderURL = ckt.RemoteServerURL("")
+			s.leaderWasUpdated()
 
 		case <-s.Halt.ReqStop.Chan:
 			//s.ay("%v shutdown initiated, s.Halt.ReqStop seen", s.me())
@@ -1371,6 +1372,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					}
 					// need to do this too, right?
 					s.leaderName = ""
+					s.leaderWasUpdated()
 				}
 			}
 			// here we are in <-s.electionTimeoutCh
@@ -1476,6 +1478,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					s.leaderName = ""
 					s.leaderID = ""
 					s.leaderURL = ""
+					s.leaderWasUpdated()
 					s.lastLeaderActiveStepDown = time.Now()
 					s.becomeFollower(s.state.CurrentTerm, nil, SAVE_STATE)
 
@@ -1602,6 +1605,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				s.leaderName, _ = frag.GetUserArg("leaderName")
 				s.leaderID, _ = frag.GetUserArg("leaderID")
 				s.leaderURL, _ = frag.GetUserArg("leaderURL")
+				s.leaderWasUpdated()
 				//vv("%v got NotifyClientNewLeader: '%v'", s.name, s.leaderName)
 
 				// also take the MC payload so we know all the tube nodes
@@ -1746,7 +1750,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				// has leader changed in the meantime?
 				// was seeing lots of double redirects from members...
 				// maybe we should tell them actual new leader instead:
-				if false { // makes 710 (only) red though
+				if true { // makes 710 (only) red though
 					if s.role != LEADER {
 						tkt.Err = fmt.Errorf("error: I am not leader. I ('%v') think leader is '%v'", s.name, s.leaderName)
 						s.replyToForwardedTicketWithError(tkt)
@@ -1864,6 +1868,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				if ok && leaderURL != "" {
 					s.leaderURL = leaderURL
 				}
+				s.leaderWasUpdated()
 				//vv("%v TODO: submit tickets to new leader instead.", s.me())
 
 			case ObserveMembershipChange:
@@ -4544,6 +4549,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 			//s.leaderID = s.PeerID
 			//s.leaderName = s.name
 			//s.leaderURL = s.URL
+			//s.leaderWasUpdated()
 		}
 	}
 
@@ -4770,6 +4776,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		s.leaderID = ""
 		s.leaderName = ""
 		s.leaderURL = ""
+		s.leaderWasUpdated()
 	}
 
 	// stashForLeader = false is easier
@@ -6322,6 +6329,7 @@ func (s *TubeNode) becomeFollower(term int64, mc *MemberConfig, save bool) {
 		s.leaderID = ""
 		s.leaderName = ""
 		s.leaderURL = ""
+		s.leaderWasUpdated()
 	}
 	s.resetElectionTimeout("becomeFollower")
 	// stale out any in-progress pre-vote that is racing.
@@ -6463,6 +6471,7 @@ func (s *TubeNode) beginElection() {
 	s.leaderID = ""
 	s.leaderName = ""
 	s.leaderURL = ""
+	s.leaderWasUpdated()
 
 	// vote for self. but per section 4.2.2, only
 	// if we are in current config!
@@ -6974,6 +6983,7 @@ func (s *TubeNode) becomeLeader() {
 	s.leaderID = s.PeerID
 	s.leaderName = s.name
 	s.leaderURL = s.URL
+	s.leaderWasUpdated()
 
 	// Section 4.1, page 36: "Unfortunately, this
 	// decision does imply that a log entry for a configuration
@@ -7660,9 +7670,15 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		// different leaders under split brain.
 		s.currentLeaderFirstObservedTm = time.Now()
 	}
-	s.leaderName = ae.LeaderName
-	s.leaderID = ae.LeaderID
-	s.leaderURL = ae.LeaderURL
+	if ae.LeaderName != s.leaderName ||
+		ae.LeaderID != s.leaderID ||
+		ae.LeaderURL != s.leaderURL {
+
+		s.leaderName = ae.LeaderName
+		s.leaderID = ae.LeaderID
+		s.leaderURL = ae.LeaderURL
+		s.leaderWasUpdated()
+	}
 
 	// earlier but may be redundant with  :6443
 	didDeferRetryTicketsAwaitingLeader := false
@@ -7852,6 +7868,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		s.leaderID = ae.LeaderID
 		s.leaderName = ae.LeaderName
 		s.leaderURL = ae.LeaderURL
+		s.leaderWasUpdated()
 		//vv("%v sees new leader %v",rpc.AliasDecode(s.me()), rpc.AliasDecode(s.leader))
 	}
 	if !didDeferRetryTicketsAwaitingLeader {
@@ -9551,6 +9568,8 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 		s.leaderName = ""
 		s.leaderID = ""
 		s.leaderURL = ""
+		s.leaderWasUpdated()
+
 		s.lastLeaderActiveStepDown = time.Now()
 		s.becomeFollower(s.state.CurrentTerm, nil, SAVE_STATE)
 		// stay on as shadow now.
@@ -9991,6 +10010,8 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 			s.leaderName = ""
 			s.leaderID = ""
 			s.leaderURL = ""
+			s.leaderWasUpdated()
+
 			s.lastLeaderActiveStepDown = time.Now()
 			s.becomeFollower(s.state.CurrentTerm, nil, SAVE_STATE)
 		}
@@ -12175,6 +12196,7 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 		err = fmt.Errorf("getCircuitToLeader error: no MyPeer available")
 		return
 	}
+	var ackMsg *rpc.Message
 	var remotePeer *rpc.RemotePeer
 	ok := true
 	if s.MyPeer.Remotes == nil || leaderPeerID == "" {
@@ -12231,9 +12253,11 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 
 		userString := fmt.Sprintf("getCircuitToLeader on name:'%v'", s.name)
 		for try := 0; try < 2; try++ {
-			ckt, _, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, circuitName, userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
+			ckt, ackMsg, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, circuitName, userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
 			// can get errors if we removed the leader and then
 			// got our ckt redirected to new leader, in a logical race.
+
+			vv("ackMsg = '%v'", ackMsg)
 
 			// can get errors on connection not working, don't freak.
 			// e.g. error requesting CallPeerStartCircuit from remote: 'error in SendMessage: net.Conn not found
@@ -12279,12 +12303,7 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 	}
 	switch s.PeerServiceName {
 	case TUBE_CLIENT, TUBE_OBS_MEMBERS:
-		// I don't think we can assume that this is the actually the leader...
-		// and tubeadd is wrongly thinking the leader is the last contacted.
-		// comment out? does putting this back in reduce our double-redirects? nope.
-		//s.leaderID = ckt.RemotePeerID
-		//s.leaderName = ckt.RemotePeerName
-		//s.leaderURL = ckt.RemoteServerURL("")
+		s.updateLeaderNameFromAckMsg(ackMsg)
 	}
 	return
 }
@@ -12292,7 +12311,7 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 // for external users like GetPeerList().
 // see above internalGetCircuitToLeader() for internal users.
 func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, leaderURL string, firstFrag *rpc.Fragment, circuitName string) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, err error) {
-	vv("%v top ExternalGetCircuitToLeader(leaderName='%v'; leaderURL='%v')", s.me(), leaderName, leaderURL)
+	vv("%v top ExternalGetCircuitToLeader(leaderName='%v'; leaderURL='%v')\n stack=\n%v\n", s.me(), leaderName, leaderURL, stack())
 
 	//if strings.Contains(leaderURL, "100.114.32.72") {
 	//vv("top ExternalGetCircuitToLeader() stack = '%v'", stack())
@@ -12336,6 +12355,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		err = fmt.Errorf("getCircuitToLeader error: no MyPeer available")
 		return
 	}
+	var ackMsg *rpc.Message
 	var remotePeer *rpc.RemotePeer
 	ok := true
 	if s.MyPeer.Remotes == nil || leaderPeerID == "" {
@@ -12388,7 +12408,11 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 
 		userString := fmt.Sprintf("getCircuitToLeader on name:'%v'", s.name)
 		for try := 0; try < 2; try++ {
-			ckt, _, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, circuitName, userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
+
+			ckt, ackMsg, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, circuitName, userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
+
+			vv("ackMsg = '%v'", ackMsg)
+
 			// can get errors if we removed the leader and then
 			// got our ckt redirected to new leader, in a logical race.
 
@@ -12439,13 +12463,21 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		// made setLeaderCktChan buffered.
 		// but: buffering makes 707 intermit red without a leader! hmm.
 
-		// also can be wrong: the last queried is not neccessarily the leader...
-		select {
-		case s.setLeaderCktChan <- ckt:
-			vv("sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
-		case <-s.Halt.ReqStop.Chan:
-			err = ErrShutDown
-			return
+		// note: the last queried is not neccessarily the leader.
+		if ackMsg != nil {
+			lname, ok := ackMsg.HDR.Args["leaderName"]
+			if ok && lname != "" {
+				if ckt.RemotePeerName == lname {
+					// responder thinks they are leader, adopt that idea for now.
+					select {
+					case s.setLeaderCktChan <- ckt:
+						vv("sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
+					case <-s.Halt.ReqStop.Chan:
+						err = ErrShutDown
+						return
+					}
+				}
+			}
 		}
 	}
 	return
@@ -13526,6 +13558,8 @@ func (s *TubeNode) handleLocalModifyMembership(tkt *Ticket) (onlyPossibleAddr st
 				s.leaderID = ckt.RemotePeerID
 				s.leaderName = ckt.RemotePeerName
 				s.leaderURL = ckt.RemoteServerURL("")
+				s.leaderWasUpdated()
+
 			}
 			// INVAR: cktP connects to leader
 		}
@@ -17845,5 +17879,56 @@ func (s *TubeNode) assertCompactOK() {
 			s.state.CompactionDiscardedLast.Term,
 			s.wal.logIndex.CompactTerm)
 
+	}
+}
+
+// update leader meta data a s.MyPeer so that
+// new circuits immediately learn our view
+// of leadership rather than needed a 2nd
+// network round trip.
+func (s *TubeNode) leaderWasUpdated() {
+	if s == nil || s.MyPeer == nil || s.MyPeer.UserMeta == nil {
+		return
+	}
+	s.MyPeer.UserMeta.Update(func(m map[string]string) {
+		if s.leaderName == "" {
+			delete(m, "leaderName")
+			delete(m, "leaderURL")
+			delete(m, "leaderID")
+		} else {
+			m["leaderName"] = s.leaderName
+			if s.leaderURL == "" {
+				delete(m, "leaderURL")
+			} else {
+				m["leaderURL"] = s.leaderURL
+			}
+			if s.leaderID == "" {
+				delete(m, "leaderID")
+			} else {
+				m["leaderID"] = s.leaderID
+			}
+		}
+	})
+}
+
+func (s *TubeNode) updateLeaderNameFromAckMsg(ackMsg *rpc.Message) {
+	if ackMsg != nil {
+		var lname, lid, lurl string
+		var ok bool
+		lname, ok = ackMsg.HDR.Args["leaderName"]
+		if ok {
+			s.leaderName = lname
+		}
+		lid, ok = ackMsg.HDR.Args["leaderID"]
+		if ok {
+			s.leaderID = lid
+		}
+		lurl, ok = ackMsg.HDR.Args["leaderURL"]
+		if ok {
+			s.leaderURL = lurl
+		}
+		if ok {
+			s.leaderWasUpdated()
+		}
 	}
 }
