@@ -6442,7 +6442,7 @@ func (s *TubeNode) beginElection() {
 
 		// AM I THE EVEN IN THE CLUSTER; let alone the designated leader?
 		_, iAmReplica := s.state.MC.PeerNames.Get2(s.name)
-		vv("%v iAmReplica = %v; amDesignated = %v; (s.cfg.isTest && s.cfg.testNum < 400) = %v; s.state.MC.PeerNames = '%v'; s.cfg.InitialLeaderName = '%v'", s.me(), iAmReplica, amDesignated, (s.cfg.isTest && s.cfg.testNum < 400), s.state.MC, s.cfg.InitialLeaderName)
+		//vv("%v iAmReplica = %v; amDesignated = %v; (s.cfg.isTest && s.cfg.testNum < 400) = %v; s.state.MC.PeerNames = '%v'; s.cfg.InitialLeaderName = '%v'", s.me(), iAmReplica, amDesignated, (s.cfg.isTest && s.cfg.testNum < 400), s.state.MC, s.cfg.InitialLeaderName)
 
 		//if (iAmReplica && amDesignated) || (s.cfg.isTest && s.cfg.testNum < 400) {
 		// seems too restrictive for live prod single node cluster.
