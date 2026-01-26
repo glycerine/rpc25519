@@ -375,7 +375,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 
 		sess, err := cli.CreateNewSession(bkg, leaderNode0.name, leaderURL0)
 		panicOn(err)
-		//vv("got sess = '%v'", sess)
+		vv("got sess = '%v'", sess)
 
 		// session should set cli.MC, so we know all 3 nodes.
 		insp := cli.Inspect()
@@ -441,7 +441,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 		if !reallyLeader {
 			panicf("could not really find leader; leaderName='%v'; leaderURL = '%v'", leaderName, leaderURL)
 		}
-		vv("2nd leaderName = '%v'; url = '%v'", leaderName, leaderURL)
+		vv("2nd leaderName = '%v'; url = '%v'", leaderName, leaderURL) // node_2
 
 		to, canc := context.WithTimeout(bkg, time.Second*10)
 		tktj, err = sess.Read(to, "", "a", 0)
@@ -460,7 +460,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 		// the HelperFindLeader() call, we got
 		// sporadic context deadline exceeded here
 		// due to s.leaderName still pointing to the dead leader.
-		panicOn(err) // panic: node_2 leader error: unknown Ticket.SessionID='18pxU7t2gWmkFJmT4MEJMy61cKIB' (SessionSerial='3'). Must call CreateNewSession first to generate/register a new SessionID. In leaderServedLocalRead(). [recovered, repanicked]
+		panicOn(err) // panic: error: I am not leader. I ('node_1') think leader is 'node_2'
 		canc()
 		vj = tktj.Val
 

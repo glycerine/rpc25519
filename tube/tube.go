@@ -1744,10 +1744,21 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				}
 
 				// has leader changed in the meantime?
+				// was seeing lots of double redirects from members...
+				// maybe we should tell them actual new leader instead:
+				if false { // makes 710 (only) red though
+					if s.role != LEADER {
+						tkt.Err = fmt.Errorf("error: I am not leader. I ('%v') think leader is '%v'", s.name, s.leaderName)
+						s.replyToForwardedTicketWithError(tkt)
+						s.FinishTicket(tkt, false)
+						continue
+					}
+				}
+				// vesus:
 				// no need to add to Waiting, just forward it on;
 				// leader will reply directly.
 				if s.redirectToLeader(tkt) {
-					vv("%v from was-leader redirect again to new leader '%v' for tkt=%v", s.me(), s.leaderName, tkt) // lots of these from members... maybe we should tell them actual new leader instead.
+					vv("%v from was-leader redirect again to new leader '%v' for tkt=%v", s.me(), s.leaderName, tkt)
 
 					continue // followers do not replicate tickets.
 				}
@@ -12281,7 +12292,7 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 // for external users like GetPeerList().
 // see above internalGetCircuitToLeader() for internal users.
 func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, leaderURL string, firstFrag *rpc.Fragment, circuitName string) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, err error) {
-	//vv("%v top ExternalGetCircuitToLeader('%v')", s.me(), leaderURL)
+	vv("%v top ExternalGetCircuitToLeader(leaderName='%v'; leaderURL='%v')", s.me(), leaderName, leaderURL)
 
 	//if strings.Contains(leaderURL, "100.114.32.72") {
 	//vv("top ExternalGetCircuitToLeader() stack = '%v'", stack())
@@ -12425,13 +12436,13 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 	}
 	switch s.PeerServiceName {
 	case TUBE_CLIENT, TUBE_OBS_MEMBERS:
-		// hung here on tuberm, naturally enough, because
-		// we are occupying the mainline goro.
 		// made setLeaderCktChan buffered.
 		// but: buffering makes 707 intermit red without a leader! hmm.
 
+		// also can be wrong: the last queried is not neccessarily the leader...
 		select {
 		case s.setLeaderCktChan <- ckt:
+			vv("sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
 		case <-s.Halt.ReqStop.Chan:
 			err = ErrShutDown
 			return

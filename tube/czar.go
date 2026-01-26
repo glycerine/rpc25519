@@ -252,8 +252,8 @@ func (s *Czar) expireSilentNodes() (changed bool) {
 		if name == s.TubeCliName {
 			// we ourselves are obviously alive so
 			// we don't bother to heartbeat to ourselves.
-			// Ah-hah! but this makes us look stale to
-			// other members, yikes!
+			// Ah-hah! but omitting the below makes us look stale to
+			// other members, yikes! we add in ourselves now:
 			plus.RMemberLeaseUntilTm = now.Add(s.memberLeaseDur)
 			plus.RMemberLeaseDur = s.memberLeaseDur
 			continue
