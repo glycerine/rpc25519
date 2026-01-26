@@ -1749,15 +1749,21 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 				// has leader changed in the meantime?
 				// was seeing lots of double redirects from members...
-				// maybe we should tell them actual new leader instead:
-				if true { // makes 710 (only) red though
-					if s.role != LEADER {
-						tkt.Err = fmt.Errorf("error: I am not leader. I ('%v') think leader is '%v'", s.name, s.leaderName)
-						s.replyToForwardedTicketWithError(tkt)
-						s.FinishTicket(tkt, false)
-						continue
-					}
+				// Now we tell them actual new leader instead,
+				// to avoid alot of double forwarding/excess
+				// network bandwidth consumption.
+				// Implemented here:
+				if s.role != LEADER {
+					tkt.Err = fmt.Errorf("error: I am not leader. I ('%v') think leader is '%v'", s.name, s.leaderName)
+					tkt.LeaderID = s.leaderID
+					tkt.LeaderName = s.leaderName
+					tkt.LeaderURL = s.leaderURL
+
+					s.replyToForwardedTicketWithError(tkt)
+					s.FinishTicket(tkt, false)
+					continue
 				}
+
 				// vesus:
 				// no need to add to Waiting, just forward it on;
 				// leader will reply directly.
