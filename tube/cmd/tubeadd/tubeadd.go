@@ -213,6 +213,14 @@ if it comes to that.
 	canc()
 	_ = reallyLeader
 	panicOn(err)
+	var contactURL string
+	if cmdCfg.ContactName != "" {
+		for _, insp := range contacted {
+			if insp.ResponderName == cmdCfg.ContactName {
+				contactURL = insp.ResponderPeerURL
+			}
+		}
+	}
 	if true {
 		fmt.Printf("tubeadd contacted:\n")
 		for _, insp := range contacted {
@@ -244,8 +252,15 @@ if it comes to that.
 		// in our config file(!)
 		leaderName = contacted[0].ResponderName
 		leaderURL = contacted[0].ResponderPeerURL
+	} else {
+		if cmdCfg.ContactName != "" && contactURL != "" {
+			// enforce -c contactName request. We actually
+			// contacted them, so target them with our Add request.
+			leaderName = cmdCfg.ContactName
+			leaderURL = contactURL
+		}
 	}
-	//vv("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
+	vv("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	targetPeerID := "" // empty string allowed now
 	var errWriteDur time.Duration
