@@ -1299,7 +1299,10 @@ func (lpb *LocalPeer) addUserMeta(msg *Message) {
 	if lpb.UserMeta == nil || lpb.UserMeta.Len() == 0 {
 		return
 	}
-	lpb.UserMeta.Update(func(meta map[string]string) {
+
+	lpb.UserMeta.View(func(meta map[string]string) {
+		// warning: we must not mutate m here. treat m as read-only
+		// since we only hold an RLock on it.
 		for k, v := range meta {
 			if k == "" || k[0] == '#' {
 				panicf("disallow collision of user args with system args: key '%v' not allowed (has value: '%v')", k, v)

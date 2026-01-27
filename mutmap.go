@@ -126,6 +126,16 @@ func (m *Mutexmap[K, V]) Update(updateFunc func(m map[K]V)) {
 	return
 }
 
+// View atomically runs viewFunc on the Mutexmap.
+// viewFunc must not alter or mutate m in any way,
+// or else data races and undefined behavior will result.
+func (m *Mutexmap[K, V]) View(viewFunc func(m map[K]V)) {
+	m.mut.RLock()
+	viewFunc(m.m)
+	m.mut.RUnlock()
+	return
+}
+
 // GetMapReset returns the underlying map and
 // resets the internal map by re-allocating it anew.
 // This is useful when you want to discard
