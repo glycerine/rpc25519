@@ -1999,7 +1999,9 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 	// why 513 net.Conn open in rpc.Server with only 42 circuits?
 	if s.Srv != nil {
 		cs, numRWPair := s.Srv.ListClients()
-		fmt.Printf("\n remote2pair remotes(%v) [numRWPair still live = %v]:\n", len(cs), numRWPair)
+		ac, _ := s.Srv.AutoClients()
+		numAutoCli := len(ac)
+		fmt.Printf("\n remote2pair remotes(%v) [Server.numRWPair live = %v; numAutoCli = %v]:\n", len(cs), numRWPair, numAutoCli)
 		for i, c := range cs {
 			fmt.Printf("[%03d] %v\n", i, c)
 		}
