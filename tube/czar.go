@@ -665,6 +665,11 @@ func (membr *RMember) start() {
 
 	cli.Srv.RegisterName("Czar", czar)
 
+	vv("cli.MyPeer.PeerName = '%v'", cli.MyPeer.PeerName)
+	if cli.MyPeer.PeerName == "" {
+		panic("cli.MyPeer.PeerName must not be empty")
+	}
+
 	membr.UpcallMembershipChangeCh = czar.UpcallMembershipChangeCh
 
 fullRestart:

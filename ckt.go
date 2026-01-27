@@ -1949,7 +1949,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		// spin one up!
 		//vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'; Typ='%v'", peerServiceName, msg.HDR.Typ)
 
-		var peerName string // empty string, how can we know until they decide?
+		peerName := s.baseServerName // maybe the best we can do.
 		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, peerServiceNameVersion, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID, peerName, onRemote2ndSide, preferExtant)
 		if err != nil {
 			// we are probably shutting down; Test408 gets here with

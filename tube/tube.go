@@ -779,10 +779,12 @@ func (s *TubeNode) Start(
 		panic(fmt.Sprintf("Arg. disagreement on our own name: s.cfg.MyName = '%v' but s.name = '%v'", s.cfg.MyName, s.name))
 	}
 	if myPeer.PeerName == "" {
-		// TUBE_CLIENT member sometime see? racy though. not sure how to fix that.
-		alwaysPrintf("ugh: setting empty myPeerName to s.name='%v'", s.name)
-		myPeer.PeerName = s.name
+		// TUBE_CLIENT member sometime see?
+		panicf("ugh: in '%v', myPeer.PeerName _must_ be set before this!", s.name)
+		// this would be super racy:
+		//myPeer.PeerName = s.name
 	}
+	myPeer.UserMeta.Set("fromPeerName", s.name)
 
 	s.aliasSetup(myPeer)
 	s.MyPeer = myPeer
@@ -2058,7 +2060,9 @@ func (s *TubeNode) handleNewCircuit(
 	// we can indeed end up with an empty ckt.RemotePeerName string.
 	// We fill in a proxy for now...
 	if ckt.RemotePeerName == "" {
-		ckt.RemotePeerName = "ckt_RemotePeerName_was_empty_" + CryRand15B()
+		panic(fmt.Sprintf("cannot have ckt.RemotePeerName empty: ckt='%v'", ckt))
+		// workaround??
+		//ckt.RemotePeerName = "ckt_RemotePeerName_was_empty_" + CryRand15B()
 		/* panic gave:
 				//panic(fmt.Sprintf("cannot have ckt.RemotePeerName empty: ckt='%v'", ckt))
 
@@ -12378,7 +12382,7 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 		}
 		// retry loop to attempt onlyPossibleAddr if we get that error.
 
-		userString := fmt.Sprintf("getCircuitToLeader on name:'%v'; MyPeer.PeerName='%v'", s.name, s.MyPeer.PeerName)
+		userString := fmt.Sprintf("internalGetCircuitToLeader on name:'%v'; MyPeer.PeerName='%v'", s.name, s.MyPeer.PeerName)
 		for try := 0; try < 2; try++ {
 			ckt, ackMsg, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, circuitName, userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
 			// can get errors if we removed the leader and then
@@ -12533,7 +12537,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		}
 		// retry loop to attempt onlyPossibleAddr if we get that error.
 
-		userString := fmt.Sprintf("getCircuitToLeader on name:'%v'", s.name)
+		userString := fmt.Sprintf("ExternalGetCircuitToLeader on name:'%v'", s.name)
 		for try := 0; try < 2; try++ {
 
 			ckt, ackMsg, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, circuitName, userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
