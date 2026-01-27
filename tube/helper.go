@@ -296,9 +296,9 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			if cfg.InitialLeaderName != "" &&
 				cfg.InitialLeaderName != lastLeaderName {
 
-				fmt.Printf("warning: ignoring default '%v' "+
-					"because we see leader '%v'\n",
-					cfg.InitialLeaderName, lastLeaderName)
+				//fmt.Printf("warning: ignoring default '%v' "+
+				//	"because we see leader '%v'\n",
+				//	cfg.InitialLeaderName, lastLeaderName)
 			}
 		} else {
 			if lastLeaderName != contactName {
