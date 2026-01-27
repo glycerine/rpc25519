@@ -1020,6 +1020,11 @@ fullRestart:
 				}
 
 			case notCzar:
+				// we don't need to maintain a socket with the tube raft cluster.
+				// just takes up file handles on the leader that will not
+				// be used for a long time in practice. Re-open if and when needed.
+				cli.closeSocketsReopenLazily()
+
 				if rpcClientToCzar == nil {
 					//pp("notCzar top: rpcClientToCzar is nil")
 

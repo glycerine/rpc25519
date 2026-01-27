@@ -1145,6 +1145,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		case <-s.hupRequestCIDsCh:
 			s.handleHUPLoggingCIDs()
 
+		case <-s.closeSocketsReopenLazilyCh:
+			s.handleCloseSocketsReopenLazily()
+
 		case <-s.pruneDupClientCktCheckCh:
 			s.globalPruneCktCheck()
 
@@ -3276,7 +3279,8 @@ type TubeNode struct {
 	pruneDupClientCktCheckCh <-chan time.Time
 	pruneDupDur              time.Duration
 
-	hupRequestCIDsCh chan bool
+	hupRequestCIDsCh           chan bool
+	closeSocketsReopenLazilyCh chan bool
 }
 
 type discoReq struct {
@@ -4270,14 +4274,15 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		singleUpdateMembershipRegistryMap: make(map[string]*Ticket),
 		ApplyNewStateSnapshotCh:           make(chan *RaftState),
 
-		leaderFullPongPQ: newPongPQ(name),
-		parked:           newParkedTree(),
-		sessByExpiry:     newSessTableByExpiry(),
-		cktAuditByCID:    rpc.NewMutexmap[string, *cktPlus](),
-		cktAuditByPeerID: rpc.NewMutexmap[string, *cktPlus](),
-		cktAuditByName:   rpc.NewMutexmap[string, *rpc.Circuit](),
-		pruneDupDur:      time.Second * 20,
-		hupRequestCIDsCh: make(chan bool, 100),
+		leaderFullPongPQ:           newPongPQ(name),
+		parked:                     newParkedTree(),
+		sessByExpiry:               newSessTableByExpiry(),
+		cktAuditByCID:              rpc.NewMutexmap[string, *cktPlus](),
+		cktAuditByPeerID:           rpc.NewMutexmap[string, *cktPlus](),
+		cktAuditByName:             rpc.NewMutexmap[string, *rpc.Circuit](),
+		pruneDupDur:                time.Second * 20,
+		hupRequestCIDsCh:           make(chan bool, 100),
+		closeSocketsReopenLazilyCh: make(chan bool, 100),
 	}
 	s.pruneDupClientCktCheckCh = time.After(s.pruneDupDur)
 	s.hlc.CreateSendOrLocalEvent()
@@ -17938,5 +17943,40 @@ func (s *TubeNode) updateLeaderNameFromAckMsg(ackMsg *rpc.Message) {
 		if ok {
 			s.leaderWasUpdated()
 		}
+	}
+}
+
+// external;
+// called by czar.go when notCzar just a regular member TUBE_CLIENT.
+// we want to close all those un-used connections to the leader
+// and only re-open if an when they are needed (should be
+// rarely unless we have a machine or process crash).
+func (s *TubeNode) closeSocketsReopenLazily() {
+	if s.cfg.PeerServiceName == TUBE_REPLICA {
+		return // ignore, only for clients
+	}
+
+	select {
+	case s.closeSocketsReopenLazilyCh <- true:
+	case <-time.After(time.Second):
+	}
+}
+
+// internal
+func (s *TubeNode) handleCloseSocketsReopenLazily() {
+	if s.cfg.PeerServiceName == TUBE_REPLICA {
+		return // ignore, only for clients
+	}
+	// range over a copy so we can delete as we iterate
+	cp := make(map[string]*cktPlus)
+	for peerID, cktP := range s.cktall {
+		cp[peerID] = cktP
+	}
+	for _, cktP := range cp {
+		s.deleteFromCktAll(cktP)
+	}
+	autoCli, _ := s.Srv.AutoClients()
+	for _, cli := range autoCli {
+		cli.Close()
 	}
 }
