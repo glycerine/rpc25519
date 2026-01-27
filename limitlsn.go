@@ -16,8 +16,8 @@ import (
 	"sync"
 )
 
-// LimitListener returns a Listener that accepts at most n simultaneous
-// connections from the provided Listener.
+// newTlsLimitListener returns a Listener that accepts at most n simultaneous
+// connections from the provided Listener. Its returned net.Conn embed *tls.Conn.
 func newTlsLimitListener(l net.Listener, n int) net.Listener {
 	return &tlsLimitListener{
 		Listener: l,

@@ -172,7 +172,7 @@ func (s *Server) runServerMain(
 		panicf("s.cfg.ListenerLimit must be >= 10, not: %v", s.cfg.ListenerLimit)
 	}
 	origLsn := listener
-	listener = netutil.LimitListener(origLsn, s.cfg.ListenerLimit)
+	listener = newTlsLimitListener(origLsn, s.cfg.ListenerLimit)
 
 	defer listener.Close()
 
@@ -246,9 +246,10 @@ func (s *Server) runServerMain(
 		//vv("Accepted connection from %v", conn.RemoteAddr())
 
 		// Handle the connection in a new goroutine
-		tlsConn := conn.(*tls.Conn)
 
-		go s.handleTLSConnection(tlsConn)
+		//tlsConn := conn.(*tls.Conn)
+		//go s.handleTLSConnection(tlsConn)
+		go s.handleTLSConnection(conn)
 	}
 }
 
@@ -392,7 +393,7 @@ func (s *Server) serveConn(conn net.Conn) {
 	go pair.runReadLoop(conn)
 }
 
-func (s *Server) handleTLSConnection(conn *tls.Conn) {
+func (s *Server) handleTLSConnection(conn net.Conn) {
 	//vv("top of handleTLSConnection()")
 
 	// Perform the handshake; it is lazy on first Read/Write, and
@@ -413,16 +414,19 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 	_ = ctx
 	defer cancel()
 
+	tlsConn := conn.(*tls.Conn)
+
 	// ctx gives us a timeout. Otherwise, one must set a deadline
 	// on the conn to avoid an infinite hang during handshake.
-	if err := conn.HandshakeContext(ctx); err != nil {
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
 		alwaysPrintf("tlsConn.Handshake() failed: '%v'", err)
+		conn.Close()
 		return
 	}
 
 	knownHostsPath := "known_client_keys"
-	connState := conn.ConnectionState()
-	raddr := conn.RemoteAddr()
+	connState := tlsConn.ConnectionState()
+	raddr := tlsConn.RemoteAddr()
 	remoteAddr := strings.TrimSpace(raddr.String())
 
 	if !s.cfg.SkipVerifyKeys {

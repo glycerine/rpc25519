@@ -29,10 +29,10 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/quic-go/quic-go v0.58.0
 	github.com/templexxx/cpu v0.1.1
-	golang.org/x/crypto v0.45.0
-	golang.org/x/net v0.47.0
-	golang.org/x/sys v0.38.0
-	golang.org/x/term v0.37.0
+	golang.org/x/crypto v0.47.0
+	golang.org/x/net v0.49.0
+	golang.org/x/sys v0.40.0
+	golang.org/x/term v0.39.0
 )
 
 //replace github.com/glycerine/idem => /Users/jaten/go/src/github.com/glycerine/idem
