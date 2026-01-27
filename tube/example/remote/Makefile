@@ -1,11 +1,8 @@
-.PHONY:beg clean kill build z one two magic update reup
+.PHONY:update beg clean kill build z one two magic reup
 
 update:
 	git pull origin master --tags
 	make build
-	make kill
-	sleep 3
-	./do
 
 reup:
 	git pull origin master --tags
