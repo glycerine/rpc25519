@@ -414,7 +414,15 @@ func (s *Server) handleTLSConnection(conn net.Conn) {
 	_ = ctx
 	defer cancel()
 
-	tlsConn := conn.(*tls.Conn)
+	var tlsConn *tls.Conn
+	switch x := conn.(type) {
+	case *tls.Conn:
+		tlsConn = x
+	case *tlsLimitListenerConn:
+		tlsConn = x.Conn
+	default:
+		panicf("unhandled Conn type in handleTLSConnection: %T", conn)
+	}
 
 	// ctx gives us a timeout. Otherwise, one must set a deadline
 	// on the conn to avoid an infinite hang during handshake.
