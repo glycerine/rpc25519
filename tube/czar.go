@@ -1043,7 +1043,7 @@ fullRestart:
 						alwaysPrintf("wat? in notCzar, why is nonCzarMembers.PeerNames nil?")
 						continue fullRestart
 					}
-					czarDetPlus, ok := list.PeerNames.Get2(list.CzarName) // segfault!
+					czarDetPlus, ok := list.PeerNames.Get2(list.CzarName)
 					if !ok {
 						panicf("list with winning czar did not include czar itself?? list='%v'", list)
 					}

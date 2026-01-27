@@ -18106,6 +18106,7 @@ func (s *TubeNode) handleCloseSocketsReopenLazily() {
 	if s.cfg.PeerServiceName == TUBE_REPLICA {
 		return // ignore, only for clients
 	}
+	vv("%v handleCloseSocketsReopenLazily top", s.me())
 	// range over a copy so we can delete as we iterate
 	cp := make(map[string]*cktPlus)
 	for peerID, cktP := range s.cktall {
