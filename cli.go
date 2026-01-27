@@ -1211,7 +1211,7 @@ type Config struct {
 	LimitedServiceNames []string
 	LimitedServiceMax   []int
 
-	ListenerLimit int // default 100x
+	ListenerLimit int // default 300
 }
 
 func (cfg *Config) GetLimitMax(peerServiceName string) int {
@@ -1344,7 +1344,7 @@ func NewConfig() *Config {
 		shared:           &sharedTransport{},
 		simnetRendezvous: &simnetRendezvous{},
 
-		ListenerLimit: 100,
+		ListenerLimit: 300,
 
 		// usually want this on so auto-clients work.
 		ServerAutoCreateClientsToDialOtherServers: true,
