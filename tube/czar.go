@@ -56,6 +56,8 @@ func (s czarState) String() string {
 // via Raft by writing to the key "czar"
 // in the configured RMember.TableSpace.
 type Czar struct {
+	slow bool // use sessions and refresh members/ dir in raft?
+
 	Halt *idem.Halter `msg:"-"`
 
 	tableSpace string
@@ -155,6 +157,9 @@ func (czar *Czar) setNonCzarMembers(list *ReliableMembershipList) {
 }
 
 func (czar *Czar) refreshMemberInTubeMembersTable(ctx context.Context) (err error) {
+	if !czar.slow {
+		return
+	}
 	vv("begin refreshMemberInTubeMembersTable()")
 	t1 := time.Now()
 
@@ -671,12 +676,14 @@ fullRestart:
 
 		ctx := context.Background()
 
-		if czar.sess != nil {
-			ctx2, canc := context.WithTimeout(ctx, time.Second*2)
-			err = cli.CloseSession(ctx2, czar.sess)
-			canc()
-			if err != nil {
-				vv("closing prior session err='%v'", err)
+		if czar.slow {
+			if czar.sess != nil {
+				ctx2, canc := context.WithTimeout(ctx, time.Second*2)
+				err = cli.CloseSession(ctx2, czar.sess)
+				canc()
+				if err != nil {
+					vv("closing prior session err='%v'", err)
+				}
 			}
 		}
 		if j > 0 {
@@ -695,17 +702,20 @@ fullRestart:
 			vv("helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", leaderURL, reallyLeader, err)
 			panicOn(err)
 
+			if !czar.slow {
+				break
+			}
 			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 			czar.sess, err = cli.CreateNewSession(ctx5, leaderName, leaderURL)
 			canc()
 			//panicOn(err) // panic: hmm. no leader known to me (node 'node_0')
 			if err == nil {
+				vv("got sess = '%v'", czar.sess)
 				break
 			}
 			alwaysPrintf("got err from CreateNewSession, sleep 1 sec and try again: '%v'", err)
 			time.Sleep(time.Second)
 		}
-		vv("got sess = '%v'", czar.sess)
 
 		// tell user it is safe to listen on
 		// membr.UpcallMembershipChangeCh now.
@@ -782,10 +792,16 @@ fullRestart:
 
 				// in cState == unknownCzarState here
 
+				var czarTkt *Ticket
 				// stuck here 35 minutes huh. use a timeout.
 				ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-				czarTkt, err := czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+				if czar.slow {
+					czarTkt, err = czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+				} else {
+					czarTkt, err = cli.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+				}
 				canc()
+
 				if czarTkt == nil {
 					// context timeout, retry.
 					continue fullRestart
@@ -961,7 +977,12 @@ fullRestart:
 					// hung here on cluster leader bounce, write
 					// has failed.
 					ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-					czarTkt, err := czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+					var czarTkt *Ticket
+					if czar.slow {
+						czarTkt, err = czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+					} else {
+						czarTkt, err = cli.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+					}
 					canc()
 					if err != nil {
 						vv("renewCzarLeaseCh attempt to renew lease with Write to keyCz:'%v' failed: err='%v'", czar.keyCz, err)
