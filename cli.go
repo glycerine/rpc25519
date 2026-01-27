@@ -1210,6 +1210,8 @@ type Config struct {
 	// of a map to avoid non-deterministic output.
 	LimitedServiceNames []string
 	LimitedServiceMax   []int
+
+	ListenerLimit int // default 100x
 }
 
 func (cfg *Config) GetLimitMax(peerServiceName string) int {
@@ -1341,6 +1343,8 @@ func NewConfig() *Config {
 		configBaseID:     NewCallID(""),
 		shared:           &sharedTransport{},
 		simnetRendezvous: &simnetRendezvous{},
+
+		ListenerLimit: 100,
 
 		// usually want this on so auto-clients work.
 		ServerAutoCreateClientsToDialOtherServers: true,

@@ -30,6 +30,7 @@ require (
 	github.com/quic-go/quic-go v0.58.0
 	github.com/templexxx/cpu v0.1.1
 	golang.org/x/crypto v0.45.0
+	golang.org/x/net v0.47.0
 	golang.org/x/sys v0.38.0
 	golang.org/x/term v0.37.0
 )
@@ -51,6 +52,5 @@ require (
 	github.com/shurcooL/go-goon v1.0.0 // indirect
 	github.com/tinylib/msgp v1.1.2 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	golang.org/x/net v0.47.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
 )

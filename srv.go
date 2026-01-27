@@ -27,6 +27,7 @@ import (
 	"github.com/glycerine/ipaddr"
 	"github.com/glycerine/rpc25519/selfcert"
 	"github.com/quic-go/quic-go"
+	"golang.org/x/net/netutil" // for LimitListener
 )
 
 var _ = os.MkdirAll
@@ -166,6 +167,13 @@ func (s *Server) runServerMain(
 	if err != nil {
 		log.Fatalf("Failed to listen on %v: %v", serverAddress, err)
 	}
+	// prevent overwhelm
+	if s.cfg.ListenerLimit < 10 {
+		panicf("s.cfg.ListenerLimit must be >= 10, not: %v", s.cfg.ListenerLimit)
+	}
+	origLsn := listener
+	listener = netutil.LimitListener(origLsn, s.cfg.ListenerLimit)
+
 	defer listener.Close()
 
 	addr := listener.Addr()
@@ -251,6 +259,14 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 	if err != nil {
 		log.Fatalf("Failed to listen on %v: %v", serverAddress, err)
 	}
+
+	// prevent overwhelm
+	if s.cfg.ListenerLimit < 10 {
+		panicf("s.cfg.ListenerLimit must be >= 10, not: %v", s.cfg.ListenerLimit)
+	}
+	origLsn := listener
+	listener = netutil.LimitListener(origLsn, s.cfg.ListenerLimit)
+
 	defer listener.Close()
 
 	addr := listener.Addr()
