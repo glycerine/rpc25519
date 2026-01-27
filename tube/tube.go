@@ -12938,6 +12938,9 @@ func (s *TubeNode) peerListRequestHandler(frag *rpc.Fragment, ckt *rpc.Circuit) 
 		// might be:
 		// failed to connect to server: 'dial tcp 100.109.45.81:61580: connect: connection refused'
 		//return ErrShutDown
+
+		vv("don't keep trying on a borked circuit--killing cktP='%v'", cktP)
+		s.deleteFromCktAll(cktP)
 	}
 	//vv("%v replied with PeerListReply to '%v'", s.name, ckt.RemoteCircuitURL())
 	return nil
