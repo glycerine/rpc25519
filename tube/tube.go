@@ -318,10 +318,12 @@ func init() {
 
 	*/
 	debug.SetMemoryLimit(10 << 30) // 10 GB. Was 2 GB but => grinding at 400% cpu sometimes.
+
+	raiseFileHandleLimit(100_000)
 }
 
-// HLC is a hybrid logical/physical clock, based
-// on the 2014 paper
+// HLC (see hlc.go) is a hybrid logical/physical clock, based
+// on the 2014 paper:
 //
 // "Logical Physical Clocks and Consistent
 // Snapshots in Globally Distributed Databases"
