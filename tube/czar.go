@@ -754,6 +754,8 @@ fullRestart:
 		}
 		//vv("begin main loop at haveSess")
 
+		var closedSockets bool
+
 	haveSess:
 		for ii := 0; ; ii++ {
 			////vv("main loop ii = %v   fullRestart j = %v   cState = %v", ii, j, czarState(czar.cState.Load()))
@@ -764,6 +766,7 @@ fullRestart:
 			switch czarState(czar.cState.Load()) {
 
 			case unknownCzarState:
+				closedSockets = false
 
 				// find the czar. it might be me.
 				// we try to write to the "czar" key with a lease.
@@ -1025,10 +1028,15 @@ fullRestart:
 				}
 
 			case notCzar:
-				// we don't need to maintain a socket with the tube raft cluster.
-				// just takes up file handles on the leader that will not
-				// be used for a long time in practice. Re-open if and when needed.
-				cli.closeSocketsReopenLazily()
+
+				// just do once per non-czar
+				if !closedSockets {
+					// we don't need to maintain a socket with the tube raft cluster.
+					// just takes up file handles on the leader that will not
+					// be used for a long time in practice. Re-open if and when needed.
+					cli.closeSocketsReopenLazily()
+					closedSockets = true
+				}
 
 				if rpcClientToCzar == nil {
 					//pp("notCzar top: rpcClientToCzar is nil")
