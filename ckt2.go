@@ -152,10 +152,14 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	frag.FromPeerID = lpb.PeerID
 	frag.FromPeerName = lpb.PeerName
 
+	if lpb.PeerName == "" {
+		panic("not allowed! lpb.PeerName cannot be an empty string here; our circuit.RemotePeerName would end up missing that important information.")
+	}
+
 	var pleaseAssignNewRemotePeerID string
 	if preferExtant {
 		// leave pleaseAssignNewRemotePeerID as empty string
-		frag.Typ = CallPeerStartCircuitAtMostOne
+		frag.Typ = CallPeerStartCircuitAtMostOne // only place set.
 	} else {
 		frag.Typ = CallPeerStartCircuitTakeToID
 
