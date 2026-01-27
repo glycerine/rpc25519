@@ -5879,7 +5879,7 @@ func newSessionTableEntry(sess *Session) *SessionTableEntry {
 // release any waiting-to-start LogIndex == 0 transactions.
 // sort/submit by leader stamped order to try and
 // give clients first-come first-served.
-func (s *TubeNode) resubmitStalledTickets() {
+func (s *TubeNode) resubmitStalledTickets(justMC bool) {
 	//vv("%v top of resubmitStalledTickets", s.me())
 
 	// since the stall went into WaitingAtLeader at tube.go:2975,
@@ -5887,9 +5887,11 @@ func (s *TubeNode) resubmitStalledTickets() {
 	// _And_ from s.stalledMembershipConfigChangeTkt.
 	var resub []*Ticket
 	var both []*Ticket
-	for _, tkt := range s.WaitingAtLeader.all() {
-		//vv("appending to both tkt='%v'", tkt.Short())
-		both = append(both, tkt)
+	if !justMC {
+		for _, tkt := range s.WaitingAtLeader.all() {
+			//vv("appending to both tkt='%v'", tkt.Short())
+			both = append(both, tkt)
+		}
 	}
 	if len(s.stalledMembershipConfigChangeTkt) > 0 {
 		//both = append(both, s.stalledMembershipConfigChangeTkt...)
@@ -10255,7 +10257,16 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 						// which is kind of a problem; plus our
 						// first no-op is not on disk; other state not adjusted...
 						// So best to leave unless you rethink that flow.
-						defer s.resubmitStalledTickets() // only place called.
+						//
+						// Update: this cannot be the only place resubmit
+						// is called.
+						// A single node leader could have already self committed its
+						// noop, and then for some reason stalled an MC change?
+						// or after force abandoning an MC change...anyway
+						// we saw in practice getting wedged if this is
+						// the only place resubmit happens. So also
+						// check periodically on another timer.
+						defer s.resubmitStalledTickets(false) // first (was only) place called
 					}
 				}
 			}
@@ -14739,6 +14750,11 @@ func (s *TubeNode) followerDownDur() time.Duration {
 // broadcasting our new PeerID) then there is
 // no need to reboot our links.
 func (s *TubeNode) connectToMC(origin string) {
+
+	defer func() {
+		s.resubmitStalledTickets(true)
+	}()
+
 	if s.state.MC == nil ||
 		s.state.MC.PeerNames.Len() == 0 {
 		//vv("%v connectToMC() returning early; sees empty MC", s.name)
