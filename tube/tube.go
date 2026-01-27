@@ -8677,6 +8677,19 @@ func (s *TubeNode) bcastAppendEntries(es []*RaftLogEntry, prevLogIndex, prevLogT
 	aeFrag := s.newFrag()
 	bts, err := ae.MarshalMsg(nil)
 	panicOn(err)
+	for len(bts) > rpc.UserMaxPayload {
+		vv("ugh: too many entries for a Message: len(es)=%v => len(bts) = %v; try cutting down by half until we are under the limit.", len(es), len(bts))
+		n := len(es)
+		if n > 1 {
+			half := n / 2
+			es = es[:half]
+			ae.Entries = es
+			bts, err = ae.MarshalMsg(nil)
+			panicOn(err)
+		} else {
+			panicf("single AE RaftLogEntry is too big (%v) for UserMaxPayload(%v)", len(bts), rpc.UserMaxPayload)
+		}
+	}
 	aeFrag.Payload = bts
 	aeFrag.FragOp = AppendEntriesMsg
 	aeFrag.FragSubject = "AppendEntries"
