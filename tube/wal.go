@@ -224,6 +224,18 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 			return nil, fmt.Errorf("newParLog error: '%v'", err)
 		}
 	}
+
+	// do this after the parlog creation so we get its
+	// parent directory entry durably on disk alongside
+	// the main wal file.
+	if parentDirFd != nil {
+		err = parentDirFd.Sync()
+		panicOn(err)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	s = &raftWriteAheadLog{
 		path:                     path,
 		fd:                       fd,
@@ -331,8 +343,16 @@ func (s *raftWriteAheadLog) close() (err error) {
 	if s.nodisk {
 		return s.close_NODISK()
 	}
-	s.parlog.close()
+	err = s.parlog.close()
+	panicOn(err)
 	s.w.Flush()
+
+	// it turns out the Close does not also
+	// automatically fsync, so do it now.
+	err = s.fd.Sync()
+	if err != nil {
+		return
+	}
 	err = s.fd.Close()
 	if err != nil {
 		return
@@ -342,14 +362,16 @@ func (s *raftWriteAheadLog) close() (err error) {
 	return
 }
 
-func (s *raftWriteAheadLog) sync() error {
+func (s *raftWriteAheadLog) sync(needParentDirSync bool) error {
 	err := s.fd.Sync()
 	panicOn(err)
 
-	// need to sync parent directory for durability too.
-	if s.parentDirFd != nil {
-		err = s.parentDirFd.Sync()
-		panicOn(err)
+	if needParentDirSync {
+		// need to sync parent directory for durability too.
+		if s.parentDirFd != nil {
+			err = s.parentDirFd.Sync()
+			panicOn(err)
+		}
 	}
 	return nil
 }
@@ -432,7 +454,7 @@ func (s *raftWriteAheadLog) saveRaftLogEntryDoFsync(entry *RaftLogEntry, doFsync
 
 	var nw2 int
 	var b3string string
-	nw2, b3string, err = s.saveBlake3sumFor(b, doFsync)
+	nw2, b3string, err = s.saveBlake3sumFor(b, doFsync, false)
 	panicOn(err)
 	nw += nw2
 	// redundant: saveBlake3sumFor does this
@@ -601,7 +623,7 @@ func checksum64crc(by []byte) uint64 {
 	return hash.Sum64()
 }
 
-func (s *raftWriteAheadLog) saveBlake3sumFor(by []byte, doFsync bool) (nw int, b3string string, err error) {
+func (s *raftWriteAheadLog) saveBlake3sumFor(by []byte, doFsync, needParentDirSync bool) (nw int, b3string string, err error) {
 
 	//pos := curpos(s.fd)
 	//vv("saveBlake3sumFor called, pos = %v", pos)
@@ -631,7 +653,7 @@ func (s *raftWriteAheadLog) saveBlake3sumFor(by []byte, doFsync bool) (nw int, b
 	nw, err = s.fd.Write(by2)
 	panicOn(err)
 	if doFsync {
-		err = s.sync()
+		err = s.sync(needParentDirSync)
 		panicOn(err)
 	}
 	return
@@ -835,7 +857,7 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 		// false => skip fsync-ing each, we will do at the end.
 		nw, err = s.saveRaftLogEntryDoFsync(e, false)
 		if err != nil {
-			s.sync()
+			s.sync(false)
 			panicOn(err)
 			return
 		}
@@ -849,7 +871,8 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 			s.fd.Truncate(newSz)
 		}
 	}
-	s.sync() // this is the fsync
+	err = s.sync(false) // this is the fsync
+	panicOn(err)
 	//vv("%v raft log overwriteEntries() just did fsync", s.name)
 
 	if !s.noLogCompaction {
@@ -1185,7 +1208,8 @@ func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm, node *Tu
 	oldPath := s.path
 	oldParPath := s.parlog.path
 
-	s.close()
+	err := s.close()
+	panicOn(err)
 
 	// keep the path from growing too long after
 	// repeated compression.
@@ -1239,7 +1263,11 @@ func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm, node *Tu
 		// the close() just below will fsync at end, so skip fsyncs here.
 		s2.saveRaftLogEntryDoFsync(s.raftLog[i], false)
 	}
-	s2.close()
+	err = s2.close()
+	panicOn(err)
+
+	// the s2.close above fsyncs the new wal to disk, which
+	// is required before any rename for the file to be durable.
 
 	// sanity check CompactNewBeg vs built up from scratch index.
 	// Since we are going to blow away logIndex anyway from the reload
@@ -1267,15 +1295,24 @@ func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm, node *Tu
 		err = copyFile(oldPath, newPath) // leave newPath available for inspection
 		panicOn(err)
 	} else {
+		// production, not test.
+		// rename over top of the old file, deleting it.
 		err = os.Rename(newParPath, oldParPath)
 		panicOn(err)
 		err = os.Rename(newPath, oldPath)
 		panicOn(err)
 	}
+	// for the rename to be durable, we must fsync the parent dir.
+	err = s.parentDirFd.Sync()
+	panicOn(err)
+
 	// update all internals to be using the compacted log
 	// by re-opening it.
 
 	fd, err := os.OpenFile(oldPath, os.O_RDWR, 0644)
+	panicOn(err)
+	// same as in wal.go:214, per tigerbeetle, we want to sync before reading.
+	err = fd.Sync()
 	panicOn(err)
 
 	parlog, err := newParLog(oldParPath, noDiskFalse)
@@ -1370,7 +1407,7 @@ func (s *raftWriteAheadLog) installedSnapshot(state *RaftState) {
 		panicOn(err)
 		err = s.fd.Truncate(0)
 		panicOn(err)
-		s.sync()
+		s.sync(false)
 	}
 	// also clear out the par log
 	s.parlog.truncate(0)

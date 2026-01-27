@@ -67,7 +67,7 @@ func newParLog(path string, nodisk bool) (s *parLog, err error) {
 		if err != nil {
 			return nil, err
 		}
-		// same as in wal.go:182, per tigerbeetle, we want to sync before reading.
+		// same as in wal.go:214, per tigerbeetle, we want to sync before reading.
 		err = fd.Sync()
 		panicOn(err)
 
@@ -208,6 +208,10 @@ func (s *parLog) sync() error {
 func (s *parLog) close() (err error) {
 	if s.nodisk {
 		return nil
+	}
+	err = s.fd.Sync()
+	if err != nil {
+		return
 	}
 	err = s.fd.Close()
 	return
