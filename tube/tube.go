@@ -8778,6 +8778,7 @@ func (s *TubeNode) bcastAppendEntries(es []*RaftLogEntry, prevLogIndex, prevLogT
 
 	// chapter 4.1: (page 36)
 	// Only send AE to peers in our MC.
+	var gonerPeerID []string
 	for peer, info := range sorted(s.peers) {
 		if peer == s.PeerID {
 			continue // skip self
@@ -8804,6 +8805,7 @@ func (s *TubeNode) bcastAppendEntries(es []*RaftLogEntry, prevLogIndex, prevLogT
 		if s.skipAEBecauseNotReplica(info.PeerID,
 			info.PeerName, info.PeerServiceName) {
 			alwaysPrintf("%v skipping non MC replica: %v", s.me(), info.PeerName)
+			gonerPeerID = append(gonerPeerID, info.PeerID)
 			continue
 		}
 
@@ -8832,6 +8834,12 @@ func (s *TubeNode) bcastAppendEntries(es []*RaftLogEntry, prevLogIndex, prevLogT
 		info.UnackedPing.AEID = ae.AEID
 	}
 	s.MyPeer.FreeFragment(aeFrag)
+
+	_ = gonerPeerID
+	// do we want to be deleting from s.peers here...?
+	//for _, g := range gonerPeerID {
+	//	delete(s.peers, g)
+	//}
 
 	// don't need to heartbeat for a while longer.
 	s.resetLeaderHeartbeat("bcastAppendEntries")
