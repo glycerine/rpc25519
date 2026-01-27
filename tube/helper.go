@@ -271,7 +271,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 	}
 
 	if len(leaders) > 1 {
-		vv("see %v leaders, take the highest term leader of '%#v'", len(leaders), leaders)
+		pp("see %v leaders, take the highest term leader of '%#v'", len(leaders), leaders)
 		var highestTerm int64
 		var highestTermLeader string
 		var highestTermSet *set
@@ -291,7 +291,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 		leaders = map[string]*set{highestTermLeader: highestTermSet}
 	}
 	if len(leaders) == 1 {
-		vv("see 1 leader;  leaders='%#v'", leaders)
+		pp("see 1 leader;  leaders='%#v'", leaders)
 		if contactName == "" {
 			if cfg.InitialLeaderName != "" &&
 				cfg.InitialLeaderName != lastLeaderName {
@@ -310,7 +310,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 		}
 	} else {
 		// INVAR: len(leaders) == 0 || >= 2
-		vv("ugh. len(leaders) = %v; leaders='%#v'", len(leaders), leaders)
+		pp("ugh. len(leaders) = %v; leaders='%#v'", len(leaders), leaders)
 		if contactName == "" {
 			if cfg.InitialLeaderName == "" {
 				err0 = fmt.Errorf("error: no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node.")
