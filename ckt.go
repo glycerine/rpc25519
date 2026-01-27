@@ -1300,7 +1300,7 @@ func (lpb *LocalPeer) addUserMeta(msg *Message) {
 		return
 	}
 
-	lpb.UserMeta.View(func(meta map[string]string) {
+	lpb.UserMeta.ReadOnlyView(func(meta map[string]string) {
 		// warning: we must not mutate m here. treat m as read-only
 		// since we only hold an RLock on it.
 		for k, v := range meta {
