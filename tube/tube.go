@@ -13855,18 +13855,29 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	havePriorChange := len(s.stalledMembershipConfigChangeTkt) > 0
 	if havePriorChange {
 
-		first := s.stalledMembershipConfigChangeTkt[0]
-		if tkt == first {
-			// resubmit of stalled ticket by cktPlus.seen()
-			s.stalledMembershipConfigChangeTkt = s.stalledMembershipConfigChangeTkt[1:]
-			havePriorChange = false // don't de-queue below.
-		} else {
-			//vv("%v overload! must stall this 2nd (or greater) config change. tkt has '%v'", s.me(), tkt.Short())
-			tkt.Stage += ":stalledAsHavePreviousConfigChangeUncommitted"
+		// let force changes wipe out the stalled queue. hopefully
+		// we can get unclogged.
+		if tkt.ForceChangeMC {
+			alwaysPrintf("forced change clearing the %v long stalledMembershipConfigChangeTkt", len(s.stalledMembershipConfigChangeTkt))
+			s.stalledMembershipConfigChangeTkt = nil
+			havePriorChange = false
 
-			// en-queue at end
-			s.stalledMembershipConfigChangeTkt =
-				append(s.stalledMembershipConfigChangeTkt, tkt)
+		} else {
+			// not a forced change.
+
+			first := s.stalledMembershipConfigChangeTkt[0]
+			if tkt == first {
+				// resubmit of stalled ticket by cktPlus.seen()
+				s.stalledMembershipConfigChangeTkt = s.stalledMembershipConfigChangeTkt[1:]
+				havePriorChange = false // don't de-queue below.
+			} else {
+				//vv("%v overload! must stall this 2nd (or greater) config change. tkt has '%v'", s.me(), tkt.Short())
+				tkt.Stage += ":stalledAsHavePreviousConfigChangeUncommitted"
+
+				// en-queue at end
+				s.stalledMembershipConfigChangeTkt =
+					append(s.stalledMembershipConfigChangeTkt, tkt)
+			}
 		}
 	}
 	//vv("%v do first in/first out for our memory. havePriorChange=%v", s.name, havePriorChange)
