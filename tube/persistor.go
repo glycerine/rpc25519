@@ -60,7 +60,8 @@ func (cfg *TubeConfig) NewRaftStatePersistor(path string, node *TubeNode, readOn
 	if err != nil {
 		return nil, nil, err
 	}
-	fd.Close()
+	panicOn(fd.Sync()) // per tigerbeetle/wal.go:217
+	panicOn(fd.Close())
 	s = &raftStatePersistor{
 		path:      path,
 		checkEach: blake3.New(64, nil),
@@ -96,15 +97,17 @@ func (s *raftStatePersistor) close() (err error) {
 	return
 }
 
-func (s *raftStatePersistor) sync() error {
+func (s *raftStatePersistor) sync(needParent bool) error {
 	if s.nodisk {
 		return nil
 	}
 	err := s.fd.Sync()
 	panicOn(err)
 
-	err = s.parentDirFd.Sync()
-	panicOn(err)
+	if needParent {
+		err = s.parentDirFd.Sync()
+		panicOn(err)
+	}
 
 	return nil
 }
@@ -132,7 +135,10 @@ func (s *raftStatePersistor) save(state *RaftState) (nw int64, err error) {
 	panicOn(err)
 	err = s.saveBlake3sumFor(b, fd)
 	panicOn(err)
-	fd.Close()
+	err = fd.Sync()
+	panicOn(err)
+	err = fd.Close()
+	panicOn(err)
 
 	//archivePath := s.path + fmt.Sprintf(".prev.state.%v.%v", ts(), cryRand15B())
 
@@ -157,6 +163,8 @@ func (s *raftStatePersistor) load() (state *RaftState, nr int64, err error) {
 	}
 
 	fd, err := os.OpenFile(s.path, os.O_RDWR|os.O_CREATE, 0644)
+	panicOn(err)
+	err = fd.Sync() // per tigerbeetle/wal.go:217
 	panicOn(err)
 	defer fd.Close()
 	readme, err := nextframe(fd, s.path)
@@ -217,6 +225,7 @@ func (s *raftStatePersistor) loadBlake3sum(fd *os.File) (bla *Blake3sum, err err
 	return
 }
 
+// does not fsync internally.
 func (s *raftStatePersistor) saveBlake3sumFor(by []byte, fd *os.File) (err error) {
 
 	s.checkEach.Reset()
@@ -233,8 +242,5 @@ func (s *raftStatePersistor) saveBlake3sumFor(by []byte, fd *os.File) (err error
 	panicOn(err)
 	_, err = fd.Write(by2)
 	panicOn(err)
-	// caller is about to close
-	//err = s.sync()
-	//panicOn(err)
 	return
 }

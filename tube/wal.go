@@ -68,7 +68,7 @@ func dirExists(name string) bool {
 	return false
 }
 
-// DumpRaftWAL is used by tuber -log to dump the log for diagnostics.
+// DumpRaftWAL is used by tube -log to dump the log for diagnostics.
 func (s *TubeNode) DumpRaftWAL() error {
 
 	if s.cfg.NoDisk {
@@ -154,7 +154,10 @@ func (s *TubeNode) RaftWALString() (r string) {
 	return
 }
 
-// readOnly flag provided for DumpRaftWAL above/tuber diagnostics.
+// The readOnly flag is provided for DumpRaftWAL() above,
+// which is used in tube -log dump diagnostics.
+// It is also used by the TubeNode.RaftWALString() string provider,
+// also just above.
 func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raftWriteAheadLog, err0 error) {
 	//vv("newRaftWriteAheadLog(path = '%v'); nodisk=%v; cfg.MyName='%v'", path, cfg.NoDisk, cfg.MyName)
 
