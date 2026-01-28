@@ -5351,7 +5351,9 @@ type Ticket struct {
 	// The tickets in this Batch may only have their own Batch = nil.
 	Batch []*Ticket `zid:"75"`
 
-	// And for Write (output) now also write lease update to know previous Val (e.g. old czar and try to expire them quickly).
+	// PrevLeaseVal: when the leasor identity changes and overwrites an old
+	// value with a new value, return the old value too. (e.g. old czar
+	// and try to expire them quickly).
 	PrevLeaseVal   Val    `zid:"76"`
 	PrevLeaseVtype string `zid:"77"`
 
