@@ -844,6 +844,22 @@ fullRestart:
 						checkAgainIn = left - time.Millisecond*500
 					}
 					expireCheckCh = time.After(checkAgainIn)
+
+					// can we delete old dead leasor from list?
+					var oldCzarName string
+					if czarTkt.PrevLeaseVtype == ReliableMembershipListType &&
+						len(czarTkt.PrevLeaseVal) > 0 {
+						oldval := &ReliableMembershipList{}
+						oldval.UnmarshalMsg(czarTkt.PrevLeaseVal)
+						oldCzarName = oldval.CzarName
+
+						// In raft kvstore will be stale for one heartbeat; meh.
+						// our next (as czar) heartbeat/lease extension will fix it.
+						// We adjust list instead of czar.members, since setVers
+						// below will overwrite czar.members with list.
+						list.PeerNames.Delkey(oldCzarName)
+					}
+
 					vers := &RMVersionTuple{
 						CzarLeaseEpoch:   czarTkt.LeaseEpoch,
 						Version:          0,
@@ -861,7 +877,8 @@ fullRestart:
 
 					_ = sum
 					left = time.Until(czar.members.Vers.CzarLeaseUntilTm)
-					//pp("err=nil on lease write. I am czar (tubeCliName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", tubeCliName, left, vers, sum)
+
+					vv("err=nil on lease write. I am czar (tubeCliName='%v'; oldCzarName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", tubeCliName, oldCzarName, left, vers, sum)
 
 					czar.renewCzarLeaseDue = time.Now().Add(czar.renewCzarLeaseDur)
 					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)
