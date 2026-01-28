@@ -126,6 +126,15 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 // oldVersionCAS, then oldLeaseEpochCAS, the simple oldval based CAS.
 func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string, leaseDur time.Duration, leaseAutoDel bool, oldVersionCAS, oldLeaseEpochCAS int64) (tkt *Ticket, err error) {
 
+	if oldVersionCAS > 0 && oldLeaseEpochCAS > 0 {
+		return nil, fmt.Errorf("error in call to CAS: cannot have both oldVersionCAS and oldLeaseEpochCAS set.")
+	}
+	if len(oldval) > 0 {
+		if oldVersionCAS > 0 || oldLeaseEpochCAS > 0 {
+			return nil, fmt.Errorf("error in call to CAS: cannot oldval AND (either oldVersionCAS(%v) and oldLeaseEpochCAS(%v)) set: only one of the CAS will be checked.", oldVersionCAS, oldLeaseEpochCAS)
+		}
+	}
+
 	if leaseDur != 0 {
 		// sanity check
 		if leaseDur < 0 || leaseDur > time.Minute*15 {
@@ -139,6 +148,13 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 	desc := fmt.Sprintf("cas(table(%v), key(%v), if oldval(%v) -> newval(%v)", table, key, string(oldval), string(newval))
 	if leaseDur > 0 {
 		desc += fmt.Sprintf("; leaseDur='%v' requested for Leasor '%v'", leaseDur, s.name)
+	}
+	if oldLeaseEpochCAS > 0 {
+		desc += fmt.Sprintf("; oldLeaseEpochCAS = '%v'", oldLeaseEpochCAS)
+		vv("%v oldLeaseEpochCAS = %v", s.me(), oldLeaseEpochCAS)
+	}
+	if oldVersionCAS > 0 {
+		desc += fmt.Sprintf("; oldVersionCAS = '%v'", oldVersionCAS)
 	}
 	tkt = s.NewTicket(desc, table, key, newval, s.PeerID, s.name, CAS, waitForDur, ctx)
 	tkt.OldVal = oldval
@@ -671,7 +687,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		return
 	}
 	// key is already leased by a different leasor, and lease has not expired: reject.
-	tkt.Err = fmt.Errorf("write to leased key rejected. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), clockDriftBound)
+	tkt.Err = fmt.Errorf("write to leased key rejected. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), clockDriftBound)
 
 	// to allow simple client czar election (not the
 	// raft leader election but an application level

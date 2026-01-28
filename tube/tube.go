@@ -11719,6 +11719,9 @@ func (s *TubeNode) doWrite(tkt *Ticket) {
 }
 
 func (s *TubeNode) doCAS(tkt *Ticket) {
+
+	vv("%v doCAS top. tkt.OldLeaseEpochCAS(%v)", s.name, tkt.OldLeaseEpochCAS)
+
 	if s.state.KVstore == nil {
 		if tkt.OldVersionCAS > 0 || tkt.OldLeaseEpochCAS > 0 {
 			tkt.Err = ErrKeyNotFound
@@ -11774,6 +11777,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 			return
 		}
 	} else if tkt.OldLeaseEpochCAS > 0 {
+		vv("%v checking tkt.OldLeaseEpochCAS(%v) vs leaf.LeaseEpoch(%v)", s.name, tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
 		if tkt.OldLeaseEpochCAS != leaf.LeaseEpoch {
 			tkt.Err = fmt.Errorf("CAS rejected on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
 			tkt.CASwapped = false
@@ -11786,11 +11790,12 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		if !bytes.Equal(curVal, tkt.OldVal) { // compare
 			tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
 			tkt.CASwapped = false
+			tkt.Err = fmt.Errorf("CAS rejected on tkt.OldVal != current leaf.Val")
 			return
 		}
 	}
 
-	// kvstoreWrite takes care of leasing rejections
+	vv("kvstoreWrite takes care of leasing rejections")
 	s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
 	tkt.CASwapped = (tkt.Err == nil)
 }
