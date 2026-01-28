@@ -4250,6 +4250,7 @@ func (t *Ticket) clone() *Ticket {
 	//cp.Key = append(Key([]byte{}), t.Val...)
 	cp.Val = append(Val([]byte{}), t.Val...)
 	cp.OldVal = append(Val([]byte{}), t.OldVal...)
+	cp.PrevLeaseVal = append(Val([]byte{}), t.PrevLeaseVal...)
 	cp.CASRejectedBecauseCurVal = append(Val([]byte{}), t.CASRejectedBecauseCurVal...)
 	// cp.Done?
 	return &cp
@@ -5183,10 +5184,11 @@ type Ticket struct {
 	// the HLC when NewTicket was called locally.
 	CreateHLC HLC `zid:"2"`
 
-	Key                      Key    `zid:"3"`
-	Val                      Val    `zid:"4"` // Read/Write. For CAS: new value.
-	Table                    Key    `zid:"5"` // like a database table, a namespace.
-	OldVal                   Val    `zid:"6"` // For CAS: old value (tested for).
+	Key    Key `zid:"3"`
+	Val    Val `zid:"4"` // Read/Write. For CAS: new value.
+	Table  Key `zid:"5"` // like a database table, a namespace.
+	OldVal Val `zid:"6"` // For CAS: (input) old value (tested for).
+
 	CASwapped                bool   `zid:"7"`
 	CASRejectedBecauseCurVal Val    `zid:"8"`
 	NewTableName             Key    `zid:"9"`
@@ -5349,6 +5351,10 @@ type Ticket struct {
 	// The tickets in this Batch may only have their own Batch = nil.
 	Batch []*Ticket `zid:"75"`
 
+	// And for Write (output) now also write lease update to know previous Val (e.g. old czar and try to expire them quickly).
+	PrevLeaseVal   Val    `zid:"76"`
+	PrevLeaseVtype string `zid:"77"`
+
 	// should we return early and stop waiting
 	// after a preset duration? 0 means wait forever.
 	waitForValid time.Duration
@@ -5499,6 +5505,9 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.DupDetected = tkt.DupDetected
 
 		prior.Val = tkt.Val // critical to get read value back
+		prior.PrevLeaseVal = tkt.PrevLeaseVal
+		prior.PrevLeaseVtype = tkt.PrevLeaseVtype
+
 		prior.Vtype = tkt.Vtype
 		prior.RaftLogEntryTm = tkt.RaftLogEntryTm
 		prior.KeyValRangeScan = tkt.KeyValRangeScan
@@ -10837,6 +10846,9 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 		// which is useful for simulating elections.
 		question.Val = answer.Val
 	}
+	question.PrevLeaseVal = answer.PrevLeaseVal
+	question.PrevLeaseVtype = answer.PrevLeaseVtype
+
 	question.MC = answer.MC
 	question.answer = answer
 	question.DupDetected = answer.DupDetected

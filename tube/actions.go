@@ -643,6 +643,13 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 	if tkt.RaftLogEntryTm.After(leaf.LeaseUntilTm.Add(clockDriftBound)) {
 		// prior lease expired, allow write.
 
+		// overwritten value (old czar) can be useful to expire them quickly.
+		// (Performance optimization; not correctness critical since any
+		// key range scan between expiry and now might have wiped an expired
+		// leaf anyway).
+		tkt.PrevLeaseVal = leaf.Value
+		tkt.PrevLeaseVtype = leaf.Vtype
+
 		leaf.Value = append([]byte{}, tktVal...)
 		leaf.Vtype = tkt.Vtype
 		leaf.Leasor = tkt.Leasor
