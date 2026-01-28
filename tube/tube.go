@@ -5355,6 +5355,8 @@ type Ticket struct {
 	PrevLeaseVal   Val    `zid:"76"`
 	PrevLeaseVtype string `zid:"77"`
 
+	OldLeaseEpochCAS int64 `zid:"78"` // For CAS: old leaf.LeaseEpoch (tested for).
+
 	// should we return early and stop waiting
 	// after a preset duration? 0 means wait forever.
 	waitForValid time.Duration
@@ -11716,7 +11718,7 @@ func (s *TubeNode) doWrite(tkt *Ticket) {
 
 func (s *TubeNode) doCAS(tkt *Ticket) {
 	if s.state.KVstore == nil {
-		if tkt.OldVersionCAS > 0 {
+		if tkt.OldVersionCAS > 0 || tkt.OldLeaseEpochCAS > 0 {
 			tkt.Err = ErrKeyNotFound
 			return
 		}
@@ -11732,7 +11734,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	}
 	table, ok := s.state.KVstore.m[tkt.Table]
 	if !ok {
-		if tkt.OldVersionCAS > 0 {
+		if tkt.OldVersionCAS > 0 || tkt.OldLeaseEpochCAS > 0 {
 			tkt.Err = ErrKeyNotFound
 			return
 		}
@@ -11747,7 +11749,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	}
 	leaf, _, found := table.Tree.Find(art.Exact, art.Key(tkt.Key))
 	if !found {
-		if tkt.OldVersionCAS > 0 {
+		if tkt.OldVersionCAS > 0 || tkt.OldLeaseEpochCAS > 0 {
 			tkt.Err = ErrKeyNotFound
 			return
 		}
@@ -11760,20 +11762,32 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	if tkt.OldVersionCAS > 0 && tkt.OldVersionCAS != leaf.Version {
-		tkt.Err = fmt.Errorf("CAS rejected on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
-		tkt.CASwapped = false
-		return
+	// 3 types of CAS: OldVersionCAS, OldLeaseEpochCAS, or simple OldVal based CAS.
+	// The get check in that priority order, and the first one found
+	// excludes the checks on the others.
+	if tkt.OldVersionCAS > 0 {
+		if tkt.OldVersionCAS != leaf.Version {
+			tkt.Err = fmt.Errorf("CAS rejected on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
+			tkt.CASwapped = false
+			return
+		}
+	} else if tkt.OldLeaseEpochCAS > 0 {
+		if tkt.OldLeaseEpochCAS != leaf.LeaseEpoch {
+			tkt.Err = fmt.Errorf("CAS rejected on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
+			tkt.CASwapped = false
+			return
+		}
+	} else {
+		curVal := leaf.Value
+		//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), bytes.Equal(curVal, tkt.OldVal), string(tkt.Val))
+
+		if !bytes.Equal(curVal, tkt.OldVal) { // compare
+			tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
+			tkt.CASwapped = false
+			return
+		}
 	}
 
-	curVal := leaf.Value
-	//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), bytes.Equal(curVal, tkt.OldVal), string(tkt.Val))
-
-	if !bytes.Equal(curVal, tkt.OldVal) { // compare
-		tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
-		tkt.CASwapped = false
-		return
-	}
 	// kvstoreWrite takes care of leasing rejections
 	s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
 	tkt.CASwapped = (tkt.Err == nil)

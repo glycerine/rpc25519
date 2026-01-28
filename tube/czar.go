@@ -780,6 +780,10 @@ fullRestart:
 				// we try to write to the "czar" key with a lease.
 				// first one there wins. everyone else reads the winner's URL.
 				list := czar.members.Clone()
+				var prevLeaseEpoch int64
+				if czar.members.Vers != nil {
+					prevLeaseEpoch = czar.members.Vers.CzarLeaseEpoch
+				}
 
 				// I think this is borked and giving us split brain:
 
@@ -800,6 +804,12 @@ fullRestart:
 				}
 
 				// if we win the write race, we are the czar.
+				// and the old czar is out; so prepare for that:
+				// so 1) delete the old czar from the list we submit;
+				if list.CzarName != "" {
+					list.PeerNames.Delkey(list.CzarName)
+				}
+				// and 2) add ourselves as new czar in the list we submit.
 				list.CzarName = tubeCliName
 				list.PeerNames.Set(tubeCliName, czar.myDetail.Clone())
 
@@ -812,9 +822,11 @@ fullRestart:
 				// stuck here 35 minutes huh. use a timeout.
 				ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 				if czar.slow {
-					czarTkt, err = czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+					//czarTkt, err = czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+					czarTkt, err = czar.sess.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue, 0, prevLeaseEpoch)
 				} else {
-					czarTkt, err = cli.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+					//czarTkt, err = cli.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+					czarTkt, err = cli.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue, 0, prevLeaseEpoch)
 				}
 				canc()
 
@@ -858,6 +870,29 @@ fullRestart:
 						// We adjust list instead of czar.members, since setVers
 						// below will overwrite czar.members with list.
 						list.PeerNames.Delkey(oldCzarName)
+
+						// Safety argument: the old "leaese entry" in members
+						// from the old czar was faked up (czar.go:268, so that
+						// they did not look stale to other members), what really counts
+						// was the lease in the raft cluster, which the old
+						// czar just let expire without renewal. They cannot
+						// think they have a czar lease, but they might think
+						// they have a member lease? really there is no separate
+						// member lease for the czar; their lease in the raft/tube
+						// kvstore is their only real lease.
+						// other non-czar members might think they have
+						// a member lease (on themselves). Is there any way we
+						// can not have them in the current lease, even for a heartbeat?
+						// that is hard, but that is just the public facing czar
+						// key info, which can be a little stale anyway. what
+						// matters is what is in the czar's memory? Well no,
+						// since the RM upcalls will happen based on the read
+						// that other members get there. We could CAS it into
+						// place, with current czar already missing... and that
+						// would update them sooner too, yay.
+						// only problem is we cannot really CAS on that big
+						// value list of members and their lease times; we'll never
+						// get it right; can we cas on version increment?
 					}
 
 					vers := &RMVersionTuple{
@@ -882,7 +917,9 @@ fullRestart:
 
 					czar.renewCzarLeaseDue = time.Now().Add(czar.renewCzarLeaseDur)
 					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)
-				} else {
+
+				} else { // err != nil, CAS did not succeed.
+
 					//cState = notCzar
 					czar.cState.Store(int32(notCzar))
 

@@ -442,7 +442,8 @@ repl:
 					oldval = "" // empty string
 				}
 				newval := args[3]
-				tkt, err := sess.CAS(ctx, tube.Key(table), tube.Key(key), tube.Val(oldval), tube.Val(newval), 0, "", leaseDur, 0)
+				const leaseAutoDel = false
+				tkt, err := sess.CAS(ctx, tube.Key(table), tube.Key(key), tube.Val(oldval), tube.Val(newval), 0, "", leaseDur, leaseAutoDel, 0, 0)
 				if err != nil {
 					fmt.Printf("error: %v\n", err)
 					sess = needNewSess(sess, err)

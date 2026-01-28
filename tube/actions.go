@@ -120,7 +120,11 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 }
 
 // Compare and Swap
-func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string, leaseDur time.Duration, oldVersion int64) (tkt *Ticket, err error) {
+//
+// 3 types are available; checked in this order-- if one
+// is specified the others are ignored. First we check for
+// oldVersionCAS, then oldLeaseEpochCAS, the simple oldval based CAS.
+func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string, leaseDur time.Duration, leaseAutoDel bool, oldVersionCAS, oldLeaseEpochCAS int64) (tkt *Ticket, err error) {
 
 	if leaseDur != 0 {
 		// sanity check
@@ -139,7 +143,9 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 	tkt = s.NewTicket(desc, table, key, newval, s.PeerID, s.name, CAS, waitForDur, ctx)
 	tkt.OldVal = oldval
 	tkt.Vtype = newVtype
-	tkt.OldVersionCAS = oldVersion
+	tkt.OldVersionCAS = oldVersionCAS
+	tkt.OldLeaseEpochCAS = oldLeaseEpochCAS
+	tkt.LeaseAutoDel = leaseAutoDel
 	if leaseDur > 0 {
 		tkt.LeaseRequestDur = leaseDur
 		tkt.Leasor = s.name
@@ -1061,8 +1067,14 @@ func (s *TubeNode) doShowKeys(tkt *Ticket) {
 	}
 }
 
+// CAS or CompareAndSwap:
+//
+// 3 types are available; checked in this order-- if one
+// is specified the others are ignored. First we check for
+// oldVersionCAS, then oldLeaseEpochCAS, the simple oldval based CAS.
+//
 // if ctx is nill we will use s.ctx
-func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, waitForDur time.Duration, newVtype string, leaseDur time.Duration, oldVersion int64) (tkt *Ticket, err error) {
+func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, waitForDur time.Duration, newVtype string, leaseDur time.Duration, leaseAutoDel bool, oldVersionCAS, oldLeaseEpochCAS int64) (tkt *Ticket, err error) {
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.Write: cli is nil, Session.Errs='%v'", s.Errs)
 	}
@@ -1070,7 +1082,7 @@ func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, w
 	if ctx == nil {
 		ctx = s.ctx
 	}
-	return s.cli.CAS(ctx, table, key, oldVal, newVal, waitForDur, s, newVtype, leaseDur, oldVersion)
+	return s.cli.CAS(ctx, table, key, oldVal, newVal, waitForDur, s, newVtype, leaseDur, leaseAutoDel, oldVersionCAS, oldLeaseEpochCAS)
 }
 
 // if ctx is nill we will use s.ctx
