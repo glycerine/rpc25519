@@ -780,9 +780,7 @@ func (s *TubeNode) Start(
 	}
 	if myPeer.PeerName == "" {
 		// TUBE_CLIENT member sometime see?
-		panicf("ugh: in '%v', myPeer.PeerName _must_ be set before this!", s.name)
-		// this would be super racy:
-		//myPeer.PeerName = s.name
+		panicf("ugh: in '%v', myPeer.PeerName _must_ be set before this, else how can ckt.RemotePeerName get set in turn?!", s.name)
 	}
 	myPeer.UserMeta.Set("fromPeerName", s.name)
 
@@ -7271,42 +7269,42 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 
 		ste := it.Item().(*SessionTableEntry)
 		cktP0, ok := s.cktAllByName[ste.ClientName] // ste.ClientPeerID avail too
-		var ckt *rpc.Circuit
-		if !ok || cktP0.ckt == nil {
-			//vv("%v ugh: no circuit to ste.ClientName: '%v'. making one on a background goro...", s.name, ste.ClientName)
 
-			if !isValidURL(ste.ClientURL) {
-				alwaysPrintf("arg. could not inform client of new leader; bad url '%v' for client SessionID '%v'; clientName='%v'; clientPeerID='%v'", ste.ClientURL, ste.SessionID, ste.ClientName, ste.ClientPeerID)
-				return
-			}
-
-			// background b/c trying to not block the leader main event loop
-			go func(clientURL string, firstFrag *rpc.Fragment) {
-				defer func() {
-					// not sure why the isValidURL check above is not working... hmm.
-					r := recover()
-					if r != nil {
-						alwaysPrintf("ignoring error trying to contact clientURL='%v' about new leader: '%v", clientURL, r)
-					}
-				}()
-				var userString string
-				ckt, _, _, _ = s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, firstFrag, 0, userString, ste.ClientName)
-				if ckt != nil {
-					select {
-					case s.MyPeer.NewCircuitCh <- ckt:
-					case <-s.MyPeer.Halt.ReqStop.Chan:
-					}
-				}
-			}(ste.ClientURL, fragUpdateLeader)
+		if ok && cktP0 != nil && cktP0.ckt != nil {
+			s.SendOneWay(cktP0.ckt, fragUpdateLeader, -1, 0)
+			//vv("%v sent new leader(me) notification to %v", s.name, ste.ClientName)
 			continue
-		} else {
-			ckt = cktP0.ckt
 		}
 
-		s.SendOneWay(ckt, fragUpdateLeader, -1, 0)
-		//vv("%v sent new leader(me) notification to %v", s.name, ste.ClientName)
-	}
-}
+		//vv("%v ugh: no circuit to ste.ClientName: '%v'. making one on a background goro...", s.name, ste.ClientName)
+
+		if !isValidURL(ste.ClientURL) {
+			alwaysPrintf("arg. could not inform client of new leader; bad url '%v' for client SessionID '%v'; clientName='%v'; clientPeerID='%v'", ste.ClientURL, ste.SessionID, ste.ClientName, ste.ClientPeerID)
+			continue // keep going to others
+		}
+
+		// background b/c trying to not block the leader main event loop
+		go func(clientURL string, firstFrag *rpc.Fragment) {
+			defer func() {
+				// not sure why the isValidURL check above is not working... hmm.
+				r := recover()
+				if r != nil {
+					alwaysPrintf("ignoring error trying to contact clientURL='%v' about new leader: '%v", clientURL, r)
+				}
+			}()
+			var userString string
+			ckt7, _, _, _ := s.MyPeer.NewCircuitToPeerURL("tube-ckt", clientURL, firstFrag, 0, userString, ste.ClientName)
+			if ckt7 != nil {
+				select {
+				case s.MyPeer.NewCircuitCh <- ckt7:
+				case <-s.MyPeer.Halt.ReqStop.Chan:
+				}
+			}
+		}(ste.ClientURL, fragUpdateLeader)
+
+	} // end it loop down sessByExpiry.tree
+
+} // end notifyClientSessionsOfNewLeader()
 
 func isValidURL(url0 string) bool {
 	_, err := url.Parse(url0)
@@ -8869,11 +8867,11 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 			}
 			//panic(fmt.Sprintf(
 			vv("%v: %v sanity check failed, frag should be from ckt. frag.FromPeerID='%v' but ckt.RemotePeerID='%v'; \n frag='%v'\n ckt = '%v'", s.me(), nice(time.Now()), peer, ckt.RemotePeerID, frag, ckt) // just saw again.
-			if frag.ToPeerID == s.PeerID {
-				vv("since it was sent to me, process it anyway")
-			} else {
-				panic("fit this mis-directed packet!")
-			}
+			//if frag.ToPeerID == s.PeerID {
+			//	vv("since it was sent to me, process it anyway")
+			//} else {
+			panic("fit this mis-directed packet!")
+			//}
 			/*
 								panic: 2026-01-14T03:54:41.687Z sanity check failed, frag should be from ckt. frag.FromPeerID='2iC9T3fXs9WmvcRqihtFEd48OfGmrJ6P9MAvVQuKnrqy' but ckt.RemotePeerID='W_U8id0xDApdmaFJw3oMLVmpwCJNK0EIopYLeo5l1_8u';
 

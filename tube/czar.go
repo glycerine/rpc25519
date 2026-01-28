@@ -108,7 +108,8 @@ type Czar struct {
 
 func NewCzar(tableSpace, tubeCliName string, cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
 
-	memberHeartBeatDur := time.Second * 2
+	//memberHeartBeatDur := time.Second * 2
+	memberHeartBeatDur := time.Second
 	memberLeaseDur := memberHeartBeatDur * 6 // 12s if given 2s heartbeat
 	members := cli.NewReliableMembershipList()
 	members.MemberLeaseDur = memberLeaseDur
@@ -134,14 +135,19 @@ func NewCzar(tableSpace, tubeCliName string, cli *TubeNode, clockDriftBound time
 		requestPingCh:   make(chan *pingReqReply),
 	}
 	// table hermes, key "czar"
-	s.leaseDurCzar = time.Second * 10
-	s.renewCzarLeaseDur = s.leaseDurCzar / 2
+	//s.leaseDurCzar = time.Second * 10
+	s.leaseDurCzar = time.Second * 5
+	s.renewCzarLeaseDur = s.leaseDurCzar / 5
 
-	s.writeAttemptDur = time.Second * 5
+	// how long each Write waits for a response.
+	//s.writeAttemptDur = time.Second * 5
+	s.writeAttemptDur = time.Second * 2
 
 	// table /members, key member_name in the Tube kvstore.
-	s.membersTableLeaseDur = time.Second * 30
-	s.refreshMembersTableDur = s.membersTableLeaseDur / 3
+	s.membersTableLeaseDur = time.Second * 5
+	s.refreshMembersTableDur = time.Second
+	//s.membersTableLeaseDur = time.Second * 30
+	//s.refreshMembersTableDur = s.membersTableLeaseDur / 3
 
 	return s
 }
@@ -672,6 +678,8 @@ func (membr *RMember) start() {
 
 	membr.UpcallMembershipChangeCh = czar.UpcallMembershipChangeCh
 
+	vv("s.memberLeaseDur = '%v'", czar.memberLeaseDur)
+
 fullRestart:
 	for j := 0; ; j++ {
 		vv("top of fullRestart j=%v", j)
@@ -1084,8 +1092,11 @@ fullRestart:
 					//pp("about to rpcClientToCzar.Call(Czar.Ping, myDetail='%v')", czar.myDetail)
 					callStart := time.Now()
 					_ = callStart
-					err = rpcClientToCzar.Call("Czar.Ping", czar.myDetail, reply, nil)
+
+					ctx5, canc := context.WithTimeout(ctx, time.Second*5)
+					err = rpcClientToCzar.Call("Czar.Ping", czar.myDetail, reply, ctx5)
 					//pp("rpcClientToCzar.Call(Czar.Ping) took %v; err = '%v'", time.Since(callStart), err)
+					canc()
 					if err != nil {
 						vv("error back from Ping: '%v'", err)
 						if rpcClientToCzar != nil {

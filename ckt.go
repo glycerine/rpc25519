@@ -2172,7 +2172,7 @@ func (s *peerAPI) rejectWith(errString string, isCli bool, msg *Message, ctx con
 // host-shutdown errors.
 func (s *peerAPI) replyHelper(isCli bool, msg *Message, ctx context.Context, sendCh *LoopComm) error {
 
-	// assume these are correctly set not:
+	// assume these are correctly set now:
 	//msg.HDR.From, msg.HDR.To
 	//msg.HDR.FromPeerID, msg.HDR.ToPeerID
 
