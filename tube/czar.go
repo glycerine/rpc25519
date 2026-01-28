@@ -261,12 +261,15 @@ func (s *Czar) expireSilentNodes() (changed bool) {
 	now := time.Now()
 	for name, plus := range s.members.PeerNames.All() {
 		if name == s.TubeCliName {
-			// we ourselves are obviously alive so
-			// we don't bother to heartbeat to ourselves.
-			// Ah-hah! but omitting the below makes us look stale to
-			// other members, yikes! we add in ourselves now:
-			plus.RMemberLeaseUntilTm = now.Add(s.memberLeaseDur)
-			plus.RMemberLeaseDur = s.memberLeaseDur
+			// now that we exclude czar from PeerNames, should not be needed:
+			/*
+				// we ourselves are obviously alive so
+				// we don't bother to heartbeat to ourselves.
+				// Ah-hah! but omitting the below makes us look stale to
+				// other members, yikes! we add in ourselves now:
+				plus.RMemberLeaseUntilTm = now.Add(s.memberLeaseDur)
+				plus.RMemberLeaseDur = s.memberLeaseDur
+			*/
 			continue
 		}
 		killIt := false
@@ -806,12 +809,12 @@ fullRestart:
 				// if we win the write race, we are the czar.
 				// and the old czar is out; so prepare for that:
 				// so 1) delete the old czar from the list we submit;
-				if list.CzarName != "" {
-					list.PeerNames.Delkey(list.CzarName)
-				}
+				// actually this is no longer needed now that we never
+				// put ourselves as the czar into the list in the first place.
+				list.PeerNames.Delkey(tubeCliName)
 				// and 2) add ourselves as new czar in the list we submit.
 				list.CzarName = tubeCliName
-				list.PeerNames.Set(tubeCliName, czar.myDetail.Clone())
+				list.CzarDet = czar.myDetail.Det.Clone()
 
 				bts2, err := list.MarshalMsg(nil)
 				panicOn(err)
@@ -1505,19 +1508,26 @@ PeerServiceNameVersion: %v
 // which write won the race and arrived first.
 // Used by cmd/member/member.go.
 type ReliableMembershipList struct {
-	CzarName string          `zid:"0"`
-	Vers     *RMVersionTuple `zid:"1"`
+	CzarName string      `zid:"0"`
+	CzarDet  *PeerDetail `zid:"1"`
 
+	Vers *RMVersionTuple `zid:"2"`
+
+	// PeerNames never contains the czar itself now, for
+	// ease of update: we don't need to subtract the old
+	// czar if we win as new czar and carry over the old list;
+	// we just write ourselves in as the new czar and subtract
+	// ourselves from PeerNames.
 	PeerNames *Omap[string, *PeerDetailPlus] `msg:"-"`
 
-	SerzPeerDetails []*PeerDetailPlus `zid:"2"`
+	SerzPeerDetails []*PeerDetailPlus `zid:"3"`
 
 	// members _must_ stop operations
 	// after their lease has expired. It
 	// is this long, and their PeerNames entry
 	// PeerDetail.RMemberLeaseUntilTm
 	// gives the deadline exactly.
-	MemberLeaseDur time.Duration `zid:"3"`
+	MemberLeaseDur time.Duration `zid:"4"`
 }
 
 func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {
@@ -1540,6 +1550,7 @@ func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {
 func (s *ReliableMembershipList) String() (r string) {
 	r = "&ReliableMembershipList{\n"
 	r += fmt.Sprintf(" CzarName: \"%v\",\n", s.CzarName)
+	r += fmt.Sprintf("  CzarDet: \"%v\",\n", s.CzarDet)
 	r += fmt.Sprintf("     Vers: %v,\n", s.Vers)
 	r += fmt.Sprintf("PeerNames: (%v present)\n", s.PeerNames.Len())
 	i := 0

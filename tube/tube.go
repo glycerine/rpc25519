@@ -11795,7 +11795,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		}
 	}
 
-	vv("kvstoreWrite takes care of leasing rejections")
+	//vv("kvstoreWrite takes care of leasing rejections")
 	s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
 	tkt.CASwapped = (tkt.Err == nil)
 }
