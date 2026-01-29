@@ -1120,7 +1120,9 @@ fullRestart:
 						continue fullRestart
 					}
 					if list.CzarName == tubeCliName {
-						panicf("internal logic error, we are not czar but list.CzarName shows us: '%v'", list.CzarName)
+						vv("internal logic error? we are not czar but list.CzarName shows us: '%v'", list.CzarName)
+						czar.cState.Store(int32(unknownCzarState))
+						continue haveSess
 					}
 
 					czarDetPlus := list.CzarDet
