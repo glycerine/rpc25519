@@ -119,11 +119,21 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 	}
 }
 
-// Compare and Swap
+// CAS is also known as Compare and Swap.
 //
-// 3 types are available; checked in this order-- if one
+// There are three types of CAS available. They
+// are checked in this order, and if one
 // is specified the others are ignored. First we check for
 // oldVersionCAS, then oldLeaseEpochCAS, the simple oldval based CAS.
+//
+// For example, if oldLeaseEpochCAS is specified, the oldval
+// will never be examined during the compare-and-swap; and
+// the oldVersionCAS must be nil for oldLeaseEpochCAS to be
+// checked at all.
+//
+// If all three are not specified (oldVersion=0, and oldLeaseEpochCAS=0,
+// and oldval=nil), then the CAS is equivalent to a Write.
+// The leasing operations are still applied as usual for a Write.
 func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string, leaseDur time.Duration, leaseAutoDel bool, oldVersionCAS, oldLeaseEpochCAS int64) (tkt *Ticket, err error) {
 
 	if oldVersionCAS > 0 && oldLeaseEpochCAS > 0 {
@@ -1119,13 +1129,23 @@ func (s *TubeNode) doShowKeys(tkt *Ticket) {
 	}
 }
 
-// CAS or CompareAndSwap:
+// CAS is also known as Compare and Swap.
 //
-// 3 types are available; checked in this order-- if one
+// There are three types of CAS available. They
+// are checked in this order, and if one
 // is specified the others are ignored. First we check for
 // oldVersionCAS, then oldLeaseEpochCAS, the simple oldval based CAS.
 //
-// if ctx is nill we will use s.ctx
+// For example, if oldLeaseEpochCAS is specified, the oldval
+// will never be examined during the compare-and-swap; and
+// the oldVersionCAS must be nil for oldLeaseEpochCAS to be
+// checked at all.
+//
+// If all three are not specified (oldVersion=0, and oldLeaseEpochCAS=0,
+// and oldval=nil), then the CAS is equivalent to a Write.
+// The leasing operations are still applied as usual for a Write.
+//
+// If ctx is nill we will use s.ctx instead.
 func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, waitForDur time.Duration, newVtype string, leaseDur time.Duration, leaseAutoDel bool, oldVersionCAS, oldLeaseEpochCAS int64) (tkt *Ticket, err error) {
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.Write: cli is nil, Session.Errs='%v'", s.Errs)
