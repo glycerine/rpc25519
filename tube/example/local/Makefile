@@ -1,4 +1,7 @@
-.PHONY:beg clean kill build z one two magic
+.PHONY:update beg clean kill build z one two magic
+
+update:
+	make build
 
 beg:
 	cd ../../cmd/tube; go install
