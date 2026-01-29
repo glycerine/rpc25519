@@ -651,7 +651,7 @@ func (membr *RMember) Start() {
 	go membr.start()
 }
 
-const closeJustCli = false
+const closeJustCli = true
 
 func (membr *RMember) start() {
 
