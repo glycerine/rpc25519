@@ -5528,6 +5528,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.LeaderID = tkt.LeaderID
 		prior.LeaseRequestDur = tkt.LeaseRequestDur
 		prior.Leasor = tkt.Leasor
+		prior.LeasorPeerID = tkt.LeasorPeerID
 		prior.LeaseUntilTm = tkt.LeaseUntilTm
 		prior.LeaseEpoch = tkt.LeaseEpoch
 		prior.LeaseAutoDel = tkt.LeaseAutoDel
@@ -10861,6 +10862,8 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.Term = answer.Term
 	question.LeaseRequestDur = answer.LeaseRequestDur
 	question.Leasor = answer.Leasor
+	question.LeasorPeerID = answer.LeasorPeerID
+
 	question.LeaseEpoch = answer.LeaseEpoch
 	question.LeaseAutoDel = answer.LeaseAutoDel
 	question.VersionRead = answer.VersionRead
@@ -11617,6 +11620,8 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 				tkt.Vtype = priorTkt.Vtype
 				tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
 				tkt.Leasor = priorTkt.Leasor
+				tkt.LeasorPeerID = priorTkt.LeasorPeerID
+
 				tkt.LeaseEpoch = priorTkt.LeaseEpoch
 				tkt.LeaseAutoDel = priorTkt.LeaseAutoDel
 				tkt.VersionRead = priorTkt.VersionRead
@@ -11856,16 +11861,22 @@ func (s *TubeNode) doReadKey(tkt *Ticket) {
 	}
 	var leaf *art.Leaf
 	leaf, tkt.Err = s.state.KVStoreReadLeaf(tkt.Table, tkt.Key)
-	if leaf != nil {
-		tkt.Val = append([]byte{}, leaf.Value...)
-		tkt.Vtype = leaf.Vtype
-		tkt.Leasor = leaf.Leasor
-		tkt.LeaseUntilTm = leaf.LeaseUntilTm
-		tkt.LeaseEpoch = leaf.LeaseEpoch
-		tkt.LeaseAutoDel = leaf.AutoDelete
-		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
-		tkt.VersionRead = leaf.Version
+	if leaf == nil {
+		if tkt.Err == nil {
+			panicf("assert: tkt.Err must be set if no tkt.Err")
+		}
+		return
 	}
+	tkt.Val = append([]byte{}, leaf.Value...)
+	tkt.Vtype = leaf.Vtype
+	tkt.Leasor = leaf.Leasor
+	tkt.LeasorPeerID = leaf.LeasorPeerID
+
+	tkt.LeaseUntilTm = leaf.LeaseUntilTm
+	tkt.LeaseEpoch = leaf.LeaseEpoch
+	tkt.LeaseAutoDel = leaf.AutoDelete
+	tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
+	tkt.VersionRead = leaf.Version
 }
 
 func (s *TubeNode) doReadKeyRange(tkt *Ticket) {
@@ -16008,6 +16019,8 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (doneEarly, needSa
 			tkt.Vtype = priorTkt.Vtype
 			tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
 			tkt.Leasor = priorTkt.Leasor
+			tkt.LeasorPeerID = priorTkt.LeasorPeerID
+
 			tkt.LeaseEpoch = priorTkt.LeaseEpoch
 			tkt.LeaseAutoDel = priorTkt.LeaseAutoDel
 			tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex

@@ -512,6 +512,8 @@ func (s *RaftState) kvstoreWouldWriteLease(tkt *Ticket, clockDriftBound time.Dur
 			tkt.Val = append([]byte{}, leaf.Value...)
 			tkt.Vtype = leaf.Vtype
 			tkt.Leasor = leaf.Leasor
+			tkt.LeasorPeerID = leaf.LeasorPeerID
+
 			tkt.LeaseUntilTm = leaf.LeaseUntilTm
 			tkt.LeaseEpoch = leaf.LeaseEpoch
 			tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
@@ -544,6 +546,8 @@ func (s *RaftState) kvstoreWouldWriteLease(tkt *Ticket, clockDriftBound time.Dur
 	tkt.Val = append([]byte{}, leaf.Value...)
 	tkt.Vtype = leaf.Vtype
 	tkt.Leasor = leaf.Leasor
+	tkt.LeasorPeerID = leaf.LeasorPeerID
+
 	tkt.LeaseUntilTm = leaf.LeaseUntilTm
 	tkt.LeaseEpoch = leaf.LeaseEpoch
 	tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
