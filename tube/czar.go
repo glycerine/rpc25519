@@ -336,6 +336,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *ReliableMe
 	// czar if they are talking to us by mistake.
 	cur := czarState(s.cState.Load())
 	if cur != amCzar {
+		vv("external Ping goro sees we are currently not czar")
 		return ErrNotCzar
 	}
 
@@ -391,7 +392,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 
 	cur := czarState(s.cState.Load())
 	if cur != amCzar {
-		//vv("Czar.handlePing: not czar atm, rejecting straight off.")
+		vv("Czar.handlePing: not czar atm, rejecting straight off.")
 		rr.err = ErrNotCzar
 		return
 	}
@@ -399,7 +400,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	now := time.Now()
 	if now.After(s.members.Vers.CzarLeaseUntilTm) {
 		s.cState.Store(int32(unknownCzarState))
-		//vv("Czar.handlePing: lease has expired, so not czar atm, rejecting.")
+		vv("Czar.handlePing: lease has expired, so not czar atm, rejecting.")
 		rr.err = ErrNotCzar
 		return
 	}
@@ -681,6 +682,10 @@ func (membr *RMember) start() {
 
 	membr.UpcallMembershipChangeCh = czar.UpcallMembershipChangeCh
 
+	// tell user it is safe to listen on
+	// membr.UpcallMembershipChangeCh now.
+	membr.Ready.Close()
+
 	vv("s.memberLeaseDur = '%v'", czar.memberLeaseDur)
 
 fullRestart:
@@ -733,15 +738,11 @@ fullRestart:
 			time.Sleep(time.Second)
 		}
 
-		// tell user it is safe to listen on
-		// membr.UpcallMembershipChangeCh now.
-		membr.Ready.Close()
-
 		czar.myDetail = getMyPeerDetailPlus(cli)
 		czar.myDetailBytes, err = czar.myDetail.MarshalMsg(nil)
 		panicOn(err)
 
-		//vv("myDetail = '%v' for tubeCliName = '%v'; myDetailBytes len %v", myDetail, tubeCliName, len(myDetailBytes))
+		vv("myDetail = '%v' for tubeCliName = '%v'; myDetailBytes len %v", czar.myDetail, tubeCliName, len(czar.myDetailBytes))
 
 		//var czarURL string
 		//var czarCkt *rpc.Circuit
@@ -818,6 +819,7 @@ fullRestart:
 				if list.CzarDet == nil {
 					panic("list.CzarDet cannot be nil!")
 				}
+				vv("submit to CAS list = '%v'", list)
 
 				bts2, err := list.MarshalMsg(nil)
 				panicOn(err)
@@ -900,20 +902,6 @@ fullRestart:
 					//cState = notCzar
 					czar.cState.Store(int32(notCzar))
 
-					// can we cleanup all the conn to the raft/tube cluster here
-					// to minimize the open sockets? we could, but we
-					// also do want them to renew their membership leases
-					// in the members table of the raft cluster.
-					// if false {
-					// 	go func(ctx context.Context, sess *Session) {
-					// 		err := cli.CloseSession(ctx, sess)
-					// 		vv("notCzar CloseSession() err = '%v'", err)
-					// 		if err == nil {
-					// 			cli.HelperDisconnectFromLeader(ctx, cliCfg)
-					// 		}
-					// 	}(ctx, sess)
-					// }
-
 					czarLeaseUntilTm = czarTkt.LeaseUntilTm
 					expireCheckCh = nil
 
@@ -933,6 +921,8 @@ fullRestart:
 					if vers.VersionGT(nonCzarMembers.Vers) {
 						nonCzarMembers.Vers = vers
 					}
+					vv("%v: err was '%v' ; from czarTkt.Val, we got back nonCzarMembers = '%v'", tubeCliName, err, nonCzarMembers)
+
 					czar.setNonCzarMembers(nonCzarMembers)
 
 					// do the upcall? or should we wait until
@@ -1013,7 +1003,10 @@ fullRestart:
 					czar.myDetailBytes, err = czar.myDetail.MarshalMsg(nil)
 					panicOn(err)
 
-					czar.members.PeerNames.Set(czar.myDetail.Det.Name, czar.myDetail)
+					// we don't want this any more
+					//czar.members.PeerNames.Set(czar.myDetail.Det.Name, czar.myDetail)
+
+					czar.members.CzarDet = czar.myDetail
 
 					bts2, err := czar.members.MarshalMsg(nil)
 
@@ -1090,13 +1083,16 @@ fullRestart:
 						alwaysPrintf("wat? in notCzar, why is nonCzarMembers.PeerNames nil?")
 						continue fullRestart
 					}
+					if list.CzarName == tubeCliName {
+						panicf("internal logic error, we are not czar but list.CzarName shows us: '%v'", list.CzarName)
+					}
 					czarDetPlus := list.CzarDet
 					if czarDetPlus == nil {
 						panicf("list with winning czar did not include czar itself?? list='%v'", list)
 					}
-					//pp("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetPlus.Det.URL)
+					vv("%v: will contact czar '%v' at URL: '%v'", tubeCliName, list.CzarName, czarDetPlus.Det.URL)
 					// what we want Call Ping to return to us:
-					reply := &ReliableMembershipList{}
+					pingReplyToFill := &ReliableMembershipList{}
 
 					ccfg := *cli.GetConfig().RpcCfg
 					ccfg.ClientDialToHostPort = removeTcp(czarDetPlus.Det.Addr)
@@ -1126,7 +1122,7 @@ fullRestart:
 					_ = callStart
 
 					ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-					err = rpcClientToCzar.Call("Czar.Ping", czar.myDetail, reply, ctx5)
+					err = rpcClientToCzar.Call("Czar.Ping", czar.myDetail, pingReplyToFill, ctx5)
 					//pp("rpcClientToCzar.Call(Czar.Ping) took %v; err = '%v'", time.Since(callStart), err)
 					canc()
 					if err != nil {
@@ -1144,13 +1140,13 @@ fullRestart:
 					}
 					//pp("member(tubeCliName='%v') did rpc.Call to Czar.Ping, got reply of %v nodes", tubeCliName, reply.PeerNames.Len()) // seen regularly
 
-					if reply == nil {
-						panicf("err was nil, how can reply be nil??")
+					if pingReplyToFill == nil {
+						panicf("err was nil, how can pingReplyToFill be nil??")
 					}
 					// store view of membership as non-czar
 					nonCzarMembers := czar.getNonCzarMembers()
-					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(reply.Vers) {
-						nonCzarMembers = reply
+					if nonCzarMembers == nil || nonCzarMembers.Vers.VersionLT(pingReplyToFill.Vers) {
+						nonCzarMembers = pingReplyToFill
 						nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
 						czar.setNonCzarMembers(nonCzarMembers)
 						select {

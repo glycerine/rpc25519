@@ -694,6 +694,12 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 	// election among clients), on rejection of a lease
 	// we also reply with the Val/Leasor info so the contendor
 	// knows who got here first (and thus is 'elected').
+	tkt.writeFailedSetCurrentVal(leaf)
+
+	//vv("%v reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, tkt.Leasor, s.KVstore.Len())
+}
+
+func (tkt *Ticket) writeFailedSetCurrentVal(leaf *art.Leaf) {
 	tkt.Val = append([]byte{}, leaf.Value...)
 	tkt.Vtype = leaf.Vtype
 	tkt.Leasor = leaf.Leasor
@@ -702,8 +708,6 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 	tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 	tkt.VersionRead = leaf.Version
 	tkt.LeaseAutoDel = leaf.AutoDelete
-
-	//vv("%v reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, tkt.Leasor, s.KVstore.Len())
 }
 
 func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend bool) (results *art.Tree, err error) {

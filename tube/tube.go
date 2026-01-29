@@ -11622,6 +11622,9 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 				tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
 				tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
 
+				tkt.PrevLeaseVal = priorTkt.PrevLeaseVal
+				tkt.PrevLeaseVtype = priorTkt.PrevLeaseVtype
+
 				// READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
 				tkt.KeyValRangeScan = priorTkt.KeyValRangeScan
 
@@ -11774,6 +11777,8 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		if tkt.OldVersionCAS != leaf.Version {
 			tkt.Err = fmt.Errorf("CAS rejected on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
 			tkt.CASwapped = false
+
+			tkt.writeFailedSetCurrentVal(leaf)
 			return
 		}
 	} else if tkt.OldLeaseEpochCAS > 0 {
@@ -11781,6 +11786,8 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		if tkt.OldLeaseEpochCAS != leaf.LeaseEpoch {
 			tkt.Err = fmt.Errorf("CAS rejected on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
 			tkt.CASwapped = false
+
+			tkt.writeFailedSetCurrentVal(leaf)
 			return
 		}
 	} else {
@@ -11791,6 +11798,8 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 			tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
 			tkt.CASwapped = false
 			tkt.Err = fmt.Errorf("CAS rejected on tkt.OldVal != current leaf.Val")
+
+			tkt.writeFailedSetCurrentVal(leaf)
 			return
 		}
 	}
