@@ -2016,14 +2016,14 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 			order = append(order, c)
 		}
 		fmt.Println()
-		fmt.Printf("\n =========== with first Messages:\n")
+		fmt.Printf("\n =========== with first readLoop Messages:\n")
 		for i, c := range order {
 			msg := cs[c]
 			str := "<nil>"
 			if msg != nil {
 				str = msg.String()
 			}
-			fmt.Printf("[%03d] %v -> firstMsg:\n%v\n\n", i, c, str)
+			fmt.Printf("[%03d] %v -> first msg readLoop saw:\n%v\n\n", i, c, str)
 		}
 		fmt.Println()
 	}
@@ -18236,6 +18236,7 @@ func (s *TubeNode) handleCloseSocketsReopenLazily() {
 	for _, cli := range autoCli {
 		cli.Close()
 	}
+	s.Srv.ClosePairsWithoutCircuits()
 }
 
 func (s *TubeNode) quickWhoWeKnow() (r string) {

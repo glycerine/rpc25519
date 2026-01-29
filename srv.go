@@ -562,6 +562,13 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		case ckt := <-s.cktServedDel:
 			delete(s.cktServed, ckt)
 			//vv("cktServedAdd deleted ckt from '%v'. len now = %v", ckt.RpbTo.NetAddr, len(s.cktServed))
+		case <-s.closePairIfNoCircuits:
+			nCkt := len(s.cktServed)
+			vv("rwPair.runSendLoop: closePairIfNoCircuits requested, len circuits = %v", nCkt)
+			if nCkt == 0 {
+				stopReason = fmt.Sprintf("rwPair.closePairIfNoCircuits requested and no circuits")
+				return
+			}
 
 		case msg := <-s.SendCh:
 			//vv("srv %v (%v) sendLoop got from s.SendCh=%p, sending msg.HDR = '%v'", s.Server.name, s.from, s.SendCh, msg.HDR.String())
@@ -1903,9 +1910,10 @@ type rwPair struct {
 
 	// track ckt being served so when our socket conn
 	// goes down we can tell the users of the ckt that it is gone.
-	cktServedAdd chan *Circuit
-	cktServedDel chan *Circuit
-	cktServed    map[*Circuit]bool
+	cktServedAdd          chan *Circuit
+	cktServedDel          chan *Circuit
+	cktServed             map[*Circuit]bool
+	closePairIfNoCircuits chan struct{} // deliberate close of net.Conn not in use.
 
 	// loopy is a proxy for communicating with the send and read loops
 	// from circuit bootstrap and close down points. loopy
@@ -1928,14 +1936,16 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		epochV: EpochVers{EpochTieBreaker: NewCallID("")},
 
 		// runSendLoop handles these.
-		cktServedAdd: make(chan *Circuit, 100),
-		cktServedDel: make(chan *Circuit, 100),
-		cktServed:    make(map[*Circuit]bool),
+		cktServedAdd:          make(chan *Circuit, 100),
+		cktServedDel:          make(chan *Circuit, 100),
+		cktServed:             make(map[*Circuit]bool),
+		closePairIfNoCircuits: make(chan struct{}, 100),
 	}
 	p.loopy = &LoopComm{
-		sendCh:       p.SendCh,
-		cktServedAdd: p.cktServedAdd,
-		cktServedDel: p.cktServedDel,
+		sendCh:                p.SendCh,
+		cktServedAdd:          p.cktServedAdd,
+		cktServedDel:          p.cktServedDel,
+		closePairIfNoCircuits: p.closePairIfNoCircuits,
 	}
 
 	p.halt = idem.NewHalterNamed(fmt.Sprintf("Server.rwPair(%p)", p))
@@ -3476,6 +3486,24 @@ func (s *Server) ListClients() (remotes map[string]*Message, numRWPair int64) {
 			remotes[remote] = pair.debugFirstReadMsg
 		}
 	})
+	s.mut.Unlock()
+	return
+}
+
+func (s *Server) ClosePairsWithoutCircuits() {
+	s.mut.Lock()
+	var pairs []*rwPair
+	s.remote2pair.ReadOnlyView(func(m map[string]*rwPair) {
+		for _, pair := range m {
+			pairs = append(pairs, pair)
+		}
+	})
+	for _, pair := range pairs {
+		select {
+		case pair.closePairIfNoCircuits <- struct{}{}:
+		default:
+		}
+	}
 	s.mut.Unlock()
 	return
 }

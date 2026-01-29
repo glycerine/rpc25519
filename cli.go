@@ -684,6 +684,13 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			c.cktServed[ckt] = true
 		case ckt := <-c.cktServedDel:
 			delete(c.cktServed, ckt)
+		case <-c.closePairIfNoCircuits:
+			nCkt := len(c.cktServed)
+			vv("Client.runSendLoop: closePairIfNoCircuits requested, len circuits = %v", nCkt)
+			if nCkt == 0 {
+				stopReason = fmt.Sprintf("Client.closePairIfNoCircuits requested and no circuits")
+				return
+			}
 
 		case needGC := <-c.garbageCollectThisRwPairCh:
 			// when we go down, remove this auto-cli from
@@ -1442,9 +1449,10 @@ type Client struct {
 
 	// track ckt being served so when our socket conn
 	// goes down we can tell the users of the ckt that it is gone.
-	cktServedAdd chan *Circuit
-	cktServedDel chan *Circuit
-	cktServed    map[*Circuit]bool
+	cktServedAdd          chan *Circuit
+	cktServedDel          chan *Circuit
+	cktServed             map[*Circuit]bool
+	closePairIfNoCircuits chan struct{}
 
 	// loopy is a proxy for communicating with the send and read loops
 	// from circuit bootstrap and close down points. loopy
@@ -1851,14 +1859,16 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		epochV:  EpochVers{EpochTieBreaker: NewCallID("")},
 
 		// runSendLoop handles these.
-		cktServedAdd: make(chan *Circuit, 100),
-		cktServedDel: make(chan *Circuit, 100),
-		cktServed:    make(map[*Circuit]bool),
+		cktServedAdd:          make(chan *Circuit, 100),
+		cktServedDel:          make(chan *Circuit, 100),
+		cktServed:             make(map[*Circuit]bool),
+		closePairIfNoCircuits: make(chan struct{}, 100),
 	}
 	c.loopy = &LoopComm{
-		sendCh:       c.oneWayCh,
-		cktServedAdd: c.cktServedAdd,
-		cktServedDel: c.cktServedDel,
+		sendCh:                c.oneWayCh,
+		cktServedAdd:          c.cktServedAdd,
+		cktServedDel:          c.cktServedDel,
+		closePairIfNoCircuits: c.closePairIfNoCircuits,
 	}
 
 	c.halt = idem.NewHalterNamed(fmt.Sprintf("Client(%v %p)", name, c)) // this halter is being closed quickly? 20 msec - 30 msec after made.

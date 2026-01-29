@@ -103,8 +103,9 @@ type Circuit struct {
 type LoopComm struct {
 	sendCh chan *Message // talks to a send loop (on Client or a rwPair on Server)
 
-	cktServedAdd chan *Circuit // talks to a read loop
-	cktServedDel chan *Circuit // talks to a read loop
+	cktServedAdd          chan *Circuit // talks to a send loop
+	cktServedDel          chan *Circuit // talks to a send loop
+	closePairIfNoCircuits chan struct{} // talks to a send loop
 }
 
 func (ckt *Circuit) String() string {
