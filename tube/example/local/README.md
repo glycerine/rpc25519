@@ -156,7 +156,7 @@ membership after adding 'node_2': (node_0 leader)
 $
 ~~~
 
-10. launch the tup cli to access the sorted key/value tables.
+10. launch the tup CLI (command line interface) to access the sorted key/value tables.
 
 ~~~
 $ tup
