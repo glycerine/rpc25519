@@ -11735,7 +11735,7 @@ func (s *TubeNode) doWrite(tkt *Ticket) {
 
 func (s *TubeNode) doCAS(tkt *Ticket) {
 
-	vv("%v doCAS top. tkt.OldLeaseEpochCAS(%v)", s.name, tkt.OldLeaseEpochCAS)
+	//vv("%v doCAS top. tkt.OldLeaseEpochCAS(%v)", s.name, tkt.OldLeaseEpochCAS)
 
 	if s.state.KVstore == nil {
 		if tkt.OldVersionCAS > 0 || tkt.OldLeaseEpochCAS > 0 {
@@ -11818,7 +11818,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 				return
 			}
 		case tkt.OldLeaseEpochCAS > 0:
-			vv("%v checking tkt.OldLeaseEpochCAS(%v) vs leaf.LeaseEpoch(%v)", s.name, tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
+			//vv("%v checking tkt.OldLeaseEpochCAS(%v) vs leaf.LeaseEpoch(%v)", s.name, tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
 			if tkt.OldLeaseEpochCAS != leaf.LeaseEpoch {
 				tkt.Err = fmt.Errorf("CAS rejected on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
 				tkt.CASwapped = false
