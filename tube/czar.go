@@ -810,8 +810,8 @@ fullRestart:
 				// if we win the write race, we are the czar.
 				// and the old czar is out; so prepare for that:
 				// so 1) delete the old czar from the list we submit;
-				// actually this is no longer needed now that we never
-				// put ourselves as the czar into the list in the first place.
+
+				list.PeerNames.Delkey(list.CzarName)
 				list.PeerNames.Delkey(tubeCliName)
 				// and 2) add ourselves as new czar in the list we submit.
 				list.CzarName = tubeCliName
