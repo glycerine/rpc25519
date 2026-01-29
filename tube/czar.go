@@ -1702,7 +1702,12 @@ func getMyPeerDetailPlus(cli *TubeNode) (myDetail *PeerDetailPlus) {
 		Det: cli.GetMyPeerDetail(),
 	}
 	if myDetail.Det.Addr == "" {
-		panicf("must have Addr?!? cli.GetMyPeerDetail() gave use '%v'", myDetail.Det)
+		time.Sleep(time.Millisecond)
+		myDetail.Det = cli.GetMyPeerDetail()
+		if myDetail.Det.Addr == "" {
+			// not sure why sporadically, try the added sleep
+			panicf("must have Addr?!? cli.GetMyPeerDetail() gave use '%v'", myDetail.Det)
+		}
 	}
 	return
 }
