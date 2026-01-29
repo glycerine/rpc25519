@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
+	//"time"
 
 	rpc "github.com/glycerine/rpc25519"
 	//"github.com/glycerine/rpc25519/tube/art"
@@ -37,8 +37,8 @@ func Test301_raftStatePersistorSaveLoad(t *testing.T) {
 			Key:   "world",
 			Val:   Val("43"),
 		}
-		var clockDriftBound time.Duration
-		state.kvstoreWrite(tkt, clockDriftBound)
+
+		state.kvstoreWrite(tkt, &TubeNode{cfg: *cfg})
 
 		// check read back immediately...
 		v, _, err := state.KVStoreRead("hello", "world")

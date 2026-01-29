@@ -855,9 +855,11 @@ fullRestart:
 					continue fullRestart
 				}
 
+				czarLeaseUntilTm = czarTkt.LeaseUntilTm
+
 				// INVAR: state == unknownCzarState here
 				if errCzarAttempt == nil {
-					czarLeaseUntilTm = czarTkt.LeaseUntilTm
+
 					//cState = amCzar
 					czar.cState.Store(int32(amCzar))
 
@@ -932,8 +934,9 @@ fullRestart:
 					}
 					if vers.VersionGT(nonCzarMembers.Vers) {
 						nonCzarMembers.Vers = vers
+						panicf("bah! why rejecting new vers? '%v' vs old: '%v'", vers, nonCzarMembers.Vers)
 					}
-					vv("%v: just went from unknown to nonCzar, errCzarAttempt was '%v' ; from czarTkt.Val, we got back nonCzarMembers = '%v'", tubeCliName, errCzarAttempt, nonCzarMembers)
+					vv("%v: just went from unknown to nonCzar, created new vers='%v' (left='%v'); errCzarAttempt was '%v' ; from czarTkt.Val, we got back nonCzarMembers = '%v'", tubeCliName, vers, time.Until(vers.CzarLeaseUntilTm), errCzarAttempt, nonCzarMembers)
 
 					czar.setNonCzarMembers(nonCzarMembers)
 
@@ -1080,6 +1083,8 @@ fullRestart:
 				}
 
 			case notCzar:
+
+				czarLeaseUntilTm = czar.members.Vers.CzarLeaseUntilTm
 
 				// just do once per non-czar
 				if !closedSockets {

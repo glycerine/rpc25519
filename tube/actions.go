@@ -557,8 +557,9 @@ func (s *RaftState) kvstoreWouldWriteLease(tkt *Ticket, clockDriftBound time.Dur
 	return false
 }
 
-func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
+func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 
+	clockDriftBound := node.cfg.ClockDriftBound
 	tktTable := tkt.Table
 	tktKey := tkt.Key
 	tktVal := tkt.Val
@@ -672,7 +673,8 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 	// previous leader's clock, and tkt.RaftLogEntryTm could
 	// be from current leader's clock, so also
 	// include clock drift bound.
-	if tkt.RaftLogEntryTm.After(leaf.LeaseUntilTm.Add(clockDriftBound)) {
+	okAfter := leaf.LeaseUntilTm.Add(clockDriftBound)
+	if tkt.RaftLogEntryTm.After(okAfter) {
 		// prior lease expired, allow write.
 
 		// overwritten value (old czar) can be useful to expire them quickly.
@@ -706,18 +708,19 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 	// election among clients), on rejection of a lease
 	// we also reply with the Val/Leasor info so the contendor
 	// knows who got here first (and thus is 'elected').
-	tkt.writeFailedSetCurrentVal(leaf)
+	node.writeFailedSetCurrentVal(tkt, leaf)
 
 	//vv("%v reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, tkt.Leasor, s.KVstore.Len())
 }
 
-func (tkt *Ticket) writeFailedSetCurrentVal(leaf *art.Leaf) {
+func (s *TubeNode) writeFailedSetCurrentVal(tkt *Ticket, leaf *art.Leaf) {
 	tkt.Val = append([]byte{}, leaf.Value...)
 	tkt.Vtype = leaf.Vtype
 	tkt.Leasor = leaf.Leasor
 	tkt.LeasorPeerID = leaf.LeasorPeerID
 
-	tkt.LeaseUntilTm = leaf.LeaseUntilTm
+	// include the clockDriftBound so they can just wait until.
+	tkt.LeaseUntilTm = leaf.LeaseUntilTm.Add(s.cfg.ClockDriftBound)
 	tkt.LeaseEpoch = leaf.LeaseEpoch
 	tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 	tkt.VersionRead = leaf.Version

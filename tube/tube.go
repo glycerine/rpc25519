@@ -11724,7 +11724,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 }
 
 func (s *TubeNode) doWrite(tkt *Ticket) {
-	s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
+	s.state.kvstoreWrite(tkt, s)
 }
 
 func (s *TubeNode) doCAS(tkt *Ticket) {
@@ -11741,7 +11741,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 			return
 		} else {
 			// request to start a key from scratch
-			s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
+			s.state.kvstoreWrite(tkt, s)
 			tkt.CASwapped = (tkt.Err == nil)
 			return
 		}
@@ -11754,7 +11754,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		}
 		if len(tkt.OldVal) == 0 {
 			// request to start a key from scratch
-			s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
+			s.state.kvstoreWrite(tkt, s)
 			tkt.CASwapped = (tkt.Err == nil)
 			return
 		}
@@ -11769,7 +11769,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		}
 		if len(tkt.OldVal) == 0 {
 			// request to start a key from scratch
-			s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
+			s.state.kvstoreWrite(tkt, s)
 			tkt.CASwapped = (tkt.Err == nil)
 			return
 		}
@@ -11808,7 +11808,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 				tkt.Err = fmt.Errorf("CAS rejected on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
 				tkt.CASwapped = false
 
-				tkt.writeFailedSetCurrentVal(leaf)
+				s.writeFailedSetCurrentVal(tkt, leaf)
 				return
 			}
 		case tkt.OldLeaseEpochCAS > 0:
@@ -11817,7 +11817,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 				tkt.Err = fmt.Errorf("CAS rejected on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
 				tkt.CASwapped = false
 
-				tkt.writeFailedSetCurrentVal(leaf)
+				s.writeFailedSetCurrentVal(tkt, leaf)
 				return
 			}
 		case len(tkt.OldVal) > 0:
@@ -11829,7 +11829,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 				tkt.CASwapped = false
 				tkt.Err = fmt.Errorf("CAS rejected on tkt.OldVal != current leaf.Val")
 
-				tkt.writeFailedSetCurrentVal(leaf)
+				s.writeFailedSetCurrentVal(tkt, leaf)
 				return
 			}
 
@@ -11840,7 +11840,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	}
 
 	//vv("kvstoreWrite takes care of leasing rejections")
-	s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
+	s.state.kvstoreWrite(tkt, s)
 	tkt.CASwapped = (tkt.Err == nil)
 }
 
