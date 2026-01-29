@@ -58,6 +58,7 @@ clean:
 	rm -f log.*
 	rm -rf tmp/
 	(ps -ef |grep tube |grep -v grep) || true
+	mkdir tmp
 
 kill:
 	pkill -9 -x tube || true
