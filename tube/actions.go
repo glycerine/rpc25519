@@ -145,7 +145,7 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 		}
 	}
 
-	desc := fmt.Sprintf("cas(table(%v), key(%v), if oldval(%v) -> newval(%v)", table, key, string(oldval), string(newval))
+	desc := fmt.Sprintf("cas(table(%v), key(%v), if oldval(len %v) -> newval(len %v)", table, key, len(oldval), len(newval))
 	if leaseDur > 0 {
 		desc += fmt.Sprintf("; leaseDur='%v' requested for Leasor '%v'", leaseDur, s.name)
 	}

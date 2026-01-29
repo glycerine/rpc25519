@@ -4969,7 +4969,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// transitions. So use s.cktall, not s.cktReplica here.
 	cktP, ok := s.cktall[s.leaderID]
 	if !ok {
-		alwaysPrintf("%v don't know how to contact '%v' (because not in cktall its s.leaderID='%v') to redirect to leader; for tkt '%v'. Assuming they died. s.cktall = '%#v'", s.me(), s.leaderName, s.leaderID, tkt.Short(), s.cktall)
+		alwaysPrintf("%v don't know how to contact '%v' (because not in cktall its s.leaderID='%v') to redirect to leader; for tkt '%v'. Assuming they died.", s.me(), s.leaderName, s.leaderID, tkt.Short())
 
 		// return true so that we do not assume we are
 		// the leader, even if we cannot contact one.

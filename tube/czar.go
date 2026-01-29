@@ -707,11 +707,11 @@ fullRestart:
 				}
 			}
 		}
-		if j > 0 {
+		if false && j > 0 {
 			beenSinceTop := time.Since(topT0)
 			if beenSinceTop < time.Second {
 				wait := time.Second*5 - beenSinceTop
-				time.Sleep(wait) // pace it to at most 5 per second.
+				time.Sleep(wait) // pace it to at most 1 per 5 second.
 			}
 		}
 
