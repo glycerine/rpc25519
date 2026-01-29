@@ -2002,7 +2002,7 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 	if !sawSomething {
 		fmt.Printf(" -- no circuits\n")
 	}
-	// why 513 net.Conn open in rpc.Server with only 42 circuits?
+	// why 101 net.Conn open in rpc.Server with only 4 live circuits in cktall?
 	if s.Srv != nil {
 		cs, numRWPair := s.Srv.ListClients()
 		ac, _ := s.Srv.AutoClients()
@@ -2016,6 +2016,7 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 			order = append(order, c)
 		}
 		fmt.Println()
+		fmt.Printf("\n =========== with first Messages:\n")
 		for i, c := range order {
 			fmt.Printf("[%03d] %v -> firstMsg:\n%v\n\n", i, c, cs[c].String())
 		}
