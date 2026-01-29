@@ -198,20 +198,8 @@ func (s *Server) runServerMain(
 	//panicOn(err)
 	//vv("server defaults to binding: scheme='%v', ip='%v', port=%v, isUnspecified='%v', isIPv6='%v'", scheme, ip, port, isUnspecified, isIPv6)
 
-	if boundCh != nil {
-		timeout_100msec := s.NewTimer(100 * time.Millisecond)
-		if timeout_100msec == nil {
-			// happens on system shutdown
-			return
-		}
-		defer timeout_100msec.Discard()
-
-		select {
-		case boundCh <- addr:
-		case <-timeout_100msec.C:
-		}
-	}
-
+	// set s.cfg.BaseServerAddr _before_ sending on boundCh,
+	// to avoid races where user ends up not knowing its own Addr.
 	s.mut.Lock() // avoid data races
 	addrs := addr.Network() + "://" + addr.String()
 	s.boundAddressString = addrs
@@ -221,6 +209,20 @@ func (s *Server) runServerMain(
 	AliasRegister(addrs, addrs+" (server: "+s.name+")")
 	s.lsn = listener // allow shutdown
 	s.mut.Unlock()
+
+	if boundCh != nil {
+		timeout_100msec := s.NewTimer(100 * time.Millisecond)
+		if timeout_100msec == nil {
+			// happens on system shutdown
+			return
+		}
+
+		select {
+		case boundCh <- addr:
+		case <-timeout_100msec.C:
+		}
+		timeout_100msec.Discard()
+	}
 
 	for {
 		select {
@@ -288,12 +290,11 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 			// happens on system shutdown
 			return
 		}
-		defer timeout_100msec.Discard()
-
 		select {
 		case boundCh <- addr:
 		case <-timeout_100msec.C:
 		}
+		timeout_100msec.Discard()
 	}
 
 	if s.cfg.HTTPConnectRequired {

@@ -1151,8 +1151,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		case <-s.hupRequestCIDsCh:
 			s.handleHUPLoggingCIDs()
 
-		case <-s.closeSocketsReopenLazilyCh:
-			s.handleCloseSocketsReopenLazily()
+		case justCli := <-s.closeSocketsReopenLazilyCh:
+			s.handleCloseSocketsReopenLazily(justCli)
 
 		case <-s.pruneDupClientCktCheckCh:
 			s.globalPruneCktCheck()
@@ -18207,30 +18207,33 @@ func (s *TubeNode) updateLeaderNameFromAckMsg(ackMsg *rpc.Message) {
 // we want to close all those un-used connections to the leader
 // and only re-open if an when they are needed (should be
 // rarely unless we have a machine or process crash).
-func (s *TubeNode) closeSocketsReopenLazily() {
+func (s *TubeNode) closeSocketsReopenLazily(justCli bool) {
 	if s.cfg.PeerServiceName == TUBE_REPLICA {
 		return // ignore, only for clients
 	}
-	vv("TubeNode.closeSocketsReopenLazily called")
+	//vv("TubeNode.closeSocketsReopenLazily called")
 	select {
-	case s.closeSocketsReopenLazilyCh <- true:
+	case s.closeSocketsReopenLazilyCh <- justCli:
 	case <-time.After(time.Second):
+	case <-s.Halt.ReqStop.Chan:
 	}
 }
 
 // internal
-func (s *TubeNode) handleCloseSocketsReopenLazily() {
+func (s *TubeNode) handleCloseSocketsReopenLazily(justCli bool) {
 	if s.cfg.PeerServiceName == TUBE_REPLICA {
 		return // ignore, only for clients
 	}
-	//vv("%v handleCloseSocketsReopenLazily top", s.me())
-	// range over a copy so we can delete as we iterate
-	cp := make(map[string]*cktPlus)
-	for peerID, cktP := range s.cktall {
-		cp[peerID] = cktP
-	}
-	for _, cktP := range cp {
-		s.deleteFromCktAll(cktP)
+	vv("%v handleCloseSocketsReopenLazily top; justCli=%v", s.me(), justCli)
+	if !justCli {
+		// range over a copy so we can delete as we iterate
+		cp := make(map[string]*cktPlus)
+		for peerID, cktP := range s.cktall {
+			cp[peerID] = cktP
+		}
+		for _, cktP := range cp {
+			s.deleteFromCktAll(cktP)
+		}
 	}
 	autoCli, _ := s.Srv.AutoClients()
 	for _, cli := range autoCli {

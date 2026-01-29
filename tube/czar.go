@@ -651,6 +651,8 @@ func (membr *RMember) Start() {
 	go membr.start()
 }
 
+const closeJustCli = true
+
 func (membr *RMember) start() {
 
 	tableSpace := membr.TableSpace
@@ -1102,7 +1104,7 @@ fullRestart:
 
 					// try turning this off... see if we find
 					// the raft/tube leader faster on czar crash.
-					cli.closeSocketsReopenLazily()
+					cli.closeSocketsReopenLazily(closeJustCli)
 					closedSockets = true
 				}
 
@@ -1288,7 +1290,7 @@ fullRestart:
 					}
 
 					vv("czar: member heartbeat done: closing extraneous net.Conn with closeSocketsReopenLazily()")
-					cli.closeSocketsReopenLazily()
+					cli.closeSocketsReopenLazily(closeJustCli)
 
 					czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
 
@@ -1702,12 +1704,8 @@ func getMyPeerDetailPlus(cli *TubeNode) (myDetail *PeerDetailPlus) {
 		Det: cli.GetMyPeerDetail(),
 	}
 	if myDetail.Det.Addr == "" {
-		time.Sleep(time.Millisecond)
-		myDetail.Det = cli.GetMyPeerDetail()
-		if myDetail.Det.Addr == "" {
-			// not sure why sporadically, try the added sleep
-			panicf("must have Addr?!? cli.GetMyPeerDetail() gave use '%v'", myDetail.Det)
-		}
+		// think we fixed this now in rpc.Server startup.
+		panicf("must have Addr?!? cli.GetMyPeerDetail() gave use '%v'", myDetail.Det)
 	}
 	return
 }
