@@ -11771,46 +11771,58 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		return
 	}
 
-	// If key is already leased to someone else out we cannot CAS.
-	// But if it is our own lease, check the CAS conditions.
+	// if key is already leased to someone else out we cannot CAS.
+	// If it is our own lease, check the CAS conditions.
 
-	leaseInForce := s.validLease(tkt, leaf)
+	hasLease := leaf.Leasor != "" && !leaf.LeaseUntilTm.IsZero()
+	leaseInForce := hasLease && s.validLease(tkt, leaf)
 	amLeasor := leaseInForce && (leaf.Leasor == tkt.Leasor)
+
 	if leaseInForce && !amLeasor {
 		tkt.Err = fmt.Errorf("CAS write to leased key rejected. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tkt.Table, tkt.Key, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), s.cfg.ClockDriftBound)
 	}
 
-	// 3 types of CAS: OldVersionCAS, OldLeaseEpochCAS, or simple OldVal based CAS.
-	// The get check in that priority order, and the first one found
-	// excludes the checks on the others.
-	if tkt.OldVersionCAS > 0 {
-		if tkt.OldVersionCAS != leaf.Version {
-			tkt.Err = fmt.Errorf("CAS rejected on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
-			tkt.CASwapped = false
-
-			tkt.writeFailedSetCurrentVal(leaf)
-			return
-		}
-	} else if tkt.OldLeaseEpochCAS > 0 {
-		vv("%v checking tkt.OldLeaseEpochCAS(%v) vs leaf.LeaseEpoch(%v)", s.name, tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
-		if tkt.OldLeaseEpochCAS != leaf.LeaseEpoch {
-			tkt.Err = fmt.Errorf("CAS rejected on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
-			tkt.CASwapped = false
-
-			tkt.writeFailedSetCurrentVal(leaf)
-			return
-		}
+	// if key has a lease but that lease is expired do not reject CAS. we might not
+	// auto delete a key so that we get a propery monotone LeaseEpoch
+	// that does not reset back down to 0 after auto delete.
+	//
+	if hasLease && !leaseInForce {
+		// allow the write; like a very very lazy auto-delete that allows
+		// us to preserve the LeaseEpoch monotonicity.
 	} else {
-		curVal := leaf.Value
-		//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), bytes.Equal(curVal, tkt.OldVal), string(tkt.Val))
 
-		if !bytes.Equal(curVal, tkt.OldVal) { // compare
-			tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
-			tkt.CASwapped = false
-			tkt.Err = fmt.Errorf("CAS rejected on tkt.OldVal != current leaf.Val")
+		// 3 types of CAS: OldVersionCAS, OldLeaseEpochCAS, or simple OldVal based CAS.
+		// They are checked in that priority order, and the first one found
+		// excludes the checks on the others.
+		if tkt.OldVersionCAS > 0 {
+			if tkt.OldVersionCAS != leaf.Version {
+				tkt.Err = fmt.Errorf("CAS rejected on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
+				tkt.CASwapped = false
 
-			tkt.writeFailedSetCurrentVal(leaf)
-			return
+				tkt.writeFailedSetCurrentVal(leaf)
+				return
+			}
+		} else if tkt.OldLeaseEpochCAS > 0 {
+			vv("%v checking tkt.OldLeaseEpochCAS(%v) vs leaf.LeaseEpoch(%v)", s.name, tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
+			if tkt.OldLeaseEpochCAS != leaf.LeaseEpoch {
+				tkt.Err = fmt.Errorf("CAS rejected on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
+				tkt.CASwapped = false
+
+				tkt.writeFailedSetCurrentVal(leaf)
+				return
+			}
+		} else {
+			curVal := leaf.Value
+			//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), bytes.Equal(curVal, tkt.OldVal), string(tkt.Val))
+
+			if !bytes.Equal(curVal, tkt.OldVal) { // compare
+				tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
+				tkt.CASwapped = false
+				tkt.Err = fmt.Errorf("CAS rejected on tkt.OldVal != current leaf.Val")
+
+				tkt.writeFailedSetCurrentVal(leaf)
+				return
+			}
 		}
 	}
 
