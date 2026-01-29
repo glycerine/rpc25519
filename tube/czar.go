@@ -830,11 +830,9 @@ fullRestart:
 				// stuck here 35 minutes huh. use a timeout.
 				ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 				if czar.slow {
-					//czarTkt, err = czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
-					czarTkt, err = czar.sess.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue, 0, prevLeaseEpoch)
+					czarTkt, err = czar.sess.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse, 0, prevLeaseEpoch)
 				} else {
-					//czarTkt, err = cli.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
-					czarTkt, err = cli.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue, 0, prevLeaseEpoch)
+					czarTkt, err = cli.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse, 0, prevLeaseEpoch)
 				}
 				canc()
 
@@ -1021,9 +1019,9 @@ fullRestart:
 					ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 					var czarTkt *Ticket
 					if czar.slow {
-						czarTkt, err = czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+						czarTkt, err = czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse)
 					} else {
-						czarTkt, err = cli.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelTrue)
+						czarTkt, err = cli.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse)
 					}
 					canc()
 					if err != nil {
@@ -1112,10 +1110,12 @@ fullRestart:
 						rpcClientToCzarDoneCh = nil
 						//cState = unknownCzarState
 						czar.cState.Store(int32(unknownCzarState))
-
-						waitDur := czarLeaseUntilTm.Sub(time.Now()) + time.Second
-						vv("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
-						time.Sleep(waitDur)
+						now := time.Now()
+						if now.Before(czarLeaseUntilTm) {
+							waitDur := czarLeaseUntilTm.Sub(now) + time.Second
+							vv("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
+							time.Sleep(waitDur)
+						}
 						continue fullRestart
 					}
 					rpcClientToCzarDoneCh = rpcClientToCzar.GetHostHalter().Done.Chan

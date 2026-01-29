@@ -11770,6 +11770,16 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
+
+	// If key is already leased to someone else out we cannot CAS.
+	// But if it is our own lease, check the CAS conditions.
+
+	leaseInForce := s.validLease(tkt, leaf)
+	amLeasor := leaseInForce && (leaf.Leasor == tkt.Leasor)
+	if leaseInForce && !amLeasor {
+		tkt.Err = fmt.Errorf("CAS write to leased key rejected. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tkt.Table, tkt.Key, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), s.cfg.ClockDriftBound)
+	}
+
 	// 3 types of CAS: OldVersionCAS, OldLeaseEpochCAS, or simple OldVal based CAS.
 	// The get check in that priority order, and the first one found
 	// excludes the checks on the others.
@@ -11807,6 +11817,16 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	//vv("kvstoreWrite takes care of leasing rejections")
 	s.state.kvstoreWrite(tkt, s.cfg.ClockDriftBound)
 	tkt.CASwapped = (tkt.Err == nil)
+}
+
+func (s *TubeNode) validLease(tkt *Ticket, leaf *art.Leaf) bool {
+	if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
+		return false
+	}
+	if tkt.RaftLogEntryTm.After(leaf.LeaseUntilTm.Add(s.cfg.ClockDriftBound)) {
+		return false
+	}
+	return true
 }
 
 func (s *TubeNode) doReadKey(tkt *Ticket) {
