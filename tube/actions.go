@@ -586,6 +586,8 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 	if !found {
 		leaf = art.NewLeaf(key, append([]byte{}, tktVal...), tkt.Vtype)
 		leaf.Leasor = tkt.Leasor
+		leaf.LeasorPeerID = tkt.FromID
+
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
 		leaf.LeaseEpoch = 1
@@ -615,6 +617,8 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.Value = append([]byte{}, tktVal...)
 		leaf.Vtype = tkt.Vtype
 		leaf.Leasor = tkt.Leasor
+		leaf.LeasorPeerID = tkt.FromID
+
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
 		leaf.LeaseEpoch++
@@ -642,6 +646,8 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		if leaf.Leasor == tkt.Leasor {
 			// current leasor extending lease, allow it (expired or not)
 			// already set: leaf.Leasor = tkt.Leasor
+			leaf.LeasorPeerID = tkt.FromID
+
 			leaf.Value = append([]byte{}, tktVal...)
 			leaf.Vtype = tkt.Vtype
 			leaf.LeaseUntilTm = tkt.LeaseUntilTm
@@ -675,6 +681,8 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, clockDriftBound time.Duration) {
 		leaf.Value = append([]byte{}, tktVal...)
 		leaf.Vtype = tkt.Vtype
 		leaf.Leasor = tkt.Leasor
+		leaf.LeasorPeerID = tkt.FromID
+
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
 		leaf.LeaseEpoch++
@@ -703,6 +711,8 @@ func (tkt *Ticket) writeFailedSetCurrentVal(leaf *art.Leaf) {
 	tkt.Val = append([]byte{}, leaf.Value...)
 	tkt.Vtype = leaf.Vtype
 	tkt.Leasor = leaf.Leasor
+	tkt.LeasorPeerID = leaf.LeasorPeerID
+
 	tkt.LeaseUntilTm = leaf.LeaseUntilTm
 	tkt.LeaseEpoch = leaf.LeaseEpoch
 	tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex

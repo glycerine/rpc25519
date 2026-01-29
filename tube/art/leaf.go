@@ -92,7 +92,8 @@ type Leaf struct {
 	LeaseEpoch        int64     `zid:"7"`
 
 	// if lease goes stale then move this to the /dead table.
-	AutoDelete bool `zid:"8"`
+	AutoDelete   bool   `zid:"8"`
+	LeasorPeerID string `zid:"9"`
 }
 
 func (s *Leaf) Clone() (r *Leaf) {
@@ -106,6 +107,7 @@ func (s *Leaf) Clone() (r *Leaf) {
 		LeaseEpoch:        s.LeaseEpoch,
 		Version:           s.Version,
 		AutoDelete:        s.AutoDelete,
+		LeasorPeerID:      s.LeasorPeerID,
 	}
 	return
 }

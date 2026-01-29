@@ -5336,28 +5336,29 @@ type Ticket struct {
 	LeaseUntilTm           time.Time     `zid:"68"`
 	LeaseEpoch             int64         `zid:"69"` // filled on response
 	LeaseWriteRaftLogIndex int64         `zid:"70"` // filled on response
-	LeaseAutoDel           bool          `zid:"71"`
+	LeasorPeerID           string        `zid:"71"` // filled on response
+	LeaseAutoDel           bool          `zid:"72"` // optional on WRITE/CAS
 
 	// when actually submitted to raft log in replicateTicket
-	RaftLogEntryTm time.Time `zid:"72"`
+	RaftLogEntryTm time.Time `zid:"73"`
 
-	OldVersionCAS int64 `zid:"73"` // For CAS: old version (tested for).
-	VersionRead   int64 `zid:"74"` // version of key that we read.
+	OldVersionCAS int64 `zid:"74"` // For CAS: old version (tested for).
+	VersionRead   int64 `zid:"75"` // version of key that we read.
 
 	// to improve load bearing / latency, we want to
 	// batch up consensus operations and store a bunch of them
 	// durably to disk under a sync set of fsyncs.
 	// This recursion should only ever be one level deep.
 	// The tickets in this Batch may only have their own Batch = nil.
-	Batch []*Ticket `zid:"75"`
+	Batch []*Ticket `zid:"76"`
 
 	// PrevLeaseVal: when the leasor identity changes and overwrites an old
 	// value with a new value, return the old value too. (e.g. old czar
 	// and try to expire them quickly).
-	PrevLeaseVal   Val    `zid:"76"`
-	PrevLeaseVtype string `zid:"77"`
+	PrevLeaseVal   Val    `zid:"77"`
+	PrevLeaseVtype string `zid:"78"`
 
-	OldLeaseEpochCAS int64 `zid:"78"` // For CAS: old leaf.LeaseEpoch (tested for).
+	OldLeaseEpochCAS int64 `zid:"79"` // For CAS: old leaf.LeaseEpoch (tested for).
 
 	// should we return early and stop waiting
 	// after a preset duration? 0 means wait forever.
@@ -11783,18 +11784,21 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	}
 
 	// if key has a lease but that lease is expired do not reject CAS. we might not
-	// auto delete a key so that we get a propery monotone LeaseEpoch
+	// auto delete a key so that we get a properly monotone LeaseEpoch
 	// that does not reset back down to 0 after auto delete.
 	//
 	if hasLease && !leaseInForce {
 		// allow the write; like a very very lazy auto-delete that allows
-		// us to preserve the LeaseEpoch monotonicity.
+		// us to preserve the LeaseEpoch monotonicity. We thus avoid
+		// having to implement tombstones. An expired lease key is
+		// effectively a tombstone already.
 	} else {
 
 		// 3 types of CAS: OldVersionCAS, OldLeaseEpochCAS, or simple OldVal based CAS.
 		// They are checked in that priority order, and the first one found
 		// excludes the checks on the others.
-		if tkt.OldVersionCAS > 0 {
+		switch {
+		case tkt.OldVersionCAS > 0:
 			if tkt.OldVersionCAS != leaf.Version {
 				tkt.Err = fmt.Errorf("CAS rejected on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
 				tkt.CASwapped = false
@@ -11802,7 +11806,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 				tkt.writeFailedSetCurrentVal(leaf)
 				return
 			}
-		} else if tkt.OldLeaseEpochCAS > 0 {
+		case tkt.OldLeaseEpochCAS > 0:
 			vv("%v checking tkt.OldLeaseEpochCAS(%v) vs leaf.LeaseEpoch(%v)", s.name, tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
 			if tkt.OldLeaseEpochCAS != leaf.LeaseEpoch {
 				tkt.Err = fmt.Errorf("CAS rejected on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
@@ -11811,7 +11815,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 				tkt.writeFailedSetCurrentVal(leaf)
 				return
 			}
-		} else {
+		case len(tkt.OldVal) > 0:
 			curVal := leaf.Value
 			//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), bytes.Equal(curVal, tkt.OldVal), string(tkt.Val))
 
@@ -11823,6 +11827,10 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 				tkt.writeFailedSetCurrentVal(leaf)
 				return
 			}
+
+		default:
+			// a CAS without any of the 3 cas options is
+			// just a WRITE. Let kvstoreWrite take it.
 		}
 	}
 

@@ -824,6 +824,19 @@ fullRestart:
 				bts2, err := list.MarshalMsg(nil)
 				panicOn(err)
 
+				// if "we" own the lease, we are only allowed to
+				// ratchet from our own lease epoch to the
+				// next when renewing before expiry. This
+				// prevents multiple instances of "us"
+				// from interferring, if by mistake two
+				// members under the same name are started.
+				// We could also assign
+				// the lease to a particular peerID to prevent this
+				// but... so far leases only track name and not peerID too.
+				prevLeaseEpoch = 0
+				if czar.members.Vers != nil {
+					prevLeaseEpoch = czar.members.Vers.CzarLeaseEpoch
+				}
 				// in cState == unknownCzarState here
 
 				var czarTkt *Ticket
@@ -1009,23 +1022,29 @@ fullRestart:
 					czar.members.CzarDet = czar.myDetail
 
 					bts2, err := czar.members.MarshalMsg(nil)
+					panicOn(err)
 
 					prevUntil := czar.members.Vers.CzarLeaseUntilTm
 
-					panicOn(err)
+					var prevLeaseEpoch int64
+					if czar.members.Vers != nil {
+						prevLeaseEpoch = czar.members.Vers.CzarLeaseEpoch
+					}
 
 					// hung here on cluster leader bounce, write
 					// has failed.
 					ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 					var czarTkt *Ticket
 					if czar.slow {
-						czarTkt, err = czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse)
+						//czarTkt, err = czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse)
+						czarTkt, err = czar.sess.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse, 0, prevLeaseEpoch)
 					} else {
-						czarTkt, err = cli.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse)
+						//czarTkt, err = cli.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse)
+						czarTkt, err = cli.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse, 0, prevLeaseEpoch)
 					}
 					canc()
 					if err != nil {
-						vv("renewCzarLeaseCh attempt to renew lease with Write to keyCz:'%v' failed: err='%v'", czar.keyCz, err)
+						vv("renewCzarLeaseCh attempt to renew lease with CAS-write to keyCz:'%v' failed: err='%v'", czar.keyCz, err)
 
 						//cState = unknownCzarState
 						czar.cState.Store(int32(unknownCzarState))

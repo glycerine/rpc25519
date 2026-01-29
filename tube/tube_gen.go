@@ -19166,7 +19166,7 @@ func (z *Ticket) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields260zgensym_8df0a91a1f250219_261 = 81
+	const maxFields260zgensym_8df0a91a1f250219_261 = 82
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields260zgensym_8df0a91a1f250219_261 uint32
@@ -19813,32 +19813,38 @@ doneWithStruct260zgensym_8df0a91a1f250219_261:
 			if err != nil {
 				return
 			}
-		case "LeaseAutoDel_zid71_boo":
+		case "LeasorPeerID_zid71_str":
 			found260zgensym_8df0a91a1f250219_261[71] = true
+			z.LeasorPeerID, err = dc.ReadString()
+			if err != nil {
+				return
+			}
+		case "LeaseAutoDel_zid72_boo":
+			found260zgensym_8df0a91a1f250219_261[72] = true
 			z.LeaseAutoDel, err = dc.ReadBool()
 			if err != nil {
 				return
 			}
-		case "RaftLogEntryTm_zid72_tim":
-			found260zgensym_8df0a91a1f250219_261[72] = true
+		case "RaftLogEntryTm_zid73_tim":
+			found260zgensym_8df0a91a1f250219_261[73] = true
 			z.RaftLogEntryTm, err = dc.ReadTime()
 			if err != nil {
 				return
 			}
-		case "OldVersionCAS_zid73_i64":
-			found260zgensym_8df0a91a1f250219_261[73] = true
+		case "OldVersionCAS_zid74_i64":
+			found260zgensym_8df0a91a1f250219_261[74] = true
 			z.OldVersionCAS, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
-		case "VersionRead_zid74_i64":
-			found260zgensym_8df0a91a1f250219_261[74] = true
+		case "VersionRead_zid75_i64":
+			found260zgensym_8df0a91a1f250219_261[75] = true
 			z.VersionRead, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
-		case "Batch_zid75_slc":
-			found260zgensym_8df0a91a1f250219_261[75] = true
+		case "Batch_zid76_slc":
+			found260zgensym_8df0a91a1f250219_261[76] = true
 			var zgensym_8df0a91a1f250219_272 uint32
 			zgensym_8df0a91a1f250219_272, err = dc.ReadArrayHeader()
 			if err != nil {
@@ -19877,8 +19883,8 @@ doneWithStruct260zgensym_8df0a91a1f250219_261:
 					}
 				}
 			}
-		case "PrevLeaseVal_zid76_rct":
-			found260zgensym_8df0a91a1f250219_261[76] = true
+		case "PrevLeaseVal_zid77_rct":
+			found260zgensym_8df0a91a1f250219_261[77] = true
 			{
 				var zgensym_8df0a91a1f250219_273 []byte
 				zgensym_8df0a91a1f250219_273, err = dc.ReadBytes([]byte(z.PrevLeaseVal))
@@ -19887,14 +19893,14 @@ doneWithStruct260zgensym_8df0a91a1f250219_261:
 			if err != nil {
 				return
 			}
-		case "PrevLeaseVtype_zid77_str":
-			found260zgensym_8df0a91a1f250219_261[77] = true
+		case "PrevLeaseVtype_zid78_str":
+			found260zgensym_8df0a91a1f250219_261[78] = true
 			z.PrevLeaseVtype, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "OldLeaseEpochCAS_zid78_i64":
-			found260zgensym_8df0a91a1f250219_261[78] = true
+		case "OldLeaseEpochCAS_zid79_i64":
+			found260zgensym_8df0a91a1f250219_261[79] = true
 			z.OldLeaseEpochCAS, err = dc.ReadInt64()
 			if err != nil {
 				return
@@ -19922,16 +19928,16 @@ doneWithStruct260zgensym_8df0a91a1f250219_261:
 }
 
 // fields of Ticket
-var decodeMsgFieldOrder260zgensym_8df0a91a1f250219_261 = []string{"TSN_zid00_i64", "T0_zid01_tim", "CreateHLC_zid02_rct", "Key_zid03_rct", "Val_zid04_rct", "Table_zid05_rct", "OldVal_zid06_rct", "CASwapped_zid07_boo", "CASRejectedBecauseCurVal_zid08_rct", "NewTableName_zid09_rct", "Vtype_zid10_str", "FromID_zid11_str", "FromName_zid12_str", "ClusterID_zid13_str", "Errs_zid14_str", "TicketID_zid15_str", "Op_zid16_rct", "LogIndex_zid17_i64", "Term_zid18_i64", "Desc_zid19_str", "Committed_zid20_boo", "Applied_zid21_boo", "ClientAcked_zid22_boo", "AsOfLogIndex_zid23_i64", "LeaderID_zid24_str", "LeaderName_zid25_str", "LeaderURL_zid26_str", "LeaderStampSN_zid27_i64", "SessionID_zid28_str", "SessionSerial_zid29_i64", "SessionLastKnownIndex_zid30_i64", "Stage_zid31_str", "DoneClosedOnPeerID_zid32_str", "AddPeerName_zid33_str", "AddPeerID_zid34_str", "AddPeerServiceName_zid35_str", "AddPeerServiceNameVersion_zid36_str", "AddPeerBaseServerHostPort_zid37_str", "RemovePeerName_zid38_str", "RemovePeerID_zid39_str", "RemovePeerServiceName_zid40_str", "RemovePeerServiceNameVersion_zid41_str", "RemovePeerBaseServerHostPort_zid42_str", "GuessLeaderURL_zid43_str", "Insp_zid44_ptr", "MC_zid45_ptr", "LeaderGotTicketTm_zid46_tim", "LeaderLocalReadGoodUntil_zid47_tim", "LeaderLocalReadAtTm_zid48_tim", "LeaderLocalReadHLC_zid49_rct", "ClientLocalSubmitTm_zid50_tim", "ClientLocalResponseTm_zid51_tim", "ClientHighestLogIndexSeen_zid52_i64", "NewSessReq_zid53_ptr", "NewSessReply_zid54_ptr", "DupDetected_zid55_boo", "MinSessSerialWaiting_zid56_i64", "EndSessReq_SessionID_zid57_str", "HighestSerialSeenFromClient_zid58_i64", "StateSnapshot_zid59_ptr", "KeyEndx_zid60_rct", "ScanDescend_zid61_boo", "KeyValRangeScan_zid62_ptr", "UserDefinedOpCode_zid63_i64", "WaitLeaderDeadline_zid64_tim", "ForceChangeMC_zid65_boo", "LeaseRequestDur_zid66_dur", "Leasor_zid67_str", "LeaseUntilTm_zid68_tim", "LeaseEpoch_zid69_i64", "LeaseWriteRaftLogIndex_zid70_i64", "LeaseAutoDel_zid71_boo", "RaftLogEntryTm_zid72_tim", "OldVersionCAS_zid73_i64", "VersionRead_zid74_i64", "Batch_zid75_slc", "PrevLeaseVal_zid76_rct", "PrevLeaseVtype_zid77_str", "OldLeaseEpochCAS_zid78_i64", "", ""}
+var decodeMsgFieldOrder260zgensym_8df0a91a1f250219_261 = []string{"TSN_zid00_i64", "T0_zid01_tim", "CreateHLC_zid02_rct", "Key_zid03_rct", "Val_zid04_rct", "Table_zid05_rct", "OldVal_zid06_rct", "CASwapped_zid07_boo", "CASRejectedBecauseCurVal_zid08_rct", "NewTableName_zid09_rct", "Vtype_zid10_str", "FromID_zid11_str", "FromName_zid12_str", "ClusterID_zid13_str", "Errs_zid14_str", "TicketID_zid15_str", "Op_zid16_rct", "LogIndex_zid17_i64", "Term_zid18_i64", "Desc_zid19_str", "Committed_zid20_boo", "Applied_zid21_boo", "ClientAcked_zid22_boo", "AsOfLogIndex_zid23_i64", "LeaderID_zid24_str", "LeaderName_zid25_str", "LeaderURL_zid26_str", "LeaderStampSN_zid27_i64", "SessionID_zid28_str", "SessionSerial_zid29_i64", "SessionLastKnownIndex_zid30_i64", "Stage_zid31_str", "DoneClosedOnPeerID_zid32_str", "AddPeerName_zid33_str", "AddPeerID_zid34_str", "AddPeerServiceName_zid35_str", "AddPeerServiceNameVersion_zid36_str", "AddPeerBaseServerHostPort_zid37_str", "RemovePeerName_zid38_str", "RemovePeerID_zid39_str", "RemovePeerServiceName_zid40_str", "RemovePeerServiceNameVersion_zid41_str", "RemovePeerBaseServerHostPort_zid42_str", "GuessLeaderURL_zid43_str", "Insp_zid44_ptr", "MC_zid45_ptr", "LeaderGotTicketTm_zid46_tim", "LeaderLocalReadGoodUntil_zid47_tim", "LeaderLocalReadAtTm_zid48_tim", "LeaderLocalReadHLC_zid49_rct", "ClientLocalSubmitTm_zid50_tim", "ClientLocalResponseTm_zid51_tim", "ClientHighestLogIndexSeen_zid52_i64", "NewSessReq_zid53_ptr", "NewSessReply_zid54_ptr", "DupDetected_zid55_boo", "MinSessSerialWaiting_zid56_i64", "EndSessReq_SessionID_zid57_str", "HighestSerialSeenFromClient_zid58_i64", "StateSnapshot_zid59_ptr", "KeyEndx_zid60_rct", "ScanDescend_zid61_boo", "KeyValRangeScan_zid62_ptr", "UserDefinedOpCode_zid63_i64", "WaitLeaderDeadline_zid64_tim", "ForceChangeMC_zid65_boo", "LeaseRequestDur_zid66_dur", "Leasor_zid67_str", "LeaseUntilTm_zid68_tim", "LeaseEpoch_zid69_i64", "LeaseWriteRaftLogIndex_zid70_i64", "LeasorPeerID_zid71_str", "LeaseAutoDel_zid72_boo", "RaftLogEntryTm_zid73_tim", "OldVersionCAS_zid74_i64", "VersionRead_zid75_i64", "Batch_zid76_slc", "PrevLeaseVal_zid77_rct", "PrevLeaseVtype_zid78_str", "OldLeaseEpochCAS_zid79_i64", "", ""}
 
-var decodeMsgFieldSkip260zgensym_8df0a91a1f250219_261 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
+var decodeMsgFieldSkip260zgensym_8df0a91a1f250219_261 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Ticket) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 79
+		return 80
 	}
-	var fieldsInUse uint32 = 79
+	var fieldsInUse uint32 = 80
 	isempty[0] = (z.TSN == 0) // number, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -20216,36 +20222,40 @@ func (z *Ticket) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[70] {
 		fieldsInUse--
 	}
-	isempty[71] = (!z.LeaseAutoDel) // bool, omitempty
+	isempty[71] = (len(z.LeasorPeerID) == 0) // string, omitempty
 	if isempty[71] {
 		fieldsInUse--
 	}
-	isempty[72] = (z.RaftLogEntryTm.IsZero()) // time.Time, omitempty
+	isempty[72] = (!z.LeaseAutoDel) // bool, omitempty
 	if isempty[72] {
 		fieldsInUse--
 	}
-	isempty[73] = (z.OldVersionCAS == 0) // number, omitempty
+	isempty[73] = (z.RaftLogEntryTm.IsZero()) // time.Time, omitempty
 	if isempty[73] {
 		fieldsInUse--
 	}
-	isempty[74] = (z.VersionRead == 0) // number, omitempty
+	isempty[74] = (z.OldVersionCAS == 0) // number, omitempty
 	if isempty[74] {
 		fieldsInUse--
 	}
-	isempty[75] = (len(z.Batch) == 0) // string, omitempty
+	isempty[75] = (z.VersionRead == 0) // number, omitempty
 	if isempty[75] {
 		fieldsInUse--
 	}
-	isempty[76] = (len(z.PrevLeaseVal) == 0) // string, omitempty
+	isempty[76] = (len(z.Batch) == 0) // string, omitempty
 	if isempty[76] {
 		fieldsInUse--
 	}
-	isempty[77] = (len(z.PrevLeaseVtype) == 0) // string, omitempty
+	isempty[77] = (len(z.PrevLeaseVal) == 0) // string, omitempty
 	if isempty[77] {
 		fieldsInUse--
 	}
-	isempty[78] = (z.OldLeaseEpochCAS == 0) // number, omitempty
+	isempty[78] = (len(z.PrevLeaseVtype) == 0) // string, omitempty
 	if isempty[78] {
+		fieldsInUse--
+	}
+	isempty[79] = (z.OldLeaseEpochCAS == 0) // number, omitempty
+	if isempty[79] {
 		fieldsInUse--
 	}
 
@@ -20259,7 +20269,7 @@ func (z *Ticket) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_274 [81]bool
+	var empty_zgensym_8df0a91a1f250219_274 [82]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_275 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_274[:])
 
 	// map header
@@ -21185,8 +21195,20 @@ func (z *Ticket) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_8df0a91a1f250219_274[71] {
-		// write "LeaseAutoDel_zid71_boo"
-		err = en.Append(0xb6, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x41, 0x75, 0x74, 0x6f, 0x44, 0x65, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x31, 0x5f, 0x62, 0x6f, 0x6f)
+		// write "LeasorPeerID_zid71_str"
+		err = en.Append(0xb6, 0x4c, 0x65, 0x61, 0x73, 0x6f, 0x72, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x31, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.LeasorPeerID)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_8df0a91a1f250219_274[72] {
+		// write "LeaseAutoDel_zid72_boo"
+		err = en.Append(0xb6, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x41, 0x75, 0x74, 0x6f, 0x44, 0x65, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x32, 0x5f, 0x62, 0x6f, 0x6f)
 		if err != nil {
 			return err
 		}
@@ -21196,9 +21218,9 @@ func (z *Ticket) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_274[72] {
-		// write "RaftLogEntryTm_zid72_tim"
-		err = en.Append(0xb8, 0x52, 0x61, 0x66, 0x74, 0x4c, 0x6f, 0x67, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x32, 0x5f, 0x74, 0x69, 0x6d)
+	if !empty_zgensym_8df0a91a1f250219_274[73] {
+		// write "RaftLogEntryTm_zid73_tim"
+		err = en.Append(0xb8, 0x52, 0x61, 0x66, 0x74, 0x4c, 0x6f, 0x67, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x33, 0x5f, 0x74, 0x69, 0x6d)
 		if err != nil {
 			return err
 		}
@@ -21208,9 +21230,9 @@ func (z *Ticket) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_274[73] {
-		// write "OldVersionCAS_zid73_i64"
-		err = en.Append(0xb7, 0x4f, 0x6c, 0x64, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x43, 0x41, 0x53, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x33, 0x5f, 0x69, 0x36, 0x34)
+	if !empty_zgensym_8df0a91a1f250219_274[74] {
+		// write "OldVersionCAS_zid74_i64"
+		err = en.Append(0xb7, 0x4f, 0x6c, 0x64, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x43, 0x41, 0x53, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x34, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
@@ -21220,9 +21242,9 @@ func (z *Ticket) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_274[74] {
-		// write "VersionRead_zid74_i64"
-		err = en.Append(0xb5, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x61, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x34, 0x5f, 0x69, 0x36, 0x34)
+	if !empty_zgensym_8df0a91a1f250219_274[75] {
+		// write "VersionRead_zid75_i64"
+		err = en.Append(0xb5, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x61, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x35, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
@@ -21232,9 +21254,9 @@ func (z *Ticket) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_274[75] {
-		// write "Batch_zid75_slc"
-		err = en.Append(0xaf, 0x42, 0x61, 0x74, 0x63, 0x68, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x35, 0x5f, 0x73, 0x6c, 0x63)
+	if !empty_zgensym_8df0a91a1f250219_274[76] {
+		// write "Batch_zid76_slc"
+		err = en.Append(0xaf, 0x42, 0x61, 0x74, 0x63, 0x68, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x36, 0x5f, 0x73, 0x6c, 0x63)
 		if err != nil {
 			return err
 		}
@@ -21259,9 +21281,9 @@ func (z *Ticket) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_274[76] {
-		// write "PrevLeaseVal_zid76_rct"
-		err = en.Append(0xb6, 0x50, 0x72, 0x65, 0x76, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x56, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x36, 0x5f, 0x72, 0x63, 0x74)
+	if !empty_zgensym_8df0a91a1f250219_274[77] {
+		// write "PrevLeaseVal_zid77_rct"
+		err = en.Append(0xb6, 0x50, 0x72, 0x65, 0x76, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x56, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x37, 0x5f, 0x72, 0x63, 0x74)
 		if err != nil {
 			return err
 		}
@@ -21271,9 +21293,9 @@ func (z *Ticket) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_274[77] {
-		// write "PrevLeaseVtype_zid77_str"
-		err = en.Append(0xb8, 0x50, 0x72, 0x65, 0x76, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x56, 0x74, 0x79, 0x70, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x37, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_8df0a91a1f250219_274[78] {
+		// write "PrevLeaseVtype_zid78_str"
+		err = en.Append(0xb8, 0x50, 0x72, 0x65, 0x76, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x56, 0x74, 0x79, 0x70, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x38, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -21283,9 +21305,9 @@ func (z *Ticket) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_274[78] {
-		// write "OldLeaseEpochCAS_zid78_i64"
-		err = en.Append(0xba, 0x4f, 0x6c, 0x64, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x45, 0x70, 0x6f, 0x63, 0x68, 0x43, 0x41, 0x53, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x38, 0x5f, 0x69, 0x36, 0x34)
+	if !empty_zgensym_8df0a91a1f250219_274[79] {
+		// write "OldLeaseEpochCAS_zid79_i64"
+		err = en.Append(0xba, 0x4f, 0x6c, 0x64, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x45, 0x70, 0x6f, 0x63, 0x68, 0x43, 0x41, 0x53, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x39, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
@@ -21307,7 +21329,7 @@ func (z *Ticket) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [81]bool
+	var empty [82]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -21804,32 +21826,38 @@ func (z *Ticket) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[71] {
-		// string "LeaseAutoDel_zid71_boo"
-		o = append(o, 0xb6, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x41, 0x75, 0x74, 0x6f, 0x44, 0x65, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x31, 0x5f, 0x62, 0x6f, 0x6f)
-		o = msgp.AppendBool(o, z.LeaseAutoDel)
+		// string "LeasorPeerID_zid71_str"
+		o = append(o, 0xb6, 0x4c, 0x65, 0x61, 0x73, 0x6f, 0x72, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x31, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.LeasorPeerID)
 	}
 
 	if !empty[72] {
-		// string "RaftLogEntryTm_zid72_tim"
-		o = append(o, 0xb8, 0x52, 0x61, 0x66, 0x74, 0x4c, 0x6f, 0x67, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x32, 0x5f, 0x74, 0x69, 0x6d)
-		o = msgp.AppendTime(o, z.RaftLogEntryTm)
+		// string "LeaseAutoDel_zid72_boo"
+		o = append(o, 0xb6, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x41, 0x75, 0x74, 0x6f, 0x44, 0x65, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x32, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.LeaseAutoDel)
 	}
 
 	if !empty[73] {
-		// string "OldVersionCAS_zid73_i64"
-		o = append(o, 0xb7, 0x4f, 0x6c, 0x64, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x43, 0x41, 0x53, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x33, 0x5f, 0x69, 0x36, 0x34)
-		o = msgp.AppendInt64(o, z.OldVersionCAS)
+		// string "RaftLogEntryTm_zid73_tim"
+		o = append(o, 0xb8, 0x52, 0x61, 0x66, 0x74, 0x4c, 0x6f, 0x67, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x33, 0x5f, 0x74, 0x69, 0x6d)
+		o = msgp.AppendTime(o, z.RaftLogEntryTm)
 	}
 
 	if !empty[74] {
-		// string "VersionRead_zid74_i64"
-		o = append(o, 0xb5, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x61, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x34, 0x5f, 0x69, 0x36, 0x34)
-		o = msgp.AppendInt64(o, z.VersionRead)
+		// string "OldVersionCAS_zid74_i64"
+		o = append(o, 0xb7, 0x4f, 0x6c, 0x64, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x43, 0x41, 0x53, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x34, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.OldVersionCAS)
 	}
 
 	if !empty[75] {
-		// string "Batch_zid75_slc"
-		o = append(o, 0xaf, 0x42, 0x61, 0x74, 0x63, 0x68, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x35, 0x5f, 0x73, 0x6c, 0x63)
+		// string "VersionRead_zid75_i64"
+		o = append(o, 0xb5, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x61, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x35, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.VersionRead)
+	}
+
+	if !empty[76] {
+		// string "Batch_zid76_slc"
+		o = append(o, 0xaf, 0x42, 0x61, 0x74, 0x63, 0x68, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x36, 0x5f, 0x73, 0x6c, 0x63)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.Batch)))
 		for zgensym_8df0a91a1f250219_259 := range z.Batch {
 			// marshalGen.gPtr()
@@ -21847,21 +21875,21 @@ func (z *Ticket) MarshalMsg(b []byte) (o []byte, err error) {
 		}
 	}
 
-	if !empty[76] {
-		// string "PrevLeaseVal_zid76_rct"
-		o = append(o, 0xb6, 0x50, 0x72, 0x65, 0x76, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x56, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x36, 0x5f, 0x72, 0x63, 0x74)
+	if !empty[77] {
+		// string "PrevLeaseVal_zid77_rct"
+		o = append(o, 0xb6, 0x50, 0x72, 0x65, 0x76, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x56, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x37, 0x5f, 0x72, 0x63, 0x74)
 		o = msgp.AppendBytes(o, []byte(z.PrevLeaseVal))
 	}
 
-	if !empty[77] {
-		// string "PrevLeaseVtype_zid77_str"
-		o = append(o, 0xb8, 0x50, 0x72, 0x65, 0x76, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x56, 0x74, 0x79, 0x70, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x37, 0x5f, 0x73, 0x74, 0x72)
+	if !empty[78] {
+		// string "PrevLeaseVtype_zid78_str"
+		o = append(o, 0xb8, 0x50, 0x72, 0x65, 0x76, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x56, 0x74, 0x79, 0x70, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x38, 0x5f, 0x73, 0x74, 0x72)
 		o = msgp.AppendString(o, z.PrevLeaseVtype)
 	}
 
-	if !empty[78] {
-		// string "OldLeaseEpochCAS_zid78_i64"
-		o = append(o, 0xba, 0x4f, 0x6c, 0x64, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x45, 0x70, 0x6f, 0x63, 0x68, 0x43, 0x41, 0x53, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x38, 0x5f, 0x69, 0x36, 0x34)
+	if !empty[79] {
+		// string "OldLeaseEpochCAS_zid79_i64"
+		o = append(o, 0xba, 0x4f, 0x6c, 0x64, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x45, 0x70, 0x6f, 0x63, 0x68, 0x43, 0x41, 0x53, 0x5f, 0x7a, 0x69, 0x64, 0x37, 0x39, 0x5f, 0x69, 0x36, 0x34)
 		o = msgp.AppendInt64(o, z.OldLeaseEpochCAS)
 	}
 
@@ -21883,7 +21911,7 @@ func (z *Ticket) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []b
 
 	var field []byte
 	_ = field
-	const maxFields276zgensym_8df0a91a1f250219_277 = 81
+	const maxFields276zgensym_8df0a91a1f250219_277 = 82
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields276zgensym_8df0a91a1f250219_277 uint32
@@ -22638,36 +22666,43 @@ doneWithStruct276zgensym_8df0a91a1f250219_277:
 			if err != nil {
 				return
 			}
-		case "LeaseAutoDel_zid71_boo":
+		case "LeasorPeerID_zid71_str":
 			found276zgensym_8df0a91a1f250219_277[71] = true
+			z.LeasorPeerID, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "LeaseAutoDel_zid72_boo":
+			found276zgensym_8df0a91a1f250219_277[72] = true
 			z.LeaseAutoDel, bts, err = nbs.ReadBoolBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "RaftLogEntryTm_zid72_tim":
-			found276zgensym_8df0a91a1f250219_277[72] = true
+		case "RaftLogEntryTm_zid73_tim":
+			found276zgensym_8df0a91a1f250219_277[73] = true
 			z.RaftLogEntryTm, bts, err = nbs.ReadTimeBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "OldVersionCAS_zid73_i64":
-			found276zgensym_8df0a91a1f250219_277[73] = true
+		case "OldVersionCAS_zid74_i64":
+			found276zgensym_8df0a91a1f250219_277[74] = true
 			z.OldVersionCAS, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "VersionRead_zid74_i64":
-			found276zgensym_8df0a91a1f250219_277[74] = true
+		case "VersionRead_zid75_i64":
+			found276zgensym_8df0a91a1f250219_277[75] = true
 			z.VersionRead, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "Batch_zid75_slc":
-			found276zgensym_8df0a91a1f250219_277[75] = true
+		case "Batch_zid76_slc":
+			found276zgensym_8df0a91a1f250219_277[76] = true
 			if nbs.AlwaysNil {
 				(z.Batch) = (z.Batch)[:0]
 			} else {
@@ -22713,8 +22748,8 @@ doneWithStruct276zgensym_8df0a91a1f250219_277:
 					}
 				}
 			}
-		case "PrevLeaseVal_zid76_rct":
-			found276zgensym_8df0a91a1f250219_277[76] = true
+		case "PrevLeaseVal_zid77_rct":
+			found276zgensym_8df0a91a1f250219_277[77] = true
 			{
 				var zgensym_8df0a91a1f250219_289 []byte
 				if nbs.AlwaysNil || msgp.IsNil(bts) {
@@ -22734,15 +22769,15 @@ doneWithStruct276zgensym_8df0a91a1f250219_277:
 				}
 				z.PrevLeaseVal = Val(zgensym_8df0a91a1f250219_289)
 			}
-		case "PrevLeaseVtype_zid77_str":
-			found276zgensym_8df0a91a1f250219_277[77] = true
+		case "PrevLeaseVtype_zid78_str":
+			found276zgensym_8df0a91a1f250219_277[78] = true
 			z.PrevLeaseVtype, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "OldLeaseEpochCAS_zid78_i64":
-			found276zgensym_8df0a91a1f250219_277[78] = true
+		case "OldLeaseEpochCAS_zid79_i64":
+			found276zgensym_8df0a91a1f250219_277[79] = true
 			z.OldLeaseEpochCAS, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
@@ -22771,9 +22806,9 @@ doneWithStruct276zgensym_8df0a91a1f250219_277:
 }
 
 // fields of Ticket
-var unmarshalMsgFieldOrder276zgensym_8df0a91a1f250219_277 = []string{"TSN_zid00_i64", "T0_zid01_tim", "CreateHLC_zid02_rct", "Key_zid03_rct", "Val_zid04_rct", "Table_zid05_rct", "OldVal_zid06_rct", "CASwapped_zid07_boo", "CASRejectedBecauseCurVal_zid08_rct", "NewTableName_zid09_rct", "Vtype_zid10_str", "FromID_zid11_str", "FromName_zid12_str", "ClusterID_zid13_str", "Errs_zid14_str", "TicketID_zid15_str", "Op_zid16_rct", "LogIndex_zid17_i64", "Term_zid18_i64", "Desc_zid19_str", "Committed_zid20_boo", "Applied_zid21_boo", "ClientAcked_zid22_boo", "AsOfLogIndex_zid23_i64", "LeaderID_zid24_str", "LeaderName_zid25_str", "LeaderURL_zid26_str", "LeaderStampSN_zid27_i64", "SessionID_zid28_str", "SessionSerial_zid29_i64", "SessionLastKnownIndex_zid30_i64", "Stage_zid31_str", "DoneClosedOnPeerID_zid32_str", "AddPeerName_zid33_str", "AddPeerID_zid34_str", "AddPeerServiceName_zid35_str", "AddPeerServiceNameVersion_zid36_str", "AddPeerBaseServerHostPort_zid37_str", "RemovePeerName_zid38_str", "RemovePeerID_zid39_str", "RemovePeerServiceName_zid40_str", "RemovePeerServiceNameVersion_zid41_str", "RemovePeerBaseServerHostPort_zid42_str", "GuessLeaderURL_zid43_str", "Insp_zid44_ptr", "MC_zid45_ptr", "LeaderGotTicketTm_zid46_tim", "LeaderLocalReadGoodUntil_zid47_tim", "LeaderLocalReadAtTm_zid48_tim", "LeaderLocalReadHLC_zid49_rct", "ClientLocalSubmitTm_zid50_tim", "ClientLocalResponseTm_zid51_tim", "ClientHighestLogIndexSeen_zid52_i64", "NewSessReq_zid53_ptr", "NewSessReply_zid54_ptr", "DupDetected_zid55_boo", "MinSessSerialWaiting_zid56_i64", "EndSessReq_SessionID_zid57_str", "HighestSerialSeenFromClient_zid58_i64", "StateSnapshot_zid59_ptr", "KeyEndx_zid60_rct", "ScanDescend_zid61_boo", "KeyValRangeScan_zid62_ptr", "UserDefinedOpCode_zid63_i64", "WaitLeaderDeadline_zid64_tim", "ForceChangeMC_zid65_boo", "LeaseRequestDur_zid66_dur", "Leasor_zid67_str", "LeaseUntilTm_zid68_tim", "LeaseEpoch_zid69_i64", "LeaseWriteRaftLogIndex_zid70_i64", "LeaseAutoDel_zid71_boo", "RaftLogEntryTm_zid72_tim", "OldVersionCAS_zid73_i64", "VersionRead_zid74_i64", "Batch_zid75_slc", "PrevLeaseVal_zid76_rct", "PrevLeaseVtype_zid77_str", "OldLeaseEpochCAS_zid78_i64", "", ""}
+var unmarshalMsgFieldOrder276zgensym_8df0a91a1f250219_277 = []string{"TSN_zid00_i64", "T0_zid01_tim", "CreateHLC_zid02_rct", "Key_zid03_rct", "Val_zid04_rct", "Table_zid05_rct", "OldVal_zid06_rct", "CASwapped_zid07_boo", "CASRejectedBecauseCurVal_zid08_rct", "NewTableName_zid09_rct", "Vtype_zid10_str", "FromID_zid11_str", "FromName_zid12_str", "ClusterID_zid13_str", "Errs_zid14_str", "TicketID_zid15_str", "Op_zid16_rct", "LogIndex_zid17_i64", "Term_zid18_i64", "Desc_zid19_str", "Committed_zid20_boo", "Applied_zid21_boo", "ClientAcked_zid22_boo", "AsOfLogIndex_zid23_i64", "LeaderID_zid24_str", "LeaderName_zid25_str", "LeaderURL_zid26_str", "LeaderStampSN_zid27_i64", "SessionID_zid28_str", "SessionSerial_zid29_i64", "SessionLastKnownIndex_zid30_i64", "Stage_zid31_str", "DoneClosedOnPeerID_zid32_str", "AddPeerName_zid33_str", "AddPeerID_zid34_str", "AddPeerServiceName_zid35_str", "AddPeerServiceNameVersion_zid36_str", "AddPeerBaseServerHostPort_zid37_str", "RemovePeerName_zid38_str", "RemovePeerID_zid39_str", "RemovePeerServiceName_zid40_str", "RemovePeerServiceNameVersion_zid41_str", "RemovePeerBaseServerHostPort_zid42_str", "GuessLeaderURL_zid43_str", "Insp_zid44_ptr", "MC_zid45_ptr", "LeaderGotTicketTm_zid46_tim", "LeaderLocalReadGoodUntil_zid47_tim", "LeaderLocalReadAtTm_zid48_tim", "LeaderLocalReadHLC_zid49_rct", "ClientLocalSubmitTm_zid50_tim", "ClientLocalResponseTm_zid51_tim", "ClientHighestLogIndexSeen_zid52_i64", "NewSessReq_zid53_ptr", "NewSessReply_zid54_ptr", "DupDetected_zid55_boo", "MinSessSerialWaiting_zid56_i64", "EndSessReq_SessionID_zid57_str", "HighestSerialSeenFromClient_zid58_i64", "StateSnapshot_zid59_ptr", "KeyEndx_zid60_rct", "ScanDescend_zid61_boo", "KeyValRangeScan_zid62_ptr", "UserDefinedOpCode_zid63_i64", "WaitLeaderDeadline_zid64_tim", "ForceChangeMC_zid65_boo", "LeaseRequestDur_zid66_dur", "Leasor_zid67_str", "LeaseUntilTm_zid68_tim", "LeaseEpoch_zid69_i64", "LeaseWriteRaftLogIndex_zid70_i64", "LeasorPeerID_zid71_str", "LeaseAutoDel_zid72_boo", "RaftLogEntryTm_zid73_tim", "OldVersionCAS_zid74_i64", "VersionRead_zid75_i64", "Batch_zid76_slc", "PrevLeaseVal_zid77_rct", "PrevLeaseVtype_zid78_str", "OldLeaseEpochCAS_zid79_i64", "", ""}
 
-var unmarshalMsgFieldSkip276zgensym_8df0a91a1f250219_277 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
+var unmarshalMsgFieldSkip276zgensym_8df0a91a1f250219_277 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Ticket) Msgsize() (s int) {
@@ -22813,7 +22848,7 @@ func (z *Ticket) Msgsize() (s int) {
 	} else {
 		s += z.KeyValRangeScan.Msgsize()
 	}
-	s += 28 + msgp.Int64Size + 29 + msgp.TimeSize + 24 + msgp.BoolSize + 26 + msgp.DurationSize + 17 + msgp.StringPrefixSize + len(z.Leasor) + 23 + msgp.TimeSize + 21 + msgp.Int64Size + 34 + msgp.Int64Size + 23 + msgp.BoolSize + 25 + msgp.TimeSize + 24 + msgp.Int64Size + 22 + msgp.Int64Size + 16 + msgp.ArrayHeaderSize
+	s += 28 + msgp.Int64Size + 29 + msgp.TimeSize + 24 + msgp.BoolSize + 26 + msgp.DurationSize + 17 + msgp.StringPrefixSize + len(z.Leasor) + 23 + msgp.TimeSize + 21 + msgp.Int64Size + 34 + msgp.Int64Size + 23 + msgp.StringPrefixSize + len(z.LeasorPeerID) + 23 + msgp.BoolSize + 25 + msgp.TimeSize + 24 + msgp.Int64Size + 22 + msgp.Int64Size + 16 + msgp.ArrayHeaderSize
 	for zgensym_8df0a91a1f250219_259 := range z.Batch {
 		if z.Batch[zgensym_8df0a91a1f250219_259] == nil {
 			s += msgp.NilSize
@@ -22897,6 +22932,7 @@ func (z *Ticket) Gstring() (r string) {
 	r += fmt.Sprintf("                LeaseUntilTm: %v,\n", z.LeaseUntilTm)
 	r += fmt.Sprintf("                  LeaseEpoch: %v,\n", z.LeaseEpoch)
 	r += fmt.Sprintf("      LeaseWriteRaftLogIndex: %v,\n", z.LeaseWriteRaftLogIndex)
+	r += fmt.Sprintf("                LeasorPeerID: \"%v\",\n", z.LeasorPeerID)
 	r += fmt.Sprintf("                LeaseAutoDel: %v,\n", z.LeaseAutoDel)
 	r += fmt.Sprintf("              RaftLogEntryTm: %v,\n", z.RaftLogEntryTm)
 	r += fmt.Sprintf("               OldVersionCAS: %v,\n", z.OldVersionCAS)
