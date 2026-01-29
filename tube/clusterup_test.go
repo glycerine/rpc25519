@@ -137,7 +137,7 @@ func Test031_client_ckt_is_not_replica_ckt(t *testing.T) {
 
 		ctx := context.Background()
 		var peerServiceNameVersion string
-		cliPeer, err := cli.PeerAPI.StartLocalPeer(ctx, cliServiceName, peerServiceNameVersion, nil, "", true)
+		cliPeer, err := cli.PeerAPI.StartLocalPeer(ctx, cliServiceName, peerServiceNameVersion, nil, "peerName_clusterup_test", true)
 		panicOn(err)
 		defer cliPeer.Close()
 

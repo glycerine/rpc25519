@@ -1554,6 +1554,9 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	preferExtant bool,
 
 ) (lpb *LocalPeer, err error) {
+	if peerName == "" {
+		panic("cannot have peerName empty here at top of unlockedStartLocalPeer")
+	}
 	knownLocalPeer, ok := p.localServiceNameMap.Get(peerServiceName)
 	if !ok {
 		return nil, fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
