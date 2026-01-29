@@ -18211,7 +18211,7 @@ func (s *TubeNode) closeSocketsReopenLazily() {
 	if s.cfg.PeerServiceName == TUBE_REPLICA {
 		return // ignore, only for clients
 	}
-
+	vv("TubeNode.closeSocketsReopenLazily called")
 	select {
 	case s.closeSocketsReopenLazilyCh <- true:
 	case <-time.After(time.Second):
@@ -18223,7 +18223,7 @@ func (s *TubeNode) handleCloseSocketsReopenLazily() {
 	if s.cfg.PeerServiceName == TUBE_REPLICA {
 		return // ignore, only for clients
 	}
-	vv("%v handleCloseSocketsReopenLazily top", s.me())
+	//vv("%v handleCloseSocketsReopenLazily top", s.me())
 	// range over a copy so we can delete as we iterate
 	cp := make(map[string]*cktPlus)
 	for peerID, cktP := range s.cktall {
@@ -18236,7 +18236,7 @@ func (s *TubeNode) handleCloseSocketsReopenLazily() {
 	for _, cli := range autoCli {
 		cli.Close()
 	}
-	s.Srv.ClosePairsWithoutCircuits()
+	//s.Srv.ClosePairsWithoutCircuits()
 }
 
 func (s *TubeNode) quickWhoWeKnow() (r string) {

@@ -686,9 +686,9 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			delete(c.cktServed, ckt)
 		case <-c.closePairIfNoCircuits:
 			nCkt := len(c.cktServed)
-			vv("Client.runSendLoop: closePairIfNoCircuits requested, len circuits = %v", nCkt)
+			//vv("Client.runSendLoop: closePairIfNoCircuits; len circuits = %v", nCkt)
 			if nCkt == 0 {
-				stopReason = fmt.Sprintf("Client.closePairIfNoCircuits requested and no circuits")
+				stopReason = fmt.Sprintf("Client.closePairIfNoCircuits: no circuits")
 				return
 			}
 

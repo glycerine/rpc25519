@@ -564,9 +564,10 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 			//vv("cktServedAdd deleted ckt from '%v'. len now = %v", ckt.RpbTo.NetAddr, len(s.cktServed))
 		case <-s.closePairIfNoCircuits:
 			nCkt := len(s.cktServed)
-			vv("rwPair.runSendLoop: closePairIfNoCircuits requested, len circuits = %v", nCkt)
+			//vv("rwPair.runSendLoop: closePairIfNoCircuits; len circuits = %v", nCkt)
 			if nCkt == 0 {
-				stopReason = fmt.Sprintf("rwPair.closePairIfNoCircuits requested and no circuits")
+				//vv("rwPair.runSendLoop: fin closePairIfNoCircuits; no ckts.")
+				stopReason = fmt.Sprintf("rwPair.closePairIfNoCircuits: no circuits")
 				return
 			}
 
@@ -946,7 +947,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 		}
 
 		wantsErr, ok := c.notifyOnErrorCallIDMap.get(msg.HDR.CallID)
-		vv("ok = %v on c.notifyOnErrorToCallIDMap.get(msg.HDR.CallID='%v')", ok, msg.HDR.CallID)
+		//vv("ok = %v on c.notifyOnErrorToCallIDMap.get(msg.HDR.CallID='%v')", ok, msg.HDR.CallID)
 		if ok {
 			select {
 			case wantsErr <- msg:
@@ -3491,17 +3492,27 @@ func (s *Server) ListClients() (remotes map[string]*Message, numRWPair int64) {
 }
 
 func (s *Server) ClosePairsWithoutCircuits() {
+
+	//vv("Server.ClosePairsWithoutCircuits() begin")
+	//defer vv("Server.ClosePairsWithoutCircuits() end")
+
 	s.mut.Lock()
-	var pairs []*rwPair
+	pairs := make(map[string]*rwPair)
 	s.remote2pair.ReadOnlyView(func(m map[string]*rwPair) {
-		for _, pair := range m {
-			pairs = append(pairs, pair)
+		for remote, pair := range m {
+			pairs[remote] = pair
 		}
 	})
-	for _, pair := range pairs {
-		select {
-		case pair.closePairIfNoCircuits <- struct{}{}:
-		default:
+
+	if len(pairs) > 0 {
+		//vv("Server.ClosePairsWithoutCircuits sees pair count: %v", len(pairs))
+		for remote, pair := range pairs {
+			_ = remote
+			select {
+			case pair.closePairIfNoCircuits <- struct{}{}:
+				//vv("sent on pair.closePairIfNoCircuits: remote '%v'", remote)
+			default:
+			}
 		}
 	}
 	s.mut.Unlock()

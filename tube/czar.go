@@ -1286,6 +1286,10 @@ fullRestart:
 						default:
 						}
 					}
+
+					vv("czar: member heartbeat done: closing extraneous net.Conn with closeSocketsReopenLazily()")
+					cli.closeSocketsReopenLazily()
+
 					czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
 
 				case <-czar.Halt.ReqStop.Chan:
