@@ -4837,7 +4837,7 @@ func (s *TubeNode) followers() (r string) {
 // does _not_ add to s.Waiting, caller should if we return true.
 // we send the redirect back to the caller internally.
 func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
-	vv("%v redirectToLeader() called by '%v'; s.clusterSize()=%v; s.state.MC=%v; tkt=%v", s.me(), fileLine(2), s.clusterSize(), s.state.MC, tkt)
+	//vv("%v redirectToLeader() called by '%v'; s.clusterSize()=%v; s.state.MC=%v", s.me(), fileLine(2), s.clusterSize(), s.state.MC) // :1232 is from s.writeReqCh
 
 	// Arg! This makes 402 grow a cluster from 1 node
 	// very difficult, since each new node on its own
@@ -5338,6 +5338,7 @@ type Ticket struct {
 	LeaseWriteRaftLogIndex int64         `zid:"70"` // filled on response
 	LeasorPeerID           string        `zid:"71"` // filled on response
 	LeaseAutoDel           bool          `zid:"72"` // optional on WRITE/CAS
+	LeaseEpochT0           time.Time     `zid:"80"`
 
 	// when actually submitted to raft log in replicateTicket
 	RaftLogEntryTm time.Time `zid:"73"`
@@ -5531,6 +5532,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.LeasorPeerID = tkt.LeasorPeerID
 		prior.LeaseUntilTm = tkt.LeaseUntilTm
 		prior.LeaseEpoch = tkt.LeaseEpoch
+		prior.LeaseEpochT0 = tkt.LeaseEpochT0
 		prior.LeaseAutoDel = tkt.LeaseAutoDel
 		prior.VersionRead = tkt.VersionRead
 		prior.LeaseWriteRaftLogIndex = tkt.LeaseWriteRaftLogIndex
@@ -10865,6 +10867,8 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.LeasorPeerID = answer.LeasorPeerID
 
 	question.LeaseEpoch = answer.LeaseEpoch
+	question.LeaseEpochT0 = answer.LeaseEpochT0
+
 	question.LeaseAutoDel = answer.LeaseAutoDel
 	question.VersionRead = answer.VersionRead
 	question.LeaseWriteRaftLogIndex = answer.LeaseWriteRaftLogIndex
@@ -11623,6 +11627,8 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 				tkt.LeasorPeerID = priorTkt.LeasorPeerID
 
 				tkt.LeaseEpoch = priorTkt.LeaseEpoch
+				tkt.LeaseEpochT0 = priorTkt.LeaseEpochT0
+
 				tkt.LeaseAutoDel = priorTkt.LeaseAutoDel
 				tkt.VersionRead = priorTkt.VersionRead
 				tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
@@ -11874,6 +11880,8 @@ func (s *TubeNode) doReadKey(tkt *Ticket) {
 
 	tkt.LeaseUntilTm = leaf.LeaseUntilTm
 	tkt.LeaseEpoch = leaf.LeaseEpoch
+	tkt.LeaseEpochT0 = leaf.LeaseEpochT0
+
 	tkt.LeaseAutoDel = leaf.AutoDelete
 	tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 	tkt.VersionRead = leaf.Version
@@ -16022,6 +16030,8 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (doneEarly, needSa
 			tkt.LeasorPeerID = priorTkt.LeasorPeerID
 
 			tkt.LeaseEpoch = priorTkt.LeaseEpoch
+			tkt.LeaseEpochT0 = priorTkt.LeaseEpochT0
+
 			tkt.LeaseAutoDel = priorTkt.LeaseAutoDel
 			tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
 			tkt.LeaseUntilTm = priorTkt.LeaseUntilTm

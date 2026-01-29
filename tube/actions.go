@@ -516,6 +516,7 @@ func (s *RaftState) kvstoreWouldWriteLease(tkt *Ticket, clockDriftBound time.Dur
 			tkt.Vtype = leaf.Vtype
 			tkt.Leasor = leaf.Leasor
 			tkt.LeasorPeerID = leaf.LeasorPeerID
+			tkt.LeaseEpochT0 = leaf.LeaseEpochT0
 
 			tkt.LeaseUntilTm = leaf.LeaseUntilTm
 			tkt.LeaseEpoch = leaf.LeaseEpoch
@@ -550,6 +551,7 @@ func (s *RaftState) kvstoreWouldWriteLease(tkt *Ticket, clockDriftBound time.Dur
 	tkt.Vtype = leaf.Vtype
 	tkt.Leasor = leaf.Leasor
 	tkt.LeasorPeerID = leaf.LeasorPeerID
+	tkt.LeaseEpochT0 = leaf.LeaseEpochT0
 
 	tkt.LeaseUntilTm = leaf.LeaseUntilTm
 	tkt.LeaseEpoch = leaf.LeaseEpoch
@@ -595,6 +597,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 		leaf = art.NewLeaf(key, append([]byte{}, tktVal...), tkt.Vtype)
 		leaf.Leasor = tkt.Leasor
 		leaf.LeasorPeerID = tkt.FromID
+		leaf.LeaseEpochT0 = tkt.RaftLogEntryTm
 
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
@@ -626,6 +629,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 		leaf.Vtype = tkt.Vtype
 		leaf.Leasor = tkt.Leasor
 		leaf.LeasorPeerID = tkt.FromID
+		leaf.LeaseEpochT0 = tkt.RaftLogEntryTm
 
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
@@ -655,6 +659,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 			// current leasor extending lease, allow it (expired or not)
 			// already set: leaf.Leasor = tkt.Leasor
 			leaf.LeasorPeerID = tkt.FromID
+			// leave alone!: leaf.LeaseEpochT0
 
 			leaf.Value = append([]byte{}, tktVal...)
 			leaf.Vtype = tkt.Vtype
@@ -691,6 +696,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 		leaf.Vtype = tkt.Vtype
 		leaf.Leasor = tkt.Leasor
 		leaf.LeasorPeerID = tkt.FromID
+		leaf.LeaseEpochT0 = tkt.RaftLogEntryTm
 
 		leaf.LeaseUntilTm = tkt.LeaseUntilTm
 		leaf.WriteRaftLogIndex = tkt.LogIndex
@@ -721,6 +727,7 @@ func (s *TubeNode) writeFailedSetCurrentVal(tkt *Ticket, leaf *art.Leaf) {
 	tkt.Vtype = leaf.Vtype
 	tkt.Leasor = leaf.Leasor
 	tkt.LeasorPeerID = leaf.LeasorPeerID
+	tkt.LeaseEpochT0 = leaf.LeaseEpochT0
 
 	// include the clockDriftBound so they can just wait until.
 	tkt.LeaseUntilTm = leaf.LeaseUntilTm.Add(s.cfg.ClockDriftBound)

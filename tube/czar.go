@@ -722,7 +722,10 @@ fullRestart:
 			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp)
 			vv("helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", leaderURL, reallyLeader, err)
 			panicOn(err)
-
+			if !reallyLeader {
+				vv("arg. not really leader? why?")
+				continue
+			}
 			if !czar.slow {
 				break
 			}
@@ -1096,7 +1099,10 @@ fullRestart:
 					// we don't need to maintain a socket with the tube raft cluster.
 					// just takes up file handles on the leader that will not
 					// be used for a long time in practice. Re-open if and when needed.
-					cli.closeSocketsReopenLazily()
+
+					// try turning this off... see if we find
+					// the raft/tube leader faster on czar crash.
+					// cli.closeSocketsReopenLazily()
 					closedSockets = true
 				}
 
@@ -1132,7 +1138,13 @@ fullRestart:
 					panicOn(err)
 					err = rpcClientToCzar.Start()
 					if err != nil {
-						vv("could not contact czar, err='%v' ... might have to wait out the lease...", err)
+						now := time.Now()
+						var waitDur time.Duration
+						if now.Before(czarLeaseUntilTm) {
+							waitDur = czarLeaseUntilTm.Sub(now)
+						}
+
+						vv("could not contact czar, err='%v' ... might have to wait out the lease... waitDur='%v'", err, waitDur)
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}
@@ -1140,9 +1152,8 @@ fullRestart:
 						rpcClientToCzarDoneCh = nil
 						//cState = unknownCzarState
 						czar.cState.Store(int32(unknownCzarState))
-						now := time.Now()
-						if now.Before(czarLeaseUntilTm) {
-							waitDur := czarLeaseUntilTm.Sub(now) + time.Second
+						now = time.Now()
+						if waitDur > 0 {
 							vv("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
 							time.Sleep(waitDur)
 						}

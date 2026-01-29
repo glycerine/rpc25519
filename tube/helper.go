@@ -114,12 +114,12 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			if err == nil && insp != nil {
 				contacted = append(contacted, insp)
 				if verbose {
-					fmt.Printf("good.\n\n")
-					fmt.Printf("insp = '%v'\n", insp)
+					vv("good.")
+					vv("insp = '%v'\n", insp)
 				}
 			} else {
 				if verbose {
-					fmt.Printf("bad. err = '%v'\n\n", err)
+					vv("bad. err = '%v'\n\n", err)
 					//if remoteName != "node_0" {
 					//	vv("\n why cannot we contact '%v'; stacks = '%v'\n\n", remoteName, allstacks())
 					//	panicf("why cannot we contact '%v'", remoteName)
