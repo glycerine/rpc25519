@@ -151,7 +151,7 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 	}
 	if oldLeaseEpochCAS > 0 {
 		desc += fmt.Sprintf("; oldLeaseEpochCAS = '%v'", oldLeaseEpochCAS)
-		vv("%v oldLeaseEpochCAS = %v", s.me(), oldLeaseEpochCAS)
+		//vv("%v oldLeaseEpochCAS = %v", s.me(), oldLeaseEpochCAS)
 	}
 	if oldVersionCAS > 0 {
 		desc += fmt.Sprintf("; oldVersionCAS = '%v'", oldVersionCAS)
