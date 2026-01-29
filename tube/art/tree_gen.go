@@ -200,7 +200,6 @@ doneWithStruct3zgensym_2b5929dabf455867_4:
 					if z.Leafz[zgensym_2b5929dabf455867_2] == nil {
 						z.Leafz[zgensym_2b5929dabf455867_2] = new(Leaf)
 					}
-					dc.DedupIndexEachPtr(z.Leafz[zgensym_2b5929dabf455867_2])
 
 					err = z.Leafz[zgensym_2b5929dabf455867_2].DecodeMsg(dc)
 					if err != nil {

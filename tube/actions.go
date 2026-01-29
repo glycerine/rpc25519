@@ -564,6 +564,10 @@ func (s *RaftState) kvstoreWouldWriteLease(tkt *Ticket, clockDriftBound time.Dur
 
 func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 
+	if tkt.RaftLogEntryTm.IsZero() {
+		panic("tkt.RaftLogEntryTm should not be zero")
+	}
+
 	clockDriftBound := node.cfg.ClockDriftBound
 	tktTable := tkt.Table
 	tktKey := tkt.Key

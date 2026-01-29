@@ -338,7 +338,7 @@ func (z *Leaf) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields6zgensym_da1be0b343e58527_7 = 9
+	const maxFields6zgensym_da1be0b343e58527_7 = 11
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields6zgensym_da1be0b343e58527_7 uint32
@@ -445,6 +445,18 @@ doneWithStruct6zgensym_da1be0b343e58527_7:
 			if err != nil {
 				return
 			}
+		case "LeasorPeerID_zid09_str":
+			found6zgensym_da1be0b343e58527_7[9] = true
+			z.LeasorPeerID, err = dc.ReadString()
+			if err != nil {
+				return
+			}
+		case "LeaseEpochT0_zid10_tim":
+			found6zgensym_da1be0b343e58527_7[10] = true
+			z.LeaseEpochT0, err = dc.ReadTime()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -468,16 +480,16 @@ doneWithStruct6zgensym_da1be0b343e58527_7:
 }
 
 // fields of Leaf
-var decodeMsgFieldOrder6zgensym_da1be0b343e58527_7 = []string{"Key_zid00_rct", "Value_zid01_bin", "Version_zid02_i64", "Vtype_zid03_str", "Leasor_zid04_str", "LeaseUntilTm_zid05_tim", "WriteRaftLogIndex_zid06_i64", "LeaseEpoch_zid07_i64", "AutoDelete_zid08_boo"}
+var decodeMsgFieldOrder6zgensym_da1be0b343e58527_7 = []string{"Key_zid00_rct", "Value_zid01_bin", "Version_zid02_i64", "Vtype_zid03_str", "Leasor_zid04_str", "LeaseUntilTm_zid05_tim", "WriteRaftLogIndex_zid06_i64", "LeaseEpoch_zid07_i64", "AutoDelete_zid08_boo", "LeasorPeerID_zid09_str", "LeaseEpochT0_zid10_tim"}
 
-var decodeMsgFieldSkip6zgensym_da1be0b343e58527_7 = []bool{false, false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip6zgensym_da1be0b343e58527_7 = []bool{false, false, false, false, false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Leaf) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 9
+		return 11
 	}
-	var fieldsInUse uint32 = 9
+	var fieldsInUse uint32 = 11
 	isempty[0] = (len(z.Key) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -514,6 +526,14 @@ func (z *Leaf) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[8] {
 		fieldsInUse--
 	}
+	isempty[9] = (len(z.LeasorPeerID) == 0) // string, omitempty
+	if isempty[9] {
+		fieldsInUse--
+	}
+	isempty[10] = (z.LeaseEpochT0.IsZero()) // time.Time, omitempty
+	if isempty[10] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -525,7 +545,7 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_da1be0b343e58527_9 [9]bool
+	var empty_zgensym_da1be0b343e58527_9 [11]bool
 	fieldsInUse_zgensym_da1be0b343e58527_10 := z.fieldsNotEmpty(empty_zgensym_da1be0b343e58527_9[:])
 
 	// map header
@@ -652,6 +672,30 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_da1be0b343e58527_9[9] {
+		// write "LeasorPeerID_zid09_str"
+		err = en.Append(0xb6, 0x4c, 0x65, 0x61, 0x73, 0x6f, 0x72, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.LeasorPeerID)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_da1be0b343e58527_9[10] {
+		// write "LeaseEpochT0_zid10_tim"
+		err = en.Append(0xb6, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x45, 0x70, 0x6f, 0x63, 0x68, 0x54, 0x30, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x74, 0x69, 0x6d)
+		if err != nil {
+			return err
+		}
+		err = en.WriteTime(z.LeaseEpochT0)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -664,7 +708,7 @@ func (z *Leaf) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [9]bool
+	var empty [11]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -722,6 +766,18 @@ func (z *Leaf) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendBool(o, z.AutoDelete)
 	}
 
+	if !empty[9] {
+		// string "LeasorPeerID_zid09_str"
+		o = append(o, 0xb6, 0x4c, 0x65, 0x61, 0x73, 0x6f, 0x72, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.LeasorPeerID)
+	}
+
+	if !empty[10] {
+		// string "LeaseEpochT0_zid10_tim"
+		o = append(o, 0xb6, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x45, 0x70, 0x6f, 0x63, 0x68, 0x54, 0x30, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x74, 0x69, 0x6d)
+		o = msgp.AppendTime(o, z.LeaseEpochT0)
+	}
+
 	return
 }
 
@@ -740,7 +796,7 @@ func (z *Leaf) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byt
 
 	var field []byte
 	_ = field
-	const maxFields11zgensym_da1be0b343e58527_12 = 9
+	const maxFields11zgensym_da1be0b343e58527_12 = 11
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields11zgensym_da1be0b343e58527_12 uint32
@@ -877,6 +933,20 @@ doneWithStruct11zgensym_da1be0b343e58527_12:
 			if err != nil {
 				return
 			}
+		case "LeasorPeerID_zid09_str":
+			found11zgensym_da1be0b343e58527_12[9] = true
+			z.LeasorPeerID, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "LeaseEpochT0_zid10_tim":
+			found11zgensym_da1be0b343e58527_12[10] = true
+			z.LeaseEpochT0, bts, err = nbs.ReadTimeBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -900,13 +970,13 @@ doneWithStruct11zgensym_da1be0b343e58527_12:
 }
 
 // fields of Leaf
-var unmarshalMsgFieldOrder11zgensym_da1be0b343e58527_12 = []string{"Key_zid00_rct", "Value_zid01_bin", "Version_zid02_i64", "Vtype_zid03_str", "Leasor_zid04_str", "LeaseUntilTm_zid05_tim", "WriteRaftLogIndex_zid06_i64", "LeaseEpoch_zid07_i64", "AutoDelete_zid08_boo"}
+var unmarshalMsgFieldOrder11zgensym_da1be0b343e58527_12 = []string{"Key_zid00_rct", "Value_zid01_bin", "Version_zid02_i64", "Vtype_zid03_str", "Leasor_zid04_str", "LeaseUntilTm_zid05_tim", "WriteRaftLogIndex_zid06_i64", "LeaseEpoch_zid07_i64", "AutoDelete_zid08_boo", "LeasorPeerID_zid09_str", "LeaseEpochT0_zid10_tim"}
 
-var unmarshalMsgFieldSkip11zgensym_da1be0b343e58527_12 = []bool{false, false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip11zgensym_da1be0b343e58527_12 = []bool{false, false, false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Leaf) Msgsize() (s int) {
-	s = 1 + 14 + msgp.BytesPrefixSize + len([]byte(z.Key)) + 16 + msgp.BytesPrefixSize + len(z.Value) + 18 + msgp.Int64Size + 16 + msgp.StringPrefixSize + len(z.Vtype) + 17 + msgp.StringPrefixSize + len(z.Leasor) + 23 + msgp.TimeSize + 28 + msgp.Int64Size + 21 + msgp.Int64Size + 21 + msgp.BoolSize
+	s = 1 + 14 + msgp.BytesPrefixSize + len([]byte(z.Key)) + 16 + msgp.BytesPrefixSize + len(z.Value) + 18 + msgp.Int64Size + 16 + msgp.StringPrefixSize + len(z.Vtype) + 17 + msgp.StringPrefixSize + len(z.Leasor) + 23 + msgp.TimeSize + 28 + msgp.Int64Size + 21 + msgp.Int64Size + 21 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.LeasorPeerID) + 23 + msgp.TimeSize
 	return
 }
 func (z *Leaf) Gstring() (r string) {
@@ -920,6 +990,8 @@ func (z *Leaf) Gstring() (r string) {
 	r += fmt.Sprintf("WriteRaftLogIndex: %v,\n", z.WriteRaftLogIndex)
 	r += fmt.Sprintf("       LeaseEpoch: %v,\n", z.LeaseEpoch)
 	r += fmt.Sprintf("       AutoDelete: %v,\n", z.AutoDelete)
+	r += fmt.Sprintf("     LeasorPeerID: \"%v\",\n", z.LeasorPeerID)
+	r += fmt.Sprintf("     LeaseEpochT0: %v,\n", z.LeaseEpochT0)
 	r += "}\n"
 	return
 }
