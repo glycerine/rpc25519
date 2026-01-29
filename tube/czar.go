@@ -775,6 +775,7 @@ fullRestart:
 			//	time.Sleep(time.Millisecond * 100)
 			//}
 
+			var errCzarAttempt error
 			switch czarState(czar.cState.Load()) {
 
 			case unknownCzarState:
@@ -843,9 +844,9 @@ fullRestart:
 				// stuck here 35 minutes huh. use a timeout.
 				ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 				if czar.slow {
-					czarTkt, err = czar.sess.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse, 0, prevLeaseEpoch)
+					czarTkt, errCzarAttempt = czar.sess.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse, 0, prevLeaseEpoch)
 				} else {
-					czarTkt, err = cli.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse, 0, prevLeaseEpoch)
+					czarTkt, errCzarAttempt = cli.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse, 0, prevLeaseEpoch)
 				}
 				canc()
 
@@ -855,7 +856,7 @@ fullRestart:
 				}
 
 				// INVAR: state == unknownCzarState here
-				if err == nil {
+				if errCzarAttempt == nil {
 					czarLeaseUntilTm = czarTkt.LeaseUntilTm
 					//cState = amCzar
 					czar.cState.Store(int32(amCzar))
@@ -908,7 +909,7 @@ fullRestart:
 					czar.renewCzarLeaseDue = time.Now().Add(czar.renewCzarLeaseDur)
 					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)
 
-				} else { // err != nil, CAS did not succeed.
+				} else { // errCzarAttempt != nil, CAS did not succeed.
 
 					//cState = notCzar
 					czar.cState.Store(int32(notCzar))
@@ -932,7 +933,7 @@ fullRestart:
 					if vers.VersionGT(nonCzarMembers.Vers) {
 						nonCzarMembers.Vers = vers
 					}
-					vv("%v: err was '%v' ; from czarTkt.Val, we got back nonCzarMembers = '%v'", tubeCliName, err, nonCzarMembers)
+					vv("%v: just went from unknown to nonCzar, errCzarAttempt was '%v' ; from czarTkt.Val, we got back nonCzarMembers = '%v'", tubeCliName, errCzarAttempt, nonCzarMembers)
 
 					czar.setNonCzarMembers(nonCzarMembers)
 
