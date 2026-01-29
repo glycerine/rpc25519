@@ -50,7 +50,16 @@ clean:
 	sleep 3 # let them die so they don't replicate log after we wipe it
 	rm -rf ${HOME}/.local/state/tube/123/
 	rm -f log.*
+	rm -rf tmp/
 	(ps -ef |grep tube |grep -v grep) || true
+	git pull origin master --tags
+	cd ../../cmd/tube; go install
+	cd ../../cmd/tup; go install
+	cd ../../cmd/tubels; go install
+	cd ../../cmd/tuberm; go install
+	cd ../../cmd/tubeadd; go install
+	cd ../../cmd/member; go install
+	mkdir tmp
 
 kill:
 	pkill -9 -x tube || true
