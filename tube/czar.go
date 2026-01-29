@@ -745,7 +745,7 @@ fullRestart:
 		czar.myDetailBytes, err = czar.myDetail.MarshalMsg(nil)
 		panicOn(err)
 
-		vv("myDetail = '%v' for tubeCliName = '%v'; myDetailBytes len %v", czar.myDetail, tubeCliName, len(czar.myDetailBytes))
+		//vv("myDetail = '%v' for tubeCliName = '%v'; myDetailBytes len %v", czar.myDetail, tubeCliName, len(czar.myDetailBytes))
 
 		//var czarURL string
 		//var czarCkt *rpc.Circuit
@@ -823,7 +823,7 @@ fullRestart:
 				if list.CzarDet == nil {
 					panic("list.CzarDet cannot be nil!")
 				}
-				vv("submit to CAS list = '%v'", list)
+				pp("submit to CAS list = '%v'", list)
 
 				bts2, err := list.MarshalMsg(nil)
 				panicOn(err)
@@ -909,7 +909,7 @@ fullRestart:
 					_ = sum
 					left = time.Until(czar.members.Vers.CzarLeaseUntilTm)
 
-					vv("err=nil on lease write. I am czar (tubeCliName='%v'; oldCzarName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", tubeCliName, oldCzarName, left, vers, sum)
+					pp("err=nil on lease write. I am czar (tubeCliName='%v'; oldCzarName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", tubeCliName, oldCzarName, left, vers, sum)
 
 					czar.renewCzarLeaseDue = time.Now().Add(czar.renewCzarLeaseDur)
 					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)
@@ -917,7 +917,7 @@ fullRestart:
 				} else { // errCzarAttempt != nil, CAS did not succeed.
 
 					if strings.Contains(errCzarAttempt.Error(), "no leader known") {
-						vv("see errCzarAtttemp = '%v', with 'no leader known', doing full restart", errCzarAttempt)
+						vv("see errCzarAtttempt = '%v', with 'no leader known', doing full restart", errCzarAttempt)
 						continue fullRestart
 					}
 
@@ -1490,7 +1490,7 @@ func (s *PeerDetailPlus) String() string {
 	x := ""
 	switch {
 	case s.RMemberLeaseUntilTm.IsZero():
-		x = "current czar"
+		//x = "current czar"
 	case gte(now, s.RMemberLeaseUntilTm):
 		x = "expired"
 	default:
