@@ -651,8 +651,6 @@ func (membr *RMember) Start() {
 	go membr.start()
 }
 
-const closeJustCli = true
-
 func (membr *RMember) start() {
 
 	tableSpace := membr.TableSpace
@@ -771,7 +769,7 @@ fullRestart:
 		}
 		//vv("begin main loop at haveSess")
 
-		var closedSockets bool
+		//var closedSockets bool
 
 	haveSess:
 		for ii := 0; ; ii++ {
@@ -784,7 +782,7 @@ fullRestart:
 			switch czarState(czar.cState.Load()) {
 
 			case unknownCzarState:
-				closedSockets = false
+				//closedSockets = false
 
 				// find the czar. it might be me.
 				// we try to write to the "czar" key with a lease.
@@ -1097,16 +1095,16 @@ fullRestart:
 				czarLeaseUntilTm = czar.members.Vers.CzarLeaseUntilTm
 
 				// just do once per non-czar
-				if !closedSockets {
-					// we don't need to maintain a socket with the tube raft cluster.
-					// just takes up file handles on the leader that will not
-					// be used for a long time in practice. Re-open if and when needed.
+				//if !closedSockets {
+				// we don't need to maintain a socket with the tube raft cluster.
+				// just takes up file handles on the leader that will not
+				// be used for a long time in practice. Re-open if and when needed.
 
-					// try turning this off... see if we find
-					// the raft/tube leader faster on czar crash.
-					//cli.closeSocketsReopenLazily(false)
-					closedSockets = true
-				}
+				// try turning this off... see if we find
+				// the raft/tube leader faster on czar crash.
+				//cli.closeSocketsReopenLazily(false)
+				//	closedSockets = true
+				//}
 
 				if rpcClientToCzar == nil {
 					//pp("notCzar top: rpcClientToCzar is nil")
@@ -1289,8 +1287,9 @@ fullRestart:
 						}
 					}
 
-					vv("czar: member heartbeat done: closing extraneous net.Conn with closeSocketsReopenLazily()")
-					cli.closeSocketsReopenLazily(closeJustCli)
+					//vv("czar: member heartbeat done: closing extraneous net.Conn with closeSocketsReopenLazily()")
+					//true=>close just auto-cli. seems to suffice to prevent leaks.
+					cli.closeSocketsReopenLazily(true)
 
 					czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
 

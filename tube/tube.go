@@ -18219,12 +18219,12 @@ func (s *TubeNode) closeSocketsReopenLazily(justCli bool) {
 	}
 }
 
-// internal
+// internal: looks like justCli = true in czar suffices.
 func (s *TubeNode) handleCloseSocketsReopenLazily(justCli bool) {
 	if s.cfg.PeerServiceName == TUBE_REPLICA {
 		return // ignore, only for clients
 	}
-	vv("%v handleCloseSocketsReopenLazily top; justCli=%v", s.me(), justCli)
+	//vv("%v handleCloseSocketsReopenLazily top; justCli=%v", s.me(), justCli)
 	if !justCli {
 		// range over a copy so we can delete as we iterate
 		cp := make(map[string]*cktPlus)
