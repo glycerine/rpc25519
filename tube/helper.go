@@ -164,7 +164,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			if leaderName == node.name && selfSurelyNotLeader {
 				continue // extra protection
 			}
-			vv("%v: candidate leader = '%v', url = '%v' ; insp = '%v'", node.name, leaderName, leaderURL, insp)
+			pp("%v: candidate leader = '%v', url = '%v' ; insp = '%v'", node.name, leaderName, leaderURL, insp)
 			var lli, llt int64
 			if insp != nil {
 				insps = append(insps, insp)
