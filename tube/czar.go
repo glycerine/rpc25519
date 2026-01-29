@@ -1104,7 +1104,7 @@ fullRestart:
 
 					// try turning this off... see if we find
 					// the raft/tube leader faster on czar crash.
-					cli.closeSocketsReopenLazily(closeJustCli)
+					cli.closeSocketsReopenLazily(false) // closeJustCli)
 					closedSockets = true
 				}
 
