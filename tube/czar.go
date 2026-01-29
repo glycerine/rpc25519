@@ -940,10 +940,10 @@ fullRestart:
 						Version:          0, // czarTkt.VersionRead, // do we want this? no, because it increments on each refresh of the lease, not each different if value.
 						CzarLeaseUntilTm: czarTkt.LeaseUntilTm,
 					}
-					if vers.VersionGT(nonCzarMembers.Vers) {
-						nonCzarMembers.Vers = vers
-						panicf("bah! why rejecting new vers? '%v' vs old: '%v'", vers, nonCzarMembers.Vers)
-					}
+					//if vers.VersionGTE(nonCzarMembers.Vers) {
+					nonCzarMembers.Vers = vers
+					//	panicf("bah! why rejecting new vers? '%v' vs old: '%v'", vers, nonCzarMembers.Vers)
+					//}
 					vv("%v: just went from unknown to nonCzar, created new vers='%v' (left='%v'); errCzarAttempt was '%v' ; from czarTkt.Val, we got back nonCzarMembers = '%v'", tubeCliName, vers, time.Until(vers.CzarLeaseUntilTm), errCzarAttempt, nonCzarMembers)
 
 					czar.setNonCzarMembers(nonCzarMembers)
