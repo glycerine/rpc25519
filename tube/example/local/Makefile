@@ -3,6 +3,10 @@
 update:
 	make build
 
+prep:
+	./zer
+	tubeadd node_0
+
 beg:
 	cd ../../cmd/tube; go install
 	cd ../../cmd/tup; go install

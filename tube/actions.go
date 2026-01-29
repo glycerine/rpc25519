@@ -145,16 +145,19 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 		}
 	}
 
-	desc := fmt.Sprintf("cas(table(%v), key(%v), if oldval(len %v) -> newval(len %v)", table, key, len(oldval), len(newval))
-	if leaseDur > 0 {
-		desc += fmt.Sprintf("; leaseDur='%v' requested for Leasor '%v'", leaseDur, s.name)
+	desc := fmt.Sprintf("cas(table(%v), key(%v)", table, key)
+	if len(oldval) > 0 {
+		desc += fmt.Sprintf("; if oldval(len %v) present", len(oldval))
 	}
 	if oldLeaseEpochCAS > 0 {
-		desc += fmt.Sprintf("; oldLeaseEpochCAS = '%v'", oldLeaseEpochCAS)
+		desc += fmt.Sprintf("; if oldLeaseEpochCAS == '%v'", oldLeaseEpochCAS)
 		//vv("%v oldLeaseEpochCAS = %v", s.me(), oldLeaseEpochCAS)
 	}
 	if oldVersionCAS > 0 {
-		desc += fmt.Sprintf("; oldVersionCAS = '%v'", oldVersionCAS)
+		desc += fmt.Sprintf("; if oldVersionCAS == '%v'", oldVersionCAS)
+	}
+	if leaseDur > 0 {
+		desc += fmt.Sprintf("; leaseDur='%v' requested for Leasor '%v'", leaseDur, s.name)
 	}
 	tkt = s.NewTicket(desc, table, key, newval, s.PeerID, s.name, CAS, waitForDur, ctx)
 	tkt.OldVal = oldval
