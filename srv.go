@@ -709,6 +709,10 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		}
 		//vv("srv read loop sees req = '%v'", req.String())
 
+		if s.debugFirstReadMsg == nil {
+			s.debugFirstReadMsg = req
+		}
+
 		if req.HDR.From != "" {
 			s.Server.unNAT.Set(req.HDR.From, remoteAddr)
 		}
@@ -1841,6 +1845,8 @@ type ConnHalt struct {
 // we can figure out who to SendCh to
 // and how to halt each other.
 type rwPair struct {
+	debugFirstReadMsg *Message // for debugging.
+
 	pairID int64 // for metrics, looking at fairness/starvation
 
 	// our parent Server
@@ -3461,10 +3467,15 @@ func (s *Client) GetClient() *Client {
 	return s
 }
 
-func (s *Server) ListClients() (remotes []string, numRWPair int64) {
+func (s *Server) ListClients() (remotes map[string]*Message, numRWPair int64) {
+	remotes = make(map[string]*Message)
 	numRWPair = s.numRWPair.Load()
 	s.mut.Lock()
-	remotes = s.remote2pair.GetKeySlice()
+	s.remote2pair.ReadOnlyView(func(m map[string]*rwPair) {
+		for remote, pair := range m {
+			remotes[remote] = pair.debugFirstReadMsg
+		}
+	})
 	s.mut.Unlock()
 	return
 }

@@ -1974,7 +1974,7 @@ func hupPrintHelper(cktP *cktPlus, auditByCID map[string]*cktPlus, now time.Time
 
 // HUP sent by user, requesting CircuitID breakdown.
 func (s *TubeNode) handleHUPLoggingCIDs() {
-	vv("handleHUPLoggingCIDs() top: we see HUP request for CircuitID details. Here is cktall:")
+	vv("handleHUPLoggingCIDs() top: we see HUP request for CircuitID details. Here is cktall(%v):", len(s.cktall))
 	// compare to cktAuditByCID; key is CircuitID
 	auditByCID := s.cktAuditByCID.GetMapCloneAtomic() // map[string]*cktPlus
 
@@ -2008,8 +2008,16 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 		ac, _ := s.Srv.AutoClients()
 		numAutoCli := len(ac)
 		fmt.Printf("\n remote2pair remotes(%v) [Server.numRWPair live = %v; numAutoCli = %v]:\n", len(cs), numRWPair, numAutoCli)
-		for i, c := range cs {
+		i := 0
+		var order []string
+		for c := range cs {
 			fmt.Printf("[%03d] %v\n", i, c)
+			i++
+			order = append(order, c)
+		}
+		fmt.Println()
+		for i, c := range order {
+			fmt.Printf("[%03d] %v -> firstMsg:\n%v\n\n", i, c, cs[c].String())
 		}
 		fmt.Println()
 	}
@@ -18209,7 +18217,7 @@ func (s *TubeNode) handleCloseSocketsReopenLazily() {
 	if s.cfg.PeerServiceName == TUBE_REPLICA {
 		return // ignore, only for clients
 	}
-	vv("%v handleCloseSocketsReopenLazily top", s.me()) // being call constantly, wat?
+	vv("%v handleCloseSocketsReopenLazily top", s.me())
 	// range over a copy so we can delete as we iterate
 	cp := make(map[string]*cktPlus)
 	for peerID, cktP := range s.cktall {
