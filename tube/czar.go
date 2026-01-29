@@ -814,7 +814,10 @@ fullRestart:
 				list.PeerNames.Delkey(tubeCliName)
 				// and 2) add ourselves as new czar in the list we submit.
 				list.CzarName = tubeCliName
-				list.CzarDet = czar.myDetail.Det.Clone()
+				list.CzarDet = czar.myDetail.Clone()
+				if list.CzarDet == nil {
+					panic("list.CzarDet cannot be nil!")
+				}
 
 				bts2, err := list.MarshalMsg(nil)
 				panicOn(err)
@@ -860,42 +863,13 @@ fullRestart:
 					}
 					expireCheckCh = time.After(checkAgainIn)
 
-					// can we delete old dead leasor from list?
+					// can we note old dead leasor czar for reporting
 					var oldCzarName string
 					if czarTkt.PrevLeaseVtype == ReliableMembershipListType &&
 						len(czarTkt.PrevLeaseVal) > 0 {
 						oldval := &ReliableMembershipList{}
 						oldval.UnmarshalMsg(czarTkt.PrevLeaseVal)
 						oldCzarName = oldval.CzarName
-
-						// In raft kvstore will be stale for one heartbeat; meh.
-						// our next (as czar) heartbeat/lease extension will fix it.
-						// We adjust list instead of czar.members, since setVers
-						// below will overwrite czar.members with list.
-						list.PeerNames.Delkey(oldCzarName)
-
-						// Safety argument: the old "leaese entry" in members
-						// from the old czar was faked up (czar.go:268, so that
-						// they did not look stale to other members), what really counts
-						// was the lease in the raft cluster, which the old
-						// czar just let expire without renewal. They cannot
-						// think they have a czar lease, but they might think
-						// they have a member lease? really there is no separate
-						// member lease for the czar; their lease in the raft/tube
-						// kvstore is their only real lease.
-						// other non-czar members might think they have
-						// a member lease (on themselves). Is there any way we
-						// can not have them in the current lease, even for a heartbeat?
-						// that is hard, but that is just the public facing czar
-						// key info, which can be a little stale anyway. what
-						// matters is what is in the czar's memory? Well no,
-						// since the RM upcalls will happen based on the read
-						// that other members get there. We could CAS it into
-						// place, with current czar already missing... and that
-						// would update them sooner too, yay.
-						// only problem is we cannot really CAS on that big
-						// value list of members and their lease times; we'll never
-						// get it right; can we cas on version increment?
 					}
 
 					vers := &RMVersionTuple{
@@ -1116,11 +1090,12 @@ fullRestart:
 						alwaysPrintf("wat? in notCzar, why is nonCzarMembers.PeerNames nil?")
 						continue fullRestart
 					}
-					czarDetPlus, ok := list.PeerNames.Get2(list.CzarName)
-					if !ok {
+					czarDetPlus := list.CzarDet
+					if czarDetPlus == nil {
 						panicf("list with winning czar did not include czar itself?? list='%v'", list)
 					}
 					//pp("will contact czar '%v' at URL: '%v'", list.CzarName, czarDetPlus.Det.URL)
+					// what we want Call Ping to return to us:
 					reply := &ReliableMembershipList{}
 
 					ccfg := *cli.GetConfig().RpcCfg
@@ -1508,8 +1483,8 @@ PeerServiceNameVersion: %v
 // which write won the race and arrived first.
 // Used by cmd/member/member.go.
 type ReliableMembershipList struct {
-	CzarName string      `zid:"0"`
-	CzarDet  *PeerDetail `zid:"1"`
+	CzarName string          `zid:"0"`
+	CzarDet  *PeerDetailPlus `zid:"1"`
 
 	Vers *RMVersionTuple `zid:"2"`
 
@@ -1549,9 +1524,9 @@ func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {
 
 func (s *ReliableMembershipList) String() (r string) {
 	r = "&ReliableMembershipList{\n"
-	r += fmt.Sprintf(" CzarName: \"%v\",\n", s.CzarName)
-	r += fmt.Sprintf("  CzarDet: \"%v\",\n", s.CzarDet)
-	r += fmt.Sprintf("     Vers: %v,\n", s.Vers)
+	r += fmt.Sprintf(" CzarName: \"%v\"\n", s.CzarName)
+	r += fmt.Sprintf("  CzarDet: %v\n", s.CzarDet)
+	r += fmt.Sprintf("     Vers: %v\n", s.Vers)
 	r += fmt.Sprintf("PeerNames: (%v present)\n", s.PeerNames.Len())
 	i := 0
 	for _, plus := range s.PeerNames.All() {
