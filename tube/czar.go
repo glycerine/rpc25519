@@ -913,6 +913,11 @@ fullRestart:
 
 				} else { // errCzarAttempt != nil, CAS did not succeed.
 
+					if strings.Contains(errCzarAttempt.Error(), "no leader known") {
+						vv("see errCzarAtttemp = '%v', with 'no leader known', doing full restart", errCzarAttempt)
+						continue fullRestart
+					}
+
 					//cState = notCzar
 					czar.cState.Store(int32(notCzar))
 

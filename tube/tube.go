@@ -4837,7 +4837,7 @@ func (s *TubeNode) followers() (r string) {
 // does _not_ add to s.Waiting, caller should if we return true.
 // we send the redirect back to the caller internally.
 func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
-	//vv("%v redirectToLeader() called by '%v'; s.clusterSize()=%v; s.state.MC=%v; tkt=%v", s.me(), fileLine(2), s.clusterSize(), s.state.MC, tkt)
+	vv("%v redirectToLeader() called by '%v'; s.clusterSize()=%v; s.state.MC=%v; tkt=%v", s.me(), fileLine(2), s.clusterSize(), s.state.MC, tkt)
 
 	// Arg! This makes 402 grow a cluster from 1 node
 	// very difficult, since each new node on its own
