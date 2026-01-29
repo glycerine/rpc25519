@@ -1006,6 +1006,8 @@ fullRestart:
 					// we don't want this any more
 					//czar.members.PeerNames.Set(czar.myDetail.Det.Name, czar.myDetail)
 
+					czar.members.PeerNames.Delkey(czar.myDetail.Det.Name)
+
 					czar.members.CzarDet = czar.myDetail
 
 					bts2, err := czar.members.MarshalMsg(nil)
@@ -1086,6 +1088,7 @@ fullRestart:
 					if list.CzarName == tubeCliName {
 						panicf("internal logic error, we are not czar but list.CzarName shows us: '%v'", list.CzarName)
 					}
+
 					czarDetPlus := list.CzarDet
 					if czarDetPlus == nil {
 						panicf("list with winning czar did not include czar itself?? list='%v'", list)
