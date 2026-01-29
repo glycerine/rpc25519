@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	//"time"
+	"time"
 
 	rpc "github.com/glycerine/rpc25519"
 	//"github.com/glycerine/rpc25519/tube/art"
@@ -33,9 +33,10 @@ func Test301_raftStatePersistorSaveLoad(t *testing.T) {
 		versions = append(versions, state)
 
 		tkt := &Ticket{
-			Table: "hello",
-			Key:   "world",
-			Val:   Val("43"),
+			Table:          "hello",
+			Key:            "world",
+			Val:            Val("43"),
+			RaftLogEntryTm: time.Now(),
 		}
 
 		state.kvstoreWrite(tkt, &TubeNode{cfg: *cfg})
