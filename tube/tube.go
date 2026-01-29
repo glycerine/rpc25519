@@ -2018,7 +2018,12 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 		fmt.Println()
 		fmt.Printf("\n =========== with first Messages:\n")
 		for i, c := range order {
-			fmt.Printf("[%03d] %v -> firstMsg:\n%v\n\n", i, c, cs[c].String())
+			msg := cs[c]
+			str := "<nil>"
+			if msg != nil {
+				str = msg.String()
+			}
+			fmt.Printf("[%03d] %v -> firstMsg:\n%v\n\n", i, c, str)
 		}
 		fmt.Println()
 	}

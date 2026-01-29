@@ -29,7 +29,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 	countErrAntiDeadlockMustQueue := 0
 	defer func() {
-		//vv("%v LocalPeer.PeerbackPump all-finished; pb= %p", pb.PeerServiceName, pb) // 2x seen, "simgrid"
+		vv("%v LocalPeer.PeerbackPump all-finished; pb= %p", pb.PeerServiceName, pb)
 		pb.Halt.ReqStop.Close()
 		pb.Halt.Done.Close()
 	}()
@@ -108,10 +108,10 @@ func (pb *LocalPeer) peerbackPump() {
 				_ = madeAutoCli
 				if err == ErrAntiDeadlockMustQueue {
 					countErrAntiDeadlockMustQueue++
-					//vv("ErrAntiDeadlockMustQueue count=%v", countErrAntiDeadlockMustQueue)
+					vv("ErrAntiDeadlockMustQueue count=%v", countErrAntiDeadlockMustQueue)
 					go closeCktInBackgroundToAvoidDeadlock(queueSendCh.sendCh, msg, pb.Halt)
 				} else {
-					//vv("pump cleanupCkt() sent CallPeerEndCircuit msg to '%v' for cktID '%v'", msg.HDR.ToPeerName, ckt.CircuitID)
+					vv("pump cleanupCkt() sent CallPeerEndCircuit msg to '%v' for cktID '%v'", msg.HDR.ToPeerName, ckt.CircuitID)
 				}
 			}()
 		}
@@ -148,6 +148,7 @@ func (pb *LocalPeer) peerbackPump() {
 			pb.TellRemoteWeShutdown(rem)
 		}
 		//zz("%v: peerbackPump done telling peers we are down.", name)
+		pb.Halt.ReqStop.Close()
 		pb.Halt.Done.Close()
 
 		r := recover()
@@ -333,14 +334,14 @@ func (pb *LocalPeer) peerbackPump() {
 
 			callID := msgerr.HDR.CallID
 			ckt, ok := m[callID]
-			//vv("pump %v: ckt ok=%v on errorsIn", name, ok)
+			vv("pump %v: ckt ok=%v on errorsIn", name, ok)
 			if !ok {
-				//vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
+				vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
 				continue
 			}
-			//vv("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
+			vv("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
 
-			//vv("pump %v: ckt=%p ckt.Errors = %p; msgerr = '%v'; ckt.Errors=%p", name, ckt, ckt.Errors, ckt.Errors, msgerr)
+			vv("pump %v: ckt=%p ckt.Errors = %p; msgerr = '%v'; ckt.Errors=%p", name, ckt, ckt.Errors, ckt.Errors, msgerr)
 			// these are on ReadsIn above, not ErrorsIn, per handleReply_to_CallID_ToPeerID.
 			// if msgerr.HDR.Typ == CallPeerEndCircuit {
 			// 	////zz("pump %v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
@@ -369,7 +370,7 @@ func (pb *LocalPeer) peerbackPump() {
 			case <-done:
 				return
 			}
-			//vv("past the fragerr delivery")
+			vv("past the fragerr delivery")
 		}
 	}
 }
