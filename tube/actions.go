@@ -611,6 +611,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 
 		tkt.LeaseEpoch = leaf.LeaseEpoch
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
+		tkt.LeaseEpochT0 = leaf.LeaseEpochT0
 
 		table.Tree.InsertLeaf(leaf)
 		vv("%v wrote key '%v' (no prior key; leasor='%v' until '%v'); KVstore now len=%v; leaf.LeaseEpochT0='%v'", s.name, tktKey, leaf.Leasor, leaf.LeaseUntilTm, s.KVstore.Len(), nice(leaf.LeaseEpochT0))
