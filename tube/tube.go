@@ -4969,7 +4969,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// transitions. So use s.cktall, not s.cktReplica here.
 	cktP, ok := s.cktall[s.leaderID]
 	if !ok {
-		alwaysPrintf("%v don't know how to contact '%v' (because not in cktall its s.leaderID='%v') to redirect to leader; for tkt '%v'. Assuming they died.", s.me(), s.leaderName, s.leaderID, tkt.Short())
+		alwaysPrintf("%v don't know how to contact '%v' (because not in cktall its s.leaderID='%v') to redirect to leader; for tkt '%v'. Assuming they died. quickWhoWeKnow='%v'", s.me(), s.leaderName, s.leaderID, tkt.Short(), s.quickWhoWeKnow())
 
 		// return true so that we do not assume we are
 		// the leader, even if we cannot contact one.
@@ -18212,4 +18212,23 @@ func (s *TubeNode) handleCloseSocketsReopenLazily() {
 	for _, cli := range autoCli {
 		cli.Close()
 	}
+}
+
+func (s *TubeNode) quickWhoWeKnow() (r string) {
+	r = fmt.Sprintf("PeerIDs in cktall(%v):\n", len(s.cktall))
+	i := 0
+	for _, id := range s.cktall {
+		r += fmt.Sprintf("[%02d] %v\n", i, id)
+		i++
+	}
+	r += fmt.Sprintf("\nNames in cktAllByName(%v):\n", len(s.cktAllByName))
+
+	// same as cktall but by PeerName for fast
+	// lookup. also can be pending.
+	i = 0
+	for name := range s.cktAllByName {
+		r += fmt.Sprintf("[%02d] %v\n", i, name)
+		i++
+	}
+	return
 }

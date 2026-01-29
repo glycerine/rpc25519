@@ -164,7 +164,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			if leaderName == node.name && selfSurelyNotLeader {
 				continue // extra protection
 			}
-			//vv("%v: candidate leader = '%v', url = '%v' ; insp = '%v'", node.name, leaderName, leaderURL, insp)
+			vv("%v: candidate leader = '%v', url = '%v' ; insp = '%v'", node.name, leaderName, leaderURL, insp)
 			var lli, llt int64
 			if insp != nil {
 				insps = append(insps, insp)
@@ -261,7 +261,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			lastLeaderURL = leaderURL
 			reallyLeader = true
 			lastInsp = insp
-			pp("extra candidate leader = '%v', url = '%v", leaderName, leaderURL)
+			vv("extra candidate leader = '%v', url = '%v", leaderName, leaderURL)
 			s := leaders[leaderName]
 			if s == nil || llt > s.llt {
 				// just keep the highest term laeder

@@ -5,6 +5,7 @@ update:
 
 prep:
 	./zer
+	sleep 1
 	tubeadd node_0
 
 beg:
