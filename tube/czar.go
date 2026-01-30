@@ -716,7 +716,7 @@ fullRestart:
 		}
 
 		const requireOnlyContact = false
-		const keepCktUp = true // false
+		const keepCktUp = true // true leaks one conn per member, ugh. but false means we cannot contact the leader after finding them, double ugh!
 		for k := 0; ; k++ {
 			vv("find leader loop k = %v", k)
 			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp)
@@ -828,7 +828,8 @@ fullRestart:
 				bts2, err := list.MarshalMsg(nil)
 				panicOn(err)
 
-				// if "we" own the lease, we are only allowed to
+				// if "we" own the lease, the CAS on prevLeaseEpoch
+				// means we are only allowed to
 				// ratchet from our own lease epoch to the
 				// next when renewing before expiry. This
 				// prevents multiple instances of "us"
@@ -837,6 +838,12 @@ fullRestart:
 				// We could also assign
 				// the lease to a particular peerID to prevent this
 				// but... so far leases only track name and not peerID too.
+				//
+				// Also by not using auto-deleting keys, we get tombstones
+				// (keys with expired leases) and can ratchet strictly
+				// monotonically increasing
+				// lease epochs, instead of accidentally zapping the key's
+				// lease epoch back down to zero on auto-delete.
 				prevLeaseEpoch = 0
 				if czar.members.Vers != nil {
 					prevLeaseEpoch = czar.members.Vers.CzarLeaseEpoch
@@ -909,7 +916,7 @@ fullRestart:
 					_ = sum
 					left = time.Until(czar.members.Vers.CzarLeaseUntilTm)
 
-					pp("err=nil on lease write. I am czar (tubeCliName='%v'; oldCzarName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", tubeCliName, oldCzarName, left, vers, sum)
+					vv("err=nil on lease write. I am czar (tubeCliName='%v'; oldCzarName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", tubeCliName, oldCzarName, left, vers, sum)
 
 					czar.renewCzarLeaseDue = time.Now().Add(czar.renewCzarLeaseDur)
 					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)

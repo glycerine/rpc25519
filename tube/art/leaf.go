@@ -97,6 +97,12 @@ type Leaf struct {
 
 	// when did this leasor first obtain the lease
 	LeaseEpochT0 time.Time `zid:"10"`
+
+	// how long to renew an expired lease.
+	// i.e. if we renewed an expired lease, how long between possible
+	// renewal and the actual renewal did it take? i.e. were our
+	// members efficiently/effectively contending for czar?
+	LeaseRenewalElap time.Duration `zid:"11"`
 }
 
 func (s *Leaf) Clone() (r *Leaf) {
@@ -112,6 +118,7 @@ func (s *Leaf) Clone() (r *Leaf) {
 		AutoDelete:        s.AutoDelete,
 		LeasorPeerID:      s.LeasorPeerID,
 		LeaseEpochT0:      s.LeaseEpochT0,
+		LeaseRenewalElap:  s.LeaseRenewalElap,
 	}
 	return
 }

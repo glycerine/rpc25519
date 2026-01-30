@@ -668,5 +668,5 @@ func leaseInfoFromLeaf(leaf *art.Leaf) string {
 	} else {
 		lefts = fmt.Sprintf("(%v left)", left)
 	}
-	return fmt.Sprintf(" %v   Leasor:'%v'; LeaseEpoch='%v' (T0:%v ago);  LeaseUntilTm='%v' %v (leaf.Version='%v'; auto-delete: %v)", nice(time.Now()), leaf.Leasor, leaf.LeaseEpoch, time.Since(leaf.LeaseEpochT0), nice(leaf.LeaseUntilTm), lefts, leaf.Version, leaf.AutoDelete)
+	return fmt.Sprintf(" %v   Leasor:'%v'; LeaseEpoch='%v' (T0:%v ago);  LeaseUntilTm='%v' %v (leaf.Version='%v'; auto-delete: %v; LeaseRenewalElap: '%v')", nice(time.Now()), leaf.Leasor, leaf.LeaseEpoch, time.Since(leaf.LeaseEpochT0), nice(leaf.LeaseUntilTm), lefts, leaf.Version, leaf.AutoDelete, leaf.LeaseRenewalElap)
 }

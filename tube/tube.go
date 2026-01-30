@@ -5549,6 +5549,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.LeaseUntilTm = tkt.LeaseUntilTm
 		prior.LeaseEpoch = tkt.LeaseEpoch
 		prior.LeaseEpochT0 = tkt.LeaseEpochT0
+
 		prior.LeaseAutoDel = tkt.LeaseAutoDel
 		prior.VersionRead = tkt.VersionRead
 		prior.LeaseWriteRaftLogIndex = tkt.LeaseWriteRaftLogIndex

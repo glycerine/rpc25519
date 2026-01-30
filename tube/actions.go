@@ -126,6 +126,10 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 // is specified the others are ignored. First we check for
 // oldVersionCAS, then oldLeaseEpochCAS, the simple oldval based CAS.
 //
+// A zero in oldVersionCAS or a zero in oldLeaseEpochCAS
+// means that they are inactive. In inactive oldval is
+// passed with len(oldval) == 0.
+//
 // For example, if oldLeaseEpochCAS is specified, the oldval
 // will never be examined during the compare-and-swap; and
 // the oldVersionCAS must be nil for oldLeaseEpochCAS to be
@@ -624,7 +628,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 		tkt.LeaseEpochT0 = leaf.LeaseEpochT0
 
 		table.Tree.InsertLeaf(leaf)
-		vv("%v wrote key '%v' (no prior key; leasor='%v' until '%v'); KVstore now len=%v; leaf.LeaseEpochT0='%v'", s.name, tktKey, leaf.Leasor, leaf.LeaseUntilTm, s.KVstore.Len(), nice(leaf.LeaseEpochT0))
+		//vv("%v wrote key '%v' (no prior key; leasor='%v' until '%v'); KVstore now len=%v; leaf.LeaseEpochT0='%v'", s.name, tktKey, leaf.Leasor, leaf.LeaseUntilTm, s.KVstore.Len(), nice(leaf.LeaseEpochT0))
 		return
 	}
 	// key already present, so if leased and not leased by Leasor,
@@ -686,7 +690,6 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 
 			tkt.LeaseEpoch = leaf.LeaseEpoch
 			tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
-
 			//vv("%v wrote key '%v' extending current lease for '%v'; KVstore now len=%v", s.name, tktKey, tkt.Leasor, s.KVstore.Len())
 			return
 		}
@@ -697,7 +700,8 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 	// be from current leader's clock, so also
 	// include clock drift bound.
 	okAfter := leaf.LeaseUntilTm.Add(clockDriftBound)
-	if tkt.RaftLogEntryTm.After(okAfter) {
+	expiredDur := tkt.RaftLogEntryTm.Sub(okAfter)
+	if expiredDur > 0 { // tkt.RaftLogEntryTm.After(okAfter) {
 		// prior lease expired, allow write.
 
 		// overwritten value (old czar) can be useful to expire them quickly.
@@ -706,6 +710,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 		// leaf anyway).
 		tkt.PrevLeaseVal = leaf.Value
 		tkt.PrevLeaseVtype = leaf.Vtype
+		leaf.LeaseRenewalElap = expiredDur
 
 		leaf.Value = append([]byte{}, tktVal...)
 		leaf.Vtype = tkt.Vtype
@@ -1135,6 +1140,10 @@ func (s *TubeNode) doShowKeys(tkt *Ticket) {
 // are checked in this order, and if one
 // is specified the others are ignored. First we check for
 // oldVersionCAS, then oldLeaseEpochCAS, the simple oldval based CAS.
+//
+// A zero in oldVersionCAS or a zero in oldLeaseEpochCAS
+// means that they are inactive. In inactive oldval is
+// passed with len(oldval) == 0.
 //
 // For example, if oldLeaseEpochCAS is specified, the oldval
 // will never be examined during the compare-and-swap; and

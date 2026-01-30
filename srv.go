@@ -2231,7 +2231,6 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			//alwaysPrintf("%v server(%p) did not find destAddr (msg.HDR.To='%v') in "+
 			//	"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
 			//	" is true so spinning up new client... for a total of %v autoClients", s.name, s, msg.HDR.To, lenAutoCli)
-			//" is true so spinning up new client... full msg='%v'", msg.HDR.To, msg)
 		}
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
 		panicOn(err1)
@@ -2325,7 +2324,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			return
 		}
 
-		//vv("%v started auto-client ok. trying again... from:'%v'; to:'%v'e", s.name, p.from, p.to)
+		//vv("%v started auto-client ok. trying send again... from:'%v'; to:'%v'e", s.name, p.from, p.to)
 		err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	}
 	return
