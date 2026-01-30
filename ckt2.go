@@ -116,7 +116,39 @@ func (lpb *LocalPeer) setLoopy(ckt *Circuit) {
 	}
 	pair, ok := lpb.PeerAPI.remote2pair.Get(ckt.RpbTo.NetAddr)
 	if !ok {
-		panicf("need ckt.loopy set here! remote2pair did NOT have ckt.RpbTo.NetAddr='%v'. how do we do it?", ckt.RpbTo.NetAddr)
+		// not sure how to resolve; this was hit.
+		//panicf("need ckt.loopy set here! remote2pair did NOT have ckt.RpbTo.NetAddr='%v'. how do we do it?", ckt.RpbTo.NetAddr)
+		/*
+		   czar.go:729 [goID 36] 2026-01-30T23:02:02.594854285+00:00 arg. not really leader? why?
+
+		   czar.go:695 [goID 36] 2026-01-30T23:02:02.594879412+00:00 top of fullRestart j=329
+
+		   czar.go:724 [goID 36] 2026-01-30T23:02:02.594899010+00:00 find leader loop k = 0
+		   panic: need ckt.loopy set here! remote2pair did NOT have ckt.RpbTo.NetAddr='tcp://100.89.245.101:7001'. how do we do it?
+
+		   goroutine 36 [running]:
+		   github.com/glycerine/rpc25519.panicf(...)
+		           /home/jaten/rpc25519/vprint.go:249
+		   github.com/glycerine/rpc25519.(*LocalPeer).setLoopy(0xc0004a2720?, 0xc0007cc8c0)
+		           /home/jaten/rpc25519/ckt2.go:119 +0x134
+		   github.com/glycerine/rpc25519.(*LocalPeer).newCircuit(0xc0001b10e0, {0xdc489c, 0xf}, 0xc00044e210, {0xc000a893b0, 0x2c}, 0xc00055afc0, 0x0, 0x0, 0x0, ...)
+		           /home/jaten/rpc25519/ckt.go:1272 +0x1814
+		   github.com/glycerine/rpc25519.(*peerAPI).implRemotePeerAndGetCircuit(0xc0001adb80, {0xf04bc8, 0xc00049ce70}, 0xc0001b10e0, {0xdc489c, 0xf}, {0xc0008cab40, 0x40}, 0x0, {0xdc1b02, ...}, ...)
+		           /home/jaten/rpc25519/ckt2.go:284 +0x1365
+		   github.com/glycerine/rpc25519.(*LocalPeer).PreferExtantRemotePeerGetCircuit(0xc0001b10e0, {0xf04bc8, 0xc00049ce70}, {0xdc489c?, 0x5?}, {0xc0008cab40?, 0x529e3e?}, 0x4?, {0xdc1b02, 0xc}, ...)
+		           /home/jaten/rpc25519/ckt2.go:374 +0xd4
+		   github.com/glycerine/rpc25519/tube.(*TubeNode).ExternalGetCircuitToLeader(0xc000480808, {0xf04bc8, 0xc00049ce70}, {0xc000058b60?, 0x540eef?}, {0xc0001a2b70, 0x13}, 0x0, {0xdc489c, 0xf})
+		           /home/jaten/rpc25519/tube/tube.go:12633 +0x2a5
+		   github.com/glycerine/rpc25519/tube.(*TubeNode).GetPeerListFrom(0xc000480808, {0xf04bc8, 0xc00049ce70}, {0xc0001a2b70, 0x13}, {0xc0001a64a0, 0x6})
+		           /home/jaten/rpc25519/tube/tube.go:12732 +0x1c7
+		   github.com/glycerine/rpc25519/tube.(*TubeNode).HelperFindLeader(0xc000480808, {0xf04878, 0x1511160}, 0xc0001b0c60, {0x0, 0x0}, 0x0, 0x1)
+		           /home/jaten/rpc25519/tube/helper.go:111 +0x49f
+		   github.com/glycerine/rpc25519/tube.(*RMember).start(0xc0001c22d0)
+		           /home/jaten/rpc25519/tube/czar.go:725 +0x6a7
+		   created by github.com/glycerine/rpc25519/tube.(*RMember).Start in goroutine 1
+		           /home/jaten/rpc25519/tube/czar.go:651 +0x4f
+
+		*/
 	}
 	ckt.loopy = pair.loopy
 }
