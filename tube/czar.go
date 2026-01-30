@@ -694,7 +694,7 @@ fullRestart:
 	for j := 0; ; j++ {
 		vv("top of fullRestart j=%v", j)
 
-		if j > 0 {
+		if false && j > 0 { // LeaseRenewalElap: '3.77921382s too long if true.
 			beenSinceTop := time.Since(topT0)
 			if beenSinceTop < time.Second {
 				wait := time.Second - beenSinceTop
