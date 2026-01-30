@@ -1151,8 +1151,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		case <-s.hupRequestCIDsCh:
 			s.handleHUPLoggingCIDs()
 
-		case preserve := <-s.closeSocketsReopenLazilyCh:
-			s.handleCloseClientSocketsExcept(preserve)
+		case <-s.closeSocketsReopenLazilyCh:
+			s.handleCloseAutoClientSockets()
 
 		case <-s.pruneDupClientCktCheckCh:
 			s.globalPruneCktCheck()
@@ -3378,7 +3378,7 @@ type TubeNode struct {
 	pruneDupDur              time.Duration
 
 	hupRequestCIDsCh           chan bool
-	closeSocketsReopenLazilyCh chan *PeerDetail
+	closeSocketsReopenLazilyCh chan bool
 }
 
 type discoReq struct {
@@ -4381,7 +4381,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		cktAuditByName:             rpc.NewMutexmap[string, *rpc.Circuit](),
 		pruneDupDur:                time.Second * 20,
 		hupRequestCIDsCh:           make(chan bool, 100),
-		closeSocketsReopenLazilyCh: make(chan *PeerDetail, 100),
+		closeSocketsReopenLazilyCh: make(chan bool, 100),
 	}
 	s.pruneDupClientCktCheckCh = time.After(s.pruneDupDur)
 	s.hlc.CreateSendOrLocalEvent()
@@ -18207,25 +18207,25 @@ func (s *TubeNode) updateLeaderNameFromAckMsg(ackMsg *rpc.Message) {
 // we want to close all those un-used connections to the leader
 // and only re-open if an when they are needed (should be
 // rarely unless we have a machine or process crash).
-func (s *TubeNode) closeClientSocketsExcept(preserve *PeerDetail) {
+func (s *TubeNode) closeAutoClientSockets() {
 	if s.cfg.PeerServiceName == TUBE_REPLICA {
 		return // ignore, only for clients
 	}
 	//vv("TubeNode.closeSocketSockets called")
 	select {
-	case s.closeSocketsReopenLazilyCh <- preserve:
+	case s.closeSocketsReopenLazilyCh <- true:
 	case <-time.After(time.Second):
 	case <-s.Halt.ReqStop.Chan:
 	}
 }
 
-// internal, implementation of closeClientSockets
-func (s *TubeNode) handleCloseClientSocketsExcept(preserve *PeerDetail) {
+// internal, implementation of closeAutoClientSockets
+func (s *TubeNode) handleCloseAutoClientSockets() {
 	if s.cfg.PeerServiceName == TUBE_REPLICA {
 		return // ignore, only for clients
 	}
-	vv("%v handleCloseClientSocketsExcept top; justCli=%v", s.me(), preserve)
-	// if !justCli {
+
+	//  // if it is desired to shut down server sockets too:
 	// 	// range over a copy so we can delete as we iterate
 	// 	cp := make(map[string]*cktPlus)
 	// 	for peerID, cktP := range s.cktall {
@@ -18234,16 +18234,14 @@ func (s *TubeNode) handleCloseClientSocketsExcept(preserve *PeerDetail) {
 	// 	for _, cktP := range cp {
 	// 		s.deleteFromCktAll(cktP)
 	// 	}
-	// }
+	// // and even maybe
+	// s.Srv.ClosePairsWithoutCircuits()
+
 	autoCli, _ := s.Srv.AutoClients()
+	//vv("%v handleCloseAutoClientSockets top; len(autoCli)=%v", s.me(), len(autoCli))
 	for _, cli := range autoCli {
-		if cli.RemoteAddr() == preserve.Addr {
-			vv("found preserve in cli '%v': not closing to '%v'", cli.Name(), preserve.Addr)
-			continue
-		}
 		cli.Close()
 	}
-	//s.Srv.ClosePairsWithoutCircuits()
 }
 
 func (s *TubeNode) quickWhoWeKnow() (r string) {

@@ -769,7 +769,7 @@ fullRestart:
 		}
 		//vv("begin main loop at haveSess")
 
-		//var closedSockets bool
+		var closedSockets bool
 
 	haveSess:
 		for ii := 0; ; ii++ {
@@ -782,7 +782,7 @@ fullRestart:
 			switch czarState(czar.cState.Load()) {
 
 			case unknownCzarState:
-				//closedSockets = false
+				closedSockets = false
 
 				// find the czar. it might be me.
 				// we try to write to the "czar" key with a lease.
@@ -1094,18 +1094,6 @@ fullRestart:
 
 				czarLeaseUntilTm = czar.members.Vers.CzarLeaseUntilTm
 
-				// just do once per non-czar
-				//if !closedSockets {
-				// we don't need to maintain a socket with the tube raft cluster.
-				// just takes up file handles on the leader that will not
-				// be used for a long time in practice. Re-open if and when needed.
-
-				// try turning this off... see if we find
-				// the raft/tube leader faster on czar crash.
-				//cli.closeSocketsReopenLazily(false)
-				//	closedSockets = true
-				//}
-
 				if rpcClientToCzar == nil {
 					//pp("notCzar top: rpcClientToCzar is nil")
 
@@ -1287,9 +1275,12 @@ fullRestart:
 						}
 					}
 
-					//vv("czar: member heartbeat done: closing extraneous net.Conn with closeSocketsExcept()")
-					list := czar.getNonCzarMembers()
-					cli.closeClientSocketsExcept(list.CzarDet.Det)
+					if !closedSockets {
+						// just takes up file handles.
+						closedSockets = true
+						//vv("non-czar: closing autoCli")
+						cli.closeAutoClientSockets()
+					}
 
 					czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
 
