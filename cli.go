@@ -726,7 +726,8 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 				msg.LocalErr = err
 				rr := err.Error()
 				if strings.Contains(rr, "use of closed network connection") ||
-					strings.Contains(rr, "connection reset by peer") {
+					strings.Contains(rr, "connection reset by peer") ||
+					strings.Contains(rr, "broken pipe") {
 					stopReason = rr
 					return
 				}
