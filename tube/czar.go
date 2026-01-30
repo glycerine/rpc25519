@@ -726,6 +726,14 @@ fullRestart:
 				vv("arg. not really leader? why?")
 				continue fullRestart
 			}
+			// should have updated our notion of leader, else on leader change we can be stuck
+			// see peerListReplyHandler() tube.go:13234
+			insp := cli.Inspect()
+			if insp.CurrentLeaderName != "" &&
+				insp.CurrentLeaderName != leaderName {
+				panicf("why was insp.CurrentLeaderName(%v) != leaderName(%v) back from helper?", insp.CurrentLeaderName, leaderName)
+			}
+
 			if !czar.slow {
 				break
 			}

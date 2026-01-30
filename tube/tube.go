@@ -276,6 +276,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1180,6 +1181,14 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			s.leaderID = ckt.RemotePeerID
 			s.leaderName = ckt.RemotePeerName
 			s.leaderURL = ckt.RemoteServerURL("")
+			//s.leaderTerm try:
+			s.leaderTerm = 0
+			if ckt.FirstFrag != nil {
+				term, ok := ckt.FirstFrag.GetUserArg("leaderTerm")
+				if ok && term != "" {
+					s.leaderTerm = mustAtoi64(term)
+				}
+			}
 			s.leaderWasUpdated()
 
 		case <-s.Halt.ReqStop.Chan:
@@ -1383,6 +1392,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					}
 					// need to do this too, right?
 					s.leaderName = ""
+					s.leaderID = ""
+					s.leaderURL = ""
+					s.leaderTerm = 0
 					s.leaderWasUpdated()
 				}
 			}
@@ -1489,6 +1501,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					s.leaderName = ""
 					s.leaderID = ""
 					s.leaderURL = ""
+					s.leaderTerm = 0
 					s.leaderWasUpdated()
 					s.lastLeaderActiveStepDown = time.Now()
 					s.becomeFollower(s.state.CurrentTerm, nil, SAVE_STATE)
@@ -1616,6 +1629,12 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				s.leaderName, _ = frag.GetUserArg("leaderName")
 				s.leaderID, _ = frag.GetUserArg("leaderID")
 				s.leaderURL, _ = frag.GetUserArg("leaderURL")
+				term, ok := frag.GetUserArg("leaderTerm")
+				if ok && term != "" {
+					s.leaderTerm = mustAtoi64(term)
+				} else {
+					s.leaderTerm = 0 // unknown
+				}
 				s.leaderWasUpdated()
 				//vv("%v got NotifyClientNewLeader: '%v'", s.name, s.leaderName)
 
@@ -1884,6 +1903,10 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				leaderURL, ok := frag.GetUserArg("leaderURL")
 				if ok && leaderURL != "" {
 					s.leaderURL = leaderURL
+				}
+				leaderTerm, ok := frag.GetUserArg("leaderTerm")
+				if ok && leaderTerm != "" {
+					s.leaderTerm = mustAtoi64(leaderTerm)
 				}
 				s.leaderWasUpdated()
 				//vv("%v TODO: submit tickets to new leader instead.", s.me())
@@ -3043,11 +3066,14 @@ type TubeNode struct {
 	// to be tested in the hosting harness.
 	host hoster
 
-	role                     RaftRole
-	leaderID                 string
-	leaderName               string
-	leaderURL                string
-	leaderElectedTm          time.Time
+	role RaftRole
+
+	leaderID        string
+	leaderName      string
+	leaderURL       string
+	leaderTerm      int64 // has to be our term, right? for followers and leaders, not candidates
+	leaderElectedTm time.Time
+
 	electionTimeoutCh        <-chan time.Time
 	electionTimeoutSetAt     time.Time
 	electionTimeoutWasDur    time.Duration
@@ -4663,6 +4689,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 			//s.leaderID = s.PeerID
 			//s.leaderName = s.name
 			//s.leaderURL = s.URL
+			//s.leaderTerm = ...
 			//s.leaderWasUpdated()
 		}
 	}
@@ -4670,6 +4697,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.CurrentLeaderName = s.leaderName
 	ins.CurrentLeaderURL = s.leaderURL
 	ins.CurrentLeaderID = s.leaderID
+	ins.CurrentLeaderTerm = s.state.CurrentTerm // b/c ins.State may be ommitted.
 	ins.CurrentLeaderFirstObservedTm = s.currentLeaderFirstObservedTm
 
 	// don't report ourselves as leader unless
@@ -4890,6 +4918,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		s.leaderID = ""
 		s.leaderName = ""
 		s.leaderURL = ""
+		s.leaderTerm = 0
 		s.leaderWasUpdated()
 	}
 
@@ -5055,39 +5084,43 @@ type Inspection struct {
 	WaitingAtLeader map[string]*Ticket `zid:"5"`
 	WaitingAtFollow map[string]*Ticket `zid:"6"`
 
-	Role                     RaftRole   `zid:"7"`
-	State                    *RaftState `zid:"8"`
-	CurrentLeaderName        string     `zid:"9"`
-	CurrentLeaderID          string     `zid:"10"`
-	CurrentLeaderURL         string     `zid:"11"`
-	ElectionCount            int        `zid:"12"`
-	LastLeaderActiveStepDown time.Time  `zid:"13"`
+	Role              RaftRole   `zid:"7"`
+	State             *RaftState `zid:"8"`
+	CurrentLeaderName string     `zid:"9"`
+	CurrentLeaderID   string     `zid:"10"`
+	CurrentLeaderURL  string     `zid:"11"`
+
+	// same as State.CurrentTerm but State is omitted in minimized inspection.
+	CurrentLeaderTerm int64 `zid:"12"`
+
+	ElectionCount            int       `zid:"13"`
+	LastLeaderActiveStepDown time.Time `zid:"14"`
 
 	// TubeConfig has ClusterSize, which determines quorum.
-	Cfg TubeConfig `zid:"14"`
+	Cfg TubeConfig `zid:"15"`
 
-	MC               *MemberConfig `zid:"15"`
-	ResponderPeerID  string        `zid:"16"`
-	ResponderPeerURL string        `zid:"17"`
-	ResponderName    string        `zid:"18"`
+	MC               *MemberConfig `zid:"16"`
+	ResponderPeerID  string        `zid:"17"`
+	ResponderPeerURL string        `zid:"18"`
+	ResponderName    string        `zid:"19"`
 
-	LastLogIndex      int64    `zid:"19"`
-	LastLogTerm       int64    `zid:"20"`
-	LastLogLeaderName string   `zid:"21"`
-	LastLogTicketOp   TicketOp `zid:"22"`
-	LogIndexBaseC     int64    `zid:"23"`
+	LastLogIndex      int64    `zid:"20"`
+	LastLogTerm       int64    `zid:"21"`
+	LastLogLeaderName string   `zid:"22"`
+	LastLogTicketOp   TicketOp `zid:"23"`
+	LogIndexBaseC     int64    `zid:"24"`
 
-	ShadowReplicas *MemberConfig     `zid:"24"`
-	Known          map[string]string `zid:"25"`
+	ShadowReplicas *MemberConfig     `zid:"25"`
+	Known          map[string]string `zid:"26"`
 
-	CurrentLeaderFirstObservedTm time.Time `zid:"26"`
+	CurrentLeaderFirstObservedTm time.Time `zid:"27"`
 
-	Minimal bool `zid:"27"`
+	Minimal bool `zid:"28"`
 
-	Hostname string `zid:"28"`
-	PID      string `zid:"29"`
+	Hostname string `zid:"29"`
+	PID      string `zid:"30"`
 
-	CktAuditByCID map[string]string `zid:"30"`
+	CktAuditByCID map[string]string `zid:"31"`
 
 	// internal use only. tests/users call TubeNode.Inpsect()
 	done chan struct{}
@@ -6462,6 +6495,7 @@ func (s *TubeNode) becomeFollower(term int64, mc *MemberConfig, save bool) {
 		s.leaderID = ""
 		s.leaderName = ""
 		s.leaderURL = ""
+		s.leaderTerm = 0
 		s.leaderWasUpdated()
 	}
 	s.resetElectionTimeout("becomeFollower")
@@ -6604,6 +6638,7 @@ func (s *TubeNode) beginElection() {
 	s.leaderID = ""
 	s.leaderName = ""
 	s.leaderURL = ""
+	s.leaderTerm = 0
 	s.leaderWasUpdated()
 
 	// vote for self. but per section 4.2.2, only
@@ -7116,6 +7151,7 @@ func (s *TubeNode) becomeLeader() {
 	s.leaderID = s.PeerID
 	s.leaderName = s.name
 	s.leaderURL = s.URL
+	s.leaderTerm = s.state.CurrentTerm
 	s.leaderWasUpdated()
 
 	// Section 4.1, page 36: "Unfortunately, this
@@ -7810,6 +7846,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		s.leaderName = ae.LeaderName
 		s.leaderID = ae.LeaderID
 		s.leaderURL = ae.LeaderURL
+		s.leaderTerm = ae.LeaderTerm
 		s.leaderWasUpdated()
 	}
 
@@ -8001,6 +8038,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		s.leaderID = ae.LeaderID
 		s.leaderName = ae.LeaderName
 		s.leaderURL = ae.LeaderURL
+		s.leaderTerm = ae.LeaderTerm
 		s.leaderWasUpdated()
 		//vv("%v sees new leader %v",rpc.AliasDecode(s.me()), rpc.AliasDecode(s.leader))
 	}
@@ -9722,6 +9760,7 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 		s.leaderName = ""
 		s.leaderID = ""
 		s.leaderURL = ""
+		s.leaderTerm = 0
 		s.leaderWasUpdated()
 
 		s.lastLeaderActiveStepDown = time.Now()
@@ -10164,6 +10203,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 			s.leaderName = ""
 			s.leaderID = ""
 			s.leaderURL = ""
+			s.leaderTerm = 0
 			s.leaderWasUpdated()
 
 			s.lastLeaderActiveStepDown = time.Now()
@@ -12718,7 +12758,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 					// responder thinks they are leader, adopt that idea for now.
 					select {
 					case s.setLeaderCktChan <- ckt:
-						//vv("sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
+						vv("sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
 					case <-s.Halt.ReqStop.Chan:
 						err = ErrShutDown
 						return
@@ -12743,9 +12783,8 @@ func (s *TubeNode) UseLeaderURL(ctx context.Context, leaderName, leaderURL strin
 // (from hdr.go) when they got too big (> 1MB) because
 // we included all the sesions (and maybe clients?)--so
 // exclude those. A dropped reply makes tubels appear as if
-// a replica node is down even though it is not. We
-// should send on the package but without the payload?
-func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName string) (mc *MemberConfig, insp *Inspection, actualLeaderURL, actualLeaderName string, onlyPossibleAddr string, ckt *rpc.Circuit, err error) {
+// a replica node is down even though it is not.
+func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName string) (mc *MemberConfig, insp *Inspection, actualLeaderURL, actualLeaderName string, leaderTerm int64, onlyPossibleAddr string, ckt *rpc.Circuit, err error) {
 
 	_, _, peerID, _, err := rpc.ParsePeerURL(leaderURL)
 	panicOn(err)
@@ -12760,7 +12799,7 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName st
 
 	if err != nil {
 		//vv("%v GetPeerListFrom got error from getCircuitToLeader('%v') err='%v'; s.electionTimeoutCh='%p', s.nextElection in '%v'", s.me(), leaderURL, err, s.electionTimeoutCh, time.Until(s.nextElection))
-		return nil, nil, "", "", onlyPossibleAddr, nil, err
+		return nil, nil, "", "", 0, onlyPossibleAddr, nil, err
 	}
 
 	//actualLeaderName = ckt.RemotePeerName
@@ -12789,8 +12828,11 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName st
 		actualLeaderURL = itkt.insp.CurrentLeaderURL
 		// correct the leaderName if we got it wrong:
 		//vv("%v orig leaderName (ckt.RemotePeerName) = '%v'; itkt.insp.CurrentLeaderName='%v'", s.name, leaderName, itkt.insp.CurrentLeaderName)
-		if itkt.insp.CurrentLeaderName != "" {
-			actualLeaderName = itkt.insp.CurrentLeaderName
+		if insp.CurrentLeaderName != "" {
+			actualLeaderName = insp.CurrentLeaderName
+		}
+		if insp.State != nil && (insp.Role == LEADER || insp.Role == FOLLOWER) {
+			leaderTerm = insp.State.CurrentTerm
 		}
 	case <-ctx.Done():
 		err = ctx.Err()
@@ -13185,6 +13227,20 @@ func (s *TubeNode) peerListReplyHandler(frag *rpc.Fragment) error {
 	}
 	delete(s.remoteInspectRegistryMap, fcid)
 	itkt.insp = insp
+
+	// while we are internal, update our leaderName if inspection
+	// shows there is a newer leader availabe -- if we are a client.
+	// This prevents czar/member from getting into leaderless query infinite loops.
+	if s.role == CLIENT && (insp.Role != CLIENT) {
+		if insp.CurrentLeaderTerm > s.leaderTerm {
+			s.leaderName = insp.CurrentLeaderName
+			s.leaderID = insp.CurrentLeaderID
+			s.leaderURL = insp.CurrentLeaderURL
+			s.leaderTerm = insp.CurrentLeaderTerm
+			vv("%v in CLIENT role we updated leader info based on insp of '%v' to leaderName='%v'", s.me(), insp.ResponderName, s.leaderName)
+		}
+	}
+
 	close(itkt.readyCh)
 	return nil
 }
@@ -13810,6 +13866,14 @@ func (s *TubeNode) handleLocalModifyMembership(tkt *Ticket) (onlyPossibleAddr st
 				s.leaderID = ckt.RemotePeerID
 				s.leaderName = ckt.RemotePeerName
 				s.leaderURL = ckt.RemoteServerURL("")
+				//s.leaderTerm try:
+				s.leaderTerm = 0
+				if ckt.FirstFrag != nil {
+					term, ok := ckt.FirstFrag.GetUserArg("leaderTerm")
+					if ok && term != "" {
+						s.leaderTerm = mustAtoi64(term)
+					}
+				}
 				s.leaderWasUpdated()
 
 			}
@@ -18167,17 +18231,26 @@ func (s *TubeNode) leaderWasUpdated() {
 			delete(m, "leaderName")
 			delete(m, "leaderURL")
 			delete(m, "leaderID")
+			delete(m, "leaderTerm")
 		} else {
 			m["leaderName"] = s.leaderName
+
 			if s.leaderURL == "" {
 				delete(m, "leaderURL")
 			} else {
 				m["leaderURL"] = s.leaderURL
 			}
+
 			if s.leaderID == "" {
 				delete(m, "leaderID")
 			} else {
 				m["leaderID"] = s.leaderID
+			}
+
+			if s.leaderTerm == 0 {
+				delete(m, "leaderTerm")
+			} else {
+				m["leaderTerm"] = i64toa(s.leaderTerm)
 			}
 		}
 	})
@@ -18185,7 +18258,7 @@ func (s *TubeNode) leaderWasUpdated() {
 
 func (s *TubeNode) updateLeaderNameFromAckMsg(ackMsg *rpc.Message) {
 	if ackMsg != nil {
-		var lname, lid, lurl string
+		var lname, lid, lurl, lterm string
 		var ok bool
 		lname, ok = ackMsg.HDR.Args["leaderName"]
 		if ok {
@@ -18198,6 +18271,10 @@ func (s *TubeNode) updateLeaderNameFromAckMsg(ackMsg *rpc.Message) {
 		lurl, ok = ackMsg.HDR.Args["leaderURL"]
 		if ok {
 			s.leaderURL = lurl
+		}
+		lterm, ok = ackMsg.HDR.Args["leaderTerm"]
+		if ok {
+			s.leaderTerm = mustAtoi64(lterm)
 		}
 		if ok {
 			s.leaderWasUpdated()
@@ -18264,4 +18341,14 @@ func (s *TubeNode) quickWhoWeKnow() (r string) {
 		i++
 	}
 	return
+}
+
+func mustAtoi64(a string) int64 {
+	i, err := strconv.Atoi(a)
+	panicOn(err)
+	return int64(i)
+}
+
+func i64toa(i int64) string {
+	return fmt.Sprintf("%v", i)
 }

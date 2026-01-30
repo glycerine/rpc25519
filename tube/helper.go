@@ -84,13 +84,17 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 		var err error
 		var insp *Inspection
 		var leaderURL, leaderName string
+		var leaderTerm int64
+		_ = leaderTerm
 		if remoteName == node.name {
 			// inspect self
 			insp = node.Inspect()
 			leaderName = insp.CurrentLeaderName
 			leaderURL = insp.CurrentLeaderURL
 			//vv("%v self inspection gave: leaderName = '%v'", node.name, leaderName)
-			if leaderName == "" {
+			if insp.Role == CLIENT ||
+				leaderName == "" {
+
 				selfSurelyNotLeader = true
 				//vv("%v self insp says empty leaderName so setting selfSurelyNotLeader=true", node.name)
 			}
@@ -104,7 +108,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			var ckt *rpc.Circuit
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
 			// notice this updates leaderURL to be the actual found leader URL
-			_, insp, leaderURL, leaderName, _, ckt, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
+			_, insp, leaderURL, leaderName, leaderTerm, _, ckt, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
 			canc5()
 			if ckt != nil {
 				if !keepCktUp { // without this, client_test 710 red, so add keepCktUp.
@@ -236,11 +240,13 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 		//url = FixAddrPrefix(url)
 		var insp *Inspection
 		var leaderURL, leaderName string
+		var leaderTerm int64
+		_ = leaderTerm
 		var err error
 		var ckt *rpc.Circuit
 
 		ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-		_, insp, leaderURL, leaderName, _, ckt, err = node.GetPeerListFrom(ctx5sec, url, xname)
+		_, insp, leaderURL, leaderName, leaderTerm, _, ckt, err = node.GetPeerListFrom(ctx5sec, url, xname)
 		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
 		canc5()
 		if ckt != nil {

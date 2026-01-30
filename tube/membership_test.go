@@ -94,7 +94,7 @@ func Test401_add_node(t *testing.T) {
 			c.Halt.AddChild(node4.Halt)
 
 			vv("ask leader (or other, who should tell us leader) for cluster membership list, before adding the node4") // seen
-			list0, _, _, _, _, _, err := node4.GetPeerListFrom(bkg, leaderURL, leaderNode.name)
+			list0, _, _, _, _, _, _, err := node4.GetPeerListFrom(bkg, leaderURL, leaderNode.name)
 			panicOn(err)
 			vv("back from node4.GetPeerListFrom, list0 printed out:") // seen
 			for name, det := range list0.PeerNames.All() {
@@ -148,7 +148,7 @@ func Test401_add_node(t *testing.T) {
 			}
 
 			vv("for list1, ask leader for cluster membership list again, node4 should NOT be on it")
-			list1, _, _, _, _, _, err := node4.GetPeerListFrom(bkg, leaderURL, leaderNode.name)
+			list1, _, _, _, _, _, _, err := node4.GetPeerListFrom(bkg, leaderURL, leaderNode.name)
 			panicOn(err)
 			vv("node4 got list1 back from leader, list= '%#v'", list1)
 
@@ -172,7 +172,7 @@ func Test401_add_node(t *testing.T) {
 			c.Halt.AddChild(node5.Halt)
 
 			vv("ask leader (or other, who should tell us leader) for cluster membership list, before adding the node5") // seen
-			list5pre, _, _, _, _, _, err := node5.GetPeerListFrom(bkg, leaderURL, leaderNode.name)
+			list5pre, _, _, _, _, _, _, err := node5.GetPeerListFrom(bkg, leaderURL, leaderNode.name)
 			panicOn(err)
 			vv("back from node5.GetPeerListFrom, list5pre printed out:") // seen
 			for name, det := range list5pre.PeerNames.All() {
@@ -203,7 +203,7 @@ func Test401_add_node(t *testing.T) {
 			vv("done with 10 seconds of sleep")
 
 			vv("for list5, ask leader for cluster membership list again, node5 should be on it")
-			list5, _, _, _, _, _, err := node5.GetPeerListFrom(bkg, leaderURL, leaderNode.name)
+			list5, _, _, _, _, _, _, err := node5.GetPeerListFrom(bkg, leaderURL, leaderNode.name)
 			panicOn(err)
 
 			lenList5 := list5.PeerNames.Len()
@@ -269,7 +269,7 @@ func Test401_add_node(t *testing.T) {
 			}
 			//vv("for list2, about to call c.Nodes[1] GetPeerListFrom(leaderURL='%v')", leaderURL) // seen
 
-			list2, _, _, _, _, _, err := c.Nodes[1].GetPeerListFrom(bkg, leaderURL, leaderNode.name) // got to here
+			list2, _, _, _, _, _, _, err := c.Nodes[1].GetPeerListFrom(bkg, leaderURL, leaderNode.name) // got to here
 			panicOn(err)
 
 			lenList2 := list2.PeerNames.Len()
