@@ -215,6 +215,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	}
 
 	msg := frag.ToMessage()
+	lpb.addUserMeta(msg)
 
 	msg.HDR.Created = time.Now()
 	msg.HDR.From = p.u.LocalAddr()

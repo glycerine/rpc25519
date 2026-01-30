@@ -1187,7 +1187,11 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				term, ok := ckt.FirstFrag.GetUserArg("leaderTerm")
 				if ok && term != "" {
 					s.leaderTerm = mustAtoi64(term)
+				} else {
+					vv("%v ugh: firstFrag had no 'leaderTerm' set on it.", s.name)
 				}
+			} else {
+				vv("%v ugh: no firstFrag to try and extract leaderTerm from.", s.name)
 			}
 			s.leaderWasUpdated()
 
@@ -2095,80 +2099,9 @@ func (s *TubeNode) handleNewCircuit(
 	// It turns out for remote TUBE_CLIENT having done CallPeerStartCircuitAtMostOne
 	// via getCircuitToLeader() in member/czar.go, our TUBE_REPLICA node
 	// we can indeed end up with an empty ckt.RemotePeerName string.
-	// We fill in a proxy for now...
+	// We think we fixed this but assert still:
 	if ckt.RemotePeerName == "" {
 		panic(fmt.Sprintf("cannot have ckt.RemotePeerName empty: ckt='%v'", ckt))
-		// workaround??
-		//ckt.RemotePeerName = "ckt_RemotePeerName_was_empty_" + CryRand15B()
-		/* panic gave:
-				//panic(fmt.Sprintf("cannot have ckt.RemotePeerName empty: ckt='%v'", ckt))
-
-		panic: cannot have ckt.RemotePeerName empty: ckt='&Circuit{
-			     CircuitSN: 2128,
-			            T0: 2026-01-27T03:19:17.545Z,
-			          Name: "GetPeerListFrom",
-			     CircuitID: "YtimSjost245UzdN_4Oy2MdSpbW9A3tA30X7S_Giffw3",
-
-			   LocalPeerID: "hWpOFgP-ibxSwBletBVocwkz1qoj-6jWNZqlYYxV-l1i" (node_1) hWpOFgP-ibxSwBletBVocwkz1qoj-6jWNZqlYYxV-l1i ,
-			 LocalPeerName: "node_1",
-
-			  RemotePeerID: "JWOi1Lc01HVRz6NsmCaWeFkMUBBBgpNhmvsrLGMLKcyw" JWOi1Lc01HVRz6NsmCaWeFkMUBBBgpNhmvsrLGMLKcyw,
-			RemotePeerName: "",
-
-			 LocalServiceName: "tube-replica",
-			RemoteServiceName: "tube-client",
-
-			 LocalPeerServiceNameVersion: "",
-			RemotePeerServiceNameVersion: "",
-
-			     PreferExtant: true,
-			   MadeNewAutoCli: false,
-
-			 // LocalCircuitURL: "tcp://100.89.245.101:7001/tube-replica/hWpOFgP-ibxSwBletBVocwkz1qoj-6jWNZqlYYxV-l1i/YtimSjost245UzdN_4Oy2MdSpbW9A3tA30X7S_Giffw3",
-			 // RemoteCircuitURL: "tcp://100.89.245.101:36142/tube-client/JWOi1Lc01HVRz6NsmCaWeFkMUBBBgpNhmvsrLGMLKcyw/YtimSjost245UzdN_4Oy2MdSpbW9A3tA30X7S_Giffw3",
-
-			      Lpb.Hostname: rog
-			      Lpb.PID: 2728058
-
-			      RemotePeer.Hostname: rog
-			      RemotePeer.PID: 2733640
-
-			   UserString: "getCircuitToLeader on name:'member_c7VzUqXIpCvetYtNXBYN'",
-			    FirstFrag: &rpc25519.Fragment{
-			    "Created": 2026-01-27T03:19:17.541Z,
-			    "FromPeerID": "JWOi1Lc01HVRz6NsmCaWeFkMUBBBgpNhmvsrLGMLKcyw" JWOi1Lc01HVRz6NsmCaWeFkMUBBBgpNhmvsrLGMLKcyw,
-			    "FromPeerName": "",
-			    "FromPeerServiceName": "tube-client",
-			    "ToPeerID": "" ,
-			    "ToPeerName": "",
-			    "ToPeerServiceName": "tube-replica",
-			    "CircuitID": "YtimSjost245UzdN_4Oy2MdSpbW9A3tA30X7S_Giffw3",
-			    "Serial": 16,
-			    "Typ": CallPeerStartCircuitAtMostOne,
-			    "FragOp": 0,
-			    "FragSubject": "",
-			    "FragPart": 0,
-			    "Args": map[string]string{"#circuitName":"GetPeerListFrom", "#fragRPCtoken":"tkzoXwt-XKsLj6CfdfsK9e7rzNHEjTMgyUvlbbXgWj_2", "#fromBaseServerAddr":"tcp://100.89.245.101:43387", "#fromBaseServerName":"srv_member_c7VzUqXIpCvetYtNXBYN", "#fromHostname":"rog", "#fromPID":"2733640", "#fromServiceName":"tube-client", "#userString":"getCircuitToLeader on name:'member_c7VzUqXIpCvetYtNXBYN'"},
-			    "Payload": (len 0 bytes),
-			    "Err": "",
-			}
-			}' [recovered, repanicked]
-
-		goroutine 86 [running]:
-		github.com/glycerine/rpc25519/tube.(*TubeNode).Start.func1()
-			/home/jaten/rpc25519/tube/tube.go:770 +0xf5
-		panic({0xc7b680?, 0xc0036c17f0?})
-			/mnt/oldrog/usr/local/go1.25.6/src/runtime/panic.go:783 +0x132
-		github.com/glycerine/rpc25519/tube.(*TubeNode).handleNewCircuit(0xc0090d1af8?, 0xc0090d16d4?, 0x14d9840?, 0x0?, 0xc00003e9a0?, 0xc00003e901?)
-			/home/jaten/rpc25519/tube/tube.go:2050 +0x9e9
-		github.com/glycerine/rpc25519/tube.(*TubeNode).Start(0xc000114808, 0xc00012a240, {0xef5708, 0xc0001c4000}, 0xc0003e4070)
-			/home/jaten/rpc25519/tube/tube.go:1926 +0x3dcc
-		github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer.func1()
-			/home/jaten/rpc25519/ckt.go:1606 +0x109
-		created by github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer in goroutine 1
-			/home/jaten/rpc25519/ckt.go:1600 +0x659
-
-		*/
 	}
 	//vv("%v top handleNewCircuit ckt from '%v'", s.name, ckt.RemotePeerName)
 
