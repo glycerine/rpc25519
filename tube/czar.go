@@ -724,7 +724,7 @@ fullRestart:
 			panicOn(err)
 			if !reallyLeader {
 				vv("arg. not really leader? why?")
-				continue
+				continue fullRestart
 			}
 			if !czar.slow {
 				break
@@ -929,6 +929,11 @@ fullRestart:
 						continue fullRestart
 					}
 
+					if strings.Contains(errCzarAttempt.Error(), "I am not leader") {
+						vv("see errCzarAtttempt = '%v', with 'I am not leader', doing full restart", errCzarAttempt)
+						continue fullRestart
+					}
+
 					//cState = notCzar
 					czar.cState.Store(int32(notCzar))
 
@@ -1118,7 +1123,7 @@ fullRestart:
 					if list.CzarName == tubeCliName {
 						vv("internal logic error? we are not czar but list.CzarName shows us: '%v'", list.CzarName)
 						czar.cState.Store(int32(unknownCzarState))
-						continue haveSess
+						continue fullRestart
 					}
 
 					czarDetPlus := list.CzarDet
