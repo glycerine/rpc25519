@@ -1375,6 +1375,7 @@ type Server struct {
 	numRWPair atomic.Int64
 }
 
+// linear search for now. frequently fastest for small count anyway.
 func (s *Server) deleteFromAutoCli(c *Client) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
