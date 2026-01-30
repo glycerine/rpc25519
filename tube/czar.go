@@ -707,11 +707,11 @@ fullRestart:
 				}
 			}
 		}
-		if false && j > 0 {
+		if j > 0 {
 			beenSinceTop := time.Since(topT0)
 			if beenSinceTop < time.Second {
-				wait := time.Second*5 - beenSinceTop
-				time.Sleep(wait) // pace it to at most 1 per 5 second.
+				wait := time.Second - beenSinceTop
+				time.Sleep(wait) // pace it to at most 1 per second.
 			}
 		}
 
@@ -724,6 +724,7 @@ fullRestart:
 			panicOn(err)
 			if !reallyLeader {
 				vv("arg. not really leader? why?")
+				cli.closeAutoClientSockets()
 				continue fullRestart
 			}
 			// should have updated our notion of leader, else on leader change we can be stuck

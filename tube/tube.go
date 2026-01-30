@@ -12604,7 +12604,8 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 	//vv("top ExternalGetCircuitToLeader() stack = '%v'", stack())
 	//}
 
-	if leaderName != "" {
+	// ugh. now blocks recovery after leader change...
+	if false && leaderName != "" {
 		// Try to cut down on the relatively large (2-10 and
 		// probably more if the outage lasts longer) number
 		// of redundant circuits that accumulate
@@ -12626,7 +12627,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 	netAddr, serviceName, leaderPeerID, _, err1 := rpc.ParsePeerURL(leaderURL)
 	panicOn(err1)
 	if err1 != nil {
-		err = fmt.Errorf("getCircuitToLeader error: bad leaderURL('%v') supplied, could not parse: '%v'", leaderURL, err1)
+		err = fmt.Errorf("ExternalGetCircuitToLeader error: bad leaderURL('%v') supplied, could not parse: '%v'", leaderURL, err1)
 		return
 	}
 	if serviceName != "" && serviceName != string(TUBE_REPLICA) {
@@ -12639,7 +12640,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 	// should be safe; and RemotePeer.IncomingCkt is
 	// goroutine safe.
 	if s.MyPeer == nil {
-		err = fmt.Errorf("getCircuitToLeader error: no MyPeer available")
+		err = fmt.Errorf("ExternalGetCircuitToLeader error: no MyPeer available")
 		return
 	}
 	var ackMsg *rpc.Message
@@ -12652,7 +12653,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 	}
 	if ok {
 		ckt = remotePeer.IncomingCkt
-		//vv("%v getCircuitToLeader(): already have ckt to leaderURL '%v' -> leaderPeerID: '%v'; remotePeer = '%#v'", leaderURL, ckt, remotePeer)
+		//vv("%v ExternalGetCircuitToLeader(): already have ckt to leaderURL '%v' -> leaderPeerID: '%v'; remotePeer = '%#v'", leaderURL, ckt, remotePeer)
 		if ckt == nil {
 			panic(fmt.Sprintf("no ckt avail??? leaderURL = '%v'; remotePeer = '%#v'", leaderURL, remotePeer))
 		}
@@ -12671,7 +12672,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		//    change.
 		// cache what we get back and re-use it?
 
-		//vv("%v getCircuitToLeader(): no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
+		//vv("%v ExternalGetCircuitToLeader(): no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
 
 		// lets confirm that with our other trackers...
 		cktP, auditFoundIt := s.cktAuditByPeerID.Get(leaderPeerID)
@@ -12680,7 +12681,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		}
 
 		var peerServiceNameVersion string
-		// here we are in getCircuitToLeader()
+		// here we are in ExternalGetCircuitToLeader()
 		// got error from ckt2.go:
 		// client peer error on StartRemotePeer: remoteAddr should be 'tcp://100.89.245.101:7001' (that we are connected to), rather than the 'tcp://100.126.101.8:7006' which was requested. Otherwise your request will fail.
 		// but may not be a problem in here, just retry on tuberm.
@@ -12717,7 +12718,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		}
 		//vv("%v getCircuitToLeader(netAddr='%v') back from PreferExtantRemotePeerGetCircuit: err='%v'", s.name, netAddr, err)
 		if err != nil {
-			err = fmt.Errorf("getCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL '%v' (netAddr='%v') (onlyPossibleAddr='%v') gave err = '%v'; ", leaderURL, netAddr, onlyPossibleAddr, err)
+			err = fmt.Errorf("ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL '%v' (netAddr='%v') (onlyPossibleAddr='%v') gave err = '%v'; ", leaderURL, netAddr, onlyPossibleAddr, err)
 			return
 		}
 		// must manually tell the service goro
@@ -12758,7 +12759,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 					// responder thinks they are leader, adopt that idea for now.
 					select {
 					case s.setLeaderCktChan <- ckt:
-						vv("sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
+						vv("in ExternalGetCircuitToLeader(): sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
 					case <-s.Halt.ReqStop.Chan:
 						err = ErrShutDown
 						return
@@ -12798,7 +12799,7 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName st
 	ckt, onlyPossibleAddr, _, err = s.ExternalGetCircuitToLeader(ctx, leaderName, leaderURL, nil, "GetPeerListFrom")
 
 	if err != nil {
-		//vv("%v GetPeerListFrom got error from getCircuitToLeader('%v') err='%v'; s.electionTimeoutCh='%p', s.nextElection in '%v'", s.me(), leaderURL, err, s.electionTimeoutCh, time.Until(s.nextElection))
+		//vv("%v GetPeerListFrom got error from ExternalGetCircuitToLeader('%v') err='%v'; s.electionTimeoutCh='%p', s.nextElection in '%v'", s.me(), leaderURL, err, s.electionTimeoutCh, time.Until(s.nextElection))
 		return nil, nil, "", "", 0, onlyPossibleAddr, nil, err
 	}
 
@@ -13233,11 +13234,12 @@ func (s *TubeNode) peerListReplyHandler(frag *rpc.Fragment) error {
 	// This prevents czar/member from getting into leaderless query infinite loops.
 	if s.role == CLIENT && (insp.Role != CLIENT) {
 		if insp.CurrentLeaderTerm > s.leaderTerm {
+			vv("%v in CLIENT role we updated leader info based on insp of '%v' to leaderName='%v'; insp.CurrentLeaderTerm(%v) > s.leaderTerm(%v)", s.me(), insp.ResponderName, s.leaderName, insp.CurrentLeaderTerm, s.leaderTerm)
+
 			s.leaderName = insp.CurrentLeaderName
 			s.leaderID = insp.CurrentLeaderID
 			s.leaderURL = insp.CurrentLeaderURL
 			s.leaderTerm = insp.CurrentLeaderTerm
-			vv("%v in CLIENT role we updated leader info based on insp of '%v' to leaderName='%v'", s.me(), insp.ResponderName, s.leaderName)
 		}
 	}
 
@@ -13822,7 +13824,7 @@ func (s *TubeNode) handleLocalModifyMembership(tkt *Ticket) (onlyPossibleAddr st
 				firstFrag.SetUserArg("baseServerHostPort", baseServerHostPort)
 
 				// returned now: var ckt *rpc.Circuit
-				//vv("%v handleLocalModifyMembership calling getCircuitToLeader", s.me())
+				//vv("%v handleLocalModifyMembership calling internalGetCircuitToLeader", s.me())
 				// note: s.leaderName here is just a guess too(!)
 				ckt, onlyPossibleAddr, sentOnNewCkt, err = s.internalGetCircuitToLeader(s.MyPeer.Ctx, s.leaderName, tkt.GuessLeaderURL, firstFrag, "handleLocalModifyMembership")
 
