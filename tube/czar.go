@@ -770,6 +770,7 @@ fullRestart:
 		//vv("begin main loop at haveSess")
 
 		var closedSockets bool
+		_ = closedSockets
 
 	haveSess:
 		for ii := 0; ; ii++ {
@@ -1282,7 +1283,8 @@ fullRestart:
 						}
 					}
 
-					if !closedSockets {
+					// try more often, still have members keeping conn to raft leader
+					if true { // !closedSockets {
 						// just takes up file handles.
 						closedSockets = true
 						//vv("non-czar: closing autoCli")
