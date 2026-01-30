@@ -1188,10 +1188,10 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				if ok && term != "" {
 					s.leaderTerm = mustAtoi64(term)
 				} else {
-					vv("%v ugh: firstFrag had no 'leaderTerm' set on it.", s.name)
+					//vv("%v ugh: firstFrag had no 'leaderTerm' set on it.", s.name)
 				}
 			} else {
-				vv("%v ugh: no firstFrag to try and extract leaderTerm from.", s.name)
+				//vv("%v ugh: no firstFrag to try and extract leaderTerm from.", s.name)
 			}
 			s.leaderWasUpdated()
 
@@ -12692,7 +12692,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 					// responder thinks they are leader, adopt that idea for now.
 					select {
 					case s.setLeaderCktChan <- ckt:
-						vv("in ExternalGetCircuitToLeader(): sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
+						//vv("in ExternalGetCircuitToLeader(): sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
 					case <-s.Halt.ReqStop.Chan:
 						err = ErrShutDown
 						return
@@ -13167,7 +13167,7 @@ func (s *TubeNode) peerListReplyHandler(frag *rpc.Fragment) error {
 	// This prevents czar/member from getting into leaderless query infinite loops.
 	if s.role == CLIENT && (insp.Role != CLIENT) {
 		if insp.CurrentLeaderTerm > s.leaderTerm {
-			vv("%v in CLIENT role we updated leader info based on insp of '%v' to leaderName='%v'; insp.CurrentLeaderTerm(%v) > s.leaderTerm(%v)", s.me(), insp.ResponderName, s.leaderName, insp.CurrentLeaderTerm, s.leaderTerm)
+			//vv("%v in CLIENT role we updated leader info based on insp of '%v' to leaderName='%v'; insp.CurrentLeaderTerm(%v) > s.leaderTerm(%v)", s.me(), insp.ResponderName, s.leaderName, insp.CurrentLeaderTerm, s.leaderTerm)
 
 			s.leaderName = insp.CurrentLeaderName
 			s.leaderID = insp.CurrentLeaderID
