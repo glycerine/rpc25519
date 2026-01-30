@@ -1375,6 +1375,17 @@ type Server struct {
 	numRWPair atomic.Int64
 }
 
+func (s *Server) deleteFromAutoCli(c *Client) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	for i, cli := range s.autoClients {
+		if cli == c {
+			s.autoClients = append(s.autoClients[:i], s.autoClients[(i+1):]...)
+			return
+		}
+	}
+}
+
 type ServerClient struct {
 	Remote string
 	GoneCh chan struct{}

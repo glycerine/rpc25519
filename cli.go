@@ -580,6 +580,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			//	ckt.Halt.ReqStop.CloseWithReason("conn shut: " + stopReason)
 			//}
 			g.srv.deletePair(g.pair)
+			g.srv.deleteFromAutoCli(c)
 		}
 		//vv("Client.runSendLoop defer closing c.halt=%p", c.halt)
 		c.halt.ReqStop.Close()
