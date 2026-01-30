@@ -1151,8 +1151,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		case <-s.hupRequestCIDsCh:
 			s.handleHUPLoggingCIDs()
 
-		case justCli := <-s.closeSocketsReopenLazilyCh:
-			s.handleCloseSocketsReopenLazily(justCli)
+		case preserve := <-s.closeSocketsReopenLazilyCh:
+			s.handleCloseClientSocketsExcept(preserve)
 
 		case <-s.pruneDupClientCktCheckCh:
 			s.globalPruneCktCheck()
@@ -3378,7 +3378,7 @@ type TubeNode struct {
 	pruneDupDur              time.Duration
 
 	hupRequestCIDsCh           chan bool
-	closeSocketsReopenLazilyCh chan bool
+	closeSocketsReopenLazilyCh chan *PeerDetail
 }
 
 type discoReq struct {
@@ -4381,7 +4381,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		cktAuditByName:             rpc.NewMutexmap[string, *rpc.Circuit](),
 		pruneDupDur:                time.Second * 20,
 		hupRequestCIDsCh:           make(chan bool, 100),
-		closeSocketsReopenLazilyCh: make(chan bool, 100),
+		closeSocketsReopenLazilyCh: make(chan *PeerDetail, 100),
 	}
 	s.pruneDupClientCktCheckCh = time.After(s.pruneDupDur)
 	s.hlc.CreateSendOrLocalEvent()
@@ -18207,36 +18207,40 @@ func (s *TubeNode) updateLeaderNameFromAckMsg(ackMsg *rpc.Message) {
 // we want to close all those un-used connections to the leader
 // and only re-open if an when they are needed (should be
 // rarely unless we have a machine or process crash).
-func (s *TubeNode) closeSocketsReopenLazily(justCli bool) {
+func (s *TubeNode) closeClientSocketsExcept(preserve *PeerDetail) {
 	if s.cfg.PeerServiceName == TUBE_REPLICA {
 		return // ignore, only for clients
 	}
-	//vv("TubeNode.closeSocketsReopenLazily called")
+	//vv("TubeNode.closeSocketSockets called")
 	select {
-	case s.closeSocketsReopenLazilyCh <- justCli:
+	case s.closeSocketsReopenLazilyCh <- preserve:
 	case <-time.After(time.Second):
 	case <-s.Halt.ReqStop.Chan:
 	}
 }
 
-// internal: looks like justCli = true in czar suffices.
-func (s *TubeNode) handleCloseSocketsReopenLazily(justCli bool) {
+// internal, implementation of closeClientSockets
+func (s *TubeNode) handleCloseClientSocketsExcept(preserve *PeerDetail) {
 	if s.cfg.PeerServiceName == TUBE_REPLICA {
 		return // ignore, only for clients
 	}
-	//vv("%v handleCloseSocketsReopenLazily top; justCli=%v", s.me(), justCli)
-	if !justCli {
-		// range over a copy so we can delete as we iterate
-		cp := make(map[string]*cktPlus)
-		for peerID, cktP := range s.cktall {
-			cp[peerID] = cktP
-		}
-		for _, cktP := range cp {
-			s.deleteFromCktAll(cktP)
-		}
-	}
+	vv("%v handleCloseClientSocketsExcept top; justCli=%v", s.me(), preserve)
+	// if !justCli {
+	// 	// range over a copy so we can delete as we iterate
+	// 	cp := make(map[string]*cktPlus)
+	// 	for peerID, cktP := range s.cktall {
+	// 		cp[peerID] = cktP
+	// 	}
+	// 	for _, cktP := range cp {
+	// 		s.deleteFromCktAll(cktP)
+	// 	}
+	// }
 	autoCli, _ := s.Srv.AutoClients()
 	for _, cli := range autoCli {
+		if cli.RemoteAddr() == preserve.Addr {
+			vv("found preserve in cli '%v': not closing to '%v'", cli.Name(), preserve.Addr)
+			continue
+		}
 		cli.Close()
 	}
 	//s.Srv.ClosePairsWithoutCircuits()

@@ -1287,9 +1287,9 @@ fullRestart:
 						}
 					}
 
-					//vv("czar: member heartbeat done: closing extraneous net.Conn with closeSocketsReopenLazily()")
-					//true=>close just auto-cli. seems to suffice to prevent leaks.
-					cli.closeSocketsReopenLazily(true)
+					//vv("czar: member heartbeat done: closing extraneous net.Conn with closeSocketsExcept()")
+					list := czar.getNonCzarMembers()
+					cli.closeClientSocketsExcept(list.CzarDet.Det)
 
 					czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
 

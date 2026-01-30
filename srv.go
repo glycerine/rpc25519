@@ -3466,6 +3466,7 @@ func (s *Server) AutoClients() (list []*Client, isServer bool) {
 }
 
 func (c *Client) AutoClients() (list []*Client, isServer bool) {
+	list = append(list, c)
 	return
 }
 
