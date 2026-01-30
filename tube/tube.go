@@ -2016,16 +2016,18 @@ func (s *TubeNode) handleHUPLoggingCIDs() {
 			order = append(order, c)
 		}
 		fmt.Println()
-		fmt.Printf("\n =========== with first readLoop Messages:\n")
-		for i, c := range order {
-			msg := cs[c]
-			str := "<nil>"
-			if msg != nil {
-				str = msg.String()
+		if false {
+			fmt.Printf("\n =========== with first readLoop Messages:\n")
+			for i, c := range order {
+				msg := cs[c]
+				str := "<nil>"
+				if msg != nil {
+					str = msg.String()
+				}
+				fmt.Printf("[%03d] %v -> first msg readLoop saw:\n%v\n\n", i, c, str)
 			}
-			fmt.Printf("[%03d] %v -> first msg readLoop saw:\n%v\n\n", i, c, str)
+			fmt.Println()
 		}
-		fmt.Println()
 	}
 }
 
