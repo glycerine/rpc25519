@@ -688,11 +688,21 @@ func (membr *RMember) start() {
 
 	vv("s.memberLeaseDur = '%v'", czar.memberLeaseDur)
 
+	topT0 := time.Now()
+
 fullRestart:
 	for j := 0; ; j++ {
 		vv("top of fullRestart j=%v", j)
 
-		topT0 := time.Now()
+		if j > 0 {
+			beenSinceTop := time.Since(topT0)
+			if beenSinceTop < time.Second {
+				wait := time.Second - beenSinceTop
+				time.Sleep(wait) // pace it to at most 1 per second.
+			}
+		}
+		topT0 = time.Now()
+
 		// let the close session pace it now...
 
 		ctx := context.Background()
@@ -705,13 +715,6 @@ fullRestart:
 				if err != nil {
 					vv("closing prior session err='%v'", err)
 				}
-			}
-		}
-		if j > 0 {
-			beenSinceTop := time.Since(topT0)
-			if beenSinceTop < time.Second {
-				wait := time.Second - beenSinceTop
-				time.Sleep(wait) // pace it to at most 1 per second.
 			}
 		}
 
