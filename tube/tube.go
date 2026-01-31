@@ -8811,7 +8811,10 @@ func (s *TubeNode) bcastAppendEntries(es []*RaftLogEntry, prevLogIndex, prevLogT
 		// in bcastAppendEntries here.
 		if s.skipAEBecauseNotReplica(info.PeerID,
 			info.PeerName, info.PeerServiceName) {
-			alwaysPrintf("%v skipping non MC replica: %v", s.me(), info.PeerName)
+
+			// quiet down, shadow replicas that are gone but up appear here.
+			//alwaysPrintf("%v skipping non MC replica: %v", s.me(), info.PeerName)
+
 			gonerPeerID = append(gonerPeerID, info.PeerID)
 			continue
 		}
