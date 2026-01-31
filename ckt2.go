@@ -112,7 +112,8 @@ func (lpb *LocalPeer) setLoopy(ckt *Circuit) {
 		return
 	}
 	if lpb.PeerAPI.remote2pair == nil {
-		panicf("need ckt.loopy set here! how do we do ckt.loopy, _ = s.remote2pair.Get(ckt.RpbTo.NetAddr='%v') from here?? ", ckt.RpbTo.NetAddr)
+		//panicf("need ckt.loopy set here! how do we do ckt.loopy, _ = s.remote2pair.Get(ckt.RpbTo.NetAddr='%v') from here?? ", ckt.RpbTo.NetAddr)
+		return // pair to take loopy from.
 	}
 	pair, ok := lpb.PeerAPI.remote2pair.Get(ckt.RpbTo.NetAddr)
 	if ok {
@@ -323,7 +324,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	}
 	//vv("madeNewAutoCli = %v", madeNewAutoCli)
 
-	// try hard to get ckt.loopy set.
+	// try hard to set ckt.loopy
 	if ckt.loopy == nil {
 		if loopy != nil {
 			ckt.loopy = loopy

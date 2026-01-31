@@ -1183,7 +1183,11 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#fromPID"] = lpb.PID
 		lpb.addUserMeta(msg)
 
-		madeNewAutoCli, ckt.loopy, err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+		var lpy *LoopComm
+		madeNewAutoCli, lpy, err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+		if ckt.loopy == nil {
+			ckt.loopy = lpy
+		}
 		ckt.MadeNewAutoCli = madeNewAutoCli
 		if err != nil {
 			alwaysPrintf("arg: tried to tell remote, but: err='%v'", err)
@@ -1264,7 +1268,11 @@ func (lpb *LocalPeer) newCircuit(
 		// on CallPeerCircuitEstablishedAck messages too, if registerd.
 		lpb.addUserMeta(msg)
 
-		madeNewAutoCli, ckt.loopy, err = lpb.U.SendOneWayMessage(ctx2, msg, -1)
+		var lpy *LoopComm
+		madeNewAutoCli, lpy, err = lpb.U.SendOneWayMessage(ctx2, msg, -1)
+		if ckt.loopy == nil {
+			ckt.loopy = lpy
+		}
 		ckt.MadeNewAutoCli = madeNewAutoCli
 	}
 	if err == nil && ckt != nil {
@@ -1279,21 +1287,10 @@ func (lpb *LocalPeer) newCircuit(
 				//vv("in lbp.newCircuit: ckt.loopy available and ckt.loopy.cktServedAdd <- ckt ok.")
 			case <-lpb.Halt.ReqStop.Chan:
 			}
-		} else {
-			// INVAR: ckt.loopy == nil
-
-			// assert that we set ckt.loopy if we could
-			if ckt.RpbTo != nil && ckt.RpbTo.NetAddr != "" {
-				// seen, we did get here. so do this fix.
-				// Arg, I see the problem: how to get access to remote2pair???
-				//ckt.loopy, _ = s.remote2pair.Get(ckt.RpbTo.NetAddr)
-				if ckt.loopy == nil {
-					panicf("why do we not have ckt.loopy set now? why does s.remote2pair not have it? there might be a good reason, it might need to be lazy but we want to know what that is... as we want to have it set if at all possible, in all Circuit creation scenarios!! ckt.RpbTo.NetAddr='%v' so just set ckt.loopy, _ = s.remote2pair.Get(ckt.RpbTo.NetAddr); stack=\n%v\n", ckt.RpbTo.NetAddr, stack())
-				}
-			} else {
-				panicf("ahem: is development of LoopComm helper incomplete? why do we not have ckt.loopy set now?? there might be a good reason, but we want to have it set if at all possible, in all Circuit creation scenarios!")
-			}
 		}
+		// else: saw: leader died, member did not have connection
+		// to any leader at the moment... no remote2pair yet.
+		// don't freak.
 	}
 	return
 }
@@ -1325,6 +1322,11 @@ func (lpb *LocalPeer) addUserMeta(msg *Message) {
 func (h *Circuit) Close(reason error) {
 	// must be idemopotent. Often called many times
 	// during normal Circuit shutdown.
+
+	if h.loopy == nil {
+		// *should* or could we have set loopy? try again now.
+		h.LpbFrom.setLoopy(h)
+	}
 
 	if h.loopy != nil {
 		select {
