@@ -1374,8 +1374,8 @@ func NewConfig() *Config {
 		ListenerLimit: 300,
 
 		// 10ms => allows 100 messages/second.
-		// 100ms => allows 10 messages/second.
-		RateLimitEveryDur: 100 * time.Millisecond,
+		// 100ms => allows 10 messages/second. (but tube/052_partition test red)
+		RateLimitEveryDur: 10 * time.Millisecond,
 
 		// usually want this on so auto-clients work.
 		ServerAutoCreateClientsToDialOtherServers: true,

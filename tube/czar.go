@@ -1596,6 +1596,7 @@ func (s *ReliableMembershipList) String() (r string) {
 	}
 	r += fmt.Sprintf(" CzarName: \"%v\"\n", s.CzarName)
 	r += fmt.Sprintf("     Vers: %v\n", s.Vers)
+	r += fmt.Sprintf("[ %v PeerNames listed above (czar not included) ]\n", s.PeerNames.Len())
 	r += fmt.Sprintf("  CzarDet: %v\n", s.CzarDet)
 	r += "}\n"
 	return
