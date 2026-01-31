@@ -1588,15 +1588,15 @@ func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {
 
 func (s *ReliableMembershipList) String() (r string) {
 	r = "&ReliableMembershipList{\n"
-	r += fmt.Sprintf(" CzarName: \"%v\"\n", s.CzarName)
-	r += fmt.Sprintf("  CzarDet: %v\n", s.CzarDet)
-	r += fmt.Sprintf("     Vers: %v\n", s.Vers)
 	r += fmt.Sprintf("PeerNames: (%v present)\n", s.PeerNames.Len())
 	i := 0
 	for _, plus := range s.PeerNames.All() {
 		r += fmt.Sprintf("[%02d] %v\n", i, plus)
 		i++
 	}
+	r += fmt.Sprintf(" CzarName: \"%v\"\n", s.CzarName)
+	r += fmt.Sprintf("     Vers: %v\n", s.Vers)
+	r += fmt.Sprintf("  CzarDet: %v\n", s.CzarDet)
 	r += "}\n"
 	return
 }
