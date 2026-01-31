@@ -115,7 +115,9 @@ func (lpb *LocalPeer) setLoopy(ckt *Circuit) {
 		panicf("need ckt.loopy set here! how do we do ckt.loopy, _ = s.remote2pair.Get(ckt.RpbTo.NetAddr='%v') from here?? ", ckt.RpbTo.NetAddr)
 	}
 	pair, ok := lpb.PeerAPI.remote2pair.Get(ckt.RpbTo.NetAddr)
-	if !ok {
+	if ok {
+		ckt.loopy = pair.loopy
+	} else {
 		// not sure how to resolve; this was hit.
 		//panicf("need ckt.loopy set here! remote2pair did NOT have ckt.RpbTo.NetAddr='%v'. how do we do it?", ckt.RpbTo.NetAddr)
 		/*
@@ -150,7 +152,6 @@ func (lpb *LocalPeer) setLoopy(ckt *Circuit) {
 
 		*/
 	}
-	ckt.loopy = pair.loopy
 }
 
 func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName, userString string, frag *Fragment, remotePeerServiceName, remotePeerServiceNameVersion, remoteAddr string, errWriteDur time.Duration, waitForAck bool, preferExtant bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err0 error) {
