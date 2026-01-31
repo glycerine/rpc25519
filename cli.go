@@ -1373,10 +1373,9 @@ func NewConfig() *Config {
 
 		ListenerLimit: 300,
 
-		// for now, leave off rate limits.
-		// a rate limit which is pretty lax; this
-		// allows 100 messages/second.
-		// RateLimitEveryDur: 10 * time.Millisecond,
+		// 10ms => allows 100 messages/second.
+		// 100ms => allows 10 messages/second.
+		RateLimitEveryDur: 100 * time.Millisecond,
 
 		// usually want this on so auto-clients work.
 		ServerAutoCreateClientsToDialOtherServers: true,
