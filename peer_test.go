@@ -109,7 +109,7 @@ func Test406_user_can_cancel_local_service_with_context(t *testing.T) {
 		defer j.cleanup()
 
 		ctx := context.Background()
-		lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, "", nil, "", false)
+		lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, "", nil, "peerName406", false)
 		panicOn(err)
 		lpb.Close()
 
@@ -123,7 +123,7 @@ func Test406_user_can_cancel_local_service_with_context(t *testing.T) {
 		defer j.cleanup()
 
 		ctx, canc := context.WithCancel(context.Background())
-		lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, "", nil, "", false)
+		lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, "", nil, "peerName406b", false)
 		panicOn(err)
 		defer lpb.Close()
 
@@ -144,11 +144,11 @@ func Test408_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 
 	//cv.Convey("a circuit can close down, telling the remote but not closing the peer", t, func() {
 
-	j := newTestJunk("circuit_close_test407")
+	j := newTestJunk("circuit_close_test408")
 	defer j.cleanup()
 
 	ctx := context.Background()
-	cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, "", nil, "", false)
+	cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, "", nil, "peerName408", false)
 	panicOn(err)
 	defer cli_lpb.Close()
 
@@ -156,7 +156,7 @@ func Test408_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 	//_, _, err := j.cli.PeerAPI.StartRemotePeer(ctx, j.srvServiceName, cli.RemoteAddr(), 0)
 	//panicOn(err)
 
-	server_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, "", nil, "", false)
+	server_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, "", nil, "peerName408b", false)
 	panicOn(err)
 	defer server_lpb.Close()
 

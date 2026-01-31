@@ -1556,11 +1556,13 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	preferExtant bool,
 
 ) (lpb *LocalPeer, err error) {
+	//vv("top peerAPI.unlockedStartLocalPeer(); peerName = '%v'", peerName)
 	if peerName == "" {
-		panic("cannot have peerName empty here at top of unlockedStartLocalPeer")
+		panic("cannot have peerName empty here at top of unlockedStartLocalPeer") // 400 test
 	}
 	knownLocalPeer, ok := p.localServiceNameMap.Get(peerServiceName)
 	if !ok {
+		//vv("not avail: peerServiceName '%v'", peerServiceName)
 		return nil, fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
 	}
 
@@ -1572,7 +1574,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 		if knownLocalPeer.active != nil {
 			ncur := knownLocalPeer.active.Len()
 			if ncur >= lim {
-				// at limit, reject making another
+				//vv("at limit, reject making another") // not seen
 				knownLocalPeer.mut.Unlock()
 				return nil, fmt.Errorf("unlockedStartLocalPeer error: peerServiceName '%v' is listed in cfg.LimitedServiceNames and is already at cfg.LimitedServiceMax = %v, (ncur=%v) refusing to make another. Method lpb.PeerAPI.GetLocalPeers(peerServiceName) will list them.", peerServiceName, lim, ncur)
 			}
@@ -1712,7 +1714,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, peerServ
 			madeNewAutoCli = true // latch and stick at true
 		}
 		if err == nil {
-			////vv("SendOneWayMessage retried %v times before succeess; pollInterval: %v",
+			//vv("SendOneWayMessage retried %v times before succeess; pollInterval: %v",
 			//	i, pollInterval)
 			break
 		}
@@ -1953,13 +1955,18 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			return s.rejectWith(fmt.Sprintf("bootstrapCircuit error: peerServiceName '%v' is listed in cfg.LimitedServiceNames and is already at cfg.LimitedServiceMax = %v (curServiceCount = %v)", peerServiceName, lim, curServiceCount), isCli, msg, ctx, sendCh)
 		}
 		// spin one up!
-		//vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'; Typ='%v'", peerServiceName, msg.HDR.Typ)
+		//vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'; Typ='%v'", peerServiceName, msg.HDR.Typ) // seen
 
 		peerName := s.baseServerName // maybe the best we can do.
+		if peerName == "" {
+			peerName = "synthetic_" + peerServiceName + "_" + msg.HDR.CallID
+		}
 		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, peerServiceNameVersion, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID, peerName, onRemote2ndSide, preferExtant)
+		//vv("back from unlockedStartLocalPeer; err='%v'", err) // not seen
 		if err != nil {
 			// we are probably shutting down; Test408 gets here with
 			// "rpc25519 error: halt requested".
+			//vv("err = %v", err)
 			return err
 		}
 		lpb = lpb2
@@ -2008,12 +2015,15 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			ack.HDR.ToPeerID = msg.HDR.FromPeerID
 			ack.HDR.ToPeerName = msg.HDR.FromPeerName
 
+			//vv("responding via replyHelper: ack='%v'", ack) // not seen
 			return s.replyHelper(isCli, ack, ctx, sendCh)
+		} else {
+			//vv("bootstrap saw FromPeerID, skipping ack???") // not seen
 		}
 		return nil
 	}
 
-	//vv("bootstrapCircuit ending, about to call lpb.provideRemoteOnNewCircuitCh '%v'; Typ='%v'; isUpdatedPeerID=%v", peerServiceName, msg.HDR.Typ, isUpdatedPeerID)
+	//vv("bootstrapCircuit ending, about to call lpb.provideRemoteOnNewCircuitCh '%v'; Typ='%v'; isUpdatedPeerID=%v", peerServiceName, msg.HDR.Typ, isUpdatedPeerID) // not seen.
 
 	// Providing s.mut and skipUnlock allows provideRemote to
 	// unlock s.mut before doing

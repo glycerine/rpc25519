@@ -42,7 +42,7 @@ func (me *PeerImpl) Start(
 
 	nStart := me.StartCount.Add(1)
 	_ = nStart
-	//vv("PeerImpl.Start() top. ourID = '%v'; peerServiceName='%v'; StartCount = %v", myPeer.ID(), myPeer.ServiceName(), nStart)
+	//vv("PeerImpl.Start() top. ourID = '%v'; peerServiceName='%v'; StartCount = %v", myPeer.PeerID, myPeer.PeerServiceName, nStart)
 
 	var wg sync.WaitGroup
 	defer wg.Wait() // wait for everyone to shutdown/catch stragglers that don't by hanging.
@@ -90,7 +90,7 @@ func (me *PeerImpl) Start(
 				for {
 					select {
 					case frag := <-ckt.Reads:
-						vv("%v: echo circuit got read frag back: '%v'", myPeer.PeerServiceName, frag.String())
+						//vv("%v: echo circuit got read frag back: '%v'", myPeer.PeerServiceName, frag.String())
 						if frag.FragSubject == "echo reply" {
 							vv("seen echo reply, ack and shutdown")
 							me.ReportEchoTestCanSee <- string(frag.Payload)
