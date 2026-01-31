@@ -28,6 +28,7 @@ import (
 	"github.com/glycerine/rpc25519/selfcert"
 	"github.com/quic-go/quic-go"
 	"golang.org/x/net/netutil" // for LimitListener
+	"golang.org/x/time/rate"   // for rate.Limiter
 )
 
 var _ = os.MkdirAll
@@ -716,6 +717,15 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			stopReason = fmt.Sprintf("req=nil s.halt=%p", s.halt)
 			continue
 		}
+
+		// Apply rate limit, if configured.
+		if s.rateLimiter != nil {
+			if err := s.rateLimiter.Wait(ctx); err != nil {
+				// ctx has been cancelled (or over deadline).
+				return
+			}
+		}
+
 		//vv("srv read loop sees req = '%v'", req.String())
 
 		//if s.debugFirstReadMsg == nil {
@@ -1938,6 +1948,7 @@ type rwPair struct {
 	// off generally to avoid leaking the first message per circuit.
 	//debugFirstReadMsg *Message
 
+	rateLimiter *rate.Limiter
 }
 
 func (s *Server) newRWPair(conn net.Conn) *rwPair {
@@ -1963,6 +1974,11 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		cktServedAdd:          p.cktServedAdd,
 		cktServedDel:          p.cktServedDel,
 		closePairIfNoCircuits: p.closePairIfNoCircuits,
+	}
+	if s.cfg.RateLimitEveryDur > 0 {
+		hz := rate.Every(s.cfg.RateLimitEveryDur)
+		burst := int(hz)
+		p.rateLimiter = rate.NewLimiter(hz, burst)
 	}
 
 	p.halt = idem.NewHalterNamed(fmt.Sprintf("Server.rwPair(%p)", p))

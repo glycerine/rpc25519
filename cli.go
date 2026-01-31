@@ -13,7 +13,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"golang.org/x/crypto/hkdf"
 	"io"
 	"io/ioutil"
 	"net"
@@ -31,6 +30,8 @@ import (
 	"github.com/glycerine/loquet"
 	"github.com/glycerine/rpc25519/selfcert"
 	"github.com/quic-go/quic-go"
+	"golang.org/x/crypto/hkdf"
+	"golang.org/x/time/rate"
 )
 
 var _ = cryrand.Read
@@ -454,6 +455,16 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		if msg == nil {
 			continue
 		}
+		// INVAR: err is nil, msg is not nil.
+
+		// Apply rate limit, if configured.
+		if c.rateLimiter != nil {
+			if err := c.rateLimiter.Wait(ctx); err != nil {
+				// ctx has been cancelled (or over deadline).
+				return
+			}
+		}
+
 		now := time.Now()
 		if msg.HDR.Typ == CallKeepAlive {
 			//vv("client got an rpc25519 keep alive.")
@@ -1221,6 +1232,13 @@ type Config struct {
 	LimitedServiceMax   []int
 
 	ListenerLimit int // default 300
+
+	// RateLimitEveryDur implements rate limiting (if not zero).
+	// If not zero, then RateLimitEveryDur is passed to
+	// limit.Every() to get the permitted events per second,
+	// with the integer floor of the same amount used as
+	// the maximum initial burst limit.
+	RateLimitEveryDur time.Duration
 }
 
 func (cfg *Config) GetLimitMax(peerServiceName string) int {
@@ -1462,6 +1480,8 @@ type Client struct {
 	// to inject new *Circuit and ckt.Close() notification into
 	// the appropriate read and send loops.
 	loopy *LoopComm
+
+	rateLimiter *rate.Limiter
 }
 
 var ErrNoSimconnAvail = fmt.Errorf("rpc25519.Client error: no simconn available")
@@ -1871,6 +1891,11 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		cktServedAdd:          c.cktServedAdd,
 		cktServedDel:          c.cktServedDel,
 		closePairIfNoCircuits: c.closePairIfNoCircuits,
+	}
+	if cfg.RateLimitEveryDur > 0 {
+		hz := rate.Every(cfg.RateLimitEveryDur)
+		burst := int(hz)
+		c.rateLimiter = rate.NewLimiter(hz, burst)
 	}
 
 	c.halt = idem.NewHalterNamed(fmt.Sprintf("Client(%v %p)", name, c)) // this halter is being closed quickly? 20 msec - 30 msec after made.
