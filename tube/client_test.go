@@ -423,11 +423,11 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 		snap := c.SimnetSnapshot(false)
 		vv("50 seconds after crashing the leader, snap = '%v'", snap) // .LongString())
 
-		vv("try 2nd read from the session, after leader change; current cli.leaderName = '%v'", cli.leaderName)
+		vv("try 2nd read from the session, after leader change; current cli.leaderName = '%v'", cli.leaderName) // node_2
 
 		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(bkg, &cli.cfg, c.Nodes[1].name, false, KEEP_CKT_UP)
 		panicOn(err)
-		vv("HelperFindLeader returned leaderURL='%v', reallyLeader = %v", leaderURL, reallyLeader)
+		vv("HelperFindLeader returned leaderURL='%v', reallyLeader = %v", leaderURL, reallyLeader) // node_1, false
 
 		// try to fix the sporadic race where
 		// cli might not have updated its own s.leaderName !?!
