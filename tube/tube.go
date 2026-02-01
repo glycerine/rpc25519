@@ -2285,7 +2285,9 @@ func (s *TubeNode) handleNewCircuit(
 			case <-gcClientCh:
 				elap := time.Since(lastHeard)
 				if elap > time.Minute {
-					vv("%v: closing ckt with no activity after %v; to client: '%v'", s.name, elap, ckt.RpbTo.NetAddr)
+					// does usefully collect those few circuits to now dead (e.g. member) clients
+					// that are leftover and did not get cleaned up for whatever reason.
+					//vv("%v: closing ckt with no activity after %v; to client: '%v'", s.name, elap, ckt.RpbTo.NetAddr)
 					return
 				}
 				gcClientCh = time.After(time.Second * 10)
