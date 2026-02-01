@@ -22,6 +22,14 @@ type set struct {
 	llt  int64
 }
 
+type KeepCkt int
+
+const (
+	SHUT_CKT                KeepCkt = 0
+	KEEP_CKT_UP             KeepCkt = 1
+	KEEP_CKT_ONLY_IF_LEADER KeepCkt = 2
+)
+
 // HelperFindLeader assists clients like
 // tube, tubels, tuberm, tubeadd and tup
 // with searching for the current leader
@@ -46,10 +54,10 @@ type set struct {
 // If requireOnlyContact is true, then
 // HelperFindLeader will immediately exit(1) if
 // the contactName is not also the current leader.
-// If keepCktUp then we will leave the circuit
+// If keepCktUp says so, then we will leave the circuit
 // to the leader we established up; otherwise
 // we will close it before returning.
-func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, contactName string, requireOnlyContact, keepCktUp bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool, contacted []*Inspection, err0 error) {
+func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, contactName string, requireOnlyContact bool, keepCktUp KeepCkt) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool, contacted []*Inspection, err0 error) {
 
 	if node.name != cfg.MyName {
 		panicf("must have consistent node.name('%v') == cfg.MyName('%v')", node.name, cfg.MyName)
@@ -111,13 +119,15 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			_, insp, leaderURL, leaderName, leaderTerm, _, ckt, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
 			canc5()
 			if ckt != nil {
-				// ugh: blows away tubeadd.
-				//if leaderName != remoteName || !keepCktUp {
-				//	// unless it is the leader and keepCktUp, close it.
-				//	ckt.Close(nil)
-				//}
-				if !keepCktUp { // without this, client_test 710 red, so add keepCktUp.
+				switch keepCktUp {
+				case KEEP_CKT_UP:
+					// leave it up.
+				case SHUT_CKT:
 					ckt.Close(nil)
+				case KEEP_CKT_ONLY_IF_LEADER:
+					if leaderName != remoteName {
+						ckt.Close(nil)
+					}
 				}
 			}
 			if err == nil && insp != nil {

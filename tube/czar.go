@@ -719,10 +719,9 @@ fullRestart:
 		}
 
 		const requireOnlyContact = false
-		const keepCktUp = true // true leaks one conn per member, ugh. but false means we cannot contact the leader after finding them, double ugh!
 		for k := 0; ; k++ {
 			vv("find leader loop k = %v", k)
-			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, keepCktUp)
+			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, KEEP_CKT_ONLY_IF_LEADER)
 			vv("helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", leaderURL, reallyLeader, err)
 			panicOn(err)
 			if !reallyLeader {

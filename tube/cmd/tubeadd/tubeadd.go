@@ -206,10 +206,9 @@ if it comes to that.
 	panicOn(err)
 	defer node.Close()
 	const requireOnlyContact = true
-	const keepCktUp = true
 
 	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact, keepCktUp)
+	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact, tube.KEEP_CKT_UP)
 	canc()
 	panicOn(err)
 	var contactURL string

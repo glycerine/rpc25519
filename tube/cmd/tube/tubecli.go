@@ -283,9 +283,9 @@ func main() {
 	defer node.Close()
 
 	const requireOnlyContact = false
-	const keepCktUp = true
+
 	ctx5, canc := context.WithTimeout(ctx, time.Second*50)
-	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact, keepCktUp)
+	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact, tube.KEEP_CKT_UP)
 	canc()
 	_ = reallyLeader // leaderName will be empty so maybe not needed?
 	if err != nil {

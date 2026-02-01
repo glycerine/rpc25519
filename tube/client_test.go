@@ -425,8 +425,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 
 		vv("try 2nd read from the session, after leader change; current cli.leaderName = '%v'", cli.leaderName)
 
-		keepCktUp := true
-		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(bkg, &cli.cfg, c.Nodes[1].name, false, keepCktUp)
+		leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(bkg, &cli.cfg, c.Nodes[1].name, false, KEEP_CKT_UP)
 		panicOn(err)
 		vv("HelperFindLeader returned leaderURL='%v', reallyLeader = %v", leaderURL, reallyLeader)
 
