@@ -190,6 +190,10 @@ keywords: cas, newtable, rmtable, use, mv, ls, show, del
 repl:
 	for {
 		targetTable := table
+		lead, ok := node.MyPeer.UserMeta.Get("leaderName")
+		if ok && lead != "" {
+			leaderName = lead
+		}
 		fmt.Printf("[%v connected](table '%v') > ", leaderName, table)
 		line, err := getLine(reader)
 		if err != nil {
