@@ -27,12 +27,13 @@ require (
 	github.com/klauspost/cpuid/v2 v2.0.9
 	github.com/minio/minlz v1.0.1
 	github.com/pierrec/lz4/v4 v4.1.22
-	github.com/quic-go/quic-go v0.58.0
+	github.com/quic-go/quic-go v0.59.0
 	github.com/templexxx/cpu v0.1.1
 	golang.org/x/crypto v0.47.0
 	golang.org/x/net v0.49.0
 	golang.org/x/sys v0.40.0
 	golang.org/x/term v0.39.0
+	golang.org/x/time v0.14.0
 )
 
 //replace github.com/glycerine/idem => /Users/jaten/go/src/github.com/glycerine/idem
@@ -52,6 +53,5 @@ require (
 	github.com/shurcooL/go-goon v1.0.0 // indirect
 	github.com/tinylib/msgp v1.1.2 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	golang.org/x/time v0.14.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
 )
