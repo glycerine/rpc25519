@@ -2220,10 +2220,12 @@ func (s *TubeNode) handleNewCircuit(
 	// listen to this peer on a separate goro
 	go func(ckt *rpc.Circuit, cktP *cktPlus) (err0 error) {
 
-		lastHeard := time.Now() // track liveness
 		ctx := ckt.Context
 		cktContextDone := ctx.Done()
 
+		// track liveness of clients, they frequently disappear,
+		// and we like to gc the resources of this goroutine after a minute.
+		lastHeard := time.Now()
 		var gcClientCh <-chan time.Time
 		if ckt.RemoteServiceName != TUBE_REPLICA {
 			gcClientCh = time.After(time.Second * 10)
@@ -2287,7 +2289,7 @@ func (s *TubeNode) handleNewCircuit(
 				if elap > time.Minute {
 					// does usefully collect those few circuits to now dead (e.g. member) clients
 					// that are leftover and did not get cleaned up for whatever reason.
-					//vv("%v: closing ckt with no activity after %v; to client: '%v'", s.name, elap, ckt.RpbTo.NetAddr)
+					alwaysPrintf("%v: closing ckt with no activity after %v; to client: '%v'", s.name, elap, ckt.RpbTo.NetAddr)
 					return
 				}
 				gcClientCh = time.After(time.Second * 10)
