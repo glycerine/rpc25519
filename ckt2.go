@@ -113,13 +113,20 @@ func (lpb *LocalPeer) setLoopy(ckt *Circuit) {
 	}
 	if lpb.PeerAPI.remote2pair == nil {
 		//panicf("need ckt.loopy set here! how do we do ckt.loopy, _ = s.remote2pair.Get(ckt.RpbTo.NetAddr='%v') from here?? ", ckt.RpbTo.NetAddr)
-		return // pair to take loopy from.
+		return // no pair to take loopy from.
 	}
 	pair, ok := lpb.PeerAPI.remote2pair.Get(ckt.RpbTo.NetAddr)
 	if ok {
 		ckt.loopy = pair.loopy
 	} else {
 		// not sure how to resolve; this was hit.
+
+		// one thing to try: added cktWantsPair, to be resolved
+		// when rwPair is made.
+		if lpb.PeerAPI.cktWantsPair != nil {
+			lpb.PeerAPI.cktWantsPair.Set(ckt.RpbTo.NetAddr, ckt)
+		}
+
 		//panicf("need ckt.loopy set here! remote2pair did NOT have ckt.RpbTo.NetAddr='%v'. how do we do it?", ckt.RpbTo.NetAddr)
 		/*
 		   czar.go:729 [goID 36] 2026-01-30T23:02:02.594854285+00:00 arg. not really leader? why?
@@ -330,6 +337,9 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 			ckt.loopy = loopy
 		} else {
 			lpb.setLoopy(ckt)
+			if ckt.loopy == nil {
+				vv("not-great: ckt.loopy nil in implRemotePeerAndGetCircuit(), cktID='%v'", ckt.CircuitID)
+			}
 		}
 	}
 

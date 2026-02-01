@@ -1287,10 +1287,14 @@ func (lpb *LocalPeer) newCircuit(
 				//vv("in lbp.newCircuit: ckt.loopy available and ckt.loopy.cktServedAdd <- ckt ok.")
 			case <-lpb.Halt.ReqStop.Chan:
 			}
+		} else {
+			vv("not-great: ckt.loopy nil at end of newCircuit(), cktID='%v'", ckt.CircuitID)
+
+			// else: saw: leader died, member did not have connection
+			// to any leader at the moment... no remote2pair yet.
+			// don't freak.
+			// but... maybe the conn is gone already too and not coming back?
 		}
-		// else: saw: leader died, member did not have connection
-		// to any leader at the moment... no remote2pair yet.
-		// don't freak.
 	}
 	return
 }
@@ -1324,11 +1328,8 @@ func (h *Circuit) Close(reason error) {
 	// during normal Circuit shutdown.
 
 	if h.loopy == nil {
-		// *should* or could we have set loopy? try again now.
-		h.LpbFrom.setLoopy(h)
-	}
-
-	if h.loopy != nil {
+		vv("not-great: ckt.loopy nil at end of Circuit.Close(), cktID='%v'", h.CircuitID)
+	} else {
 		select {
 		case h.loopy.cktServedDel <- h:
 		case <-h.LpbFrom.Halt.ReqStop.Chan:
@@ -1402,6 +1403,9 @@ type peerAPI struct {
 	// points to the same on Server
 	remote2pair *Mutexmap[string, *rwPair]
 
+	// points to same on Server
+	cktWantsPair *Mutexmap[string, *Circuit]
+
 	// no need for remote2pair on clients, they are 1-1,
 	// so always have the same single remote address;
 	// we can just set ckt.loopy directly from cliLoopy
@@ -1430,6 +1434,8 @@ func newPeerAPI(u UniversalCliSrv, isCli, isSim bool, baseServerName, baseServer
 			panic("why is isCli true?")
 		}
 		a.remote2pair = x.remote2pair
+		a.cktWantsPair = x.cktWantsPair
+
 		//vv("peerAPI initialized remote2pair from Server")
 	case *Client:
 		if !isCli {

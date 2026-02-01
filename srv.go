@@ -1334,6 +1334,9 @@ type Server struct {
 	remote2pair *Mutexmap[string, *rwPair]
 	pair2remote *Mutexmap[*rwPair, string]
 
+	// let fast orphan circuits find their slow/lazy created rwPair
+	cktWantsPair *Mutexmap[string, *Circuit]
+
 	// also need to be able to un-nat things!
 	// to translate from the msg.HDR.From to what
 	// the net.Conn actually thinks--when not on
@@ -2004,6 +2007,21 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 	s.mut.Unlock()
 	//vv("made new rwPair=%p, with sendCh=%p for local(conn)='%v' -> remote(conn)='%v'", p, p.SendCh, p.from, p.to)
 
+	var addMeCkt *Circuit
+	s.cktWantsPair.Update(func(m map[string]*Circuit) {
+		ckt, ok := m[key]
+		if ok {
+			addMeCkt = ckt
+			ckt.loopy = p.loopy
+			delete(m, key)
+			vv("just set ckt.loopy for late made rwPair: cktID= '%v'", ckt.CircuitID)
+		}
+	})
+	if addMeCkt != nil {
+		// just made freshly buffered above, so cannot block.
+		p.cktServedAdd <- addMeCkt
+	}
+
 	sc := newServerClient(key)
 	//p.allDone = sc.GoneCh
 	select {
@@ -2526,10 +2544,12 @@ func NewServer(name string, config *Config) *Server {
 	cfg.serverBaseID = NewCallID("")
 
 	s := &Server{
-		name:              name,
-		cfg:               cfg,
-		remote2pair:       NewMutexmap[string, *rwPair](),
-		pair2remote:       NewMutexmap[*rwPair, string](),
+		name:         name,
+		cfg:          cfg,
+		remote2pair:  NewMutexmap[string, *rwPair](),
+		pair2remote:  NewMutexmap[*rwPair, string](),
+		cktWantsPair: NewMutexmap[string, *Circuit](),
+
 		RemoteConnectedCh: make(chan *ServerClient, 20),
 
 		callme2map:                   NewMutexmap[string, TwoWayFunc](),
@@ -3340,6 +3360,8 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 				case ckt.loopy.cktServedAdd <- ckt:
 				case <-s.halt.ReqStop.Chan:
 				}
+			} else {
+				vv("not-great: ckt.loopy nil at end of StartRemotePeerAndGetCircuit(), cktID='%v'", ckt.CircuitID)
 			}
 		}
 	}()
@@ -3526,6 +3548,8 @@ func (s *Server) ClosePairsWithoutCircuits() {
 	//defer vv("Server.ClosePairsWithoutCircuits() end")
 
 	s.mut.Lock()
+	defer s.mut.Unlock()
+
 	pairs := make(map[string]*rwPair)
 	s.remote2pair.ReadOnlyView(func(m map[string]*rwPair) {
 		for remote, pair := range m {
@@ -3544,6 +3568,5 @@ func (s *Server) ClosePairsWithoutCircuits() {
 			}
 		}
 	}
-	s.mut.Unlock()
 	return
 }
