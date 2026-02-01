@@ -56,7 +56,11 @@ func (m *Mutexmap[K, V]) GetKeySlice() (slc []K) {
 }
 
 func (m *Mutexmap[K, V]) String() (r string) {
+	if m == nil {
+		return "nil"
+	}
 	m.mut.RLock()
+	defer m.mut.RUnlock()
 	i := 0
 	for k, v := range m.m {
 		if i == 0 {
@@ -70,7 +74,6 @@ func (m *Mutexmap[K, V]) String() (r string) {
 	} else {
 		r += "\n"
 	}
-	m.mut.RUnlock()
 	return
 }
 
