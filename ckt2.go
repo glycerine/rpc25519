@@ -435,6 +435,9 @@ func gcCktWants(cktWantsPair *Mutexmap[string, *Circuit]) {
 	if cktWantsPair == nil {
 		return
 	}
+	if cktWantsPair.Len() == 0 {
+		return
+	}
 	cktWantsPair.Update(func(m map[string]*Circuit) {
 		// simple GC after 60 seconds
 		var stale []string
