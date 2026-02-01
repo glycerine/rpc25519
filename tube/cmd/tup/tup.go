@@ -125,7 +125,7 @@ func main() {
 	const requireOnlyContact = false
 
 	ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-	leaderURL, leaderName, _, reallyLeader, _, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact, tube.KEEP_CKT_UP)
+	leaderURL, leaderName, _, reallyLeader, _, err := node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact, tube.KEEP_CKT_ONLY_IF_LEADER)
 	canc()
 	panicOn(err)
 	if !reallyLeader {
@@ -154,6 +154,14 @@ func main() {
 					return
 				}
 				time.Sleep(time.Second)
+
+				ctx5, canc := context.WithTimeout(ctx, time.Second*5)
+				leaderURL, leaderName, _, reallyLeader, _, err = node.HelperFindLeader(ctx5, cfg, cmdCfg.ContactName, requireOnlyContact, tube.KEEP_CKT_ONLY_IF_LEADER)
+				canc()
+				panicOn(err)
+				if !reallyLeader {
+					panic("could not find leader")
+				}
 				continue
 			}
 			return sess
