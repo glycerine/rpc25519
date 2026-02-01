@@ -15,9 +15,17 @@ func main() {
 
 	startOnlineWebProfiling()
 
-	clockDriftBound := 500 * time.Millisecond
+	const quiet = false
+	const isTest = false
+	const useSimNet = false
+	cliCfg, err := tube.LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
+	panicOn(err)
+	////vv("cliCfg = '%v'", cliCfg)
+	cliCfg.RpcCfg.QuietTestMode = false
+
+	cliCfg.ClockDriftBound = 500 * time.Millisecond
 	tableSpace := "hermes"
-	mem := tube.NewRMember(tableSpace, clockDriftBound)
+	mem := tube.NewRMember(tableSpace, cliCfg)
 	mem.Start()
 	<-mem.Ready.Chan
 	select {}

@@ -631,18 +631,33 @@ type RMember struct {
 	Ready *idem.IdemCloseChan
 
 	clockDriftBound time.Duration
+
+	Cfg *TubeConfig
+
+	debugAmCzarCh chan bool
+
+	czar *Czar
 }
 
 // NewRMember creates a member of the given tableSpace.
 // Users must call Start() and then wait until Ready is closed
 // before accessing UpcallMembershipChangeCh to
 // get membership changes.
-func NewRMember(tableSpace string, clockDriftBound time.Duration) *RMember {
-	return &RMember{
+func NewRMember(tableSpace string, cfg *TubeConfig) (rm *RMember) {
+	if cfg == nil {
+		panic("cannot have nil cfg in NewRMember")
+	}
+	cp := *cfg
+	rm = &RMember{
 		TableSpace:      tableSpace,
 		Ready:           idem.NewIdemCloseChan(),
-		clockDriftBound: clockDriftBound,
+		Cfg:             &cp,
+		clockDriftBound: cp.ClockDriftBound,
 	}
+	if cfg.isTest {
+		rm.debugAmCzarCh = make(chan bool, 10)
+	}
+	return
 }
 
 // Start elects a Czar and manages the RMember's membership
@@ -655,26 +670,21 @@ func (membr *RMember) start() {
 
 	tableSpace := membr.TableSpace
 
-	const quiet = false
-	const isTest = false
-	const useSimNet = false
-	cliCfg, err := LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
-	panicOn(err)
-	////vv("cliCfg = '%v'", cliCfg)
-	cliCfg.RpcCfg.QuietTestMode = false
+	cliCfg := membr.Cfg
 	tubeCliName := cliCfg.MyName
 	if tubeCliName == "" {
-		panicf("ugh: cliCfg.MyName cannot be empty! cliCfg='%v'", cliCfg)
+		panicf("ugh: membr.Cfg.MyName cannot be empty! membr.Cfg='%v'", cliCfg)
 	}
 
 	//vv("tubeCliName = '%v'", tubeCliName) // e.g. member_suM7r8JkqBYkgUm1U4AS
 
 	cli := NewTubeNode(tubeCliName, cliCfg)
-	err = cli.InitAndStart()
+	err := cli.InitAndStart()
 	panicOn(err)
 	defer cli.Close()
 
 	czar := NewCzar(tableSpace, tubeCliName, cli, membr.clockDriftBound)
+	membr.czar = czar
 
 	cli.Srv.RegisterName("Czar", czar)
 
@@ -729,6 +739,7 @@ fullRestart:
 			panicOn(err)
 			if !reallyLeader {
 				vv("arg. not really leader? why?")
+				panic("tmp debug TODO remove: should be leader in test 808!")
 				cli.closeAutoClientSockets()
 				continue fullRestart
 			}
@@ -888,6 +899,11 @@ fullRestart:
 					//cState = amCzar
 					czar.cState.Store(int32(amCzar))
 
+					select {
+					case membr.debugAmCzarCh <- true:
+					default:
+					}
+
 					now := time.Now()
 					left := czarLeaseUntilTm.Sub(now)
 					if left < 2*time.Second {
@@ -977,6 +993,11 @@ fullRestart:
 					}
 
 					czar.cState.Store(int32(notCzar))
+
+					select {
+					case membr.debugAmCzarCh <- false:
+					default:
+					}
 
 					czarLeaseUntilTm = czarTkt.LeaseUntilTm
 					expireCheckCh = nil
@@ -1133,7 +1154,7 @@ fullRestart:
 					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)
 
 				case <-czar.Halt.ReqStop.Chan:
-					////vv("czar halt requested. exiting.")
+					vv("czar halt requested (in amCzar state). exiting.")
 					return
 				}
 
@@ -1333,7 +1354,7 @@ fullRestart:
 					czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
 
 				case <-czar.Halt.ReqStop.Chan:
-					////vv("czar halt requested. exiting.")
+					vv("czar halt requested (in nonCzar state). exiting.")
 					return
 				}
 			}
