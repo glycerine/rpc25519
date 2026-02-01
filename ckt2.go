@@ -112,7 +112,10 @@ func (lpb *LocalPeer) setLoopy(ckt *Circuit) {
 		return
 	}
 	if lpb.PeerAPI.remote2pair == nil {
-		//panicf("need ckt.loopy set here! how do we do ckt.loopy, _ = s.remote2pair.Get(ckt.RpbTo.NetAddr='%v') from here?? ", ckt.RpbTo.NetAddr)
+		if lpb.PeerAPI.cktWantsPair != nil {
+			vv("cktWantsPair set for cktID='%v'", ckt.CircuitID)
+			lpb.PeerAPI.cktWantsPair.Set(ckt.RpbTo.NetAddr, ckt)
+		}
 		return // no pair to take loopy from.
 	}
 	pair, ok := lpb.PeerAPI.remote2pair.Get(ckt.RpbTo.NetAddr)
@@ -124,6 +127,7 @@ func (lpb *LocalPeer) setLoopy(ckt *Circuit) {
 		// one thing to try: added cktWantsPair, to be resolved
 		// when rwPair is made.
 		if lpb.PeerAPI.cktWantsPair != nil {
+			vv("cktWantsPair set for cktID='%v'", ckt.CircuitID)
 			lpb.PeerAPI.cktWantsPair.Set(ckt.RpbTo.NetAddr, ckt)
 		}
 
