@@ -820,6 +820,13 @@ fullRestart:
 			//	time.Sleep(time.Millisecond * 100)
 			//}
 
+			select {
+			case <-czar.Halt.ReqStop.Chan:
+				vv("czar halt requested (at haveSess top). exiting.")
+				return
+			default:
+			}
+
 			var errCzarAttempt error
 			switch czarState(czar.cState.Load()) {
 
