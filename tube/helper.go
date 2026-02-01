@@ -111,13 +111,14 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			_, insp, leaderURL, leaderName, leaderTerm, _, ckt, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
 			canc5()
 			if ckt != nil {
-				if leaderName != remoteName || !keepCktUp {
-					// unless it is the leader and keepCktUp, close it.
-					ckt.Close(nil)
-				}
-				//if !keepCktUp { // without this, client_test 710 red, so add keepCktUp.
+				// ugh: blows away tubeadd.
+				//if leaderName != remoteName || !keepCktUp {
+				//	// unless it is the leader and keepCktUp, close it.
 				//	ckt.Close(nil)
 				//}
+				if !keepCktUp { // without this, client_test 710 red, so add keepCktUp.
+					ckt.Close(nil)
+				}
 			}
 			if err == nil && insp != nil {
 				contacted = append(contacted, insp)
