@@ -144,15 +144,20 @@ func main() {
 		if err == nil {
 			return sess
 		}
-		errs := err.Error()
-		if strings.Contains(errs, "call CreateNewSession first") ||
-			strings.Contains(errs, "no leader known to me") {
-			sess.Close()
-			s2, err := node.CreateNewSession(ctx, leaderName, leaderURL)
-			panicOn(err)
-			return s2
+		for {
+			errs := err.Error()
+			if strings.Contains(errs, "call CreateNewSession first") ||
+				strings.Contains(errs, "no leader known to me") {
+				sess.Close()
+
+				s2, err = node.CreateNewSession(ctx, leaderName, leaderURL)
+				if err == nil {
+					return
+				}
+				continue
+			}
+			return sess
 		}
-		return sess
 	}
 	// repl loop
 
