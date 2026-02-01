@@ -2014,9 +2014,10 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 			addMeCkt = ckt
 			ckt.loopy = p.loopy
 			delete(m, key)
-			vv("just set ckt.loopy for late made rwPair: cktID= '%v'", ckt.CircuitID)
+			//vv("just set ckt.loopy for late made rwPair: cktID= '%v'", ckt.CircuitID)
 		}
 	})
+	gcCktWants(s.cktWantsPair)
 	if addMeCkt != nil {
 		// just made freshly buffered above, so cannot block.
 		p.loopy.cktServedAdd <- addMeCkt
@@ -2366,9 +2367,10 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 				addMeCkt = ckt
 				ckt.loopy = p.loopy
 				delete(m, key)
-				vv("auto-cli just set ckt.loopy for late made rwPair: cktID= '%v'", ckt.CircuitID)
+				//vv("auto-cli just set ckt.loopy for late made rwPair: cktID= '%v'", ckt.CircuitID)
 			}
 		})
+		gcCktWants(s.cktWantsPair)
 		if addMeCkt != nil {
 			select {
 			case p.loopy.cktServedAdd <- addMeCkt:
