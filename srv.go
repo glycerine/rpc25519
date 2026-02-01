@@ -2019,7 +2019,7 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 	})
 	if addMeCkt != nil {
 		// just made freshly buffered above, so cannot block.
-		p.cktServedAdd <- addMeCkt
+		p.loopy.cktServedAdd <- addMeCkt
 	}
 
 	sc := newServerClient(key)
@@ -2358,6 +2358,24 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		s.remote2pair.Set(key, p)
 		s.pair2remote.Set(p, key)
 		s.mut.Unlock()
+
+		var addMeCkt *Circuit
+		s.cktWantsPair.Update(func(m map[string]*Circuit) {
+			ckt, ok := m[key]
+			if ok {
+				addMeCkt = ckt
+				ckt.loopy = p.loopy
+				delete(m, key)
+				vv("auto-cli just set ckt.loopy for late made rwPair: cktID= '%v'", ckt.CircuitID)
+			}
+		})
+		if addMeCkt != nil {
+			select {
+			case p.loopy.cktServedAdd <- addMeCkt:
+			case <-s.halt.ReqStop.Chan:
+				return
+			}
+		}
 
 		gcMe := &autoCliInRwPair{
 			srv:  s,
