@@ -637,6 +637,8 @@ type RMember struct {
 	debugAmCzarCh chan bool
 
 	czar *Czar
+
+	name string
 }
 
 // NewRMember creates a member of the given tableSpace.
@@ -647,12 +649,17 @@ func NewRMember(tableSpace string, cfg *TubeConfig) (rm *RMember) {
 	if cfg == nil {
 		panic("cannot have nil cfg in NewRMember")
 	}
+	if cfg.MyName == "" {
+		panicf("ugh: cfg.MyName cannot be empty! cfg='%v'", cfg)
+	}
+
 	cp := *cfg
 	rm = &RMember{
 		TableSpace:      tableSpace,
 		Ready:           idem.NewIdemCloseChan(),
 		Cfg:             &cp,
 		clockDriftBound: cp.ClockDriftBound,
+		name:            cfg.MyName,
 	}
 	if cfg.isTest {
 		rm.debugAmCzarCh = make(chan bool, 10)
@@ -672,9 +679,6 @@ func (membr *RMember) start() {
 
 	cliCfg := membr.Cfg
 	tubeCliName := cliCfg.MyName
-	if tubeCliName == "" {
-		panicf("ugh: membr.Cfg.MyName cannot be empty! membr.Cfg='%v'", cliCfg)
-	}
 
 	//vv("tubeCliName = '%v'", tubeCliName) // e.g. member_suM7r8JkqBYkgUm1U4AS
 
@@ -685,6 +689,11 @@ func (membr *RMember) start() {
 
 	czar := NewCzar(tableSpace, tubeCliName, cli, membr.clockDriftBound)
 	membr.czar = czar
+
+	defer func() {
+		czar.Halt.ReqStop.Close()
+		czar.Halt.Done.Close()
+	}()
 
 	cli.Srv.RegisterName("Czar", czar)
 
@@ -719,6 +728,13 @@ fullRestart:
 		// let the close session pace it now...
 
 		ctx := context.Background()
+
+		select {
+		case <-czar.Halt.ReqStop.Chan:
+			vv("czar halt requested (at fullRestart top). exiting.")
+			return
+		default:
+		}
 
 		if czar.slow {
 			if czar.sess != nil {
@@ -899,9 +915,10 @@ fullRestart:
 					//cState = amCzar
 					czar.cState.Store(int32(amCzar))
 
-					select {
-					case membr.debugAmCzarCh <- true:
-					default:
+					if membr.debugAmCzarCh != nil {
+
+						membr.debugAmCzarCh <- true
+						vv("reported am czar")
 					}
 
 					now := time.Now()
@@ -994,9 +1011,10 @@ fullRestart:
 
 					czar.cState.Store(int32(notCzar))
 
-					select {
-					case membr.debugAmCzarCh <- false:
-					default:
+					if membr.debugAmCzarCh != nil {
+
+						membr.debugAmCzarCh <- false
+						vv("reported not czar")
 					}
 
 					czarLeaseUntilTm = czarTkt.LeaseUntilTm
