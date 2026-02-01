@@ -1,0 +1,3 @@
+#!/bin/bash
+
+nohup tube tube.9.cfg &> log.9 &
