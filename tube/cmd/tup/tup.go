@@ -154,6 +154,7 @@ func main() {
 				if err == nil {
 					return
 				}
+				time.Sleep(time.Second)
 				continue
 			}
 			return sess
