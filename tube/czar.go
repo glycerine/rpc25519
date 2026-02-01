@@ -967,7 +967,10 @@ fullRestart:
 					panicOn(err)
 
 					if nonCzarMembers.CzarName == tubeCliName {
-						left := time.Until(nonCzarMembers.Vers.CzarLeaseUntilTm)
+						var left time.Duration
+						if nonCzarMembers.Vers != nil {
+							left = time.Until(nonCzarMembers.Vers.CzarLeaseUntilTm)
+						}
 						vv("%v ugh: I should not be czar on a failed write; try again! Could be a staile lease of course (left=%v), but then why did the write give an error? err='%v'; ", tubeCliName, left, err)
 
 						continue fullRestart
