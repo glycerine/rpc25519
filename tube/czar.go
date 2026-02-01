@@ -951,10 +951,10 @@ fullRestart:
 
 					// lets insist on a 'valid' write error... or retry; just
 					// so we don't leave the czar-ship unoccupied for long.
-					if strings.HasPrefix(errs, "rejected write to leased key") {
+					if strings.HasPrefix(errs, rejectedWritePrefix) {
 						// good, expected
 					} else {
-						vv("did not get error prefixed with 'rejected write to leased key' so, doing full restart; errCzarAttempt='%v'", errCzarAttempt)
+						vv("did not get error prefixed with 'rejected write' so, doing full restart; errCzarAttempt='%v'", errCzarAttempt)
 						continue fullRestart
 					}
 

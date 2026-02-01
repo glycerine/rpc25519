@@ -11638,6 +11638,9 @@ func (s *TubeNode) doWrite(tkt *Ticket) {
 	s.state.kvstoreWrite(tkt, s)
 }
 
+// CAS rejects should start with this to allow recognition
+const rejectedWritePrefix = "rejected write"
+
 func (s *TubeNode) doCAS(tkt *Ticket) {
 
 	//vv("%v doCAS top. tkt.OldLeaseEpochCAS(%v)", s.name, tkt.OldLeaseEpochCAS)
@@ -11696,7 +11699,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	amLeasor := leaseInForce && (leaf.Leasor == tkt.Leasor)
 
 	if leaseInForce && !amLeasor {
-		tkt.Err = fmt.Errorf("rejected write to leased key CAS. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tkt.Table, tkt.Key, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), s.cfg.ClockDriftBound)
+		tkt.Err = fmt.Errorf(rejectedWritePrefix+" to leased key CAS. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tkt.Table, tkt.Key, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), s.cfg.ClockDriftBound)
 	}
 
 	// if key has a lease but that lease is expired do not reject CAS. we might not
@@ -11716,7 +11719,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		switch {
 		case tkt.OldVersionCAS > 0:
 			if tkt.OldVersionCAS != leaf.Version {
-				tkt.Err = fmt.Errorf("CAS rejected on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
+				tkt.Err = fmt.Errorf(rejectedWritePrefix+" CAS on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
 				tkt.CASwapped = false
 
 				s.writeFailedSetCurrentVal(tkt, leaf)
@@ -11725,7 +11728,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		case tkt.OldLeaseEpochCAS > 0:
 			//vv("%v checking tkt.OldLeaseEpochCAS(%v) vs leaf.LeaseEpoch(%v)", s.name, tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
 			if tkt.OldLeaseEpochCAS != leaf.LeaseEpoch {
-				tkt.Err = fmt.Errorf("CAS rejected on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
+				tkt.Err = fmt.Errorf(rejectedWritePrefix+" CAS on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
 				tkt.CASwapped = false
 
 				s.writeFailedSetCurrentVal(tkt, leaf)
@@ -11738,7 +11741,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 			if !bytes.Equal(curVal, tkt.OldVal) { // compare
 				tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
 				tkt.CASwapped = false
-				tkt.Err = fmt.Errorf("CAS rejected on tkt.OldVal != current leaf.Val")
+				tkt.Err = fmt.Errorf(rejectedWritePrefix + " CAS on tkt.OldVal != current leaf.Val")
 
 				s.writeFailedSetCurrentVal(tkt, leaf)
 				return
