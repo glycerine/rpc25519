@@ -162,6 +162,10 @@ func main() {
 				if !reallyLeader {
 					panic("could not find leader")
 				}
+				s2, err = node.CreateNewSession(ctx, leaderName, leaderURL)
+				if err == nil {
+					return
+				}
 				continue
 			}
 			return sess
