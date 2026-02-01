@@ -721,7 +721,7 @@ fullRestart:
 		const requireOnlyContact = false
 		for k := 0; ; k++ {
 			vv("find leader loop k = %v", k)
-			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, KEEP_CKT_ONLY_IF_LEADER)
+			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, KEEP_CKT_UP) // else aorus cannot connect with: KEEP_CKT_ONLY_IF_LEADER)
 			vv("helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", leaderURL, reallyLeader, err)
 			panicOn(err)
 			if !reallyLeader {
