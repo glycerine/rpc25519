@@ -2014,7 +2014,7 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 			addMeCkt = ckt
 			ckt.loopy = p.loopy
 			delete(m, key)
-			//vv("just set ckt.loopy for late made rwPair: cktID= '%v'", ckt.CircuitID)
+			vv("not-great repaired: just set ckt.loopy for late made rwPair: cktID= '%v'", ckt.CircuitID)
 		}
 	})
 	gcCktWants(s.cktWantsPair)
@@ -2367,7 +2367,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 				addMeCkt = ckt
 				ckt.loopy = p.loopy
 				delete(m, key)
-				//vv("auto-cli just set ckt.loopy for late made rwPair: cktID= '%v'", ckt.CircuitID)
+				vv("not-great repaired: auto-cli just set ckt.loopy for late made rwPair: cktID= '%v'", ckt.CircuitID)
 			}
 		})
 		gcCktWants(s.cktWantsPair)
