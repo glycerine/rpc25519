@@ -11696,7 +11696,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	amLeasor := leaseInForce && (leaf.Leasor == tkt.Leasor)
 
 	if leaseInForce && !amLeasor {
-		tkt.Err = fmt.Errorf("CAS write to leased key rejected. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tkt.Table, tkt.Key, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), s.cfg.ClockDriftBound)
+		tkt.Err = fmt.Errorf("rejected write to leased key CAS. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tkt.Table, tkt.Key, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), s.cfg.ClockDriftBound)
 	}
 
 	// if key has a lease but that lease is expired do not reject CAS. we might not

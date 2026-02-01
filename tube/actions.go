@@ -554,7 +554,7 @@ func (s *RaftState) kvstoreWouldWriteLease(tkt *Ticket, clockDriftBound time.Dur
 		return true
 	}
 	// key is already leased by a different leasor, and lease has not expired: reject.
-	tkt.Err = fmt.Errorf("write to leased key rejected. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at now='%v' (left on lease: '%v'); ClockDriftBound='%v'", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.LeaseEpoch, tkt.Leasor, now.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(now), clockDriftBound)
+	tkt.Err = fmt.Errorf("rejected write to leased key. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at now='%v' (left on lease: '%v'); ClockDriftBound='%v'", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.LeaseEpoch, tkt.Leasor, now.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(now), clockDriftBound)
 
 	// to allow simple client czar election (not the
 	// raft leader election but an application level
@@ -677,7 +677,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 		if leaf.Leasor == tkt.Leasor {
 			// current leasor extending lease, allow it (expired or not)
 			// already set: leaf.Leasor = tkt.Leasor
-			leaf.LeasorPeerID = tkt.FromID
+			leaf.LeasorPeerID = tkt.FromID // allows rebooted leasor to extend, do we want this?
 			// leave alone!: leaf.LeaseEpochT0
 
 			leaf.Value = append([]byte{}, tktVal...)
@@ -730,7 +730,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 		return
 	}
 	// key is already leased by a different leasor, and lease has not expired: reject.
-	tkt.Err = fmt.Errorf("write to leased key rejected. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), clockDriftBound)
+	tkt.Err = fmt.Errorf("rejected write to leased key. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), clockDriftBound)
 
 	// to allow simple client czar election (not the
 	// raft leader election but an application level

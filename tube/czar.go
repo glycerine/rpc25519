@@ -663,6 +663,9 @@ func (membr *RMember) start() {
 	////vv("cliCfg = '%v'", cliCfg)
 	cliCfg.RpcCfg.QuietTestMode = false
 	tubeCliName := cliCfg.MyName
+	if tubeCliName == "" {
+		panicf("ugh: cliCfg.MyName cannot be empty! cliCfg='%v'", cliCfg)
+	}
 
 	//vv("tubeCliName = '%v'", tubeCliName) // e.g. member_suM7r8JkqBYkgUm1U4AS
 
@@ -935,21 +938,25 @@ fullRestart:
 
 				} else { // errCzarAttempt != nil, CAS did not succeed.
 
-					if strings.Contains(errCzarAttempt.Error(), "no leader known") {
+					errs := errCzarAttempt.Error()
+					if strings.Contains(errs, "no leader known") {
 						vv("see errCzarAtttempt = '%v', with 'no leader known', doing full restart", errCzarAttempt)
 						continue fullRestart
 					}
 
-					if strings.Contains(errCzarAttempt.Error(), "I am not leader") {
+					if strings.Contains(errs, "I am not leader") {
 						vv("see errCzarAtttempt = '%v', with 'I am not leader', doing full restart", errCzarAttempt)
 						continue fullRestart
 					}
 
-					//cState = notCzar
-					czar.cState.Store(int32(notCzar))
-
-					czarLeaseUntilTm = czarTkt.LeaseUntilTm
-					expireCheckCh = nil
+					// lets insist on a 'valid' write error... or retry; just
+					// so we don't leave the czar-ship unoccupied for long.
+					if strings.HasPrefix(errs, "rejected write to leased key") {
+						// good, expected
+					} else {
+						vv("did not get error prefixed with 'rejected write to leased key' so, doing full restart; errCzarAttempt='%v'", errCzarAttempt)
+						continue fullRestart
+					}
 
 					if czarTkt.Vtype != ReliableMembershipListType {
 						panicf("why not ReliableMembershipListType back? got '%v'", czarTkt.Vtype)
@@ -958,6 +965,19 @@ fullRestart:
 					nonCzarMembers := &ReliableMembershipList{}
 					_, err = nonCzarMembers.UnmarshalMsg(czarTkt.Val)
 					panicOn(err)
+
+					if nonCzarMembers.CzarName == tubeCliName {
+						left := time.Until(nonCzarMembers.Vers.CzarLeaseUntilTm)
+						vv("%v ugh: I should not be czar on a failed write; try again! Could be a staile lease of course (left=%v), but then why did the write give an error? err='%v'; ", tubeCliName, left, err)
+
+						continue fullRestart
+					}
+
+					czar.cState.Store(int32(notCzar))
+
+					czarLeaseUntilTm = czarTkt.LeaseUntilTm
+					expireCheckCh = nil
+
 					nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
 					vers := &RMVersionTuple{
 						CzarLeaseEpoch:   czarTkt.LeaseEpoch,
@@ -1123,7 +1143,7 @@ fullRestart:
 
 					list := czar.getNonCzarMembers()
 					if list == nil {
-						alwaysPrintf("wat? in notCzar, why is nonCzarMembers nil?") // too many?
+						alwaysPrintf("wat? in notCzar, why is nonCzarMembers nil?")
 						panic("nonCzarMembers should never be nil now")
 						continue fullRestart
 					}
