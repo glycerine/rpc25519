@@ -479,19 +479,19 @@ func (s *TubeNode) DeleteTable(ctx context.Context, table Key, waitForDur time.D
 
 // called on leader locally to see if lease write would win or just read.
 // When we return false we also fill in the current leaf lease info.
-func (s *RaftState) kvstoreWouldWriteLease(tkt *Ticket, clockDriftBound time.Duration) (wouldWrite bool) {
+func (s *TubeNode) kvstoreWouldWriteLease(tkt *Ticket) (wouldWrite bool) {
 
 	tktTable := tkt.Table
 	tktKey := tkt.Key
 	//tktVal := tkt.Val
 
-	if s.KVstore == nil {
+	if s.state == nil || s.state.KVstore == nil {
 		return true
 	}
-	if s.KVstore.m == nil {
+	if s.state.KVstore.m == nil {
 		return true
 	}
-	table, ok := s.KVstore.m[tktTable]
+	table, ok := s.state.KVstore.m[tktTable]
 	if !ok {
 		return true
 	}
@@ -526,17 +526,7 @@ func (s *RaftState) kvstoreWouldWriteLease(tkt *Ticket, clockDriftBound time.Dur
 		if lte(leaseUntilTm, leaf.LeaseUntilTm) {
 			tkt.Err = fmt.Errorf("non-increasing LeaseUntilTm rejected. table='%v'; key='%v'; current leasor='%v'; leaf.LeaseUntilTm='%v' <= tkt.LeaseUntilTm='%v'; rejecting attempted tkt.Leasor='%v' at now='%v');", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, now.Format(rfc3339NanoNumericTZ0pad))
 
-			tkt.Val = append([]byte{}, leaf.Value...)
-			tkt.Vtype = leaf.Vtype
-			tkt.Leasor = leaf.Leasor
-			tkt.LeasorPeerID = leaf.LeasorPeerID
-			tkt.LeaseEpochT0 = leaf.LeaseEpochT0
-
-			tkt.LeaseUntilTm = leaf.LeaseUntilTm
-			tkt.LeaseEpoch = leaf.LeaseEpoch
-			tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
-			tkt.VersionRead = leaf.Version
-
+			s.writeFailedSetCurrentVal(tkt, leaf)
 			return false
 		}
 
@@ -549,28 +539,19 @@ func (s *RaftState) kvstoreWouldWriteLease(tkt *Ticket, clockDriftBound time.Dur
 	// previous leader's clock, and tkt.RaftLogEntryTm could
 	// be from current leader's clock, so also
 	// include clock drift bound.
-	if now.After(leaf.LeaseUntilTm.Add(clockDriftBound)) {
+	if now.After(leaf.LeaseUntilTm.Add(s.cfg.ClockDriftBound)) {
 		// prior lease expired, allow write.
 		return true
 	}
 	// key is already leased by a different leasor, and lease has not expired: reject.
-	tkt.Err = fmt.Errorf("rejected write to leased key. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at now='%v' (left on lease: '%v'); ClockDriftBound='%v'", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.LeaseEpoch, tkt.Leasor, now.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(now), clockDriftBound)
+	tkt.Err = fmt.Errorf("rejected write to leased key. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at now='%v' (left on lease: '%v'); ClockDriftBound='%v'", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.LeaseEpoch, tkt.Leasor, now.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(now), s.cfg.ClockDriftBound)
 
 	// to allow simple client czar election (not the
 	// raft leader election but an application level
 	// election among clients), on rejection of a lease
 	// we also reply with the Val/Leasor info so the contendor
 	// knows who got here first (and thus is 'elected').
-	tkt.Val = append([]byte{}, leaf.Value...)
-	tkt.Vtype = leaf.Vtype
-	tkt.Leasor = leaf.Leasor
-	tkt.LeasorPeerID = leaf.LeasorPeerID
-	tkt.LeaseEpochT0 = leaf.LeaseEpochT0
-
-	tkt.LeaseUntilTm = leaf.LeaseUntilTm
-	tkt.LeaseEpoch = leaf.LeaseEpoch
-	tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
-	tkt.VersionRead = leaf.Version
+	s.writeFailedSetCurrentVal(tkt, leaf)
 
 	//vv("%v kvstoreWouldWriteLease: reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, tkt.Leasor, s.KVstore.Len())
 	return false
@@ -639,6 +620,7 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 		// that the sequence of writes follows a RaftIndex
 		// that is strictly monotonically increasing.
 		tkt.Err = fmt.Errorf("rejecting tkt with LogIndex <= leaf.WriteRaftLogIndex. TicketID:'%v'; LogIndex='%v'; leaf.WriteRaftLogIndex='%v' (desc: '%v')", tkt.TicketID, tkt.LogIndex, leaf.WriteRaftLogIndex, tkt.Desc)
+		node.writeFailedSetCurrentVal(tkt, leaf)
 		return
 	}
 
@@ -670,11 +652,14 @@ func (s *RaftState) kvstoreWrite(tkt *Ticket, node *TubeNode) {
 		// not extending lease, going to non-leased. skip down.
 	} else {
 		if lte(tkt.LeaseUntilTm, leaf.LeaseUntilTm) {
-			tkt.Err = fmt.Errorf("non-increasing LeaseUntilTm rejected. table='%v'; key='%v'; current leasor='%v'; leaf.LeaseUntilTm='%v' <= tkt.LeaseUntilTm='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v');", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad))
+			tkt.Err = fmt.Errorf("non-increasing LeaseUntilTm rejected. table='%v'; key='%v'; current leasor='%v' (LeasorPeerID: '%v'); leaf.LeaseUntilTm='%v' <= tkt.LeaseUntilTm='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v');", tktTable, tktKey, leaf.Leasor, leaf.LeasorPeerID, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad))
+			node.writeFailedSetCurrentVal(tkt, leaf)
 			return
 		}
 
-		if leaf.Leasor == tkt.Leasor {
+		if leaf.Leasor == tkt.Leasor &&
+			leaf.LeasorPeerID == tkt.FromID { // avoid 2 peers with same name confusion.
+
 			// current leasor extending lease, allow it (expired or not)
 			// already set: leaf.Leasor = tkt.Leasor
 			leaf.LeasorPeerID = tkt.FromID // allows rebooted leasor to extend, do we want this?

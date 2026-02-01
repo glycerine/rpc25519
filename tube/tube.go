@@ -11596,7 +11596,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 		if !isWriteCheckLease {
 			panicf("unhandled tkt.Op case in leaderServedLocalRead; tkt=%v", tkt)
 		}
-		if s.state.kvstoreWouldWriteLease(tkt, s.cfg.ClockDriftBound) {
+		if s.kvstoreWouldWriteLease(tkt) {
 			return false
 		}
 		// otherwise the read info for the current lease
