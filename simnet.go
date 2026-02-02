@@ -1916,6 +1916,11 @@ func (s *Simnet) localDropSend(send *mop) (isDropped bool, connAttemptedSend int
 		return
 	}
 	conn := fromNodeMap.get(send.target)
+	if conn == nil {
+		// seen on shutdown
+		isDropped = true
+		return
+	}
 	prob := conn.dropSend
 
 	conn.attemptedSend++ // at least 1.

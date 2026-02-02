@@ -317,6 +317,53 @@ type pingReqReply struct {
 	reply *PingReply
 	done  *idem.IdemCloseChan
 	err   error
+
+	inspectOnly bool
+}
+
+// for simnet tests; would not work across real network at the moment.
+func (s *Czar) inspect(ctx context.Context) (reply *PingReply, err error) {
+
+	reply = &PingReply{}
+	rr := &pingReqReply{
+		ctx:         ctx,
+		reply:       reply,
+		done:        idem.NewIdemCloseChan(),
+		inspectOnly: true,
+	}
+
+	select {
+	case s.requestPingCh <- rr:
+		// submitted. proceed to next select below.
+
+	case <-s.Halt.ReqStop.Chan:
+		err = rpc.ErrHaltRequested
+		return
+	case <-ctx.Done():
+		err = ctx.Err()
+		if err == nil {
+			err = rpc.ErrContextCancelled
+		}
+		return
+	}
+
+	select {
+	case <-rr.done.Chan:
+		err = rr.err
+		return
+
+	case <-s.Halt.ReqStop.Chan:
+		err = rpc.ErrHaltRequested
+		return
+
+	case <-ctx.Done():
+		err = ctx.Err()
+		if err == nil {
+			err = rpc.ErrContextCancelled
+		}
+		return
+	}
+	return
 }
 
 func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *PingReply) (err error) {
@@ -388,6 +435,16 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 		//vv("end of Czar.handlePing from '%v' PID: %v; rr.err='%v'; rr.reply='%v'", rr.args.Det.Name, rr.args.Det.PID, rr.err, rr.reply)
 		rr.done.Close() // required! else ping will stall forever.
 	}()
+
+	// czar_test wants to inspect state of member/czar
+	if rr.inspectOnly {
+		rr.reply = &PingReply{
+			Members: s.members.Clone(),
+			Vers:    s.vers.Clone(),
+			Status:  s.cState.Load(),
+		}
+		return
+	}
 
 	cur := czarState(s.cState.Load())
 	if cur != amCzar {
@@ -1382,6 +1439,10 @@ fullRestart:
 
 					czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
 
+				case rr := <-czar.requestPingCh:
+					// non czar responds too, to help czar_test inspect queries.
+					czar.handlePing(rr)
+
 				case <-czar.Halt.ReqStop.Chan:
 					vv("czar halt requested (in nonCzar state). exiting.")
 					return
@@ -1651,6 +1712,7 @@ type ReliableMembershipList struct {
 type PingReply struct {
 	Members *ReliableMembershipList `zid:"0"`
 	Vers    *RMVersionTuple         `zid:"1"`
+	Status  int32                   `zid:"2"`
 }
 
 func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {

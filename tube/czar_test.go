@@ -2,12 +2,14 @@ package tube
 
 import (
 	//"bytes"
-	//"context"
+	"context"
 	"fmt"
 	"time"
 
 	"testing"
 )
+
+var _ = context.Background
 
 func Test808_czar_only_one_at_a_time(t *testing.T) {
 
@@ -93,11 +95,14 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 		leaderURL := leaderNode.URL
 		vv("leader is '%v' at url = '%v'", leader, leaderURL)
 
-		var mems []*RMember
-		for i := range 5 {
+		N := 5
+		mems := make([]*RMember, N)
+		pings := make([]*PingReply, N)
+		_ = pings
+		for i := range N {
 			vv("top i = %v mem loop", i)
 			mem := testStartOneMember(t, i, c.Cfg)
-			mems = append(mems, mem)
+			mems[i] = mem
 
 			vv("about to wait for mem.debugAmCzarCh on i = %v", i) // i = 0 only seen.
 
@@ -117,13 +122,46 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 
 		// change czar a couple of times to advance the lease epoch
 
+		// stop 3
+		for i, mem := range mems {
+			if i <= 2 {
+				mem.czar.Halt.RequestStop()
+				<-mem.czar.Halt.Done.Chan
+			}
+		}
+
 		// change leader
 		c.Nodes[leadi].Halt.ReqStop.Close()
 		<-c.Nodes[leadi].Halt.Done.Chan
 
-		for _, mem := range mems {
-			mem.czar.Halt.RequestStop()
-			<-mem.czar.Halt.Done.Chan
+		vv("sleep 30 sec after leader crash")
+		time.Sleep(time.Second * 30)
+		vv("has been 30 sec after leader crash")
+
+		// confirm LeaseEpoch has advanced: inspect borked on non-czar at the moment...
+		//var err error
+		//pings[3], err = mems[3].czar.inspect(context.Background())
+		//panicOn(err)
+		//pings[4], err = mems[4].czar.inspect(context.Background())
+		//panicOn(err)
+
+		numCzar := 0
+		if czarState(mems[3].czar.cState.Load()) == amCzar {
+			numCzar++
+		}
+		if czarState(mems[4].czar.cState.Load()) == amCzar {
+			numCzar++
+		}
+		if numCzar != 1 {
+			panicf("wanted 1 czar, got %v", numCzar)
+		}
+
+		vv("begin shutdown / cleanup: shut down other 2")
+		for i, mem := range mems {
+			if i > 2 {
+				mem.czar.Halt.RequestStop()
+				<-mem.czar.Halt.Done.Chan
+			}
 		}
 	})
 }
