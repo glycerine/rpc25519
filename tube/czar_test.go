@@ -61,7 +61,7 @@ func Test808_czar_only_one_at_a_time(t *testing.T) {
 
 			vv("about to wait for mem.debugAmCzarCh on i = %v", i) // i = 0 only seen.
 
-			amCz := <-mem.debugAmCzarCh
+			amCz := <-mem.testingAmCzarCh
 			if i == 0 {
 				if !amCz {
 					panicf("0th (first) member should be czar")
