@@ -722,8 +722,8 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 		}
 		vv("past dry false 1, leaf.Leasor(%v) == txt.Leasor(%v) = %v", leaf.Leasor, tkt.Leasor, leaf.Leasor == tkt.Leasor)
 
-		if leaf.Leasor == tkt.Leasor { // &&
-			//leaf.LeasorPeerID == tkt.FromID { // avoid 2 peers with same name confusion.
+		if leaf.Leasor == tkt.Leasor &&
+			leaf.LeasorPeerID == tkt.FromID { // avoid 2 peers with same name confusion.
 			if dry {
 				vv("dry true 6") // seen, vs false 2
 				return true
