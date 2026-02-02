@@ -484,7 +484,7 @@ func (s *TubeNode) kvstoreWouldWriteLease(tkt *Ticket) (wouldWrite bool) {
 }
 
 // dry => dry run => just return wouldWrite without any action
-// except to reset Val on wouldWrite=false with the current value;
+// except to overwrite Val on wouldWrite=false with the current value;
 // thus a failed write becomes a read of the current value. This
 // is essential czar/member election mechanism that avoids
 // several additional network roundtrips.
