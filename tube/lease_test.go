@@ -259,6 +259,7 @@ func Test078_leases_not_broken_early(t *testing.T) {
 	// use CAS to renew early? what about new contendors for lease to prevent
 	// double quick leasing in turn? methinks this should reject; else
 	// there is no point in CAS other than a subset of a valid lease.
+	// But... it seems to produce loss of monotonicity.
 
 	s.doCAS(casExpiredWrongPriorEpoch)
 	if casExpiredWrongPriorEpoch.Err == nil {

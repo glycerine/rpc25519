@@ -11708,12 +11708,25 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	// if key has a lease but that lease is expired, still enforce CAS!
 
 	// old: does this fix out non-monotone jump back?
-	if hasLease && !leaseInForce {
-		// put write through ignoring CAS stuff. does not make sense...
-		s.kvstoreWrite(tkt, false, false)
-		tkt.CASwapped = (tkt.Err == nil)
-		return
-	}
+	// nope! still there
+	/*
+				2026-02-02T16:13:20.095Z   Leasor:'member_7qsaNeQINORZNbV7nBm5'; LeaseEpoch='7' (T0:8h15m55.688695983s ago at 2026-02-02T07:57:24.406Z);  LeaseUntilTm='2026-02-02T16:13:23.967Z' (3.872217644s left) (leaf.Version='26028'; auto-delete: false; LeaseRenewalElap: '39.647702866s')
+				(1 keys back)
+				[node_1 connected](table 'hermes') >
+
+				after crashing the leader 1, node 7 takes over and: from a much younger version 5165, started 8 hours back
+
+				 2026-02-02T16:13:35.705Z   Leasor:'member_7qsaNeQINORZNbV7nBm5'; LeaseEpoch='5' (T0:8h15m44.859549693s ago at 2026-02-02T07:57:50.846Z);  LeaseUntilTm='2026-02-02T16:13:26.300Z' (lease expired 9.405526283s ago) (leaf.Version='5165'; auto-delete: false; LeaseRenewalElap: '23m22.853421211s')
+				(1 keys back)
+				[node_7 connected](table 'hermes') >
+	        // so commented back out
+			if hasLease && !leaseInForce {
+				// put write through ignoring CAS stuff. does not make sense...
+				s.kvstoreWrite(tkt, false, false)
+				tkt.CASwapped = (tkt.Err == nil)
+				return
+			}
+	*/
 
 	// 3 types of CAS: OldVersionCAS, OldLeaseEpochCAS, or simple OldVal based CAS.
 	// They are checked in that priority order, and the first one found
