@@ -39,7 +39,11 @@ func Test301_raftStatePersistorSaveLoad(t *testing.T) {
 			RaftLogEntryTm: time.Now(),
 		}
 
-		state.kvstoreWrite(tkt, &TubeNode{cfg: *cfg})
+		node := &TubeNode{
+			cfg:   *cfg,
+			state: state,
+		}
+		node.kvstoreWrite(tkt, false)
 
 		// check read back immediately...
 		v, _, err := state.KVStoreRead("hello", "world")

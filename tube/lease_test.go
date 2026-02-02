@@ -78,7 +78,7 @@ func Test079_lease_from_leader(t *testing.T) {
 		if left <= 0 {
 			panicf("left(%v) <= 0; until='%v'; now='%v'", left, until, now)
 		}
-		vv("lease has left %v", left)
+		vv("lease has left %v", left) // above true 3, below false 2
 
 		// now have a second write attempted from a different
 		// server. It should fail because the key is already leased out.

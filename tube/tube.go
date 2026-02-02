@@ -11635,7 +11635,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 }
 
 func (s *TubeNode) doWrite(tkt *Ticket) {
-	s.state.kvstoreWrite(tkt, s)
+	s.kvstoreWrite(tkt, false)
 }
 
 // CAS rejects should start with this to allow recognition
@@ -11655,7 +11655,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 			return
 		} else {
 			// request to start a key from scratch
-			s.state.kvstoreWrite(tkt, s)
+			s.kvstoreWrite(tkt, false)
 			tkt.CASwapped = (tkt.Err == nil)
 			return
 		}
@@ -11668,7 +11668,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		}
 		if len(tkt.OldVal) == 0 {
 			// request to start a key from scratch
-			s.state.kvstoreWrite(tkt, s)
+			s.kvstoreWrite(tkt, false)
 			tkt.CASwapped = (tkt.Err == nil)
 			return
 		}
@@ -11683,7 +11683,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		}
 		if len(tkt.OldVal) == 0 {
 			// request to start a key from scratch
-			s.state.kvstoreWrite(tkt, s)
+			s.kvstoreWrite(tkt, false)
 			tkt.CASwapped = (tkt.Err == nil)
 			return
 		}
@@ -11754,7 +11754,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	}
 
 	//vv("kvstoreWrite takes care of leasing rejections")
-	s.state.kvstoreWrite(tkt, s)
+	s.kvstoreWrite(tkt, false)
 	tkt.CASwapped = (tkt.Err == nil)
 }
 
