@@ -791,7 +791,7 @@ fullRestart:
 
 		select {
 		case <-czar.Halt.ReqStop.Chan:
-			vv("czar halt requested (at fullRestart top). exiting.")
+			vv("%v: czar halt requested (at fullRestart top). exiting.", name)
 			return
 		default:
 		}
@@ -881,7 +881,7 @@ fullRestart:
 
 			select {
 			case <-czar.Halt.ReqStop.Chan:
-				vv("czar halt requested (at haveSess top). exiting.")
+				vv("%v: czar halt requested (at haveSess top). exiting.", name)
 				return
 			default:
 			}
@@ -1136,6 +1136,9 @@ fullRestart:
 				}
 
 			case amCzar:
+
+				vv("%v: amCzar", name)
+
 				//cs := cli.Srv.ListClients()
 
 				until := czar.vers.CzarLeaseUntilTm
@@ -1255,11 +1258,13 @@ fullRestart:
 					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)
 
 				case <-czar.Halt.ReqStop.Chan:
-					vv("czar halt requested (in amCzar state). exiting.")
+					vv("%v: czar halt requested (in amCzar state). exiting.", name)
 					return
 				}
 
 			case notCzar:
+
+				vv("%v: notCzar", name)
 
 				czarLeaseUntilTm = czar.vers.CzarLeaseUntilTm
 
@@ -1444,7 +1449,7 @@ fullRestart:
 					czar.handlePing(rr)
 
 				case <-czar.Halt.ReqStop.Chan:
-					vv("czar halt requested (in nonCzar state). exiting.")
+					vv("%v: czar halt requested (in nonCzar state). exiting.", name)
 					return
 				}
 			}

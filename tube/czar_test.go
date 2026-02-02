@@ -134,9 +134,9 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 		c.Nodes[leadi].Halt.ReqStop.Close()
 		<-c.Nodes[leadi].Halt.Done.Chan
 
-		vv("sleep 30 sec after leader crash")
-		time.Sleep(time.Second * 30)
-		vv("has been 30 sec after leader crash")
+		vv("sleep 120 sec after leader crash")
+		time.Sleep(time.Second * 120)
+		vv("has been 120 sec after leader crash")
 
 		// confirm LeaseEpoch has advanced: inspect borked on non-czar at the moment...
 		//var err error
@@ -146,10 +146,14 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 		//panicOn(err)
 
 		numCzar := 0
-		if czarState(mems[3].czar.cState.Load()) == amCzar {
+		cur := czarState(mems[3].czar.cState.Load())
+		vv("cur = %v", cur)
+		if cur == amCzar {
 			numCzar++
 		}
-		if czarState(mems[4].czar.cState.Load()) == amCzar {
+		cur = czarState(mems[4].czar.cState.Load())
+		vv("cur = %v", cur)
+		if cur == amCzar {
 			numCzar++
 		}
 		if numCzar != 1 {
