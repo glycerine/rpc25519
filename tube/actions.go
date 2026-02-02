@@ -480,33 +480,26 @@ func (s *TubeNode) DeleteTable(ctx context.Context, table Key, waitForDur time.D
 // called on leader locally to see if lease write would win or just read.
 // When we return false we also fill in the current leaf lease info.
 func (s *TubeNode) kvstoreWouldWriteLease(tkt *Ticket) (wouldWrite bool) {
-	//vv("top of kvstoreWouldWriteLease, first orig 2() call:")
-	//orig := s.kvstoreWouldWriteLease2(tkt) // true
-	vv("next new version call:")
-	newVers := s.kvstoreWrite(tkt, true) // false
-	//	if newVers != orig {
-	//		panicf("disagree newVers=%v but orig=%v", newVers, orig)
-	//	}
-	return newVers
+	return s.kvstoreWrite(tkt, true) // false
 }
 
 // old redundant slightly out of sync with kvstoreWrite...
-func (s *TubeNode) kvstoreWouldWriteLease2(tkt *Ticket) (wouldWrite bool) {
+func (s *TubeNode) kvstoreWouldWriteLeaseOld(tkt *Ticket) (wouldWrite bool) {
 	tktTable := tkt.Table
 	tktKey := tkt.Key
 	//tktVal := tkt.Val
 
 	if s.state == nil || s.state.KVstore == nil {
-		vv("true 1")
+		//vv("true 1")
 		return true
 	}
 	if s.state.KVstore.m == nil {
-		vv("true 2")
+		//vv("true 2")
 		return true
 	}
 	table, ok := s.state.KVstore.m[tktTable]
 	if !ok {
-		vv("true 3")
+		//vv("true 3")
 		return true
 	}
 
@@ -518,7 +511,7 @@ func (s *TubeNode) kvstoreWouldWriteLease2(tkt *Ticket) (wouldWrite bool) {
 	leaf, _, found = table.Tree.Find(art.Exact, key)
 
 	if !found {
-		vv("true 4")
+		//vv("true 4")
 		return true
 	}
 	// key already present, so if leased and not leased by Leasor,
@@ -526,7 +519,7 @@ func (s *TubeNode) kvstoreWouldWriteLease2(tkt *Ticket) (wouldWrite bool) {
 
 	if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
 		// no current leasor, just put the write through.
-		vv("true 5")
+		//vv("true 5")
 		return true
 	}
 	// INVAR: leaf.Leasor != "" && leaf.LeaseUntilTm > 0
@@ -537,20 +530,20 @@ func (s *TubeNode) kvstoreWouldWriteLease2(tkt *Ticket) (wouldWrite bool) {
 	now := time.Now() // stand in for tkt.RaftLogEntryTm
 	if tkt.LeaseRequestDur == 0 {
 		// not extending lease, going to non-leased. skip down.
-		vv("tkt.LeaseRequestDur == 0 skip down ")
+		//vv("tkt.LeaseRequestDur == 0 skip down ")
 	} else {
 		leaseUntilTm := now.Add(tkt.LeaseRequestDur) // faked based on now
 		if lte(leaseUntilTm, leaf.LeaseUntilTm) {
 			tkt.Err = fmt.Errorf(rejectedWritePrefix+" non-increasing LeaseUntilTm rejected. table='%v'; key='%v'; current leasor='%v'; leaf.LeaseUntilTm='%v' <= tkt.LeaseUntilTm='%v'; rejecting attempted tkt.Leasor='%v' at now='%v');", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, now.Format(rfc3339NanoNumericTZ0pad))
 
 			s.writeFailedSetCurrentVal(tkt, leaf)
-			vv("false 1")
+			//vv("false 1")
 			return false
 		}
-		vv("past false 1, leaf.Leasor(%v) == txt.Leasor(%v) = %v", leaf.Leasor, tkt.Leasor, leaf.Leasor == tkt.Leasor)
+		//vv("past false 1, leaf.Leasor(%v) == txt.Leasor(%v) = %v", leaf.Leasor, tkt.Leasor, leaf.Leasor == tkt.Leasor)
 
 		if leaf.Leasor == tkt.Leasor {
-			vv("true 6")
+			//vv("true 6")
 			return true
 		}
 	}
@@ -561,7 +554,7 @@ func (s *TubeNode) kvstoreWouldWriteLease2(tkt *Ticket) (wouldWrite bool) {
 	// include clock drift bound.
 	if now.After(leaf.LeaseUntilTm.Add(s.cfg.ClockDriftBound)) {
 		// prior lease expired, allow write.
-		vv("true 7")
+		//vv("true 7")
 		return true
 	}
 	// key is already leased by a different leasor, and lease has not expired: reject.
@@ -575,7 +568,7 @@ func (s *TubeNode) kvstoreWouldWriteLease2(tkt *Ticket) (wouldWrite bool) {
 	s.writeFailedSetCurrentVal(tkt, leaf)
 
 	//vv("%v kvstoreWouldWriteLease: reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", s.name, tktKey, leaf.Leasor, tkt.Leasor, s.KVstore.Len())
-	vv("false 2")
+	//vv("false 2")
 	return false
 }
 
@@ -586,7 +579,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 	st := s.state
 	if dry {
 		if st == nil {
-			vv("dry true 1a")
+			//vv("dry true 1a")
 			return true
 		}
 	} else {
@@ -602,7 +595,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 	var surelyNoPrior bool
 	if st.KVstore == nil {
 		if dry {
-			vv("dry true 1b")
+			//vv("dry true 1b")
 			return true
 		}
 		st.KVstore = newKVStore()
@@ -610,7 +603,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 	}
 	if st.KVstore.m == nil {
 		if dry {
-			vv("dry true 2")
+			//vv("dry true 2")
 			return true
 		}
 		st.KVstore.m = make(map[Key]*ArtTable)
@@ -619,7 +612,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 	table, ok := st.KVstore.m[tktTable]
 	if !ok {
 		if dry {
-			vv("dry true 3")
+			//vv("dry true 3")
 			return true
 		}
 		surelyNoPrior = true
@@ -637,7 +630,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 
 	if !found {
 		if dry {
-			vv("dry true 4")
+			//vv("dry true 4")
 			return true
 		}
 		leaf = art.NewLeaf(key, append([]byte{}, tktVal...), tkt.Vtype)
@@ -676,7 +669,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 	if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
 		// no current leasor, just put the write through.
 		if dry {
-			vv("dry true 5")
+			//vv("dry true 5")
 			return true
 		}
 		leaf.Value = append([]byte{}, tktVal...)
@@ -708,7 +701,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 	}
 	if tkt.LeaseRequestDur == 0 { // was UntilTm.IsZero() {
 		// not extending lease, going to non-leased. skip down.
-		vv("dry tkt.LeaseRequestDur == 0 skip down ")
+		//vv("dry tkt.LeaseRequestDur == 0 skip down ")
 	} else {
 		leaseUntilTm := tkt.LeaseUntilTm
 		if dry {
@@ -717,15 +710,15 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 		if lte(leaseUntilTm, leaf.LeaseUntilTm) {
 			tkt.Err = fmt.Errorf(rejectedWritePrefix+" beccause non-increasing LeaseUntilTm rejected. table='%v'; key='%v'; current leasor='%v' (LeasorPeerID: '%v'); leaf.LeaseUntilTm='%v' >= tkt.LeaseUntilTm='%v'; rejecting attempted tkt.Leasor='%v' at now/tkt.RaftLogEntryTm='%v');", tktTable, tktKey, leaf.Leasor, leaf.LeasorPeerID, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, now.Format(rfc3339NanoNumericTZ0pad))
 			s.writeFailedSetCurrentVal(tkt, leaf)
-			vv("dry false 1")
+			//vv("dry false 1")
 			return false
 		}
-		vv("past dry false 1, leaf.Leasor(%v) == txt.Leasor(%v) = %v", leaf.Leasor, tkt.Leasor, leaf.Leasor == tkt.Leasor)
+		//vv("past dry false 1, leaf.Leasor(%v) == txt.Leasor(%v) = %v", leaf.Leasor, tkt.Leasor, leaf.Leasor == tkt.Leasor)
 
 		if leaf.Leasor == tkt.Leasor &&
 			leaf.LeasorPeerID == tkt.FromID { // avoid 2 peers with same name confusion.
 			if dry {
-				vv("dry true 6") // seen, vs false 2
+				//vv("dry true 6") // seen, vs false 2
 				return true
 			}
 			// current leasor extending lease, allow it (expired or not)
@@ -757,7 +750,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 	if expiredDur > 0 { // tkt.RaftLogEntryTm.After(okAfter) {
 		// prior lease expired, allow write.
 		if dry {
-			vv("dry true 7")
+			//vv("dry true 7")
 			return true
 		}
 		// overwritten value (old czar) can be useful to expire them quickly.
@@ -796,7 +789,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 	s.writeFailedSetCurrentVal(tkt, leaf)
 
 	//vv("%v reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", st.name, tktKey, leaf.Leasor, tkt.Leasor, st.KVstore.Len())
-	vv("dry false 2")
+	//vv("dry false 2")
 	return false
 }
 
