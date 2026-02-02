@@ -24,6 +24,11 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 	cfg.testNum = testNum
 
 	defer func() {
+
+		for _, node := range c.Nodes {
+			cfg.Node2Addr[node.name] = node.URL
+		}
+
 		vv("end of setupTestCluster")
 	}()
 
