@@ -13193,6 +13193,9 @@ func (a *PeerDetail) equal(b *PeerDetail) bool {
 }
 
 func (s *PeerDetail) Clone() *PeerDetail {
+	if s == nil {
+		return nil
+	}
 	return &PeerDetail{
 		Name:                   s.Name,
 		URL:                    s.URL,

@@ -1998,6 +1998,10 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 		probDrop = 1 // a better guess.
 	} else {
 		tarconn := cktOrigin.get(send.target)
+		if tarconn == nil {
+			// seen during node shutdown, just bail.
+			return
+		}
 		probDrop = tarconn.dropSend
 
 		// so we want the reader to have a unique wake
