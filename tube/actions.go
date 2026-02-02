@@ -483,6 +483,7 @@ func (s *TubeNode) kvstoreWouldWriteLease(tkt *Ticket) (wouldWrite bool) {
 	return s.kvstoreWrite(tkt, true) // false
 }
 
+/*
 // old redundant slightly out of sync with kvstoreWrite...
 func (s *TubeNode) kvstoreWouldWriteLeaseOld(tkt *Ticket) (wouldWrite bool) {
 	tktTable := tkt.Table
@@ -571,9 +572,13 @@ func (s *TubeNode) kvstoreWouldWriteLeaseOld(tkt *Ticket) (wouldWrite bool) {
 	//vv("false 2")
 	return false
 }
+*/
 
-// dry run => just return wouldWrite without any action;
-// just returning wouldWrite accurately.
+// dry => dry run => just return wouldWrite without any action
+// except to reset Val on wouldWrite=false with the current value;
+// thus a failed write becomes a read of the current value. This
+// is essential czar/member election mechanism that avoids
+// several additional network roundtrips.
 func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 
 	st := s.state
@@ -705,10 +710,11 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 	} else {
 		leaseUntilTm := tkt.LeaseUntilTm
 		if dry {
-			leaseUntilTm = now.Add(tkt.LeaseRequestDur) // faked based on now
+			// faked based on now since tkt.LeaseUntilTm will not be set.
+			leaseUntilTm = now.Add(tkt.LeaseRequestDur)
 		}
 		if lte(leaseUntilTm, leaf.LeaseUntilTm) {
-			tkt.Err = fmt.Errorf(rejectedWritePrefix+" beccause non-increasing LeaseUntilTm rejected. table='%v'; key='%v'; current leasor='%v' (LeasorPeerID: '%v'); leaf.LeaseUntilTm='%v' >= tkt.LeaseUntilTm='%v'; rejecting attempted tkt.Leasor='%v' at now/tkt.RaftLogEntryTm='%v');", tktTable, tktKey, leaf.Leasor, leaf.LeasorPeerID, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, now.Format(rfc3339NanoNumericTZ0pad))
+			tkt.Err = fmt.Errorf(rejectedWritePrefix+" because non-increasing LeaseUntilTm rejected. table='%v'; key='%v'; current leasor='%v' (LeasorPeerID: '%v'); leaf.LeaseUntilTm='%v' >= tkt.LeaseUntilTm='%v'; rejecting attempted tkt.Leasor='%v' at now/tkt.RaftLogEntryTm='%v');", tktTable, tktKey, leaf.Leasor, leaf.LeasorPeerID, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, now.Format(rfc3339NanoNumericTZ0pad))
 			s.writeFailedSetCurrentVal(tkt, leaf)
 			//vv("dry false 1")
 			return false
