@@ -89,8 +89,8 @@ func Test079_lease_from_leader(t *testing.T) {
 		if leaseTkt2.Err == nil || err2 == nil {
 			panic("expected error from re-lease attempt")
 		}
-		if !strings.HasPrefix(err2.Error(), "rejected write to leased key") {
-			vv("expected ErrAlreadyLeased, but err2 = '%v'", err2)
+		if !strings.HasPrefix(err2.Error(), rejectedWritePrefix) {
+			vv("expected prefix rejectedWritePrefix='%v', but err2 = '%v'", rejectedWritePrefix, err2)
 		}
 		vv("good: got rejection of premature re-lease by another = '%v'", leaseTkt2.Err)
 

@@ -662,7 +662,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 	// key already present, so if leased and not leased by Leasor,
 	// we must reject the write.
 
-	if false && tkt.LogIndex <= leaf.WriteRaftLogIndex {
+	if !dry && tkt.LogIndex <= leaf.WriteRaftLogIndex {
 		// might not be doing much, but here we insist
 		// that the sequence of writes follows a RaftIndex
 		// that is strictly monotonically increasing.
