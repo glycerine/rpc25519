@@ -1,6 +1,9 @@
 package tube
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/glycerine/rpc25519/tube/art"
 )
 
@@ -75,4 +78,29 @@ func (s *KVStore) clone() (r *KVStore) {
 		r.m[k] = v.clone()
 	}
 	return
+}
+
+func (state *RaftState) DumpStdoutAnnotatePath(path string) {
+	if state == nil {
+		fmt.Printf("\n(none) empty RaftState from path '%v'.\n", path)
+	} else {
+		fmt.Printf("\nRaftState from path '%v':\n%v\n", path, state.String())
+		if state.KVstore != nil {
+			fmt.Printf("KVstore: (len %v)\n", state.KVstore.Len())
+			for table, tab := range state.KVstore.All() {
+				fmt.Printf("    table '%v' (len %v):\n", table, tab.Len())
+				var extra string
+				for key, leaf := range tab.All() {
+					if leaf.Leasor == "" {
+						extra = ""
+					} else {
+						extra = fmt.Sprintf("[LeaseEpoch: %v, Leasor:'%v'; until '%v' (in %v; t0: '%v')] WriteRaftLogIndex:%v", leaf.LeaseEpoch, leaf.Leasor, nice(leaf.LeaseUntilTm), leaf.LeaseUntilTm.Sub(time.Now()), nice(leaf.LeaseEpochT0), leaf.WriteRaftLogIndex)
+					}
+					fmt.Printf("       key: '%v' (version %v): %v%v\n", key, leaf.Version, extra, StringFromVtype(leaf.Value, leaf.Vtype))
+				}
+			}
+		} else {
+			fmt.Printf("(nil KVstore)\n")
+		}
+	}
 }

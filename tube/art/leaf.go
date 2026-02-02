@@ -123,6 +123,24 @@ func (s *Leaf) Clone() (r *Leaf) {
 	return
 }
 
+func (z *Leaf) MetaString() (r string) {
+	r = "&Leaf{\n"
+	r += fmt.Sprintf("              Key: %v,\n", z.Key)
+	r += fmt.Sprintf("            Value: (omit)\n")
+	r += fmt.Sprintf("          Version: %v,\n", z.Version)
+	r += fmt.Sprintf("            Vtype: \"%v\",\n", z.Vtype)
+	r += fmt.Sprintf("           Leasor: \"%v\",\n", z.Leasor)
+	r += fmt.Sprintf("     LeaseUntilTm: %v,\n", nice(z.LeaseUntilTm))
+	r += fmt.Sprintf("WriteRaftLogIndex: %v,\n", z.WriteRaftLogIndex)
+	r += fmt.Sprintf("       LeaseEpoch: %v,\n", z.LeaseEpoch)
+	r += fmt.Sprintf("       AutoDelete: %v,\n", z.AutoDelete)
+	r += fmt.Sprintf("     LeasorPeerID: \"%v\",\n", z.LeasorPeerID)
+	r += fmt.Sprintf("     LeaseEpochT0: %v,\n", nice(z.LeaseEpochT0))
+	r += fmt.Sprintf(" LeaseRenewalElap: %v,\n", z.LeaseRenewalElap)
+	r += "}\n"
+	return
+}
+
 func (n *Leaf) depth() int {
 	return len(n.Key)
 }

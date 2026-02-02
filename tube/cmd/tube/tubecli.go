@@ -243,29 +243,9 @@ func main() {
 			alwaysPrintf("tube -log cannot proceed: no state file available.")
 			os.Exit(1)
 		}
-		// dump on-disk state
-		if state == nil {
-			fmt.Printf("\n(none) empty RaftState from path '%v'.\n", path)
-		} else {
-			fmt.Printf("\nRaftState from path '%v':\n%v\n", path, state.String())
-			if state.KVstore != nil {
-				fmt.Printf("KVstore: (len %v)\n", state.KVstore.Len())
-				for table, tab := range state.KVstore.All() {
-					fmt.Printf("    table '%v' (len %v):\n", table, tab.Len())
-					var extra string
-					for key, leaf := range tab.All() {
-						if leaf.Leasor == "" {
-							extra = ""
-						} else {
-							extra = fmt.Sprintf("[LeaseEpoch: %v, Leasor:'%v'; until '%v' (in %v; t0: '%v')] WriteRaftLogIndex:%v", leaf.LeaseEpoch, leaf.Leasor, nice(leaf.LeaseUntilTm), leaf.LeaseUntilTm.Sub(time.Now()), nice(leaf.LeaseEpochT0), leaf.WriteRaftLogIndex)
-						}
-						fmt.Printf("       key: '%v' (version %v): %v%v\n", key, leaf.Version, extra, tube.StringFromVtype(leaf.Value, leaf.Vtype))
-					}
-				}
-			} else {
-				fmt.Printf("(nil KVstore)\n")
-			}
-		}
+		// dump on-disk state (moved to tube/kv.go)
+		state.DumpStdoutAnnotatePath(path)
+
 		// dump log
 		fmt.Printf("\ncfg.InitialLeaderName = '%v'; cfg.MyName = '%v'\n", cfg.InitialLeaderName, cfg.MyName)
 		node.SetState(state)
