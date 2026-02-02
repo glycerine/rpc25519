@@ -1090,7 +1090,7 @@ func aeUpdatesFollNoGap(ae *AppendEntries, foll, lead *TubeSim) (hbDetectsFollow
 			xFollowLenAfter = aeN
 			return
 		}
-		// TODO consider where log should start after state compression
+
 		gap = true // too big a gap, > 1 on empty log
 		return
 	}

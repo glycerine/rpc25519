@@ -8,7 +8,7 @@ import (
 	//rpc "github.com/glycerine/rpc25519"
 )
 
-/* TODO (membership change not implemented yet).
+/* TODO testing plan for membership changes.
 
 **III. Cluster Membership Changes (More advanced, but impacts election):**
 

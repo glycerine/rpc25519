@@ -634,7 +634,7 @@ type RMember struct {
 
 	Cfg *TubeConfig
 
-	debugAmCzarCh chan bool
+	testingAmCzarCh chan bool
 
 	czar *Czar
 
@@ -662,7 +662,7 @@ func NewRMember(tableSpace string, cfg *TubeConfig) (rm *RMember) {
 		name:            cfg.MyName,
 	}
 	if cfg.isTest {
-		rm.debugAmCzarCh = make(chan bool, 10)
+		rm.testingAmCzarCh = make(chan bool, 10)
 	}
 	return
 }
@@ -755,7 +755,6 @@ fullRestart:
 			panicOn(err)
 			if !reallyLeader {
 				vv("arg. not really leader? why?")
-				panic("tmp debug TODO remove: should be leader in test 808!")
 				cli.closeAutoClientSockets()
 				continue fullRestart
 			}
@@ -922,9 +921,9 @@ fullRestart:
 					//cState = amCzar
 					czar.cState.Store(int32(amCzar))
 
-					if membr.debugAmCzarCh != nil {
+					if membr.testingAmCzarCh != nil {
 
-						membr.debugAmCzarCh <- true
+						membr.testingAmCzarCh <- true
 						vv("reported am czar")
 					}
 
@@ -1018,9 +1017,9 @@ fullRestart:
 
 					czar.cState.Store(int32(notCzar))
 
-					if membr.debugAmCzarCh != nil {
+					if membr.testingAmCzarCh != nil {
 
-						membr.debugAmCzarCh <- false
+						membr.testingAmCzarCh <- false
 						vv("reported not czar")
 					}
 
