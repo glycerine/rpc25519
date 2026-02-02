@@ -11635,7 +11635,7 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 }
 
 func (s *TubeNode) doWrite(tkt *Ticket) {
-	s.kvstoreWrite(tkt, false)
+	s.kvstoreWrite(tkt, false, false)
 }
 
 // CAS rejects should start with this to allow recognition
@@ -11655,7 +11655,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 			return
 		} else {
 			// request to start a key from scratch
-			s.kvstoreWrite(tkt, false)
+			s.kvstoreWrite(tkt, false, false)
 			tkt.CASwapped = (tkt.Err == nil)
 			return
 		}
@@ -11668,7 +11668,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		}
 		if len(tkt.OldVal) == 0 {
 			// request to start a key from scratch
-			s.kvstoreWrite(tkt, false)
+			s.kvstoreWrite(tkt, false, false)
 			tkt.CASwapped = (tkt.Err == nil)
 			return
 		}
@@ -11683,7 +11683,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		}
 		if len(tkt.OldVal) == 0 {
 			// request to start a key from scratch
-			s.kvstoreWrite(tkt, false)
+			s.kvstoreWrite(tkt, false, false)
 			tkt.CASwapped = (tkt.Err == nil)
 			return
 		}
@@ -11697,64 +11697,57 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	hasLease := leaf.Leasor != "" && !leaf.LeaseUntilTm.IsZero()
 	leaseInForce := hasLease && s.validLease(tkt, leaf)
 	amLeasor := leaseInForce && (leaf.Leasor == tkt.Leasor)
-
+	vv("hasLease = %v; leaseInForce = %v; amLeasor = %v", hasLease, leaseInForce, amLeasor) // false, false
 	if leaseInForce && !amLeasor {
 		tkt.Err = fmt.Errorf(rejectedWritePrefix+" to leased key CAS. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tkt.Table, tkt.Key, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), s.cfg.ClockDriftBound)
+
+		s.writeFailedSetCurrentVal(tkt, leaf)
+		return
 	}
 
-	// if key has a lease but that lease is expired do not reject CAS. we might not
-	// auto delete a key so that we get a properly monotone LeaseEpoch
-	// that does not reset back down to 0 after auto delete.
-	//
-	if hasLease && !leaseInForce {
-		// allow the write; like a very very lazy auto-delete that allows
-		// us to preserve the LeaseEpoch monotonicity. We thus avoid
-		// having to implement tombstones. An expired lease key is
-		// effectively a tombstone already.
-	} else {
+	// if key has a lease but that lease is expired, still enforce CAS!
 
-		// 3 types of CAS: OldVersionCAS, OldLeaseEpochCAS, or simple OldVal based CAS.
-		// They are checked in that priority order, and the first one found
-		// excludes the checks on the others.
-		switch {
-		case tkt.OldVersionCAS > 0:
-			if tkt.OldVersionCAS != leaf.Version {
-				tkt.Err = fmt.Errorf(rejectedWritePrefix+" CAS on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
-				tkt.CASwapped = false
+	// 3 types of CAS: OldVersionCAS, OldLeaseEpochCAS, or simple OldVal based CAS.
+	// They are checked in that priority order, and the first one found
+	// excludes the checks on the others.
+	switch {
+	case tkt.OldVersionCAS > 0:
+		if tkt.OldVersionCAS != leaf.Version {
+			tkt.Err = fmt.Errorf(rejectedWritePrefix+" CAS on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
+			tkt.CASwapped = false
 
-				s.writeFailedSetCurrentVal(tkt, leaf)
-				return
-			}
-		case tkt.OldLeaseEpochCAS > 0:
-			//vv("%v checking tkt.OldLeaseEpochCAS(%v) vs leaf.LeaseEpoch(%v)", s.name, tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
-			if tkt.OldLeaseEpochCAS != leaf.LeaseEpoch {
-				tkt.Err = fmt.Errorf(rejectedWritePrefix+" CAS on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
-				tkt.CASwapped = false
-
-				s.writeFailedSetCurrentVal(tkt, leaf)
-				return
-			}
-		case len(tkt.OldVal) > 0:
-			curVal := leaf.Value
-			//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), bytes.Equal(curVal, tkt.OldVal), string(tkt.Val))
-
-			if !bytes.Equal(curVal, tkt.OldVal) { // compare
-				tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
-				tkt.CASwapped = false
-				tkt.Err = fmt.Errorf(rejectedWritePrefix + " CAS on tkt.OldVal != current leaf.Val")
-
-				s.writeFailedSetCurrentVal(tkt, leaf)
-				return
-			}
-
-		default:
-			// a CAS without any of the 3 cas options is
-			// just a WRITE. Let kvstoreWrite take it.
+			s.writeFailedSetCurrentVal(tkt, leaf)
+			return
 		}
+	case tkt.OldLeaseEpochCAS > 0:
+		//vv("%v checking tkt.OldLeaseEpochCAS(%v) vs leaf.LeaseEpoch(%v)", s.name, tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
+		if tkt.OldLeaseEpochCAS != leaf.LeaseEpoch {
+			tkt.Err = fmt.Errorf(rejectedWritePrefix+" CAS on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
+			tkt.CASwapped = false
+
+			s.writeFailedSetCurrentVal(tkt, leaf)
+			return
+		}
+	case len(tkt.OldVal) > 0:
+		curVal := leaf.Value
+		//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), bytes.Equal(curVal, tkt.OldVal), string(tkt.Val))
+
+		if !bytes.Equal(curVal, tkt.OldVal) { // compare
+			tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
+			tkt.CASwapped = false
+			tkt.Err = fmt.Errorf(rejectedWritePrefix + " CAS on tkt.OldVal != current leaf.Val")
+
+			s.writeFailedSetCurrentVal(tkt, leaf)
+			return
+		}
+
+	default:
+		// a CAS without any of the 3 cas options is
+		// just a WRITE. Let kvstoreWrite take it.
 	}
 
 	//vv("kvstoreWrite takes care of leasing rejections")
-	s.kvstoreWrite(tkt, false)
+	s.kvstoreWrite(tkt, false, false)
 	tkt.CASwapped = (tkt.Err == nil)
 }
 

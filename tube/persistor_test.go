@@ -43,7 +43,7 @@ func Test301_raftStatePersistorSaveLoad(t *testing.T) {
 			cfg:   *cfg,
 			state: state,
 		}
-		node.kvstoreWrite(tkt, false)
+		node.kvstoreWrite(tkt, false, false)
 
 		// check read back immediately...
 		v, _, err := state.KVStoreRead("hello", "world")

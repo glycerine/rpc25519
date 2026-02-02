@@ -41,6 +41,9 @@ func Test079_lease_from_leader(t *testing.T) {
 	// via a lease.
 	onlyBubbled(t, func(t *testing.T) {
 
+		//now := time.Now()
+		//vv("start at '%v' -> '%v'", now.UnixNano(), nice(now))
+
 		numNodes := 3
 		//n := 3
 
@@ -119,4 +122,147 @@ func Test079_lease_from_leader(t *testing.T) {
 		c.Close()
 		time.Sleep(time.Second)
 	})
+}
+
+func Test078_leases_not_broken_early(t *testing.T) {
+
+	// test kvstoreWrite(tkt *Ticket, dry, testingImmut bool) alone
+	s := &TubeNode{
+		state: &RaftState{},
+	}
+	now := time.Unix(0, 946684800000000000) // 2000-01-01T00:00:00.000Z
+	dur := time.Minute
+	until0 := now.Add(dur)
+	tkt := &Ticket{
+		Table:           Key("table"),
+		Key:             Key("key"),
+		Val:             Val("val"),
+		FromID:          "A",
+		RaftLogEntryTm:  now,
+		LeaseRequestDur: dur,
+		LeaseUntilTm:    until0,
+		LogIndex:        1,
+		Leasor:          "A",
+	}
+	until1 := until0.Add(dur)
+	casEarly := &Ticket{
+		Table:            Key("table"),
+		Key:              Key("key"),
+		Val:              Val("val"),
+		OldLeaseEpochCAS: 1,
+		FromID:           "B",
+		RaftLogEntryTm:   until0,
+		LeaseRequestDur:  dur,
+		LeaseUntilTm:     until1,
+		LogIndex:         2,
+		Leasor:           "B",
+	}
+	casEarlyWrongPriorEpoch := &Ticket{
+		Table:            Key("table"),
+		Key:              Key("key"),
+		Val:              Val("val"),
+		OldLeaseEpochCAS: 2, // accurate is 1
+		FromID:           "B",
+		RaftLogEntryTm:   until0,
+		LeaseRequestDur:  dur,
+		LeaseUntilTm:     until1,
+		LogIndex:         2,
+		Leasor:           "B",
+	}
+	casExpired := &Ticket{
+		Table:            Key("table"),
+		Key:              Key("key"),
+		Val:              Val("val"),
+		OldLeaseEpochCAS: 1,
+		FromID:           "B",
+		RaftLogEntryTm:   until0.Add(1),
+		LeaseRequestDur:  dur,
+		LeaseUntilTm:     until1.Add(1),
+		LogIndex:         2,
+		Leasor:           "B",
+	}
+	casExpiredWrongPriorEpoch := &Ticket{
+		Table:            Key("table"),
+		Key:              Key("key"),
+		Val:              Val("val"),
+		OldLeaseEpochCAS: 2, // wrong, correct is 1.
+		FromID:           "B",
+		RaftLogEntryTm:   until0.Add(1),
+		LeaseRequestDur:  dur,
+		LeaseUntilTm:     until1.Add(1),
+		LogIndex:         2,
+		Leasor:           "B",
+	}
+	renew := &Ticket{
+		Table:            Key("table"),
+		Key:              Key("key"),
+		Val:              Val("val"),
+		OldLeaseEpochCAS: 1,
+		FromID:           "A",
+		RaftLogEntryTm:   until0,
+		LeaseRequestDur:  dur,
+		LeaseUntilTm:     until1,
+		LogIndex:         2,
+		Leasor:           "A",
+	}
+	renewWrongPriorEpoch := &Ticket{
+		Table:            Key("table"),
+		Key:              Key("key"),
+		Val:              Val("val"),
+		OldLeaseEpochCAS: 2, // wrong, should be 1.
+		FromID:           "A",
+		RaftLogEntryTm:   until0,
+		LeaseRequestDur:  dur,
+		LeaseUntilTm:     until1,
+		LogIndex:         2,
+		Leasor:           "A",
+	}
+
+	const dry = true
+	const wet = false
+	const testingImmut = true
+	if !s.kvstoreWrite(tkt, wet, testingImmut) {
+		panic("expect to write")
+	}
+
+	// leasor A can renew early
+	if !s.kvstoreWrite(renew, dry, testingImmut) {
+		panicf("expect cas accepted from renewer/same leaor; cas.Err='%v'", renew.Err)
+	}
+	renew.Err = nil
+
+	// leasor B cannot lease until strictly after the expiry; [beg,endpoint] inclusive.
+	if s.kvstoreWrite(casEarly, dry, testingImmut) {
+		panicf("expect casEarly rejected; cas.Err='%v'", casEarly.Err)
+	}
+	casEarly.Err = nil
+	// leasor B can lease after prior lease expiry.
+	if !s.kvstoreWrite(casExpired, dry, testingImmut) {
+		panicf("expect cas accepted; cas.Err='%v'", casExpired.Err)
+	}
+	casExpired.Err = nil
+
+	// both A and B should be rejected on Compare-And-Swap check if OldLeaseEpochCAS is wrong
+	s.doCAS(renewWrongPriorEpoch)
+	if renewWrongPriorEpoch.Err == nil {
+		panicf("expect renewWrongPriorEpoch rejected with wrong OldLeaseEpochCAS")
+	}
+	vv("good, got cas err = '%v'", renewWrongPriorEpoch.Err)
+
+	s.doCAS(casEarlyWrongPriorEpoch)
+	if casEarlyWrongPriorEpoch.Err == nil {
+		panicf("expect error on wrong prior epoch when lease is in force and CAS applied")
+	}
+	//vv("good, got cas err = '%v'", casEarlyWrongPriorEpoch.Err)
+
+	// once lease is expired, we ignore CAS? so only prior leasor can
+	// use CAS to renew early? what about new contendors for lease to prevent
+	// double quick leasing in turn? methinks this should reject; else
+	// there is no point in CAS other than a subset of a valid lease.
+
+	s.doCAS(casExpiredWrongPriorEpoch)
+	if casExpiredWrongPriorEpoch.Err == nil {
+		panicf("expect casExpiredWrongPriorEpoch rejected with wrong OldLeaseEpochCAS") // hit
+	}
+	vv("good, got cas err = '%v'", casExpiredWrongPriorEpoch.Err)
 }
