@@ -130,15 +130,27 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 			}
 		}
 
-		// change leader
-		c.Nodes[leadi].Halt.ReqStop.Close()
-		<-c.Nodes[leadi].Halt.Done.Chan
+		if true { // without this, the czar change over works.
+			// change leader
+			c.Nodes[leadi].Halt.ReqStop.Close()
+			<-c.Nodes[leadi].Halt.Done.Chan
+		}
 
 		vv("sleep 120 sec after leader crash")
 		time.Sleep(time.Second * 120)
 		vv("has been 120 sec after leader crash")
 
-		// confirm LeaseEpoch has advanced: inspect borked on non-czar at the moment...
+		// confirm a leader has been elected; this is a pre-requisite.
+		leadi2, haveLeader, leadURL := testClusterGetCurrentLeader(c)
+		if !haveLeader {
+			panic("must have elected a new leader by now.")
+		}
+		vv("good: new leader is '%v' at '%v'", leadi2, leadURL)
+
+		// but the problem is that the squady members do not know how
+		// to find the new leader.
+
+		// confirm LeaseEpoch has advanced: inspect
 		//var err error
 		//pings[3], err = mems[3].czar.inspect(context.Background())
 		//panicOn(err)
@@ -147,12 +159,12 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 
 		numCzar := 0
 		cur := czarState(mems[3].czar.cState.Load())
-		vv("cur = %v", cur)
+		vv("cur[3] = %v", cur)
 		if cur == amCzar {
 			numCzar++
 		}
 		cur = czarState(mems[4].czar.cState.Load())
-		vv("cur = %v", cur)
+		vv("cur[4] = %v", cur)
 		if cur == amCzar {
 			numCzar++
 		}

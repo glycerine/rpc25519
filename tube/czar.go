@@ -809,7 +809,8 @@ fullRestart:
 
 		const requireOnlyContact = false
 		for k := 0; ; k++ {
-			vv("find leader loop k = %v", k)
+			vv("%v: find leader loop k = %v", name, k)
+			vv("%v: cliCfg.Node2Addr = '%#v'", name, cliCfg.Node2Addr)
 			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, KEEP_CKT_ONLY_IF_LEADER)
 			vv("helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", leaderURL, reallyLeader, err)
 			panicOn(err)

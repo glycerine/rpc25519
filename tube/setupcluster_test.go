@@ -197,3 +197,17 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 	}
 	return
 }
+
+func testClusterGetCurrentLeader(c *TubeCluster) (leadi int, haveLeader bool, leadURL string) {
+
+	for i, node := range c.Nodes {
+		insp := node.Inspect()
+		if insp.Role == LEADER {
+			haveLeader = true
+			leadi = i
+			leadURL = insp.CurrentLeaderURL
+			return
+		}
+	}
+	return
+}
