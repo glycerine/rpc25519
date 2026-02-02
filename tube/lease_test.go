@@ -247,7 +247,7 @@ func Test078_leases_not_broken_early(t *testing.T) {
 	if renewWrongPriorEpoch.Err == nil {
 		panicf("expect renewWrongPriorEpoch rejected with wrong OldLeaseEpochCAS")
 	}
-	vv("good, got cas err = '%v'", renewWrongPriorEpoch.Err)
+	//vv("good, got cas err = '%v'", renewWrongPriorEpoch.Err)
 
 	s.doCAS(casEarlyWrongPriorEpoch)
 	if casEarlyWrongPriorEpoch.Err == nil {
@@ -264,5 +264,5 @@ func Test078_leases_not_broken_early(t *testing.T) {
 	if casExpiredWrongPriorEpoch.Err == nil {
 		panicf("expect casExpiredWrongPriorEpoch rejected with wrong OldLeaseEpochCAS") // hit
 	}
-	vv("good, got cas err = '%v'", casExpiredWrongPriorEpoch.Err)
+	//vv("good, got cas err = '%v'", casExpiredWrongPriorEpoch.Err)
 }

@@ -109,12 +109,12 @@ func (s *Leaf) Clone() (r *Leaf) {
 	r = &Leaf{
 		Key:               append([]byte{}, s.Key...),
 		Value:             append([]byte{}, s.Value...),
+		Version:           s.Version,
 		Vtype:             s.Vtype,
 		Leasor:            s.Leasor,
 		LeaseUntilTm:      s.LeaseUntilTm,
 		WriteRaftLogIndex: s.WriteRaftLogIndex,
 		LeaseEpoch:        s.LeaseEpoch,
-		Version:           s.Version,
 		AutoDelete:        s.AutoDelete,
 		LeasorPeerID:      s.LeasorPeerID,
 		LeaseEpochT0:      s.LeaseEpochT0,

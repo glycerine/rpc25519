@@ -257,7 +257,7 @@ func main() {
 						if leaf.Leasor == "" {
 							extra = ""
 						} else {
-							extra = fmt.Sprintf("[Leasor:'%v'; until '%v' (in %v)] ", leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(time.Now()))
+							extra = fmt.Sprintf("[LeaseEpoch: %v, Leasor:'%v'; until '%v' (in %v; t0: '%v')] ", leaf.LeaseEpoch, leaf.Leasor, nice(leaf.LeaseUntilTm), leaf.LeaseUntilTm.Sub(time.Now()), nice(leaf.LeaseEpochT0))
 						}
 						fmt.Printf("       key: '%v' (version %v): %v%v\n", key, leaf.Version, extra, tube.StringFromVtype(leaf.Value, leaf.Vtype))
 					}

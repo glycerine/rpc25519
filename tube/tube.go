@@ -11697,7 +11697,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	hasLease := leaf.Leasor != "" && !leaf.LeaseUntilTm.IsZero()
 	leaseInForce := hasLease && s.validLease(tkt, leaf)
 	amLeasor := leaseInForce && (leaf.Leasor == tkt.Leasor)
-	vv("hasLease = %v; leaseInForce = %v; amLeasor = %v", hasLease, leaseInForce, amLeasor) // false, false
+	//vv("hasLease = %v; leaseInForce = %v; amLeasor = %v", hasLease, leaseInForce, amLeasor) // false, false
 	if leaseInForce && !amLeasor {
 		tkt.Err = fmt.Errorf(rejectedWritePrefix+" to leased key CAS. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tkt.Table, tkt.Key, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), s.cfg.ClockDriftBound)
 
