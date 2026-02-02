@@ -669,7 +669,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry bool) (wouldWrite bool) {
 		tkt.Err = fmt.Errorf(rejectedWritePrefix+" because rejecting tkt with LogIndex <= leaf.WriteRaftLogIndex. TicketID:'%v'; LogIndex='%v'; leaf.WriteRaftLogIndex='%v' (desc: '%v')", tkt.TicketID, tkt.LogIndex, leaf.WriteRaftLogIndex, tkt.Desc)
 		s.writeFailedSetCurrentVal(tkt, leaf)
 
-		vv("dry false 1.5 no-equiv in old")
+		//vv("dry false 1.5 no-equiv in old")
 		return false
 	}
 
