@@ -232,6 +232,8 @@ func (s *raftStatePersistor) saveBlake3sumFor(by []byte, fd *os.File) (err error
 	s.checkEach.Write(by)
 	h := blake3ToString33B(s.checkEach)
 
+	vv("persistor at len %v, checkEach h = '%v'", curpos(fd), h)
+
 	blak := &Blake3sum{
 		Sum33B: h,
 	}
