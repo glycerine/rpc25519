@@ -11707,6 +11707,14 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 
 	// if key has a lease but that lease is expired, still enforce CAS!
 
+	// old: does this fix out non-monotone jump back?
+	if hasLease && !leaseInForce {
+		// put write through ignoring CAS stuff. does not make sense...
+		s.kvstoreWrite(tkt, false, false)
+		tkt.CASwapped = (tkt.Err == nil)
+		return
+	}
+
 	// 3 types of CAS: OldVersionCAS, OldLeaseEpochCAS, or simple OldVal based CAS.
 	// They are checked in that priority order, and the first one found
 	// excludes the checks on the others.
