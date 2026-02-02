@@ -6018,8 +6018,8 @@ func (s *TubeNode) resubmitStalledTickets(justMC bool) {
 func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	//vv("%v top of replicateTicket. Op=%v, key='%v'; val='%v'; FromID='%v'; tkt='%v'", s.me(), tkt.Op, string(tkt.Key), string(tkt.Val), rpc.AliasDecode(tkt.FromID), tkt)
 
-	// DEBUG TODO remove
-	s.debugAddCzarLeaseEpoch(tkt)
+	// for debugging purposes, we can append an extended Description
+	//s.debugAddCzarLeaseEpoch(tkt)
 
 	if s.role != LEADER {
 		panic("replicateTicket is only for leader")
@@ -18227,6 +18227,7 @@ func i64toa(i int64) string {
 	return fmt.Sprintf("%v", i)
 }
 
+// used in replicateTicket for debugging czar
 func (s *TubeNode) debugAddCzarLeaseEpoch(tkt *Ticket) {
 	if s == nil || s.state == nil || s.state.KVstore == nil {
 		return

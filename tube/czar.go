@@ -162,16 +162,6 @@ func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Durati
 	return s
 }
 
-//func (czar *Czar) getNonCzarMembers() *ReliableMembershipList {
-//	return czar.nonCzarMembers
-//}
-//func (czar *Czar) setNonCzarMembers(list *ReliableMembershipList) {
-//	if list == nil {
-//		panic("cannot set nonCzarMembers to nil!")
-//	}
-//	czar.nonCzarMembers = list
-//}
-
 func (czar *Czar) refreshMemberInTubeMembersTable(ctx context.Context) (err error) {
 	if !czar.slow {
 		return
@@ -1304,23 +1294,6 @@ fullRestart:
 
 					czar.setVers(pingReplyToFill.Vers, pingReplyToFill.Members)
 
-					// what vers to use with it??
-					/* figure out upcall conditions later...
-					// store view of membership as non-czar
-					if czar.members == nil || czar.vers == nil ||
-						vers.VersionLT(pingReplyToFill.Vers) {
-
-						//? do we want?? pingReplyToFill.MemberLeaseDur = czar.memberLeaseDur
-						//??czar.members = pingReplyToFill.Members
-
-						//nonCzarMembers.
-						czar.setNonCzarMembers(nonCzarMembers)
-						select {
-						case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
-						default:
-						}
-					}
-					*/
 					czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
 				} // end if rpcClientToCzar == nil
 
@@ -1399,15 +1372,6 @@ fullRestart:
 
 					czar.setVers(reply.Vers, reply.Members)
 
-					/* todo figure out upcall conditions
-					if czar.vers == nil || czar.vers.VersionLT(reply.Vers) {
-
-						select {
-						case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
-						default:
-						}
-					}
-					*/
 					// try more often, still have members keeping conn to raft leader
 					if true { // !closedSockets {
 						// just takes up file handles.
