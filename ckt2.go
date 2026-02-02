@@ -366,6 +366,9 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 				if pleaseAssignNewRemotePeerID != "" {
 					lpb.Remotes.Del(pleaseAssignNewRemotePeerID)
 				}
+				if rpb.PeerID == "" {
+					alwaysPrintf("ugh. 3. rpb.PeerID is empty in implRemotePeerAndGetCircuit")
+				}
 				lpb.Remotes.Set(rpb.PeerID, rpb)
 			}
 		case <-ckt.Context.Done():

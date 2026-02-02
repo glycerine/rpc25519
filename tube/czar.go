@@ -815,7 +815,7 @@ fullRestart:
 			vv("helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", leaderURL, reallyLeader, err)
 			panicOn(err)
 			if !reallyLeader {
-				vv("arg. not really leader? why?")
+				vv("%v: arg. we see not really leader? why?", name)
 				cli.closeAutoClientSockets()
 				continue fullRestart
 			}

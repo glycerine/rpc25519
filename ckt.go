@@ -612,6 +612,9 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 		return nil, nil, madeNewAutoCli, err
 	}
 	rpb.IncomingCkt = ckt
+	if peerID == "" {
+		alwaysPrintf("ugh. 2. rpb.PeerID is empty in NewCircuitToPeerURL()")
+	}
 	s.Remotes.Set(peerID, rpb) // arg. _was_ only called this once. need to symmetrically set on the remote side too. added ckt.go:808 for that.
 	return
 }
@@ -1209,7 +1212,18 @@ func (lpb *LocalPeer) newCircuit(
 		// it at least under empty string for now, and try to
 		// fix later. although of course collisions and
 		// overwrites then become possible.
-		lpb.Remotes.Set(rpb.PeerID, rpb)
+		//
+		// Update: to help simnet sims (tube/czar_test 809), try
+		// storing under key rpb.NetAddr (what we have),
+		// and we can check there too...
+		remoteKey := rpb.PeerID
+		if remoteKey == "" {
+			alwaysPrintf("ugh. 1. rpb.PeerID is empty in newCircuit(); rpb='%#v'", rpb) // only ugh. seen.
+			if rpb.NetAddr != "" {
+				remoteKey = rpb.NetAddr
+			}
+		}
+		lpb.Remotes.Set(remoteKey, rpb)
 	}
 
 	if isRemoteSide {

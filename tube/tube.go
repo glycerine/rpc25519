@@ -4520,8 +4520,8 @@ func (s *TubeNode) StartClientOnly(ctx context.Context, dialto string) (cli *rpc
 func (s *TubeNode) InitAndStart() error {
 
 	s.started = true
-	s.srvname = "srv_" + s.name
-	//s.srvname = s.name
+	//s.srvname = "srv_" + s.name
+	s.srvname = s.name
 	s.Srv = rpc.NewServer(s.srvname, s.cfg.RpcCfg)
 
 	serverAddr, err := s.Srv.Start()
@@ -12496,6 +12496,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 	netAddr, serviceName, leaderPeerID, _, err1 := rpc.ParsePeerURL(leaderURL)
 	panicOn(err1)
 	if err1 != nil {
+		vv("early exit 1; err='%v'", err)
 		err = fmt.Errorf("ExternalGetCircuitToLeader error: bad leaderURL('%v') supplied, could not parse: '%v'", leaderURL, err1)
 		return
 	}
@@ -12509,6 +12510,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 	// should be safe; and RemotePeer.IncomingCkt is
 	// goroutine safe.
 	if s.MyPeer == nil {
+		vv("early exit 2: no MyPeer")
 		err = fmt.Errorf("ExternalGetCircuitToLeader error: no MyPeer available")
 		return
 	}
@@ -12519,6 +12521,13 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		ok = false
 	} else {
 		remotePeer, ok = s.MyPeer.Remotes.Get(leaderPeerID)
+		if !ok {
+			// try again under netAddr
+			remotePeer, ok = s.MyPeer.Remotes.Get(netAddr)
+			if ok {
+				vv("2nd time charm: found remote peer under netAddr '%v' rather than peerID", netAddr)
+			}
+		}
 	}
 	if ok {
 		ckt = remotePeer.IncomingCkt
@@ -12527,6 +12536,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 			panic(fmt.Sprintf("no ckt avail??? leaderURL = '%v'; remotePeer = '%#v'", leaderURL, remotePeer))
 		}
 	} else { // !ok
+
 		// TODO: consider solutions here:
 		// The leaderPeerID can be an empty string here.
 		// And this is the problem. Since we are looking
@@ -12541,7 +12551,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		//    change.
 		// cache what we get back and re-use it?
 
-		//vv("%v ExternalGetCircuitToLeader(): no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
+		vv("%v ExternalGetCircuitToLeader(): no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%#v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
 
 		// lets confirm that with our other trackers...
 		cktP, auditFoundIt := s.cktAuditByPeerID.Get(leaderPeerID)
@@ -12628,7 +12638,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 					// responder thinks they are leader, adopt that idea for now.
 					select {
 					case s.setLeaderCktChan <- ckt:
-						//vv("in ExternalGetCircuitToLeader(): sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
+						vv("in ExternalGetCircuitToLeader(): sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
 					case <-s.Halt.ReqStop.Chan:
 						err = ErrShutDown
 						return
@@ -12670,6 +12680,12 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName st
 	if err != nil {
 		//vv("%v GetPeerListFrom got error from ExternalGetCircuitToLeader('%v') err='%v'; s.electionTimeoutCh='%p', s.nextElection in '%v'", s.me(), leaderURL, err, s.electionTimeoutCh, time.Until(s.nextElection))
 		return nil, nil, "", "", 0, onlyPossibleAddr, nil, err
+	}
+
+	if ckt == nil || ckt.IsClosed() {
+		// seeing a ton of, test 809 czar_test. thus inspection fails with garbage circuit.
+		vv("%v GetPeerListFrom sees nil or closed ckt after ExternalGetCircuitToLeader(leaderURL='%v')", s.me(), leaderURL)
+		return nil, nil, "", "", 0, onlyPossibleAddr, nil, rpc.ErrContextCancelledCkt
 	}
 
 	//actualLeaderName = ckt.RemotePeerName
@@ -16160,7 +16176,7 @@ func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur 
 	anew, err = ckt.SendOneWay(frag, errWriteDur, keepFragIfPositive)
 	_ = anew
 	if err != nil {
-		alwaysPrintf("%v SendOneWay: non nil error on '%v': '%v'; ckt.RemotePeerName='%v'; is ckt.Context live: %v; caller(0) = '%v'; caller(1) = '%v'", s.me(), frag.FragSubject, err, ckt.RemotePeerName, ctxLive(ckt.Context), caller(0), caller(1))
+		alwaysPrintf("%v SendOneWay: non nil error on '%v': '%v'; ckt.RemotePeerName='%v'; is ckt.Context live: %v; caller(0) = '%v'; caller(1) = '%v'; fileLine(2)='%v'; fileLine(3)='%v'", s.me(), frag.FragSubject, err, ckt.RemotePeerName, ctxLive(ckt.Context), caller(0), caller(1), fileLine(2), fileLine(3))
 		if s.wasConnRefused(err, ckt) {
 			return
 		}

@@ -83,7 +83,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 		}
 	}()
 
-	verbose := VerboseVerbose.Load()
+	verbose := true // VerboseVerbose.Load()
 	var insps []*Inspection
 	//vv("cfg.Node2Addr = '%v'", cfg.Node2Addr)
 	for remoteName, addr := range cfg.Node2Addr {
@@ -108,7 +108,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			}
 		} else {
 			if verbose {
-				fmt.Printf("\n%v %v TubeNode.HelperFindLeader(): attempting to contact '%v' at %v ... \n", fileLine(1), ts(), remoteName, url)
+				fmt.Printf("\n%v %v TubeNode.HelperFindLeader(): attempting to contact '%v' at %v ... \n", fileLine(1), ts(), remoteName, url) // seen.
 				//if remoteName != "node_0" {
 				//	vv("\n just before sending to '%v', stacks = '%v'", remoteName, allstacks())
 				//}
@@ -138,7 +138,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 				}
 			} else {
 				if verbose {
-					vv("bad. err = '%v'\n\n", err)
+					vv("bad. err = '%v'\n\n", err) // seen.
 					//if remoteName != "node_0" {
 					//	vv("\n why cannot we contact '%v'; stacks = '%v'\n\n", remoteName, allstacks())
 					//	panicf("why cannot we contact '%v'", remoteName)
