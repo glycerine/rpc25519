@@ -749,7 +749,16 @@ func (membr *RMember) start() {
 	czar := NewCzar(tableSpace, name, cli, membr.clockDriftBound)
 	membr.czar = czar
 
+	// was leaking at end of 809 test; declare here so we
+	// close in defer.
+	var rpcClientToCzar *rpc.Client
+
 	defer func() {
+		if rpcClientToCzar != nil {
+			rpcClientToCzar.Close()
+		}
+		rpcClientToCzar = nil
+
 		cli.Close()
 		vv("%v: member/czar has closed its cli", name)
 		czar.Halt.ReqStop.Close()
@@ -852,7 +861,6 @@ fullRestart:
 		//var czarURL string
 		//var czarCkt *rpc.Circuit
 
-		var rpcClientToCzar *rpc.Client
 		var rpcClientToCzarDoneCh chan struct{}
 		var czarLeaseUntilTm time.Time
 

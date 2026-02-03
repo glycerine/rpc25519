@@ -61,6 +61,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	// let Close know that waiting for c.halt.Done is viable.
 	c.startCalled.Store(true)
 
+	vv("%v: runClientMain called.", c.name)
 	//vv("runClientMain called. caller = '%v'", stack())
 	defer func() {
 		r := recover()
