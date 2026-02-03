@@ -11,6 +11,7 @@ import (
 
 	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
+	"golang.org/x/time/rate" // for rate.Limiter
 )
 
 //go:generate greenpack
@@ -113,6 +114,8 @@ type Czar struct {
 
 	myDetail      *PeerDetailPlus
 	myDetailBytes []byte
+
+	rateLimiter *rate.Limiter
 }
 
 func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
@@ -158,6 +161,10 @@ func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Durati
 	s.refreshMembersTableDur = time.Second
 	//s.membersTableLeaseDur = time.Second * 30
 	//s.refreshMembersTableDur = s.membersTableLeaseDur / 3
+
+	hz := rate.Every(time.Second)
+	burst := 10
+	s.rateLimiter = rate.NewLimiter(hz, burst)
 
 	return s
 }
@@ -780,20 +787,18 @@ func (membr *RMember) start() {
 
 	vv("s.memberLeaseDur = '%v'", czar.memberLeaseDur)
 
-	topT0 := time.Now()
+	//topT0 := time.Now()
+
+	bkg := context.Background()
 
 fullRestart:
 	for j := 0; ; j++ {
 		vv("%v: top of fullRestart j=%v", name, j)
 
-		if false && j > 0 { // LeaseRenewalElap: '3.77921382s too long if 1 sec wait. try 10ms
-			beenSinceTop := time.Since(topT0)
-			if beenSinceTop < time.Millisecond*10 {
-				wait := time.Second - beenSinceTop
-				time.Sleep(wait) // pace it to at most 1 per second.
-			}
+		if j > 0 {
+			czar.rateLimiter.Wait(bkg)
 		}
-		topT0 = time.Now()
+		//topT0 = time.Now()
 
 		// let the close session pace it now...
 
@@ -888,6 +893,10 @@ fullRestart:
 			//if ii > 0 {
 			//	time.Sleep(time.Millisecond * 100)
 			//}
+
+			if ii > 0 {
+				czar.rateLimiter.Wait(bkg)
+			}
 
 			select {
 			case <-czar.Halt.ReqStop.Chan:
