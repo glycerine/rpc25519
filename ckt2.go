@@ -308,7 +308,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 		} else {
 			lpb.setLoopy(ckt)
 			if ckt.loopy == nil {
-				vv("not-great: ckt.loopy nil in implRemotePeerAndGetCircuit(), cktID='%v' to netAddr='%v' waitForAck=%v; remote2peer='%v'", ckt.CircuitID, netAddr, waitForAck, lpb.PeerAPI.remote2pair.String())
+				//vv("not-great: ckt.loopy nil in implRemotePeerAndGetCircuit(), cktID='%v' to netAddr='%v' waitForAck=%v; remote2peer='%v'", ckt.CircuitID, netAddr, waitForAck, lpb.PeerAPI.remote2pair.String())
 			}
 		}
 	}

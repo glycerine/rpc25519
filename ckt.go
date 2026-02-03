@@ -1299,7 +1299,7 @@ func (lpb *LocalPeer) newCircuit(
 			case <-lpb.Halt.ReqStop.Chan:
 			}
 		} else {
-			vv("not-great: ckt.loopy nil at end of newCircuit(), cktID='%v'", ckt.CircuitID)
+			//vv("not-great: ckt.loopy nil at end of newCircuit(), cktID='%v'", ckt.CircuitID)
 
 			// else: saw: leader died, member did not have connection
 			// to any leader at the moment... no remote2pair yet.
@@ -1339,7 +1339,7 @@ func (h *Circuit) Close(reason error) {
 	// during normal Circuit shutdown.
 
 	if h.loopy == nil {
-		vv("not-great: ckt.loopy nil at end of Circuit.Close(), cktID='%v'", h.CircuitID)
+		//vv("not-great: ckt.loopy nil at end of Circuit.Close(), cktID='%v'", h.CircuitID)
 	} else {
 		select {
 		case h.loopy.cktServedDel <- h:
