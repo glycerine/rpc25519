@@ -162,8 +162,8 @@ func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Durati
 	//s.membersTableLeaseDur = time.Second * 30
 	//s.refreshMembersTableDur = s.membersTableLeaseDur / 3
 
-	hz := rate.Every(time.Second)
-	burst := 10
+	hz := rate.Every(100 * time.Millisecond)
+	burst := 1000
 	s.rateLimiter = rate.NewLimiter(hz, burst)
 
 	return s
@@ -797,7 +797,7 @@ fullRestart:
 		vv("%v: top of fullRestart j=%v", name, j)
 
 		if j > 0 {
-			//czar.rateLimiter.Wait(bkg)
+			czar.rateLimiter.Wait(bkg)
 		}
 		//topT0 = time.Now()
 
