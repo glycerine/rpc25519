@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
 	"golang.org/x/time/rate" // for rate.Limiter
@@ -70,8 +71,9 @@ type Czar struct {
 	keyCz      string
 
 	// one single source of truth, no more separate nonCzarMembers
-	members *ReliableMembershipList
-	vers    *RMVersionTuple
+	members  *ReliableMembershipList
+	vers     *RMVersionTuple
+	listhash string // detect actual peerID list changes.
 
 	heard map[string]time.Time
 	sess  *Session
@@ -116,6 +118,8 @@ type Czar struct {
 	myDetailBytes []byte
 
 	rateLimiter *rate.Limiter
+
+	blake *blake3.Hasher
 }
 
 func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
@@ -146,6 +150,7 @@ func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Durati
 		clockDriftBound: clockDriftBound,
 		cli:             cli,
 		requestPingCh:   make(chan *pingReqReply),
+		blake:           blake3.New(64, nil),
 	}
 	// table hermes, key "czar"
 	//s.leaseDurCzar = time.Second * 10
@@ -201,17 +206,41 @@ func (czar *Czar) refreshMemberInTubeMembersTable(ctx context.Context) (err erro
 	return err
 }
 
-func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) error {
+var ErrNotIncreasingRMVersionTuple = fmt.Errorf("error: RMVersionTuple must be monotone increasing")
 
-	if v.VersionGT(s.vers) {
-		// okay
-	} else {
-		//vv("would be error, but overriding for now: RMVersionTuple must be monotone increasing, current='%v'; rejecting proposed new Vers '%v'", s.members.Vers, v) // TODO: reject?
+func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err error) {
+
+	// only care about LeaseEpoch monotonicity for now. The actual
+	// contact details will change on every czar lease renewal, as the lease expiry
+	// times are continuously adjusted; and members come and go,
+	// so Version number is not useful. We really do have to compare
+	// the new and old membership below to know if we want to upcall.
+	cmp := v.EpochCompare(s.vers)
+
+	if cmp < 0 {
+		//vv("%v: rejecting setVers: insisting RMVersionTuple must never decrease, cmp=%v; s.vers=current='%v'; rejecting proposed new v = '%v'", s.name, cmp, s.vers, v)
+		err = ErrNotIncreasingRMVersionTuple
+		return
 	}
+
+	listhash := s.hashPeerIDs(list)
+	hashDiffers := (listhash != s.listhash)
+	//if hashDiffers {
+	//vv("%v: new membership seen (cur = '%v'; vs new = '%v')\n cur s.listhash='%v'\n versus new listhash='%v'\n", s.name, s.members, list, s.listhash, listhash) // seen a ton, of course.
+	//}
 
 	s.members = list.Clone()
 	s.vers = v
+	s.listhash = listhash
 	s.t0 = time.Now()
+
+	// but only upcall if members PeerIDs actually changed.
+	if !hashDiffers {
+		// done early, no change in the set of PeerNames and PeerIDs,
+		// so no upcall needed.
+		vv("%v: no change in the set of peerIDs in ReliableMembershipList", s.name)
+		return
+	}
 
 	//vv("end of setVers(v='%v') s.members is now '%v')", v, s.members)
 	select {
@@ -1070,11 +1099,10 @@ fullRestart:
 					}
 
 					sum := czar.shortRMemberSummary()
-
 					_ = sum
 					left = time.Until(czar.vers.CzarLeaseUntilTm)
 
-					vv("%v: err=nil on lease write. I am czar (name='%v'; oldCzarName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers2 = '%v'; czar='%v'", name, name, oldCzarName, left, vers2, sum)
+					vv("%v: err=nil on lease write. I am czar (name='%v'; oldCzarName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; czar='%v'", name, name, oldCzarName, left, sum)
 
 					czar.renewCzarLeaseDue = time.Now().Add(czar.renewCzarLeaseDur)
 					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)
@@ -1138,7 +1166,12 @@ fullRestart:
 						LeaseEpochT0:     czarTkt.LeaseEpochT0,
 					}
 
-					czar.setVers(vers2, nonCzarMembers)
+					err = czar.setVers(vers2, nonCzarMembers)
+					if err != nil {
+						// non-monotone error on tube servers restart hmm...
+						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
+						continue fullRestart
+					}
 
 					vv("%v: just went from unknown to nonCzar, created new vers='%v' (left='%v'); errCzarAttempt was '%v' ; from czarTkt.Val, we got back nonCzarMembers = '%v'", name, vers2, time.Until(vers2.CzarLeaseUntilTm), errCzarAttempt, nonCzarMembers)
 
@@ -1381,7 +1414,12 @@ fullRestart:
 						panicf("err was nil, how can pingReplyToFill be nil??")
 					}
 
-					czar.setVers(pingReplyToFill.Vers, pingReplyToFill.Members)
+					err = czar.setVers(pingReplyToFill.Vers, pingReplyToFill.Members)
+					if err != nil {
+						// non-monotone error on tube servers restart hmm...
+						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
+						continue fullRestart
+					}
 
 					czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
 				} // end if rpcClientToCzar == nil
@@ -1459,7 +1497,12 @@ fullRestart:
 						}
 					}
 
-					czar.setVers(reply.Vers, reply.Members)
+					err = czar.setVers(reply.Vers, reply.Members)
+					if err != nil {
+						// non-monotone error on tube servers restart hmm...
+						vv("%v: see err = '%v', doing full restart", name, err)
+						continue fullRestart
+					}
 
 					// try more often, still have members keeping conn to raft leader
 					if true { // !closedSockets {
@@ -1745,6 +1788,24 @@ type ReliableMembershipList struct {
 	// PeerDetail.RMemberLeaseUntilTm
 	// gives the deadline exactly.
 	MemberLeaseDur time.Duration `zid:"3"`
+
+	blake *blake3.Hasher
+}
+
+// detect peerID changes
+func (s *Czar) hashPeerIDs(list *ReliableMembershipList) (h string) {
+
+	s.blake.Reset()
+	s.blake.Write([]byte(list.CzarName))
+	s.blake.Write([]byte(list.CzarDet.Det.PeerID))
+
+	for name, detp := range list.PeerNames.All() {
+		s.blake.Write([]byte(name))
+		s.blake.Write([]byte(detp.Det.PeerID))
+	}
+
+	h = blake3ToString33B(s.blake)
+	return
 }
 
 type PingReply struct {
@@ -1796,6 +1857,31 @@ func (s *ReliableMembershipList) String() (r string) {
 	return
 }
 
+// ignores the RMemberLeaseUntilTm and RMemberLeaseDur PeerDetailPlus fields.
+func (a *ReliableMembershipList) Equal(b *ReliableMembershipList) bool {
+	if a.CzarName != b.CzarName {
+		return false
+	}
+	if !a.CzarDet.Det.equal(b.CzarDet.Det) {
+		return false
+	}
+	if a.PeerNames.Len() != b.PeerNames.Len() {
+		return false
+	}
+	for nameA, plusA := range a.PeerNames.All() {
+		plusB, ok := b.PeerNames.Get2(nameA)
+		if !ok {
+			return false
+		}
+		if !plusA.Det.equal(plusB.Det) {
+			return false
+		}
+	}
+	// names are distinct and sets are equal sized, so
+	// we have checked all the PeerNames.
+	return true
+}
+
 func (i *RMVersionTuple) VersionGT(j *RMVersionTuple) bool {
 	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
 		return true
@@ -1803,9 +1889,9 @@ func (i *RMVersionTuple) VersionGT(j *RMVersionTuple) bool {
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
 		return i.Version > j.Version
 	}
-	if i.Version == j.Version {
-		return i.LeaseUpdateCounter > j.LeaseUpdateCounter
-	}
+	//if i.Version == j.Version {
+	//	return i.LeaseUpdateCounter > j.LeaseUpdateCounter
+	//}
 	return false
 }
 
@@ -1816,9 +1902,9 @@ func (i *RMVersionTuple) VersionLT(j *RMVersionTuple) bool {
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
 		return i.Version < j.Version
 	}
-	if i.Version == j.Version {
-		return i.LeaseUpdateCounter < j.LeaseUpdateCounter
-	}
+	//if i.Version == j.Version {
+	//	return i.LeaseUpdateCounter < j.LeaseUpdateCounter
+	//}
 	return false
 }
 
@@ -1829,9 +1915,9 @@ func (i *RMVersionTuple) VersionGTE(j *RMVersionTuple) bool {
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
 		return i.Version >= j.Version
 	}
-	if i.Version == j.Version {
-		return i.LeaseUpdateCounter >= j.LeaseUpdateCounter
-	}
+	//if i.Version == j.Version {
+	//	return i.LeaseUpdateCounter >= j.LeaseUpdateCounter
+	//}
 	return false
 }
 
@@ -1842,9 +1928,9 @@ func (i *RMVersionTuple) VersionLTE(j *RMVersionTuple) bool {
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
 		return i.Version <= j.Version
 	}
-	if i.Version == j.Version {
-		return i.LeaseUpdateCounter <= j.LeaseUpdateCounter
-	}
+	//if i.Version == j.Version {
+	//	return i.LeaseUpdateCounter <= j.LeaseUpdateCounter
+	//}
 	return false
 }
 
@@ -1853,14 +1939,46 @@ func (i *RMVersionTuple) VersionEqual(j *RMVersionTuple) bool {
 		i.Version == j.Version
 }
 
+func (i *RMVersionTuple) VersionCompare(j *RMVersionTuple) int {
+	if i.CzarLeaseEpoch == j.CzarLeaseEpoch && i.Version == j.Version {
+		return 0
+	}
+	if i.CzarLeaseEpoch < j.CzarLeaseEpoch {
+		return -1
+	}
+	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
+		return 1
+	}
+	if i.Version < j.Version {
+		return -1
+	}
+	if i.Version > j.Version {
+		return 1
+	}
+	return 0 // should never be reached, hmm.
+}
+
 func (i *RMVersionTuple) VersionAndLeaseUpdateEqual(j *RMVersionTuple) bool {
 	return i.CzarLeaseEpoch == j.CzarLeaseEpoch &&
-		i.Version == j.Version &&
-		i.LeaseUpdateCounter == j.LeaseUpdateCounter
+		i.Version == j.Version
+	// && i.LeaseUpdateCounter == j.LeaseUpdateCounter
 }
 
 func (i *RMVersionTuple) EpochsEqual(j *RMVersionTuple) bool {
 	return i.CzarLeaseEpoch == j.CzarLeaseEpoch
+}
+
+func (i *RMVersionTuple) EpochCompare(j *RMVersionTuple) int {
+	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
+		return 0
+	}
+	if i.CzarLeaseEpoch < j.CzarLeaseEpoch {
+		return -1
+	}
+	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
+		return 1
+	}
+	return 0
 }
 
 func (s *ReliableMembershipList) PreSaveHook() {
