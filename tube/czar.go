@@ -1267,7 +1267,7 @@ fullRestart:
 
 			case notCzar:
 
-				vv("%v: notCzar", name)
+				//vv("%v: notCzar", name) // too much logging, leave off.
 
 				czarLeaseUntilTm = czar.vers.CzarLeaseUntilTm
 
