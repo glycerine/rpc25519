@@ -1465,6 +1465,9 @@ func removeTcp(s string) string {
 	if strings.HasPrefix(s, "tcp://") {
 		return s[6:]
 	}
+	if strings.HasPrefix(s, "udp://") {
+		return s[6:]
+	}
 	if strings.HasPrefix(s, "simnet://") {
 		return s[9:]
 	}

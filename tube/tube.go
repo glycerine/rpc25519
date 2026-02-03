@@ -751,6 +751,7 @@ func (s *TubeNode) Start(
 				// CloseSimnode does SHUTDOWN automatically beforehand.
 				//_, err := simnet.AlterHost(s.srvname, rpc.SHUTDOWN)
 				//panicOn(err)
+				vv("%v calling simnet.CloseSimnode(srvname='%v')", s.me(), s.srvname)
 				err := simnet.CloseSimnode(s.srvname, reason)
 				if err != nil {
 					// can have problems finding... don't freak out.
@@ -4164,7 +4165,7 @@ func (s *TubeCluster) Close() {
 		// the synctest bubble exit... otherwise we get:
 		// panic: deadlock: main bubble goroutine has exited but blocked goroutines remain
 		time.Sleep(10 * time.Second)
-		//vv("cluster.Close slept 10 sec")
+		vv("cluster.Close slept 10 sec")
 	}
 }
 
@@ -4521,8 +4522,8 @@ func (s *TubeNode) StartClientOnly(ctx context.Context, dialto string) (cli *rpc
 func (s *TubeNode) InitAndStart() error {
 
 	s.started = true
-	//s.srvname = "srv_" + s.name
-	s.srvname = s.name
+	s.srvname = "srv_" + s.name
+	//s.srvname = s.name
 	s.Srv = rpc.NewServer(s.srvname, s.cfg.RpcCfg)
 
 	serverAddr, err := s.Srv.Start()
