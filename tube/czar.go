@@ -801,7 +801,7 @@ fullRestart:
 		vv("%v: top of fullRestart j=%v", name, j)
 
 		if j > 0 {
-			czar.rateLimiter.Wait(bkg)
+			//czar.rateLimiter.Wait(bkg)
 		}
 		//topT0 = time.Now()
 
@@ -900,7 +900,7 @@ fullRestart:
 			//}
 
 			if ii > 0 {
-				czar.rateLimiter.Wait(bkg)
+				//czar.rateLimiter.Wait(bkg)
 			}
 
 			select {
