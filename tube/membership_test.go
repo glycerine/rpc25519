@@ -213,12 +213,13 @@ func Test401_add_node(t *testing.T) {
 			}
 
 			// dump log to confirm what we have
-			vv("node0 log:")
+			//vv("node0 log:")
 			err = c.Nodes[0].DumpRaftWAL()
 			panicOn(err)
 
 			look0 := c.Nodes[0].Inspect()
-			vv("look0 = '%v'", look0)
+			_ = look0
+			//vv("look0 = '%v'", look0)
 
 			// other stuff
 

@@ -167,7 +167,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 		insp := node.Inspect()
 		n := len(insp.CktReplicaByName)
 		if n != nNode {
-			vv("insp on node '%v' = %v'", node.name, insp)
+			//vv("insp on node '%v' = %v'", node.name, insp)
 			panic(fmt.Sprintf("node '%v' has %v CktReplicaByName, not %v as required: %v", node.name, n, nNode, insp.CktReplicaByName))
 		} else {
 			vv("setupTestCluster good: node '%v' has expected CktReplicaByName count of %v: %v", node.name, n, insp.CktReplicaByName)

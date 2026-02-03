@@ -96,7 +96,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 		}
 	}()
 
-	verbose := true // VerboseVerbose.Load()
+	verbose := VerboseVerbose.Load()
 	var insps []*Inspection
 	//vv("cfg.Node2Addr = '%v'", cfg.Node2Addr)
 	for remoteName, addr := range cfg.Node2Addr {
@@ -132,7 +132,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			_, insp, leaderURL, leaderName, leaderTerm, _, ckt, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
 			canc5()
 			if ckt != nil {
-				vv("%v: keepCktUp = %v", node.name, KeepCkt(keepCktUp))
+				//vv("%v: keepCktUp = %v", node.name, KeepCkt(keepCktUp))
 				switch keepCktUp {
 				case KEEP_CKT_UP:
 					// leave it up.
@@ -297,7 +297,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			lastLeaderURL = leaderURL
 			reallyLeader = true
 			lastInsp = insp
-			vv("extra candidate leader = '%v', url = '%v", leaderName, leaderURL)
+			//vv("extra candidate leader = '%v', url = '%v", leaderName, leaderURL)
 			s := leaders[leaderName]
 			if s == nil || llt > s.llt {
 				// just keep the highest term laeder
