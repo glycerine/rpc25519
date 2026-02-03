@@ -811,8 +811,8 @@ fullRestart:
 		for k := 0; ; k++ {
 			vv("%v: find leader loop k = %v", name, k)
 			vv("%v: cliCfg.Node2Addr = '%#v'", name, cliCfg.Node2Addr)
-			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, KEEP_CKT_ONLY_IF_LEADER)
-			vv("helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", leaderURL, reallyLeader, err)
+			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, KEEP_CKT_UP) // KEEP_CKT_ONLY_IF_LEADER)
+			vv("%v: helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", name, leaderURL, reallyLeader, err)
 			panicOn(err)
 			if !reallyLeader {
 				vv("%v: arg. we see not really leader? why?", name)
@@ -991,7 +991,7 @@ fullRestart:
 					if membr.testingAmCzarCh != nil {
 
 						membr.testingAmCzarCh <- true
-						vv("reported am czar")
+						vv("%v: reported am czar", name)
 					}
 
 					now := time.Now()
@@ -1050,7 +1050,7 @@ fullRestart:
 					_ = sum
 					left = time.Until(czar.vers.CzarLeaseUntilTm)
 
-					vv("err=nil on lease write. I am czar (tubeCliName='%v'; oldCzarName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", name, oldCzarName, left, vers, sum)
+					vv("%v: err=nil on lease write. I am czar (name='%v'; oldCzarName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", name, name, oldCzarName, left, vers, sum)
 
 					czar.renewCzarLeaseDue = time.Now().Add(czar.renewCzarLeaseDur)
 					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)

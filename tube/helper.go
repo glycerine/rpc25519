@@ -30,6 +30,19 @@ const (
 	KEEP_CKT_ONLY_IF_LEADER KeepCkt = 2
 )
 
+func (k KeepCkt) String() string {
+	switch k {
+	case SHUT_CKT:
+		return "SHUT_CKT"
+	case KEEP_CKT_UP:
+		return "KEEP_CKT_UP"
+	case KEEP_CKT_ONLY_IF_LEADER:
+		return "KEEP_CKT_ONLY_IF_LEADER"
+	}
+	panicf("unknown KeepCkt: %v", int(k))
+	return fmt.Sprintf("(unknown KeepCkt: %v)", int(k))
+}
+
 // HelperFindLeader assists clients like
 // tube, tubels, tuberm, tubeadd and tup
 // with searching for the current leader
@@ -108,7 +121,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			}
 		} else {
 			if verbose {
-				fmt.Printf("\n%v %v TubeNode.HelperFindLeader(): attempting to contact '%v' at %v ... \n", fileLine(1), ts(), remoteName, url) // seen.
+				fmt.Printf("\n%v %v %v: TubeNode.HelperFindLeader(): attempting to contact '%v' at %v ... \n", fileLine(1), ts(), node.name, remoteName, url) // seen.
 				//if remoteName != "node_0" {
 				//	vv("\n just before sending to '%v', stacks = '%v'", remoteName, allstacks())
 				//}
@@ -119,6 +132,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			_, insp, leaderURL, leaderName, leaderTerm, _, ckt, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
 			canc5()
 			if ckt != nil {
+				vv("%v: keepCktUp = %v", node.name, KeepCkt(keepCktUp))
 				switch keepCktUp {
 				case KEEP_CKT_UP:
 					// leave it up.
@@ -127,18 +141,19 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 				case KEEP_CKT_ONLY_IF_LEADER:
 					if leaderName != remoteName {
 						ckt.Close(nil)
+						vv("%v: closed non-leader ckt to remoteName='%v' (leaderName='%v')", node.name, remoteName, leaderName)
 					}
 				}
 			}
 			if err == nil && insp != nil {
 				contacted = append(contacted, insp)
 				if verbose {
-					vv("good.")
-					vv("insp = '%v'\n", insp)
+					vv("%v: good. got insp from remoteName='%v'; ckt.RemotePeerName='%v'", node.name, remoteName, ckt.RemotePeerName)
+					vv("%v: insp = '%v'\n", node.name, insp)
 				}
 			} else {
 				if verbose {
-					vv("bad. err = '%v'\n\n", err) // seen.
+					vv("%v: bad. trying to contact remoteName='%v'; err = '%v'\n\n", node.name, remoteName, err) // seen.
 					//if remoteName != "node_0" {
 					//	vv("\n why cannot we contact '%v'; stacks = '%v'\n\n", remoteName, allstacks())
 					//	panicf("why cannot we contact '%v'", remoteName)

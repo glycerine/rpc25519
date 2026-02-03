@@ -134,7 +134,7 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 			// change leader
 			c.Nodes[leadi].Halt.ReqStop.Close()
 			<-c.Nodes[leadi].Halt.Done.Chan
-			vv("we asked leadi=%v to halt; its url='%v'", leadi, c.Nodes[leadi].URL)
+			vv("====================== we asked to halt leadi= %v ; its url='%v'", leadi, c.Nodes[leadi].URL)
 		}
 
 		vv("sleep 120 sec after leader crash")
