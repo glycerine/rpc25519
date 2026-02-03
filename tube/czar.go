@@ -120,6 +120,8 @@ type Czar struct {
 	rateLimiter *rate.Limiter
 
 	blake *blake3.Hasher
+
+	testingCrashIfNotMonotone bool // czar_test 809.
 }
 
 func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
@@ -217,6 +219,10 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 	if cmp < 0 {
 		//vv("%v: rejecting setVers: insisting RMVersionTuple must never decrease, cmp=%v; s.vers=current='%v'; rejecting proposed new v = '%v'", s.name, cmp, s.vers, v)
 		err = ErrNotIncreasingRMVersionTuple
+		if s.testingCrashIfNotMonotone {
+			// czar_test 809 asserts we never go backwards during that test.
+			panicf("%v: rejecting setVers: insisting RMVersionTuple must never decrease, cmp=%v; s.vers=current='%v'; rejecting proposed new v = '%v'", s.name, cmp, s.vers, v)
+		}
 		return
 	}
 
@@ -556,17 +562,17 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	// and thus assigned to reply.
 	det.RMemberLeaseUntilTm = leasedUntilTm
 	det.RMemberLeaseDur = s.memberLeaseDur
-
 	s.members.MemberLeaseDur = s.memberLeaseDur
-	rr.reply = &PingReply{
-		Members: s.members.Clone(),
-		Vers:    s.vers.Clone(),
-	}
 
 	s.heard[args.Det.Name] = now
 	s.expireSilentNodes()
 	if s.vers.WithinCzarVersion != orig.WithinCzarVersion {
 		////vv("Czar.Ping: membership has changed (was %v; now %v), is now: {%v}", orig, s.members.Vers, s.shortRMemberSummary())
+	}
+
+	rr.reply = &PingReply{
+		Members: s.members.Clone(),
+		Vers:    s.vers.Clone(),
 	}
 
 	////vv("czar sees Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, czar replies with ='%v'", s.cliName, args, reply)
@@ -760,6 +766,11 @@ func (membr *RMember) start() {
 
 	czar := NewCzar(tableSpace, name, cli, membr.clockDriftBound)
 	membr.czar = czar
+
+	if cliCfg.isTest && cliCfg.testNum == 809 {
+		czar.testingCrashIfNotMonotone = true
+		//vv("set testingCrashIfNotMonotone true for 809") // seen on 809 and not 808.
+	}
 
 	// was leaking at end of 809 test; declare here so we
 	// close in defer.
