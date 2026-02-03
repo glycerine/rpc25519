@@ -2,7 +2,7 @@ package tube
 
 // docs for fencing tokens/external consistency
 //
-// Note: our LeaseEpoch is a fencing token (set of Write/CAS with lease).
+// Note: our LeaseEpoch is a fencing token (returned by Write/CAS with lease).
 // See for example its use in czar.go reliable membership implementation.
 /*
 Q:
