@@ -210,7 +210,15 @@ func (czar *Czar) refreshMemberInTubeMembersTable(ctx context.Context) (err erro
 
 var ErrNotIncreasingRMVersionTuple = fmt.Errorf("error: RMVersionTuple must be monotone increasing")
 
+var ErrExpiredCzarLease = fmt.Errorf("error: CzarLeaseUntilTm has expired")
+
 func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err error) {
+
+	// is lease expired?
+	now := time.Now()
+	if now.After(v.CzarLeaseUntilTm) {
+		return ErrExpiredCzarLease
+	}
 
 	// insist on CzarLeaseEpoch and then internal within-a-single czar WithinCzarVersion
 	// monotonicity.
