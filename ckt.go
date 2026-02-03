@@ -813,6 +813,8 @@ func (peerAPI *peerAPI) newLocalPeer(
 		Hostname:           hostname,
 		PID:                fmt.Sprintf("%v", os.Getpid()),
 		UserMeta:           NewMutexmap[string, string](),
+
+		PeerServiceNameVersion: binVersion,
 	}
 	pb.Halt = idem.NewHalterNamed(fmt.Sprintf("LocalPeer(%v %p)", peerServiceName, pb))
 

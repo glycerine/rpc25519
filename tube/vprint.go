@@ -22,6 +22,8 @@ import (
 var verbose bool = false
 var VerboseVerbose atomic.Bool // pp() conditional output.
 
+var binVersion string
+
 var gtz *time.Location
 var chicago *time.Location
 var utcTz *time.Location
@@ -30,6 +32,8 @@ var londonTz *time.Location
 var frankfurt *time.Location
 
 func init() {
+
+	binVersion = getBinaryVersion()
 
 	// do this is ~/.bashrc so we get the default.
 	os.Setenv("TZ", "America/chicago")
@@ -280,4 +284,18 @@ func hasWhiteSpace(name string) bool {
 
 func panicf(format string, a ...interface{}) {
 	panic(fmt.Sprintf(format, a...))
+}
+
+func getBinaryVersion() string {
+	// nb always going to have +dirty
+	// in the version unless we bother
+	// to get
+	// git status --porcelain -unormal
+	// to give an empty response.
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("%v@%v built with %v", info.Main.Path, info.Main.Version, info.GoVersion)
 }

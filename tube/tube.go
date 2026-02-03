@@ -4130,7 +4130,7 @@ func (s *TubeCluster) Start() {
 
 			//vv("n1.URL = '%v'", n1.URL)
 			//ckt, _, err := n0.MyPeer.NewCircuitToPeerURL("tube-ckt", n1.URL, firstFrag, 0)
-			var peerServiceNameVersion string
+			var peerServiceNameVersion string = binVersion
 			var userString string
 			// here we are in TubeCluster.Start()
 			ckt, ackMsg, madeNewAutoCli, onlyPossibleAddr, err := n0.MyPeer.PreferExtantRemotePeerGetCircuit(bkgCtx, "tube-ckt", userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, n1.URL, 0, nil, waitForAckTrue)
@@ -4511,7 +4511,7 @@ func (s *TubeNode) StartClientOnly(ctx context.Context, dialto string) (cli *rpc
 	err = cli.PeerAPI.RegisterPeerServiceFunc(string(s.PeerServiceName), s.Start)
 	panicOn(err)
 
-	var peerServiceNameVersion string
+	var peerServiceNameVersion string = binVersion
 	_, err = cli.PeerAPI.StartLocalPeer(ctx, string(s.PeerServiceName), peerServiceNameVersion, nil, s.name, true)
 	panicOn(err)
 
@@ -4551,7 +4551,7 @@ func (s *TubeNode) InitAndStart() error {
 	//s.Srv.GetHostHalter().AddChild(s.Halt) // already has parent if cluster owns it
 
 	// racy so try not to touch 's' now, the Start() goro has it!
-	var peerServiceNameVersion string
+	var peerServiceNameVersion string = binVersion
 	_, err = s.Srv.PeerAPI.StartLocalPeer(context.Background(), string(s.PeerServiceName), peerServiceNameVersion, nil, s.name, true)
 	panicOn(err)
 
@@ -12405,7 +12405,7 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 			panicf("arg! s.cktAuditByPeerID has but s.MyPeer.Remotes does not have leaderPeerID='%v'; \n full cktP.URL='%v'\n leaderURL='%v'", leaderPeerID, cktP.ckt.RemoteCircuitURL(), leaderURL)
 		}
 
-		var peerServiceNameVersion string
+		var peerServiceNameVersion string = binVersion
 		// here we are in getCircuitToLeader()
 		// got error from ckt2.go:
 		// client peer error on StartRemotePeer: remoteAddr should be 'tcp://100.89.245.101:7001' (that we are connected to), rather than the 'tcp://100.126.101.8:7006' which was requested. Otherwise your request will fail.
@@ -12579,7 +12579,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 			panicf("arg! s.cktAuditByPeerID has but s.MyPeer.Remotes does not have leaderPeerID='%v'; \n full cktP.URL='%v'\n leaderURL='%v'", leaderPeerID, cktP.ckt.RemoteCircuitURL(), leaderURL)
 		}
 
-		var peerServiceNameVersion string
+		var peerServiceNameVersion string = binVersion
 		// here we are in ExternalGetCircuitToLeader()
 		// got error from ckt2.go:
 		// client peer error on StartRemotePeer: remoteAddr should be 'tcp://100.89.245.101:7001' (that we are connected to), rather than the 'tcp://100.126.101.8:7006' which was requested. Otherwise your request will fail.
@@ -16229,11 +16229,14 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 
 	oldCktP, haveOld := s.cktAllByName[ckt.RemotePeerName]
 	if haveOld && oldCktP.PeerServiceName == ckt.RemoteServiceName {
-		if oldCktP.PeerServiceNameVersion > ckt.RemotePeerServiceNameVersion {
-			alwaysPrintf("%v dropping update to RemotePeerName='%v'; PeerServiceName='%v' with version '%v' that is stale versus our current version '%v'", s.name, ckt.RemotePeerName, oldCktP.PeerServiceName, ckt.RemotePeerServiceNameVersion, oldCktP.PeerServiceNameVersion)
-			rejected = true
-			cktP = nil
-			return
+		if false { // def not ready for such... at the moment this is
+			// the build version, which evolves alot...
+			if oldCktP.PeerServiceNameVersion > ckt.RemotePeerServiceNameVersion {
+				alwaysPrintf("%v dropping update to RemotePeerName='%v'; PeerServiceName='%v' with version '%v' that is stale versus our current version '%v'", s.name, ckt.RemotePeerName, oldCktP.PeerServiceName, ckt.RemotePeerServiceNameVersion, oldCktP.PeerServiceNameVersion)
+				rejected = true
+				cktP = nil
+				return
+			}
 		}
 	}
 	// moved from <-incomingNewCkt :
