@@ -215,7 +215,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 	// times are continuously adjusted; and members come and go,
 	// so Version number is not useful. We really do have to compare
 	// the new and old membership below to know if we want to upcall.
-	cmp := v.EpochCompare(s.vers)
+	cmp := v.VersionCompare(s.vers)
 
 	if cmp < 0 {
 		//vv("%v: rejecting setVers: insisting RMVersionTuple must never decrease, cmp=%v; s.vers=current='%v'; rejecting proposed new v = '%v'", s.name, cmp, s.vers, v)
@@ -223,7 +223,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 		return
 	}
 
-	listhash := s.hashPeerIDs(list, v.CzarLeaseEpoch)
+	listhash := s.hashPeerIDs(list, v)
 	hashDiffers := (listhash != s.listhash)
 	//if hashDiffers {
 	//vv("%v: new membership seen (cur = '%v'; vs new = '%v')\n cur s.listhash='%v'\n versus new listhash='%v'\n", s.name, s.members, list, s.listhash, listhash) // seen a ton, of course.
@@ -286,16 +286,9 @@ func (s *Czar) memberCount() (numMembers int) {
 
 func (s *Czar) expireSilentNodes() (changed bool) {
 
-	defer func() {
-		if changed {
-			// just one notifcation for all the deletes we did.
-			//s.members.Vers.Version++
-			select {
-			case s.UpcallMembershipChangeCh <- s.members.Clone():
-			default:
-			}
-		}
-	}()
+	newvers := s.vers.Clone()
+	newlist := s.members.Clone()
+
 	now := time.Now()
 	for name, plus := range s.members.PeerNames.All() {
 		if name == s.name {
@@ -340,12 +333,19 @@ func (s *Czar) expireSilentNodes() (changed bool) {
 			}
 		}
 		if killIt {
-			changed = true
+			changed = true // might happen multiple times.
 			delete(s.heard, name)
 			// Omap.All allows delete in the middle of iteration.
-			s.members.PeerNames.Delkey(name)
+			newlist.PeerNames.Delkey(name)
 		}
 	}
+
+	if changed {
+		// just one notifcation for all the deletes we did.
+		newvers.WithinCzarVersion++
+		s.setVers(newvers, newlist)
+	}
+
 	return
 }
 
@@ -592,8 +592,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 
 	s.heard[args.Det.Name] = now
 	s.expireSilentNodes()
-	if s.vers.Version != orig.Version {
-
+	if s.vers.WithinCzarVersion != orig.WithinCzarVersion {
 		////vv("Czar.Ping: membership has changed (was %v; now %v), is now: {%v}", orig, s.members.Vers, s.shortRMemberSummary())
 	}
 
@@ -1083,13 +1082,17 @@ fullRestart:
 					}
 
 					vers2 := &RMVersionTuple{
-						CzarLeaseEpoch:   czarTkt.LeaseEpoch,
-						Version:          czarTkt.VersionRead,
-						CzarLeaseUntilTm: czarTkt.LeaseUntilTm,
-						WriteLogIndex:    czarTkt.LogIndex,       // not LeaseWriteRaftLogIndex, that is on fail to write.
-						LeaseEpochT0:     czarTkt.RaftLogEntryTm, // not  czarTkt.LeaseEpochT0, that is on fail to write.
+						CzarLeaseEpoch:    czarTkt.LeaseEpoch,
+						WithinCzarVersion: 0, // NOT czarTkt.VersionRead,
+						CzarLeaseUntilTm:  czarTkt.LeaseUntilTm,
+						WriteLogIndex:     czarTkt.LogIndex,       // not LeaseWriteRaftLogIndex, that is on fail to write.
+						LeaseEpochT0:      czarTkt.RaftLogEntryTm, // not  czarTkt.LeaseEpochT0, that is on fail to write.
 					}
-					vers = vers2 // avoid confusion with old stale vers below if we print
+					if vers2.CzarLeaseEpoch == vers.CzarLeaseEpoch {
+						// keep WithinCzarVersion monotone
+						vers2.WithinCzarVersion = vers.WithinCzarVersion
+					}
+					//vers = vers2 // avoid confusion with old stale vers below if we print
 
 					err = czar.setVers(vers2, list) // does upcall for us.
 					if err != nil {
@@ -1159,11 +1162,15 @@ fullRestart:
 
 					nonCzarMembers.MemberLeaseDur = czar.memberLeaseDur
 					vers2 := &RMVersionTuple{
-						CzarLeaseEpoch:   czarTkt.LeaseEpoch,
-						Version:          czarTkt.VersionRead,
-						CzarLeaseUntilTm: czarTkt.LeaseUntilTm,
-						WriteLogIndex:    czarTkt.LeaseWriteRaftLogIndex,
-						LeaseEpochT0:     czarTkt.LeaseEpochT0,
+						CzarLeaseEpoch:    czarTkt.LeaseEpoch,
+						WithinCzarVersion: 0, // NOT czarTkt.VersionRead,
+						CzarLeaseUntilTm:  czarTkt.LeaseUntilTm,
+						WriteLogIndex:     czarTkt.LeaseWriteRaftLogIndex,
+						LeaseEpochT0:      czarTkt.LeaseEpochT0,
+					}
+					if vers2.CzarLeaseEpoch == vers.CzarLeaseEpoch {
+						// keep WithinCzarVersion monotone
+						vers2.WithinCzarVersion = vers.WithinCzarVersion
 					}
 
 					err = czar.setVers(vers2, nonCzarMembers)
@@ -1679,7 +1686,7 @@ func newFunneler(halt *idem.Halter) (r *funneler) {
 // Used by cmd/member/member.go.
 type RMVersionTuple struct {
 	CzarLeaseEpoch     int64     `zid:"0"`
-	Version            int64     `zid:"1"`
+	WithinCzarVersion  int64     `zid:"1"`
 	LeaseUpdateCounter int64     `zid:"2"`
 	CzarLeaseUntilTm   time.Time `zid:"3"`
 	WriteLogIndex      int64     `zid:"4"`
@@ -1692,7 +1699,7 @@ func (s *RMVersionTuple) Clone() (r *RMVersionTuple) {
 	}
 	r = &RMVersionTuple{
 		CzarLeaseEpoch:     s.CzarLeaseEpoch,
-		Version:            s.Version,
+		WithinCzarVersion:  s.WithinCzarVersion,
 		LeaseUpdateCounter: s.LeaseUpdateCounter,
 		CzarLeaseUntilTm:   s.CzarLeaseUntilTm,
 		WriteLogIndex:      s.WriteLogIndex,
@@ -1704,7 +1711,7 @@ func (s *RMVersionTuple) Clone() (r *RMVersionTuple) {
 func (z *RMVersionTuple) String() (r string) {
 	r = "&RMVersionTuple{\n"
 	r += fmt.Sprintf("    CzarLeaseEpoch: %v\n", z.CzarLeaseEpoch)
-	r += fmt.Sprintf("           Version: %v\n", z.Version)
+	r += fmt.Sprintf(" WithinCzarVersion: %v\n", z.WithinCzarVersion)
 	r += fmt.Sprintf("LeaseUpdateCounter: %v\n", z.LeaseUpdateCounter)
 	r += fmt.Sprintf("  CzarLeaseUntilTm: %v\n", nice(z.CzarLeaseUntilTm))
 	r += fmt.Sprintf("     WriteLogIndex: %v\n", z.WriteLogIndex)
@@ -1793,10 +1800,10 @@ type ReliableMembershipList struct {
 }
 
 // detect peerID changes
-func (s *Czar) hashPeerIDs(list *ReliableMembershipList, leaseEpoch int64) (h string) {
+func (s *Czar) hashPeerIDs(list *ReliableMembershipList, vers *RMVersionTuple) (h string) {
 
 	s.blake.Reset()
-	s.blake.Write([]byte(fmt.Sprintf("%v\n", leaseEpoch)))
+	s.blake.Write([]byte(fmt.Sprintf("epoch:%v\nwithin:%v\n", vers.CzarLeaseEpoch, vers.WithinCzarVersion)))
 	s.blake.Write([]byte(list.CzarName))
 	s.blake.Write([]byte(list.CzarDet.Det.PeerID))
 
@@ -1888,9 +1895,9 @@ func (i *RMVersionTuple) VersionGT(j *RMVersionTuple) bool {
 		return true
 	}
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
-		return i.Version > j.Version
+		return i.WithinCzarVersion > j.WithinCzarVersion
 	}
-	//if i.Version == j.Version {
+	//if i.WithinCzarVersion == j.WithinCzarVersion {
 	//	return i.LeaseUpdateCounter > j.LeaseUpdateCounter
 	//}
 	return false
@@ -1901,9 +1908,9 @@ func (i *RMVersionTuple) VersionLT(j *RMVersionTuple) bool {
 		return true
 	}
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
-		return i.Version < j.Version
+		return i.WithinCzarVersion < j.WithinCzarVersion
 	}
-	//if i.Version == j.Version {
+	//if i.WithinCzarVersion == j.WithinCzarVersion {
 	//	return i.LeaseUpdateCounter < j.LeaseUpdateCounter
 	//}
 	return false
@@ -1914,9 +1921,9 @@ func (i *RMVersionTuple) VersionGTE(j *RMVersionTuple) bool {
 		return true
 	}
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
-		return i.Version >= j.Version
+		return i.WithinCzarVersion >= j.WithinCzarVersion
 	}
-	//if i.Version == j.Version {
+	//if i.WithinCzarVersion == j.WithinCzarVersion {
 	//	return i.LeaseUpdateCounter >= j.LeaseUpdateCounter
 	//}
 	return false
@@ -1927,9 +1934,9 @@ func (i *RMVersionTuple) VersionLTE(j *RMVersionTuple) bool {
 		return true
 	}
 	if i.CzarLeaseEpoch == j.CzarLeaseEpoch {
-		return i.Version <= j.Version
+		return i.WithinCzarVersion <= j.WithinCzarVersion
 	}
-	//if i.Version == j.Version {
+	//if i.WithinCzarVersion == j.WithinCzarVersion {
 	//	return i.LeaseUpdateCounter <= j.LeaseUpdateCounter
 	//}
 	return false
@@ -1937,11 +1944,11 @@ func (i *RMVersionTuple) VersionLTE(j *RMVersionTuple) bool {
 
 func (i *RMVersionTuple) VersionEqual(j *RMVersionTuple) bool {
 	return i.CzarLeaseEpoch == j.CzarLeaseEpoch &&
-		i.Version == j.Version
+		i.WithinCzarVersion == j.WithinCzarVersion
 }
 
 func (i *RMVersionTuple) VersionCompare(j *RMVersionTuple) int {
-	if i.CzarLeaseEpoch == j.CzarLeaseEpoch && i.Version == j.Version {
+	if i.CzarLeaseEpoch == j.CzarLeaseEpoch && i.WithinCzarVersion == j.WithinCzarVersion {
 		return 0
 	}
 	if i.CzarLeaseEpoch < j.CzarLeaseEpoch {
@@ -1950,10 +1957,10 @@ func (i *RMVersionTuple) VersionCompare(j *RMVersionTuple) int {
 	if i.CzarLeaseEpoch > j.CzarLeaseEpoch {
 		return 1
 	}
-	if i.Version < j.Version {
+	if i.WithinCzarVersion < j.WithinCzarVersion {
 		return -1
 	}
-	if i.Version > j.Version {
+	if i.WithinCzarVersion > j.WithinCzarVersion {
 		return 1
 	}
 	return 0 // should never be reached, hmm.
@@ -1961,7 +1968,7 @@ func (i *RMVersionTuple) VersionCompare(j *RMVersionTuple) int {
 
 func (i *RMVersionTuple) VersionAndLeaseUpdateEqual(j *RMVersionTuple) bool {
 	return i.CzarLeaseEpoch == j.CzarLeaseEpoch &&
-		i.Version == j.Version
+		i.WithinCzarVersion == j.WithinCzarVersion
 	// && i.LeaseUpdateCounter == j.LeaseUpdateCounter
 }
 
