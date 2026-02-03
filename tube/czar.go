@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"reflect"
+	//"reflect"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -210,11 +210,8 @@ var ErrNotIncreasingRMVersionTuple = fmt.Errorf("error: RMVersionTuple must be m
 
 func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err error) {
 
-	// only care about LeaseEpoch monotonicity for now. The actual
-	// contact details will change on every czar lease renewal, as the lease expiry
-	// times are continuously adjusted; and members come and go,
-	// so Version number is not useful. We really do have to compare
-	// the new and old membership below to know if we want to upcall.
+	// insist on CzarLeaseEpoch and then internal within-a-single czar WithinCzarVersion
+	// monotonicity.
 	cmp := v.VersionCompare(s.vers)
 
 	if cmp < 0 {
@@ -234,7 +231,8 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 	s.listhash = listhash
 	s.t0 = time.Now()
 
-	// but only upcall if members PeerIDs actually changed.
+	// but only upcall if members PeerIDs actually changed (or
+	// CzarLeaseEpoch, or WithinCzarVersion).
 	if !hashDiffers {
 		// done early, no change in the set of PeerNames and PeerIDs,
 		// so no upcall needed.
@@ -244,36 +242,11 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 
 	//vv("end of setVers(v='%v') s.members is now '%v')", v, s.members)
 	select {
+	// should be the only place, so we keep vers and list in sync.
 	case s.UpcallMembershipChangeCh <- s.members.Clone():
 	default:
 	}
 	return nil
-}
-
-func (s *Czar) remove(droppedCli *rpc.ConnHalt) {
-
-	raddr := droppedCli.Conn.RemoteAddr().String()
-
-	////vv("Czar.remove() for raddr='%v'", raddr)
-
-	// linear search, for now. TODO: map based lookup?
-	// we could make the name key be the rpc.Client addr
-	// and use PeerNames.Get2()...
-	for name, plus := range s.members.PeerNames.All() {
-		addr := removeTcp(plus.Det.Addr)
-		////vv("checking addr='%v' against raddr='%v'", addr, raddr)
-		if addr == raddr {
-			s.members.PeerNames.Delkey(name)
-			//s.members.Vers.Version++
-			////vv("remove dropped client '%v', vers='%v'", name, s.members.Vers)
-			select {
-			case s.UpcallMembershipChangeCh <- s.members.Clone():
-			default:
-			}
-			return
-		}
-	}
-	////vv("remove could not find dropped client raddr '%v'", raddr)
 }
 
 func (s *Czar) memberCount() (numMembers int) {
@@ -1571,119 +1544,12 @@ func detailsChanged(a, b *PeerDetail) bool {
 	return false
 }
 
-// funneler allows us to listen for up to 65535 clients
-// disconnecting from the czar by monitoring a single
-// clientDroppedCh.
-//
-// demo
-// WAS (but is no longer) used by czar to notice when client drops
-// and change membership quickly. If the
-// client comes back, well, we just change
-// membership again.
-// cli.Srv.NotifyAllNewClients = make(chan *rpc.ConnHalt, 1000)
-////vv("cli.Srv.NotifyAllNewClients = %p", cli.Srv.NotifyAllNewClients)
-//
-// Update: turns out for hermes's Reliable Membership
-// requirements, we cannot use TCP disconnects to
-// eliminate dead members from the membership. Instead
-// we must wait out their lease every time. Hence
-// funneler is not helpful after all. We keep it wired
-// in place in case it becomes useful to display
-// "suspected" drops in the future.
-//
-// funnel all client disconnects down to one channel.
-//funneler := newFunneler(czar.Halt)
-// later...
-// funneler cannot be used b/c leases must be honored so immediate client removal is useless anyway. For simplicity of debugging, turn it off.
-// case cliConnHalt := <-cli.Srv.NotifyAllNewClients:
-// 	////vv("czar received on cli.Srv.NotifyAllNewClients, has new client '%v'", cliConnHalt.Conn.RemoteAddr())
-// 	// tell the funneler to listen for it to drop.
-// 	// It will notify us on clientDroppedCh below.
-// 	select {
-// 	case funneler.newCliCh <- cliConnHalt:
-// 	case <-czar.Halt.ReqStop.Chan:
-// 		////vv("czar halt requested. exiting.")
-// 		return
-// 	}
-//
-// case dropped := <-funneler.clientDroppedCh:
-// 	_ = dropped
-// 	// for safety we cannot assume this now :(
-// 	// we must let their lease drain out
-// 	// and so expireSilentNodes gets all the fun.
-// 	//czar.remove(dropped)
-
-type funneler struct {
-	newCliCh        chan *rpc.ConnHalt
-	clientDroppedCh chan *rpc.ConnHalt
-	clientConns     []reflect.SelectCase
-	clientConnHalt  []*rpc.ConnHalt
-}
-
-func newFunneler(halt *idem.Halter) (r *funneler) {
-	newCliCh := make(chan *rpc.ConnHalt)
-	clientDroppedCh := make(chan *rpc.ConnHalt, 1024)
-	r = &funneler{
-		newCliCh:        newCliCh,
-		clientDroppedCh: clientDroppedCh,
-
-		// add an empty clientConnHalt[0] to keep
-		// aligned with clientConns which always has newCliCh at [0],
-		// (and the halter at [1]).
-		clientConnHalt: []*rpc.ConnHalt{nil, nil},
-	}
-	r.clientConns = append(r.clientConns, reflect.SelectCase{
-		Dir:  reflect.SelectRecv,
-		Chan: reflect.ValueOf(newCliCh),
-	})
-	r.clientConns = append(r.clientConns, reflect.SelectCase{
-		Dir:  reflect.SelectRecv,
-		Chan: reflect.ValueOf(halt.ReqStop.Chan),
-	})
-
-	go func() {
-		for {
-			chosen, recv, _ := reflect.Select(r.clientConns)
-			////vv("reflect.Select chosen='%v'", chosen)
-			if chosen == 1 {
-				// halt requested.
-				return
-			}
-			if chosen == 0 {
-				// new client arrives, listen on its Halt.Done.Chan
-				connHalt := recv.Interface().(*rpc.ConnHalt)
-				r.clientConnHalt = append(r.clientConnHalt, connHalt)
-
-				r.clientConns = append(r.clientConns, reflect.SelectCase{
-					Dir:  reflect.SelectRecv,
-					Chan: reflect.ValueOf(connHalt.Halt.Done.Chan),
-				})
-				if len(r.clientConns) > 65536 {
-					panicf("only 65536 recieves supported by reflect.Select!")
-				}
-				continue
-			}
-			// stop listening for it
-			dropped := r.clientConnHalt[chosen]
-			////vv("czar rpc.Client departs: '%v'", dropped.Conn.RemoteAddr())
-			r.clientConnHalt = append(r.clientConnHalt[:chosen], r.clientConnHalt[(chosen+1):]...)
-			r.clientConns = append(r.clientConns[:chosen], r.clientConns[(chosen+1):]...)
-			// notify czar that server noticed a client disconnect.
-			select {
-			case clientDroppedCh <- dropped:
-			default:
-			}
-		}
-	}()
-	return
-}
-
 // RMVersionTuple is the two part Reliable Membership tuple.
-// Compare the CzarLeaseEpoch first, then the Version.
+// Compare the CzarLeaseEpoch first, then the WithinCzarVersion.
 // The CzarLeaseEpoch must go higher when the Czar
-// changes through Raft, and the Version can increment
+// changes through Raft, and the WithinCzarVersion can increment
 // when per-Czar members are added/lost.
-// Used by cmd/member/member.go.
+// Used by cmd/member/member.go whose implementation is here in czar.go.
 type RMVersionTuple struct {
 	CzarLeaseEpoch     int64     `zid:"0"`
 	WithinCzarVersion  int64     `zid:"1"`
