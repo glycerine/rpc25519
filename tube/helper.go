@@ -141,7 +141,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 				case KEEP_CKT_ONLY_IF_LEADER:
 					if leaderName != remoteName {
 						ckt.Close(nil)
-						vv("%v: closed non-leader ckt to remoteName='%v' (leaderName='%v')", node.name, remoteName, leaderName)
+						//vv("%v: closed non-leader ckt to remoteName='%v' (leaderName='%v')", node.name, remoteName, leaderName)
 					}
 				}
 			}
