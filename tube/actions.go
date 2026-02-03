@@ -707,7 +707,14 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 }
 
 func (s *TubeNode) writeFailedSetCurrentVal(tkt *Ticket, leaf *art.Leaf) {
-	tkt.Val = append([]byte{}, leaf.Value...)
+
+	// a copy would be safer, but consumes a whole
+	// lot of memory when we are just going to
+	// send it over the wire anway... just be sure
+	// to treat tkt.Val as READ ONLY(!)
+	tkt.Val = leaf.Value
+
+	//tkt.Val = append([]byte{}, leaf.Value...)
 	tkt.Vtype = leaf.Vtype
 	tkt.Leasor = leaf.Leasor
 	tkt.LeasorPeerID = leaf.LeasorPeerID
