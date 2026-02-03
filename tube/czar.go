@@ -989,6 +989,18 @@ fullRestart:
 				}
 				// in cState == unknownCzarState here
 
+				// Notice that when we write(cas) into the tube/raft leader,
+				// we do not include the vers; the LeaseEpoch would be wrong
+				// since it will get incremented only if the CAS succeeds,
+				// and we don't know what it will be in advance; the minor number
+				// WithinCzarVersion can never be up to date since it is only
+				// the czar who knows it anyway, from its last increment
+				// of WithinCzarVersion in RAM-only. Hence we reconstruct it
+				// from the czar's Ping reponses and enforce monotonicity
+				// over the reconstructed version tuple only--although we
+				// do make an effort to not reset WithinCzarVersion to 0
+				// if the lease epoch is the same.
+
 				var czarTkt *Ticket
 				// stuck here 35 minutes huh. use a timeout.
 				ctx5, canc := context.WithTimeout(ctx, time.Second*5)
