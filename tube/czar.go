@@ -162,6 +162,10 @@ func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Durati
 	//s.membersTableLeaseDur = time.Second * 30
 	//s.refreshMembersTableDur = s.membersTableLeaseDur / 3
 
+	// careful here. too tight (1 sec/10 burst) and we
+	// see alot of goro memory leaks on the raft leader
+	// even though the czar is the one limited. This
+	// every 100ms and 1000 burst seems fine.
 	hz := rate.Every(100 * time.Millisecond)
 	burst := 1000
 	s.rateLimiter = rate.NewLimiter(hz, burst)
@@ -896,7 +900,7 @@ fullRestart:
 			//}
 
 			if ii > 0 {
-				//czar.rateLimiter.Wait(bkg)
+				czar.rateLimiter.Wait(bkg)
 			}
 
 			select {
