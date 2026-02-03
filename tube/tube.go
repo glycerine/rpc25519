@@ -12479,7 +12479,7 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 // for external users like GetPeerList().
 // see above internalGetCircuitToLeader() for internal users.
 func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, leaderURL string, firstFrag *rpc.Fragment, circuitName string) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, err error) {
-	vv("%v top ExternalGetCircuitToLeader(leaderName='%v'; leaderURL='%v')", s.me(), leaderName, leaderURL)
+	//vv("%v top ExternalGetCircuitToLeader(leaderName='%v'; leaderURL='%v')", s.me(), leaderName, leaderURL)
 
 	//if strings.Contains(leaderURL, "100.114.32.72") {
 	//vv("top ExternalGetCircuitToLeader() stack = '%v'", stack())
@@ -12508,7 +12508,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 	netAddr, serviceName, leaderPeerID, _, err1 := rpc.ParsePeerURL(leaderURL)
 	panicOn(err1)
 	if err1 != nil {
-		vv("early exit 1; err='%v'", err)
+		//vv("early exit 1; err='%v'", err)
 		err = fmt.Errorf("ExternalGetCircuitToLeader error: bad leaderURL('%v') supplied, could not parse: '%v'", leaderURL, err1)
 		return
 	}
@@ -12522,7 +12522,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 	// should be safe; and RemotePeer.IncomingCkt is
 	// goroutine safe.
 	if s.MyPeer == nil {
-		vv("early exit 2: no MyPeer")
+		//vv("early exit 2: no MyPeer")
 		err = fmt.Errorf("ExternalGetCircuitToLeader error: no MyPeer available")
 		return
 	}
@@ -12540,23 +12540,23 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 			key = netAddr
 			remotePeer, ok = s.MyPeer.Remotes.Get(key)
 			if ok {
-				vv("2nd time charm: found remote peer under netAddr '%v' rather than peerID", netAddr)
+				//vv("2nd time charm: found remote peer under netAddr '%v' rather than peerID", netAddr)
 			}
 		}
 		if ok && remotePeer.IncomingCkt.IsClosed() {
-			vv("%v: ouch found remotePeer.IncomingCkt.IsClosed() true for '%v'; doing Del from s.MyPeer.Remotes.Del('%v')", s.name, remotePeer.PeerName, key)
+			//vv("%v: ouch found remotePeer.IncomingCkt.IsClosed() true for '%v'; doing Del from s.MyPeer.Remotes.Del('%v')", s.name, remotePeer.PeerName, key)
 			ok = false
 			s.MyPeer.Remotes.Del(key)
 		}
 	}
 	if ok {
 		ckt = remotePeer.IncomingCkt
-		vv("%v ExternalGetCircuitToLeader(): already have ckt to leaderURL '%v' (using key '%v') -> ckt.RemotePeerID: '%v'; remotePeer = '%v'", s.name, leaderURL, key, ckt.RemotePeerID, remotePeer.PeerName)
+		//vv("%v ExternalGetCircuitToLeader(): already have ckt to leaderURL '%v' (using key '%v') -> ckt.RemotePeerID: '%v'; remotePeer = '%v'", s.name, leaderURL, key, ckt.RemotePeerID, remotePeer.PeerName)
 		if ckt == nil {
 			panic(fmt.Sprintf("no ckt avail??? leaderURL = '%v'; remotePeer = '%#v'", leaderURL, remotePeer))
 		}
 	} else { // !ok
-		vv("%v: we do not already have a ckt to leaderPeerID='%v'", s.name, leaderPeerID)
+		//vv("%v: we do not already have a ckt to leaderPeerID='%v'", s.name, leaderPeerID)
 		// TODO: consider solutions here:
 		// The leaderPeerID can be an empty string here.
 		// And this is the problem. Since we are looking
@@ -12571,7 +12571,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		//    change.
 		// cache what we get back and re-use it?
 
-		vv("%v ExternalGetCircuitToLeader(): no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%#v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
+		//vv("%v ExternalGetCircuitToLeader(): no prior ckt to leaderPeerID='%v'; leaderURL='%v'; s.MyPeer.Remotes = '%#v'; netAddr='%v'", s.name, leaderPeerID, leaderURL, s.MyPeer.Remotes, netAddr)
 
 		// lets confirm that with our other trackers...
 		cktP, auditFoundIt := s.cktAuditByPeerID.Get(leaderPeerID)
@@ -12593,7 +12593,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		}
 		// retry loop to attempt onlyPossibleAddr if we get that error.
 
-		vv("%v: about to call s.MyPeer.PreferExtantRemotePeerGetCircuit(netAddr='%v')", s.name, netAddr)
+		//vv("%v: about to call s.MyPeer.PreferExtantRemotePeerGetCircuit(netAddr='%v')", s.name, netAddr)
 		userString := fmt.Sprintf("ExternalGetCircuitToLeader on name:'%v'", s.name)
 		for try := 0; try < 2; try++ {
 
@@ -12659,7 +12659,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 					// responder thinks they are leader, adopt that idea for now.
 					select {
 					case s.setLeaderCktChan <- ckt:
-						vv("in ExternalGetCircuitToLeader(): sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
+						//vv("in ExternalGetCircuitToLeader(): sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
 					case <-s.Halt.ReqStop.Chan:
 						err = ErrShutDown
 						return
@@ -12705,7 +12705,7 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName st
 
 	if ckt == nil || ckt.IsClosed() {
 		// seeing a ton of, test 809 czar_test. thus inspection fails with garbage circuit.
-		vv("%v GetPeerListFrom sees ckt=%p or closed ckt after ExternalGetCircuitToLeader(leaderURL='%v')", s.me(), ckt, leaderURL)
+		//vv("%v GetPeerListFrom sees ckt=%p or closed ckt after ExternalGetCircuitToLeader(leaderURL='%v')", s.me(), ckt, leaderURL)
 		return nil, nil, "", "", 0, onlyPossibleAddr, nil, rpc.ErrContextCancelledCkt
 	}
 
