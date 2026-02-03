@@ -562,7 +562,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 
 func (s *Czar) shortRMemberSummary() (r string) {
 	n := s.members.PeerNames.Len()
-	r = fmt.Sprintf("[%v members; Vers:(CzarLeaseEpoch: %v, Version:%v)]{\n", n, s.vers.CzarLeaseEpoch, s.vers.Version)
+	r = fmt.Sprintf("[%v members; Vers:%v]{\n", n, s.vers)
 	i := 0
 	for name, plus := range s.members.PeerNames.All() {
 		r += fmt.Sprintf("[%02d] %v: %v\n", i, name, plus.Det.URL)
@@ -1037,6 +1037,7 @@ fullRestart:
 						WriteLogIndex:    czarTkt.LogIndex,       // not LeaseWriteRaftLogIndex, that is on fail to write.
 						LeaseEpochT0:     czarTkt.RaftLogEntryTm, // not  czarTkt.LeaseEpochT0, that is on fail to write.
 					}
+					vers = vers2 // avoid confusion with old stale vers below if we print
 
 					err = czar.setVers(vers2, list) // does upcall for us.
 					if err != nil {
@@ -1050,7 +1051,7 @@ fullRestart:
 					_ = sum
 					left = time.Until(czar.vers.CzarLeaseUntilTm)
 
-					vv("%v: err=nil on lease write. I am czar (name='%v'; oldCzarName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers = '%v'; czar='%v'", name, name, oldCzarName, left, vers, sum)
+					vv("%v: err=nil on lease write. I am czar (name='%v'; oldCzarName='%v'), send heartbeats to tube/raft to re-lease the hermes/czar key to maintain that status. left on lease='%v'; vers2 = '%v'; czar='%v'", name, name, oldCzarName, left, vers2, sum)
 
 					czar.renewCzarLeaseDue = time.Now().Add(czar.renewCzarLeaseDur)
 					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)
@@ -1299,9 +1300,11 @@ fullRestart:
 					pingReplyToFill := &PingReply{} // ReliableMembershipList{}
 
 					ccfg := *cli.GetConfig().RpcCfg
-					ccfg.ClientDialToHostPort = removeTcp(czarDetPlus.Det.Addr)
+					dialTarget := removeTcp(czarDetPlus.Det.Addr)
+					ccfg.ClientDialToHostPort = dialTarget
+					vv("after removeTcp('%v'), dial to: '%v'", czarDetPlus.Det.Addr, dialTarget)
 
-					rpcClientToCzar, err = rpc.NewClient(name+"_pinger", &ccfg)
+					rpcClientToCzar, err = rpc.NewClient(name+"_pinger_"+cryRand15B(), &ccfg)
 					panicOn(err)
 					err = rpcClientToCzar.Start()
 					if err != nil {
@@ -1461,6 +1464,9 @@ fullRestart:
 func removeTcp(s string) string {
 	if strings.HasPrefix(s, "tcp://") {
 		return s[6:]
+	}
+	if strings.HasPrefix(s, "simnet://") {
+		return s[9:]
 	}
 	return s
 }
