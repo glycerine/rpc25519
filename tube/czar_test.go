@@ -130,7 +130,7 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 			if i <= 2 {
 				mem.czar.Halt.RequestStop()
 				<-mem.czar.Halt.Done.Chan
-				vv("%v has halted", mem.name)
+				//vv("%v has halted", mem.name)
 			}
 		}
 
@@ -138,7 +138,7 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 			// change leader
 			c.Nodes[leadi].Close()
 			<-c.Nodes[leadi].Halt.Done.Chan
-			vv("====================== we asked to halt leadi= %v ; its url='%v'", leadi, c.Nodes[leadi].URL)
+			//vv("====================== we asked to halt leadi= %v ; its url='%v'", leadi, c.Nodes[leadi].URL)
 		}
 
 		vv("sleep 20 sec after leader crash")

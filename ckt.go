@@ -613,7 +613,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 	rpb.IncomingCkt = ckt
 	if peerID == "" {
-		alwaysPrintf("ugh. 2. rpb.PeerID is empty in NewCircuitToPeerURL()")
+		//alwaysPrintf("ugh. 2. rpb.PeerID is empty in NewCircuitToPeerURL()") // not seen
 	}
 	s.Remotes.Set(peerID, rpb) // arg. _was_ only called this once. need to symmetrically set on the remote side too. added ckt.go:808 for that.
 	return
@@ -1130,11 +1130,6 @@ func (lpb *LocalPeer) newCircuit(
 		ckt.CircuitID = NewCallID(circuitName)
 	}
 
-	//vv("%v 5555555555 mapping RemotePeerName '%v' -> CircuitSN: %v", ckt.LocalPeerName, ckt.RemotePeerName, ckt.CircuitSN)
-
-	//if ckt.CircuitSN == 7 {
-	//panic("where?")
-	//}
 	//AliasRegister(ckt.CircuitID, ckt.CircuitID+" ("+circuitName+")")
 
 	//lpb.Halt.AddChild(ckt.Halt) // no worries: pump will do this.
@@ -1220,7 +1215,7 @@ func (lpb *LocalPeer) newCircuit(
 		// and we can check there too...
 		remoteKey := rpb.PeerID
 		if remoteKey == "" {
-			alwaysPrintf("ugh. 1. rpb.PeerID is empty in newCircuit(); rpb='%#v'", rpb) // only ugh. seen.
+			//alwaysPrintf("ugh. 1. rpb.PeerID is empty in newCircuit(); rpb='%#v'", rpb) // only ugh. seen.
 			if rpb.NetAddr != "" {
 				remoteKey = rpb.NetAddr
 			}

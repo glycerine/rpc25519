@@ -2713,8 +2713,12 @@ func (s *Server) Close() error {
 
 		//vv("%v: about to stop-tree and wait: %v", s.name, s.halt.RootString())
 
+		// 0 dur okay now that cli.go:591 g.pair.halt.Done.Close() happens.
 		s.halt.StopTreeAndWaitTilDone(0, nil, nil)
+		// so preferrable to this in that we close everything for sure/
+		// catch leaks sooner, plus synctest does not barf on leftover goroutines.
 		//s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
+
 		//vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name)
 		// try to prevent alot of hanging on... but maybe we are leaking goro?
 		//s.halt.ReqStop.Close()
