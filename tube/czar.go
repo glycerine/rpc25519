@@ -238,7 +238,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 	if !hashDiffers {
 		// done early, no change in the set of PeerNames and PeerIDs,
 		// so no upcall needed.
-		vv("%v: no change in the set of peerIDs in ReliableMembershipList", s.name)
+		//vv("%v: no change in the set of peerIDs in ReliableMembershipList", s.name) // seen, good.
 		return
 	}
 
