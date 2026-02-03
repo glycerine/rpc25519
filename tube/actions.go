@@ -712,9 +712,9 @@ func (s *TubeNode) writeFailedSetCurrentVal(tkt *Ticket, leaf *art.Leaf) {
 	// lot of memory when we are just going to
 	// send it over the wire anway... just be sure
 	// to treat tkt.Val as READ ONLY(!)
-	//tkt.Val = leaf.Value
+	tkt.Val = leaf.Value
 
-	tkt.Val = append([]byte{}, leaf.Value...)
+	//tkt.Val = append([]byte{}, leaf.Value...)
 	tkt.Vtype = leaf.Vtype
 	tkt.Leasor = leaf.Leasor
 	tkt.LeasorPeerID = leaf.LeasorPeerID

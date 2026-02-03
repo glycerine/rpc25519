@@ -790,13 +790,14 @@ func (membr *RMember) start() {
 	//topT0 := time.Now()
 
 	bkg := context.Background()
+	_ = bkg
 
 fullRestart:
 	for j := 0; ; j++ {
 		vv("%v: top of fullRestart j=%v", name, j)
 
 		if j > 0 {
-			czar.rateLimiter.Wait(bkg)
+			//czar.rateLimiter.Wait(bkg)
 		}
 		//topT0 = time.Now()
 
@@ -895,7 +896,7 @@ fullRestart:
 			//}
 
 			if ii > 0 {
-				czar.rateLimiter.Wait(bkg)
+				//czar.rateLimiter.Wait(bkg)
 			}
 
 			select {
