@@ -1140,7 +1140,7 @@ fullRestart:
 
 			case amCzar:
 
-				vv("%v: amCzar", name)
+				//vv("%v: amCzar", name) // logs every 0.1 ms so leave off!
 
 				//cs := cli.Srv.ListClients()
 
