@@ -127,7 +127,7 @@ func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Durati
 		tableSpace:         tableSpace,
 		name:               name,
 		keyCz:              "czar",
-		Halt:               idem.NewHalter(),
+		Halt:               idem.NewHalterNamed(name),
 		members:            members,
 		vers:               &RMVersionTuple{},
 		heard:              make(map[string]time.Time),
@@ -745,12 +745,13 @@ func (membr *RMember) start() {
 	cli := NewTubeNode(name, cliCfg)
 	err := cli.InitAndStart()
 	panicOn(err)
-	defer cli.Close()
 
 	czar := NewCzar(tableSpace, name, cli, membr.clockDriftBound)
 	membr.czar = czar
 
 	defer func() {
+		cli.Close()
+		vv("%v: member/czar has closed its cli", name)
 		czar.Halt.ReqStop.Close()
 		czar.Halt.Done.Close()
 	}()
@@ -811,7 +812,7 @@ fullRestart:
 		for k := 0; ; k++ {
 			vv("%v: find leader loop k = %v", name, k)
 			vv("%v: cliCfg.Node2Addr = '%#v'", name, cliCfg.Node2Addr)
-			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, KEEP_CKT_UP) // KEEP_CKT_ONLY_IF_LEADER)
+			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, KEEP_CKT_ONLY_IF_LEADER) // KEEP_CKT_UP) // KEEP_CKT_ONLY_IF_LEADER)
 			vv("%v: helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", name, leaderURL, reallyLeader, err)
 			panicOn(err)
 			if !reallyLeader {

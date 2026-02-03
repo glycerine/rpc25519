@@ -586,6 +586,11 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		for i, g := range gcMe {
 			_ = i
 			//vv("client sendLoop cleanup %v of %v: calling g.srv.deletePair on g=%p", i, len(gcMe), g)
+
+			g.pair.halt.ReqStop.Close()
+			g.pair.halt.Done.Close() // essential since the client is the auto-cli rwPair loops.
+			c.halt.RemoveChild(g.pair.halt)
+
 			// needed? methinks the above handles it, but maybe...
 			//for ckt := range gcMe.pair.cktServed {
 			//	ckt.Halt.ReqStop.CloseWithReason("conn shut: " + stopReason)
@@ -2011,6 +2016,8 @@ func (c *Client) Close() error {
 			nc, ok := c.conn.(net.Conn)
 			if ok {
 				nc.Close()
+			} else {
+				alwaysPrintf("%v: hmm in Client.Close(): how to close a %T ?", c.name, c.conn)
 			}
 		}
 	}

@@ -2702,18 +2702,22 @@ func (s *Server) Close() error {
 	//	s.simnet.alterCircuit(s.simnode.name, SHUTDOWN, wholeHost)
 	//}
 
+	if s == nil {
+		return nil
+	}
+
 	// ask any sub components (peer pump loops) to stop;
 	// give them all up to 500 msec.
 	//vv("%v about to s.halt.StopTreeAndWaitTilDone()", s.name)
-	if s != nil {
-		if s.halt != nil {
-			s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
-			//vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name)
-			// try to prevent alot of hanging on... but maybe we are leaking goro?
-			//s.halt.ReqStop.Close()
-		}
-	} else {
-		return nil
+	if s.halt != nil {
+
+		//vv("%v: about to stop-tree and wait: %v", s.name, s.halt.RootString())
+
+		s.halt.StopTreeAndWaitTilDone(0, nil, nil)
+		//s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
+		//vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name)
+		// try to prevent alot of hanging on... but maybe we are leaking goro?
+		//s.halt.ReqStop.Close()
 	}
 
 	if s.cfg.UseQUIC {

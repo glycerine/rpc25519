@@ -1130,6 +1130,8 @@ func (lpb *LocalPeer) newCircuit(
 		ckt.CircuitID = NewCallID(circuitName)
 	}
 
+	//vv("%v 5555555555 mapping RemotePeerName '%v' -> CircuitSN: %v", ckt.LocalPeerName, ckt.RemotePeerName, ckt.CircuitSN)
+
 	//if ckt.CircuitSN == 7 {
 	//panic("where?")
 	//}

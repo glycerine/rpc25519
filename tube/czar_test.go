@@ -13,7 +13,7 @@ var _ = context.Background
 
 func Test808_czar_only_one_at_a_time(t *testing.T) {
 
-	bubbleOrNot(t, func(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
 
 		numNodes := 3
 		forceLeader := 0
@@ -81,12 +81,15 @@ func testStartOneMember(t *testing.T, num int, cfg *TubeConfig) *RMember {
 
 func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 
-	bubbleOrNot(t, func(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
 
 		numNodes := 3
 		forceLeader := 0
 		c, leader, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 809)
 		defer c.Close()
+		//simnet := c.Cfg.RpcCfg.GetSimnet()
+		//defer simnet.Close()
+
 		_, _ = leader, leadi
 
 		// nodes := c.Nodes
@@ -127,19 +130,20 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 			if i <= 2 {
 				mem.czar.Halt.RequestStop()
 				<-mem.czar.Halt.Done.Chan
+				vv("%v has halted", mem.name)
 			}
 		}
 
 		if true { // without this, the czar change over works.
 			// change leader
-			c.Nodes[leadi].Halt.ReqStop.Close()
+			c.Nodes[leadi].Close()
 			<-c.Nodes[leadi].Halt.Done.Chan
 			vv("====================== we asked to halt leadi= %v ; its url='%v'", leadi, c.Nodes[leadi].URL)
 		}
 
-		vv("sleep 120 sec after leader crash")
-		time.Sleep(time.Second * 120)
-		vv("has been 120 sec after leader crash")
+		vv("sleep 20 sec after leader crash")
+		time.Sleep(time.Second * 20)
+		vv("has been 20 sec after leader crash")
 
 		// confirm a leader has been elected; this is a pre-requisite.
 		leadi2, haveLeader, leadURL := testClusterGetCurrentLeader(c)
@@ -178,6 +182,7 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 			if i > 2 {
 				mem.czar.Halt.RequestStop()
 				<-mem.czar.Halt.Done.Chan
+				vv("%v has halted", mem.name)
 			}
 		}
 	})

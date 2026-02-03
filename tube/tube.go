@@ -751,7 +751,7 @@ func (s *TubeNode) Start(
 				// CloseSimnode does SHUTDOWN automatically beforehand.
 				//_, err := simnet.AlterHost(s.srvname, rpc.SHUTDOWN)
 				//panicOn(err)
-				vv("%v calling simnet.CloseSimnode(srvname='%v')", s.me(), s.srvname)
+				//vv("%v calling simnet.CloseSimnode(srvname='%v')", s.me(), s.srvname)
 				err := simnet.CloseSimnode(s.srvname, reason)
 				if err != nil {
 					// can have problems finding... don't freak out.
@@ -769,6 +769,8 @@ func (s *TubeNode) Start(
 
 		s.Halt.ReqStop.Close()
 		s.Halt.Done.Close()
+		//vv("%v: (%v) (p=%p)end of TubeNode.Start() inside defer, about to return/finish; recover='%v'", s.name, myPeer.ServiceName(), s, r)
+
 		if r != nil {
 			panic(r)
 		}
@@ -778,6 +780,8 @@ func (s *TubeNode) Start(
 	if s.name == "" {
 		panic("must have s.name not empty")
 	}
+	//vv("%v: (%v) (p=%p) top of TubeNode.Start()", s.name, myPeer.ServiceName(), s)
+
 	if s.cfg.MyName != "" && s.cfg.MyName != s.name {
 		panic(fmt.Sprintf("Arg. disagreement on our own name: s.cfg.MyName = '%v' but s.name = '%v'", s.cfg.MyName, s.name))
 	}
@@ -2217,10 +2221,11 @@ func (s *TubeNode) handleNewCircuit(
 	// INVAR: s.cktAuditByPeerID has ckt.RemotePeerID as a key.
 	// INVAR: cktP.dups has a mutmap of all the duplicates.
 
-	cktP.perCktReaderHalt = idem.NewHalter()
+	cktP.perCktReaderHalt = idem.NewHalterNamed(fmt.Sprintf("%v_perCktReaderHalt_from_%v___to_%v", s.name, ckt.LocalPeerName, ckt.RemotePeerName))
 
 	// listen to this peer on a separate goro
-	go func(ckt *rpc.Circuit, cktP *cktPlus) (err0 error) {
+	go func(ckt *rpc.Circuit, cktP *cktPlus, circuitSN int64) (err0 error) {
+		//vv("444444444444 handleNewCircuit goro started with circuitSN %v from '%v' to '%v'", circuitSN, ckt.LocalPeerName, ckt.RemotePeerName)
 
 		ctx := ckt.Context
 		cktContextDone := ctx.Done()
@@ -2254,14 +2259,18 @@ func (s *TubeNode) handleNewCircuit(
 				// from garbage collecting the ckt.
 				t0gc := time.Now()
 				_ = t0gc
+				peerLeftCh := s.peerLeftCh
 				select {
-				case s.peerLeftCh <- ckt.RemotePeerID:
+				case peerLeftCh <- ckt.RemotePeerID:
 					//vv("peerLeftCh after %v", time.Since(t0gc))
 				case <-time.After(time.Millisecond * 10):
 					//vv("arg! could not send on peerLeftCh for 10ms")
+				case <-s.Halt.ReqStop.Chan:
+					// needed this or we can deadlock above and leak this goro.
+					peerLeftCh = nil
 				}
 				select {
-				case s.peerLeftCh <- ckt.RemotePeerID:
+				case peerLeftCh <- ckt.RemotePeerID:
 				case <-done0:
 					//zz("%v: (ckt '%v') done0!", s.name, ckt.Name)
 				case <-s.Halt.ReqStop.Chan:
@@ -2353,7 +2362,7 @@ func (s *TubeNode) handleNewCircuit(
 			}
 		}
 
-	}(ckt, cktP)
+	}(ckt, cktP, ckt.CircuitSN)
 	return
 }
 
@@ -3866,7 +3875,7 @@ func NewCluster(testName string, cfg *TubeConfig) (cluster *TubeCluster) {
 	// The nodes are made below in the NewTubeNode() calls.
 
 	cluster = &TubeCluster{
-		Halt:     idem.NewHalter(),
+		Halt:     idem.NewHalterNamed("tube.NewCluster_" + testName),
 		TestName: testName,
 		Cfg:      cfg,
 		// important to make this buffered to max
@@ -4164,8 +4173,9 @@ func (s *TubeCluster) Close() {
 		// try to prevent the 500msec halter timeouts from clashing with
 		// the synctest bubble exit... otherwise we get:
 		// panic: deadlock: main bubble goroutine has exited but blocked goroutines remain
-		time.Sleep(10 * time.Second)
-		vv("cluster.Close slept 10 sec")
+		//time.Sleep(10 * time.Second) // here in durable sleep on hang stack.
+		//time.Sleep(1 * time.Second)      // here in durable sleep on hang stack.
+		//vv("cluster.Close slept 10 sec") // not seen...hmmm.
 	}
 }
 
@@ -4329,7 +4339,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 
 		// comms
 		pushToPeerURL:  make(chan string),
-		Halt:           idem.NewHalter(),
+		Halt:           idem.NewHalterNamed(name),
 		writeReqCh:     make(chan *Ticket),
 		readReqCh:      make(chan *Ticket),
 		deleteKeyReqCh: make(chan *Ticket),
@@ -16525,14 +16535,13 @@ type cktPlus struct {
 func (s *TubeNode) newCktPlus(peerName, peerServiceName string) *cktPlus {
 	//vv("%v newCktPlus, caller: '%v'; peerName='%v', peerServiceName='%v'", s.me(), fileLine(2), peerName, peerServiceName)
 	c := &cktPlus{
-		sn:                 atomic.AddInt64(&nextCktPlusSN, 1),
-		node:               s,
-		PeerName:           peerName,
-		PeerServiceName:    peerServiceName,
-		perCktWatchdogHalt: idem.NewHalter(),
-
+		sn:                    atomic.AddInt64(&nextCktPlusSN, 1),
+		node:                  s,
+		PeerName:              peerName,
+		PeerServiceName:       peerServiceName,
 		requestReconnectPulse: make(chan bool),
 	}
+	c.perCktWatchdogHalt = idem.NewHalterNamed(fmt.Sprintf("perCktWatchdogHalt_%v_sn_%v", peerName, c.sn))
 	// mem leak unless we RemoveChild too! see tube.go:15884 in cktPlus.Close()
 	s.Halt.AddChild(c.perCktWatchdogHalt)
 	return c
