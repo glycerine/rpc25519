@@ -774,7 +774,7 @@ func (membr *RMember) start() {
 
 fullRestart:
 	for j := 0; ; j++ {
-		vv("top of fullRestart j=%v", j)
+		vv("%v: top of fullRestart j=%v", name, j)
 
 		if false && j > 0 { // LeaseRenewalElap: '3.77921382s too long if 1 sec wait. try 10ms
 			beenSinceTop := time.Since(topT0)
@@ -802,7 +802,7 @@ fullRestart:
 				err = cli.CloseSession(ctx2, czar.sess)
 				canc()
 				if err != nil {
-					vv("closing prior session err='%v'", err)
+					vv("%v: closing prior session err='%v'", name, err)
 				}
 			}
 		}
@@ -835,10 +835,10 @@ fullRestart:
 			canc()
 			//panicOn(err) // panic: hmm. no leader known to me (node 'node_0')
 			if err == nil {
-				vv("got sess = '%v'", czar.sess)
+				vv("%v: got sess = '%v'", name, czar.sess)
 				break
 			}
-			alwaysPrintf("got err from CreateNewSession, sleep 1 sec and try again: '%v'", err)
+			alwaysPrintf("%v: got err from CreateNewSession, sleep 1 sec and try again: '%v'", name, err)
 			time.Sleep(time.Second)
 		}
 
@@ -865,7 +865,7 @@ fullRestart:
 
 		err = czar.refreshMemberInTubeMembersTable(ctx)
 		if err != nil {
-			vv("about to fullRestart b/c/ czar.refreshMemberInTubeMembersTable() gave err='%v'", err)
+			vv("%v: about to fullRestart b/c/ czar.refreshMemberInTubeMembersTable() gave err='%v'", name, err)
 			continue fullRestart
 		}
 		//vv("begin main loop at haveSess")
@@ -1041,7 +1041,7 @@ fullRestart:
 					err = czar.setVers(vers2, list) // does upcall for us.
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
-						vv("see err = '%v', doing full restart", err) // seen!?!
+						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
 						continue fullRestart
 					}
 
@@ -1059,12 +1059,12 @@ fullRestart:
 
 					errs := errCzarAttempt.Error()
 					if strings.Contains(errs, "no leader known") {
-						vv("see errCzarAtttempt = '%v', with 'no leader known', doing full restart", errCzarAttempt)
+						vv("%v: see errCzarAtttempt = '%v', with 'no leader known', doing full restart", name, errCzarAttempt)
 						continue fullRestart
 					}
 
 					if strings.Contains(errs, "I am not leader") {
-						vv("see errCzarAtttempt = '%v', with 'I am not leader', doing full restart", errCzarAttempt)
+						vv("%v: see errCzarAtttempt = '%v', with 'I am not leader', doing full restart", name, errCzarAttempt)
 						continue fullRestart
 					}
 
@@ -1073,12 +1073,12 @@ fullRestart:
 					if strings.HasPrefix(errs, rejectedWritePrefix) {
 						// good, expected
 					} else {
-						vv("did not get error prefixed with 'rejected write' so, doing full restart; errCzarAttempt='%v'", errCzarAttempt)
+						vv("%v: did not get error prefixed with 'rejected write' so, doing full restart; errCzarAttempt='%v'", name, errCzarAttempt)
 						continue fullRestart
 					}
 
 					if czarTkt.Vtype != ReliableMembershipListType {
-						panicf("why not ReliableMembershipListType back? got '%v'", czarTkt.Vtype)
+						panicf("%v: why not ReliableMembershipListType back? got '%v'", name, czarTkt.Vtype)
 					}
 
 					nonCzarMembers := &ReliableMembershipList{}
@@ -1099,7 +1099,7 @@ fullRestart:
 					if membr.testingAmCzarCh != nil {
 
 						membr.testingAmCzarCh <- false
-						vv("reported not czar")
+						vv("%v: reported not czar", name)
 					}
 
 					czarLeaseUntilTm = czarTkt.LeaseUntilTm
@@ -1147,7 +1147,7 @@ fullRestart:
 				now := time.Now()
 				left := until.Sub(now)
 				if left < 0 {
-					vv("ouch! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces. CzarLeaseUntil(%v) - now(%v) = left = '%v' on czar.vers='%v'", nice(until), nice(now), left, czar.vers)
+					vv("%v: ouch! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces. CzarLeaseUntil(%v) - now(%v) = left = '%v' on czar.vers='%v'", name, nice(until), nice(now), left, czar.vers)
 					//cState = unknownCzarState
 					czar.cState.Store(int32(unknownCzarState))
 					continue fullRestart
@@ -1165,12 +1165,12 @@ fullRestart:
 					czar.handlePing(rr)
 					cur := czarState(czar.cState.Load())
 					if cur != amCzar {
-						vv("about to fullRestart b/c/ I am no longer czar after handlePing'", err)
+						vv("%v: about to fullRestart b/c/ I am no longer czar after handlePing'", name, err)
 						continue fullRestart
 					}
 
 				case <-time.After(left):
-					vv("ouch2! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces.")
+					vv("%v: ouch2! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces.", name)
 					//cState = unknownCzarState
 					czar.cState.Store(int32(unknownCzarState))
 
@@ -1179,7 +1179,7 @@ fullRestart:
 				case <-czar.refreshMembersCh:
 					err := czar.refreshMemberInTubeMembersTable(ctx)
 					if err != nil {
-						vv("about to fullRestart b/c/ czar.refreshMemberInTubeMembersTable() gave err='%v'", err)
+						vv("%v: about to fullRestart b/c/ czar.refreshMemberInTubeMembersTable() gave err='%v'", name, err)
 						continue fullRestart
 					}
 
@@ -1229,7 +1229,7 @@ fullRestart:
 					}
 					canc()
 					if err != nil {
-						vv("renewCzarLeaseCh attempt to renew lease with CAS-write to keyCz:'%v' failed: err='%v'", czar.keyCz, err)
+						vv("%v: renewCzarLeaseCh attempt to renew lease with CAS-write to keyCz:'%v' failed: err='%v'", name, czar.keyCz, err)
 
 						//cState = unknownCzarState
 						czar.cState.Store(int32(unknownCzarState))
@@ -1250,7 +1250,7 @@ fullRestart:
 					case czar.vers.CzarLeaseEpoch == czarTkt.LeaseEpoch:
 						//czar.vers.Version++
 					default:
-						panicf("tube LeaseEpoch must be monotone up, but czar.vers.CzarLeaseEpoch('%v') already > what we just got back: czarTkt.LeaseEpoch('%v')", czar.vers.CzarLeaseEpoch, czarTkt.LeaseEpoch)
+						panicf("%v: tube LeaseEpoch must be monotone up, but czar.vers.CzarLeaseEpoch('%v') already > what we just got back: czarTkt.LeaseEpoch('%v')", name, czar.vers.CzarLeaseEpoch, czarTkt.LeaseEpoch)
 						continue fullRestart
 					}
 					czar.vers.CzarLeaseUntilTm = czarTkt.LeaseUntilTm
@@ -1276,23 +1276,23 @@ fullRestart:
 					vers := czar.vers.Clone()
 					_ = vers
 					if list == nil {
-						alwaysPrintf("wat? in notCzar, why is nonCzarMembers nil?")
+						alwaysPrintf("%v: wat? in notCzar, why is nonCzarMembers nil?", name)
 						panic("nonCzarMembers should never be nil now")
 						continue fullRestart
 					}
 					if list.PeerNames == nil {
-						alwaysPrintf("wat? in notCzar, why is nonCzarMembers.PeerNames nil?")
+						alwaysPrintf("%v: wat? in notCzar, why is nonCzarMembers.PeerNames nil?", name)
 						continue fullRestart
 					}
 					if list.CzarName == name {
-						vv("internal logic error? we are not czar but list.CzarName shows us: '%v'", list.CzarName)
+						vv("%v: internal logic error? we are not czar but list.CzarName shows us: '%v'", name, list.CzarName)
 						czar.cState.Store(int32(unknownCzarState))
 						continue fullRestart
 					}
 
 					czarDetPlus := list.CzarDet
 					if czarDetPlus == nil {
-						panicf("list with winning czar did not include czar Detail itself?? list='%v'", list)
+						panicf("%v: list with winning czar did not include czar Detail itself?? list='%v'", name, list)
 					}
 					vv("%v: will contact czar '%v' at URL: '%v'", name, list.CzarName, czarDetPlus.Det.URL)
 					// what we want Call Ping to return to us:
@@ -1311,7 +1311,7 @@ fullRestart:
 							waitDur = czarLeaseUntilTm.Sub(now)
 						}
 
-						vv("could not contact czar, err='%v' ... might have to wait out the lease... waitDur='%v'", err, waitDur)
+						vv("%v: could not contact czar, err='%v' ... might have to wait out the lease... waitDur='%v'", name, err, waitDur)
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}
@@ -1321,7 +1321,7 @@ fullRestart:
 						czar.cState.Store(int32(unknownCzarState))
 						now = time.Now()
 						if waitDur > 0 {
-							vv("waitDur= '%v' to wait out the current czar lease before trying again", waitDur)
+							vv("%v: waitDur= '%v' to wait out the current czar lease before trying again", name, waitDur)
 							time.Sleep(waitDur)
 						}
 						continue fullRestart
@@ -1337,7 +1337,7 @@ fullRestart:
 					//pp("rpcClientToCzar.Call(Czar.Ping) took %v; err = '%v'", time.Since(callStart), err)
 					canc()
 					if err != nil {
-						vv("error back from Ping: '%v'", err)
+						vv("%v: error back from Ping: '%v'", name, err)
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}
@@ -1366,12 +1366,12 @@ fullRestart:
 				case <-czar.refreshMembersCh:
 					err := czar.refreshMemberInTubeMembersTable(ctx)
 					if err != nil {
-						vv("about to fullRestart b/c/ czar.refreshMemberInTubeMembersTable() gave err='%v'", err)
+						vv("%v: about to fullRestart b/c/ czar.refreshMemberInTubeMembersTable() gave err='%v'", name, err)
 						continue fullRestart
 					}
 
 				case <-rpcClientToCzarDoneCh:
-					vv("direct client to czar dropped! rpcClientToCzarDoneCh closed.")
+					vv("%v: direct client to czar dropped! rpcClientToCzarDoneCh closed.", name)
 					rpcClientToCzar.Close()
 					rpcClientToCzar = nil
 					rpcClientToCzarDoneCh = nil
@@ -1390,7 +1390,7 @@ fullRestart:
 					err = rpcClientToCzar.Call("Czar.Ping", czar.myDetail, reply, nil)
 					////vv("member called to Czar.Ping, err='%v'", err)
 					if err != nil {
-						vv("connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar")
+						vv("%v: connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar", name)
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}
@@ -1410,7 +1410,7 @@ fullRestart:
 						// check for bug in czar: did they add me to the list?
 						_, ok2 := reply.Members.PeerNames.Get2(czar.myDetail.Det.Name)
 						if !ok2 {
-							panicf("member detected bug in czar: got ping back without ourselves (myDetail.Det.Name='%v') in it!: reply='%v'", czar.myDetail.Det.Name, reply)
+							panicf("%v: member detected bug in czar: got ping back without ourselves (myDetail.Det.Name='%v') in it!: reply='%v'", name, czar.myDetail.Det.Name, reply)
 						}
 					}
 					if !reply.Vers.CzarLeaseUntilTm.IsZero() {
