@@ -223,7 +223,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 		return
 	}
 
-	listhash := s.hashPeerIDs(list)
+	listhash := s.hashPeerIDs(list, v.CzarLeaseEpoch)
 	hashDiffers := (listhash != s.listhash)
 	//if hashDiffers {
 	//vv("%v: new membership seen (cur = '%v'; vs new = '%v')\n cur s.listhash='%v'\n versus new listhash='%v'\n", s.name, s.members, list, s.listhash, listhash) // seen a ton, of course.
@@ -1793,9 +1793,10 @@ type ReliableMembershipList struct {
 }
 
 // detect peerID changes
-func (s *Czar) hashPeerIDs(list *ReliableMembershipList) (h string) {
+func (s *Czar) hashPeerIDs(list *ReliableMembershipList, leaseEpoch int64) (h string) {
 
 	s.blake.Reset()
+	s.blake.Write([]byte(fmt.Sprintf("%v\n", leaseEpoch)))
 	s.blake.Write([]byte(list.CzarName))
 	s.blake.Write([]byte(list.CzarDet.Det.PeerID))
 
