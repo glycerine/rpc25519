@@ -22,11 +22,17 @@ func main() {
 	panicOn(err)
 	////vv("cliCfg = '%v'", cliCfg)
 	cliCfg.RpcCfg.QuietTestMode = false
+	name := cliCfg.MyName
 
 	cliCfg.ClockDriftBound = 500 * time.Millisecond
 	tableSpace := "hermes"
 	mem := tube.NewRMember(tableSpace, cliCfg)
 	mem.Start()
 	<-mem.Ready.Chan
-	select {}
+	for {
+		select {
+		case reply := <-mem.UpcallMembershipChangeCh:
+			vv("%v member sees membership upcall: '%v'", name, reply)
+		}
+	}
 }

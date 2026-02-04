@@ -87,7 +87,7 @@ type Czar struct {
 	// won the lease on the {tableSpace}/czar key in Tube).
 	name string
 
-	UpcallMembershipChangeCh chan *ReliableMembershipList `msg:"-"`
+	UpcallMembershipChangeCh chan *PingReply `msg:"-"`
 
 	t0                 time.Time
 	memberHeartBeatDur time.Duration
@@ -143,11 +143,6 @@ func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Durati
 		t0:                 time.Now(),
 		memberLeaseDur:     memberLeaseDur,
 		memberHeartBeatDur: memberHeartBeatDur,
-
-		// memory leaks? make unbufferred for now to see, since
-		// we have no actual consumers at this point.
-		//UpcallMembershipChangeCh: make(chan *ReliableMembershipList, 1000),
-		UpcallMembershipChangeCh: make(chan *ReliableMembershipList),
 
 		clockDriftBound: clockDriftBound,
 		cli:             cli,
@@ -255,10 +250,20 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 	}
 
 	//vv("end of setVers(v='%v') s.members is now '%v')", v, s.members)
-	select {
-	// should be the only place, so we keep vers and list in sync.
-	case s.UpcallMembershipChangeCh <- s.members.Clone():
-	default:
+	// skip the members.Clone() if no upcall requested or possible;
+	// s.UpcallMembershipChangeCh must be buffered so czar
+	// loop does not pause excessively.
+	if s.UpcallMembershipChangeCh != nil {
+		select {
+		// should be the only place, so we keep vers and list in sync.
+		case s.UpcallMembershipChangeCh <- &PingReply{
+			Members: s.members.Clone(),
+			Vers:    s.vers.Clone(),
+			// note that Status gives the _local_ member's status as czar or not.
+			Status: s.cState.Load(),
+		}:
+		default:
+		}
 	}
 	return nil
 }
@@ -512,25 +517,30 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	args.RMemberLeaseUntilTm = leasedUntilTm
 	args.RMemberLeaseDur = s.memberLeaseDur
 
-	// always refresh our (czar) lease in the member list too,
-	// especially in Vers.CzarLeaseUntilTm (!)
-	mePlus, ok := s.members.PeerNames.Get2(s.name)
-	if !ok {
-		// try to fix instead of panic-ing... after checking, it looks
-		// like maybe s.members is stuck?!?
+	// don't think we want this now... right? czar is only
+	// in CzarName/Det back from tube leader czar key....
+	if false {
 
-		// fired! why??
-		//panicf("must have self as czar in members! s.name='%v' not found in s.members = '%v'", s.name, s.members)
+		// always refresh our (czar) lease in the member list too,
+		// especially in Vers.CzarLeaseUntilTm (!)
+		mePlus, ok := s.members.PeerNames.Get2(s.name)
+		if !ok {
+			// try to fix instead of panic-ing... after checking, it looks
+			// like maybe s.members is stuck?!?
 
-		// maybe something like this:
-		mePlus = getMyPeerDetailPlus(s.cli)
-		//myDetailBytes, err = mePlus.MarshalMsg(nil)
-		//panicOn(err)
-		s.members.PeerNames.Set(s.name, mePlus)
+			// fired! why??
+			//panicf("must have self as czar in members! s.name='%v' not found in s.members = '%v'", s.name, s.members)
+
+			// maybe something like this:
+			mePlus = getMyPeerDetailPlus(s.cli)
+			//myDetailBytes, err = mePlus.MarshalMsg(nil)
+			//panicOn(err)
+			s.members.PeerNames.Set(s.name, mePlus)
+		}
+		mePlus.RMemberLeaseUntilTm = leasedUntilTm
+		mePlus.RMemberLeaseDur = s.memberLeaseDur
+		_ = mePlus
 	}
-
-	mePlus.RMemberLeaseUntilTm = leasedUntilTm
-	mePlus.RMemberLeaseDur = s.memberLeaseDur
 
 	s.heard[s.name] = now
 	// but (only) *this* is what the members are checking!!
@@ -709,7 +719,7 @@ type RMember struct {
 
 	// UpcallMembershipChangeCh tells users about
 	// changes in membership.
-	UpcallMembershipChangeCh chan *ReliableMembershipList
+	UpcallMembershipChangeCh chan *PingReply
 
 	// Ready is closed when UpcallMembershipChangeCh is set
 	// and the RMember is ready to use (call Start(), then
@@ -746,6 +756,8 @@ func NewRMember(tableSpace string, cfg *TubeConfig) (rm *RMember) {
 		Cfg:             &cp,
 		clockDriftBound: cp.ClockDriftBound,
 		name:            cfg.MyName,
+
+		UpcallMembershipChangeCh: make(chan *PingReply, 10),
 	}
 	if cfg.isTest {
 		rm.testingAmCzarCh = make(chan bool, 10)
@@ -803,7 +815,7 @@ func (membr *RMember) start() {
 		panic("cli.MyPeer.PeerName must not be empty")
 	}
 
-	membr.UpcallMembershipChangeCh = czar.UpcallMembershipChangeCh
+	czar.UpcallMembershipChangeCh = membr.UpcallMembershipChangeCh
 
 	// tell user it is safe to listen on
 	// membr.UpcallMembershipChangeCh now.
@@ -1717,6 +1729,15 @@ type PingReply struct {
 	Members *ReliableMembershipList `zid:"0"`
 	Vers    *RMVersionTuple         `zid:"1"`
 	Status  int32                   `zid:"2"`
+}
+
+func (z *PingReply) String() (r string) {
+	r = "&PingReply{\n"
+	r += fmt.Sprintf("Members: %v,\n", z.Members)
+	r += fmt.Sprintf("   Vers: %v,\n", z.Vers)
+	r += fmt.Sprintf(" Status: %v,\n", czarState(z.Status))
+	r += "}\n"
+	return
 }
 
 func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {
