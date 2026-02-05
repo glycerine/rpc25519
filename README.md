@@ -1,6 +1,20 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* (2026 Feb 5) Tube is our production grade Raft distributed
+consensus implementation.
+
+As of v1.41.0 our Raft implementation rpc25519/tube, has undergone
+extensive testing and use, and is deemed fit for production.
+
+An introduction and overview is here:
+
+https://github.com/glycerine/rpc25519/blob/master/tube/README.md
+
+A getting started tutorial is here:
+
+https://github.com/glycerine/rpc25519/blob/master/tube/example/local/README.md
+
 * (2025 Oct 13) More on Deterministic Simulation Testing (DST)
 
 I wrote up the new simnet architecture in 
