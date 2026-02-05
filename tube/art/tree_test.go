@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	googbtree "github.com/google/btree"
+	tidwall_btree "github.com/tidwall/btree"
 	mathrand "math/rand"
 	mathrand2 "math/rand/v2"
 	"os"
@@ -2211,7 +2212,23 @@ func Test620_unlocked_read_comparison(t *testing.T) {
 
 	// google/btree load and read
 
-	degree := 3_000 // fastest
+	//degree := 3_000 // fastest on reads, super slow on deletes
+	degree := 300 // balanced, faster all around than degree 32 but not super slow on deletes.
+
+	// degree = 32
+	// google/btree time to store 10000000 keys: 2.268791485s (226ns/op)
+	// google/btree reads 10000000 keys: elapsed 47.111342ms (4ns/op)
+	// google/btree delete 10000000 keys: elapsed 2.00498464s (200ns/op)
+
+	// degree = 300
+	// google/btree time to store 10000000 keys: 1.956919172s (195ns/op)
+	// google/btree reads 10000000 keys: elapsed 37.45795ms (3ns/op)
+	// google/btree delete 10000000 keys: elapsed 1.868463157s (186ns/op)
+
+	// degree := 3_000
+	// google/btree time to store 10000000 keys: 1.803900197s (180ns/op)
+	// google/btree reads 10000000 keys: elapsed 32.49634ms (3ns/op)
+	// google/btree delete 10000000 keys: elapsed 13.59604665s (1.359µs/op)
 
 	g := googbtree.NewG[*Kint](degree, googbtree.LessFunc[*Kint](func(a, b *Kint) bool {
 		return bytes.Compare(a.Key, b.Key) < 0
@@ -2228,7 +2245,7 @@ func Test620_unlocked_read_comparison(t *testing.T) {
 	}
 	e1 = time.Since(t1)
 	rate1 = e1 / time.Duration(K)
-	fmt.Printf("google/btree time to store %v keys: %v (%v/op)\n", K, e1, rate1)
+	fmt.Printf("google/btree time to store %v keys: %v (%v/op)   (degree = %v)\n", K, e1, rate1, degree)
 
 	t1 = time.Now()
 	g.Ascend(func(kint *Kint) bool { return true })
@@ -2254,6 +2271,53 @@ func Test620_unlocked_read_comparison(t *testing.T) {
 	rate1 = e1 / time.Duration(K)
 	fmt.Printf("google/btree delete %v keys: elapsed %v (%v/op)\n", K, e1, rate1)
 
+	// tidwall/btree load and read (faster than google/btree).
+
+	// degree = 32
+	// tidwall/btree time to store 10000000 keys: 1.662578193s (166ns/op)
+	// tidwall/btree reads 10000000 keys: elapsed 35.417725ms (3ns/op)
+	// tidwall/btree delete 10000000 keys: elapsed 1.553177794s (155ns/op)
+
+	// degree = 300
+	// tidwall/btree time to store 10000000 keys: 1.405843694s (140ns/op)
+	// tidwall/btree reads 10000000 keys: elapsed 21.837296ms (2ns/op)
+	// tidwall/btree delete 10000000 keys: elapsed 2.078372039s (207ns/op)
+
+	// degree = 3_000
+	// tidwall/btree time to store 10000000 keys: 1.345484164s (134ns/op)
+	// tidwall/btree reads 10000000 keys: elapsed 21.021362ms (2ns/op)
+	// tidwall/btree delete 10000000 keys: elapsed 35.985459707s (3.598µs/op)
+
+	degree = 300
+	tid := tidwall_btree.NewMap[string, int](degree)
+
+	t1 = time.Now()
+	for v, k := range keys {
+		tid.Set(k, v)
+	}
+	e1 = time.Since(t1)
+	rate1 = e1 / time.Duration(K)
+	fmt.Printf("tidwall/btree time to store %v keys: %v (%v/op)   (degree = %v)\n", K, e1, rate1, degree)
+
+	t1 = time.Now()
+	tid.Scan(func(key string, val int) bool {
+		return true
+	})
+
+	e1 = time.Since(t1)
+	rate1 = e1 / time.Duration(K)
+	fmt.Printf("tidwall/btree reads %v keys: elapsed %v (%v/op)\n", K, e1, rate1)
+
+	// deletes
+	t1 = time.Now()
+	for _, k := range keys {
+		tid.Delete(k)
+	}
+
+	e1 = time.Since(t1)
+	rate1 = e1 / time.Duration(K)
+	fmt.Printf("tidwall/btree delete %v keys: elapsed %v (%v/op)\n", K, e1, rate1)
+
 }
 
 /* titrate google/btree degree
@@ -2269,7 +2333,7 @@ degree 2000
 google/btree time to store 10000000 keys: 1.933673346s (193ns/op)
 google/btree reads 10000000 keys: elapsed 29.448824ms (2ns/op)
 
-degree 3000 <<<<< seems like the sweet spot.
+degree 3000 <<<<< seems like the sweet spot -- but deletes are too __sloooow__
 google/btree time to store 10000000 keys: 1.846107171s (184ns/op)
 google/btree reads 10000000 keys: elapsed 26.261723ms (2ns/op)
 google/btree time to store 10000000 keys: 1.924329849s (192ns/op)

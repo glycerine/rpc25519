@@ -51,6 +51,7 @@ require (
 	github.com/philhofer/fwd v1.0.0 // indirect
 	github.com/shurcooL/go v0.0.0-20200502201357-93f07166e636 // indirect
 	github.com/shurcooL/go-goon v1.0.0 // indirect
+	github.com/tidwall/btree v1.8.2-0.20251103153907-da3712be86f9 // indirect
 	github.com/tinylib/msgp v1.1.2 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
