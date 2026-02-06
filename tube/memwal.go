@@ -149,6 +149,10 @@ func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftL
 			}
 		}
 
+		if s.onOverwriteNotifyMe != nil {
+			s.onOverwriteNotifyMe(killed, true)
+		}
+
 		// okay then
 		s.raftLog = s.raftLog[:keepCount]
 		mayNeedTruncate = true

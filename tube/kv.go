@@ -41,6 +41,31 @@ type KVStore struct {
 	Vals []*ArtTable `zid:"1"`
 }
 
+// Merge merges r into s, overwriting any
+// conflicting prior keys in s with r's values,
+// which are cloned from r before being saved into s.
+// If you wish to give priority to s instead,
+// call r.Merge(s) instead of s.Merge(r).
+func (s *KVStore) Merge(r *KVStore) {
+	if s == nil || r == nil {
+		return
+	}
+	for rTableName, rTable := range r.m {
+		sPrior, ok := s.m[rTableName]
+		if !ok {
+			// just add
+			s.m[rTableName] = rTable.clone()
+			continue
+		}
+		// need to merge rTable into sPrior from s.
+		iter := rTable.Tree.Iter(nil, nil)
+		for iter.Next() {
+			lf := iter.Leaf()
+			sPrior.Tree.InsertLeaf(lf.Clone())
+		}
+	}
+}
+
 func (s *KVStore) PreSaveHook() {
 	//vv("KVStore.PreSaveHook")
 	s.Keys = s.Keys[:0]

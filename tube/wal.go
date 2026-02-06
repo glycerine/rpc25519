@@ -55,6 +55,11 @@ type raftWriteAheadLog struct {
 	// clear or copy them in Compact() below.
 
 	compactionThresholdBytes int64
+
+	// for rollback when leader change causes log overwrite,
+	// we might need to do something more for written but not
+	// applied wal entries. If so, set this callback to handle.
+	onOverwriteNotifyMe func(killed []*RaftLogEntry, nodisk bool)
 }
 
 func dirExists(name string) bool {
@@ -682,20 +687,6 @@ func (s *raftWriteAheadLog) saveBlake3sumFor(by []byte, doFsync, needParentDirSy
 // be set correctly in wal_test.go especially
 // (maybe raft_test.go too).
 //
-// The return value deletedMemberConfigIdx will
-// be > 0 iff (as a follower) we overwrite a
-// pre-exiting MemberConfig entry, in which
-// case, per page 36, the caller
-// now needs to fall back on the prior config.
-//
-// The deletedMemberConfigIdx gives the
-// log index of the overwritten config
-// entry. It will be the maximum of any
-// such overwritten entry.
-//
-// with compaction, maybe we need to
-// think of keepCount as keepIndex(!)
-//
 // overwriteEntries may call maybeCompact()
 // if log-compaction is on.
 func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry, isLeader bool, curCommitIndex, lastAppliedIndex int64, syncme *IndexTerm, node *TubeNode) (err error) {
@@ -835,6 +826,9 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 					panic(fmt.Sprintf("curCommitIndex = %v; don't kill a committed log entry! %v", curCommitIndex, e))
 				}
 			}
+		}
+		if s.onOverwriteNotifyMe != nil {
+			s.onOverwriteNotifyMe(killed, false)
 		}
 
 		// okay then
