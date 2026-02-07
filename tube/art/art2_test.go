@@ -466,8 +466,10 @@ func BenchmarkWordsArtTreeSearch(b *testing.B) {
 	}
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		for _, w := range words {
-			tree.FindExact(w)
+		for range 10 {
+			for _, w := range words {
+				tree.FindExact(w)
+			}
 		}
 	}
 }
