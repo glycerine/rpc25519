@@ -359,7 +359,12 @@ func (t *Tree) find_unlocked(smod SearchModifier, key Key) (lf *Leaf, idx int, f
 	case LTE, LT:
 		b, found, dir, idx = t.root.getLTE(key, 0, smod, t.root, t, 0, false, 0)
 	default:
-		b, found, dir, idx = t.root.get(key, 0, t.root, 0, t)
+		// inline this call: b, found, dir, idx = t.root.get(key, 0, t.root, 0, t)
+		if t.root.isLeaf {
+			b, found, dir, idx = t.root.leaf.get(key, 0, t.root)
+		} else {
+			b, found, dir, idx = t.root.inner.get(key, 0, t.root, 0, t)
+		}
 	}
 	if t.size == 1 {
 		// Test 505 in tree_test.go needs this.
