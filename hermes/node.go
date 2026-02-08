@@ -51,6 +51,12 @@ type HermesNode struct {
 	writeReqCh chan *HermesTicket
 	readReqCh  chan *HermesTicket
 
+	// let main set this during config if they want to
+	// send in membership changes; NewHermesNode does not allocate it
+	// at present as we assume that the reliable membership service
+	// already does.
+	UpcallMembershipChangeCh chan *tube.PingReply
+
 	nextWake       time.Time
 	nextWakeCh     <-chan time.Time
 	nextWakeTicket *HermesTicket
@@ -65,7 +71,7 @@ type HermesConfig struct {
 
 	// when should we do recovery logic to
 	// compensate for a failed node.
-	Timeout time.Duration
+	MessageLossTimeout time.Duration
 
 	// skip encryption? (used to simplify and speed up tests)
 	TCPonly_no_TLS bool
@@ -291,7 +297,7 @@ func (s *HermesNode) Init() error {
 
 	cfg.ServerAddr = "127.0.0.1:0"
 	cfg.ServerAutoCreateClientsToDialOtherServers = true
-	s.srv = rpc.NewServer("srv_"+s.name, cfg)
+	s.srv = rpc.NewServer("hermes_srv_"+s.name, cfg)
 	s.rpccfg = cfg
 
 	serverAddr, err := s.srv.Start()
@@ -303,7 +309,7 @@ func (s *HermesNode) Init() error {
 	panicOn(err)
 
 	const preferExtant = true
-	peerName := "hermes"
+	peerName := s.name
 	s.myPeer, err = s.srv.PeerAPI.StartLocalPeer(context.Background(), "hermes", "", nil, peerName, preferExtant)
 	panicOn(err)
 	s.URL = s.myPeer.URL()
@@ -327,7 +333,7 @@ func (s *HermesNode) Start(
 		s.halt.Done.Close()
 	}()
 
-	vv("%v: node.Start() top.", s.name)
+	vv("%v: HermesNode.Start() top.", s.name)
 
 	// vv() debug print convenience
 	s.me = rpc.AliasDecode(s.PeerID)
@@ -343,6 +349,10 @@ func (s *HermesNode) Start(
 	for {
 		//zz("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
+
+		case reply := <-s.UpcallMembershipChangeCh:
+			vv("%v hermes node sees membership change upcall: '%v'", s.name, reply)
+
 		case <-s.nextWakeCh:
 			vv("=================== nextWakeCh fired ================")
 			s.checkCoordOrFollowerFailed()

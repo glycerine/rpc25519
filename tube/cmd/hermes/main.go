@@ -44,6 +44,18 @@ func main() {
 	mem := tube.NewRMember(tableSpace, tubeCfg)
 	mem.Start()
 	<-mem.Ready.Chan
+
+	hcfg := &hermes.HermesConfig{
+		ReplicationDegree:  3,
+		MessageLossTimeout: 3 * time.Second,
+		TCPonly_no_TLS:     tubeCfg.RpcCfg.TCPonly_no_TLS,
+	}
+	hnode := hermes.NewHermesNode(name, hcfg)
+	hnode.UpcallMembershipChangeCh = mem.UpcallMembershipChangeCh
+	err = hnode.Init()
+	panicOn(err)
+	select {}
+
 	for {
 		select {
 		case reply := <-mem.UpcallMembershipChangeCh:

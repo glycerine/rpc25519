@@ -174,7 +174,7 @@ func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 	vv("%v top of actionAbRecordPending: (keym='%v', isWrite='%v', val='%v', fromID='%v')", s.me, tkt.keym, tkt.IsWrite, string(tkt.Val), rpc.AliasDecode(tkt.FromID))
 
 	// buffer Op
-	messageLossTimeout := time.Now().Add(s.cfg.Timeout)
+	messageLossTimeout := time.Now().Add(s.cfg.MessageLossTimeout)
 
 	// we might have an existing entry we should just be
 	// updating, rather than adding to the timeoutPQ.
@@ -1569,7 +1569,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 				}
 			}
 		case sReplay: // failed follower case
-			// TODO: I think we must wait (for consistency) for a majority of ACK first.
+			// TODO: I think we must wait (for consistency) for a full round of all member ACK first?
 			keym.state = sValid
 			//s.actionRR(keym, tkt.TicketID)
 			s.unblockReadsFor(keym)
