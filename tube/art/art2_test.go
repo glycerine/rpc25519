@@ -461,6 +461,7 @@ func BenchmarkWordsArtTreeInsert(b *testing.B) {
 func BenchmarkWordsArtTreeSearch(b *testing.B) {
 	words := loadTestFile("assets/words.txt")
 	tree := NewArtTree()
+	tree.SkipLocking = true
 	for _, w := range words {
 		tree.Insert(w, w, "")
 	}

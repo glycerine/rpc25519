@@ -2,63 +2,52 @@ package main
 
 import (
 	//"bufio"
-	"context"
-	"flag"
+	//"context"
+	//"flag"
 	"fmt"
 	//"io"
 	"os"
-	"strings"
+	//"strings"
 	//"path/filepath"
 	//"sort"
-	//"time"
+	"time"
 
 	//rpc "github.com/glycerine/rpc25519"
-	"github.com/glycerine/ipaddr"
+	//"github.com/glycerine/ipaddr"
+	"github.com/glycerine/rpc25519/hermes"
 	"github.com/glycerine/rpc25519/tube"
 	//"github.com/glycerine/rpc25519/tube/art"
 )
 
-var sep = string(os.PathSeparator)
+var _ = &hermes.HermesTicket{}
 
-type ConfigMember struct {
-	ContactName string // -c name of node to contact
-	Help        bool   // -h for help, false, show this help
-	Verbose     bool   // -v verbose: show config/connection attempts.
-}
-
-func (c *ConfigMember) SetFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.ContactName, "c", "", "name of node to contact (defaults to leader)")
-	fs.BoolVar(&c.Help, "h", false, "show this help")
-	fs.BoolVar(&c.Verbose, "v", false, "verbose diagnostics logging to stdout")
-}
-
-func (c *ConfigMember) FinishConfig(fs *flag.FlagSet) (err error) {
-	return
-}
-
-func (c *ConfigMember) SetDefaults() {}
+//var sep = string(os.PathSeparator)
 
 func main() {
-	cmdCfg := &ConfigMember{}
+	verbose := false
+	tube.VerboseVerbose.Store(verbose)
+	fmt.Printf("pid = %v\n", os.Getpid())
 
-	fs := flag.NewFlagSet("member", flag.ExitOnError)
-	cmdCfg.SetFlags(fs)
-	fs.Parse(os.Args[1:])
-	cmdCfg.SetDefaults()
-	err := cmdCfg.FinishConfig(fs)
+	//startOnlineWebProfiling()
+
+	const quiet = false
+	const isTest = false
+	const useSimNet = false
+	tubeCfg, err := tube.LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
 	panicOn(err)
+	////vv("tubeCfg = '%v'", tubeCfg)
+	tubeCfg.RpcCfg.QuietTestMode = false
+	name := tubeCfg.MyName
 
-	if cmdCfg.Verbose {
-		verboseVerbose = true
-		tube.VerboseVerbose.Store(true)
+	tubeCfg.ClockDriftBound = 500 * time.Millisecond
+	tableSpace := "hermes"
+	mem := tube.NewRMember(tableSpace, tubeCfg)
+	mem.Start()
+	<-mem.Ready.Chan
+	for {
+		select {
+		case reply := <-mem.UpcallMembershipChangeCh:
+			vv("%v member sees membership upcall: '%v'", name, reply)
+		}
 	}
-	if cmdCfg.Help {
-		fmt.Fprintf(os.Stderr, "member help:\n")
-		fs.PrintDefaults()
-		return
-	}
-
-	memb, err := tube.NewRMember()
-	panicOn(err)
-	memb.InitAndStart()
 }

@@ -1,4 +1,4 @@
-package main
+package hermes
 
 /*
 https://hermesp.quora.com/

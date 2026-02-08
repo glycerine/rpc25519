@@ -1,4 +1,4 @@
-package main
+package hermes
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
+	"github.com/glycerine/rpc25519/tube"
 )
 
 type HermesNode struct {
@@ -16,18 +17,19 @@ type HermesNode struct {
 	lease     time.Time
 	EpochID   int64
 	liveNodes []string
+	member    *tube.RMember
 
 	// the main key/value store.
 	store map[Key]*keyMeta
 
-	// pending reads/writes are stored as Tickets in
+	// pending reads/writes are stored as HermesTickets in
 	// the timeoutPQ priority queue. The pq is sorted by messageLossTimeout,
 	// and indexed by tkt2items, key2items, and buffered.
-	// Use deleteTicket() to remove from all of these conveniently.
+	// Use deleteHermesTicket() to remove from all of these conveniently.
 	timeoutPQ *pqTime
 
 	// index to find stuff in timeoutPQ,
-	// with Ticket.TicketID as the key
+	// with HermesTicket.TicketID as the key
 	tkt2item map[string]*pqTimeItem
 	// lookup all the items for a given Key
 	key2items map[Key]*pqitems
@@ -46,12 +48,12 @@ type HermesNode struct {
 	rpccfg     *rpc.Config
 	srv        *rpc.Server
 	name       string // "hermes_node_2" vs. srvServiceName which is always "hermes"
-	writeReqCh chan *Ticket
-	readReqCh  chan *Ticket
+	writeReqCh chan *HermesTicket
+	readReqCh  chan *HermesTicket
 
 	nextWake       time.Time
 	nextWakeCh     <-chan time.Time
-	nextWakeTicket *Ticket
+	nextWakeTicket *HermesTicket
 
 	// convenience in debug printing
 	me string
@@ -75,55 +77,6 @@ type HermesConfig struct {
 	testScenario map[string]bool
 }
 
-type HermesCluster struct {
-	Cfg   *HermesConfig
-	Nodes []*HermesNode
-}
-
-func NewHermesCluster(cfg *HermesConfig, nodes []*HermesNode) *HermesCluster {
-	return &HermesCluster{Cfg: cfg, Nodes: nodes}
-}
-
-func (s *HermesCluster) Start() {
-	for i, n := range s.Nodes {
-		_ = i
-		err := n.Init()
-		panicOn(err)
-	}
-	time.Sleep(time.Second)
-	// now that they are all started, form a complete mesh
-	// by connecting each to all the others
-	sz := len(s.Nodes)
-	for i, n0 := range s.Nodes {
-		for j, n1 := range s.Nodes {
-			if j <= i || i == sz-1 {
-				continue
-			}
-			// tell a fresh client to connect to server and then pass the
-			// conn to the existing server.
-
-			vv("about to connect i=%v to j=%v", i, j)
-			ckt, _, _, err := n0.myPeer.NewCircuitToPeerURL("hermes-ckt", n1.URL, nil, 0)
-			panicOn(err)
-			// must manually tell the service goro about the new ckt in this case.
-			n0.myPeer.NewCircuitCh <- ckt
-			vv("created ckt between n0 '%v' and n1 '%v': '%v'", n0.name, n1.name, ckt.String())
-		}
-	}
-}
-
-func (s *HermesCluster) Close() {
-	for _, n := range s.Nodes {
-		n.Close()
-	}
-}
-
-func (s *HermesNode) Close() {
-	s.halt.ReqStop.Close()
-	s.srv.Close()
-	<-s.halt.Done.Chan
-}
-
 func NewHermesNode(name string, cfg *HermesConfig) *HermesNode {
 	return &HermesNode{
 		cfg:   cfg,
@@ -134,10 +87,10 @@ func NewHermesNode(name string, cfg *HermesConfig) *HermesNode {
 		// comms
 		pushToPeerURL: make(chan string),
 		halt:          idem.NewHalter(),
-		writeReqCh:    make(chan *Ticket),
-		readReqCh:     make(chan *Ticket),
+		writeReqCh:    make(chan *HermesTicket),
+		readReqCh:     make(chan *HermesTicket),
 
-		// pending reads/writes are stored as Tickets in
+		// pending reads/writes are stored as HermesTickets in
 		// a priority queue sorted by messageLossTimeout,
 		// and indexed by tkt2items, key2items, and buffered.
 		tkt2item:  make(map[string]*pqTimeItem),
@@ -147,11 +100,11 @@ func NewHermesNode(name string, cfg *HermesConfig) *HermesNode {
 	}
 }
 
-// Ticket is how Read/Write operations are submitted
+// HermesTicket is how Read/Write operations are submitted
 // to hermes in a goroutine safe way such that the
 // caller can simply wait until the Done channel is closed
 // to resume. It is exported for serialization purposes.
-type Ticket struct {
+type HermesTicket struct {
 	Key Key `zid:"0"`
 	Val Val `zid:"1"`
 	TS  TS  `zid:"2"`
@@ -159,7 +112,7 @@ type Ticket struct {
 	FromID string `zid:"3"`
 	Err    error  `zid:"4"`
 
-	// TicketID is a unique identifier for each Ticket.
+	// TicketID is a unique identifier for each HermesTicket.
 	TicketID string `zid:"5"`
 
 	IsWrite                 bool `zid:"6"`
@@ -208,7 +161,7 @@ type Ticket struct {
 
 }
 
-func (t *Ticket) String() string {
+func (t *HermesTicket) String() string {
 	var dur time.Duration
 	if !t.messageLossTimeout.IsZero() {
 		dur = t.messageLossTimeout.Sub(time.Now())
@@ -220,7 +173,7 @@ func (t *Ticket) String() string {
 		extra = ","
 	}
 	av += "}"
-	return fmt.Sprintf(`Ticket{
+	return fmt.Sprintf(`HermesTicket{
                Key: "%v",
                Val: "%v",
                 TS: %v,
@@ -238,15 +191,15 @@ messageLossTimeout: %v (in %v),
 		t.messageLossTimeout, dur)
 }
 
-func (s *HermesNode) NewTicket(
+func (s *HermesNode) NewHermesTicket(
 	key Key,
 	val Val,
 	fromID string,
 	isWrite bool,
 	waitForDur time.Duration,
-) (tkt *Ticket) {
+) (tkt *HermesTicket) {
 
-	tkt = &Ticket{
+	tkt = &HermesTicket{
 		IsWrite: isWrite,
 		Key:     key,
 		Val:     val,
@@ -278,7 +231,7 @@ func (s *HermesNode) NewTicket(
 // a synonym for ease of use.
 func (s *HermesNode) Write(key Key, val Val, waitForDur time.Duration) error {
 
-	tkt := s.NewTicket(key, val, s.PeerID, writer, waitForDur)
+	tkt := s.NewHermesTicket(key, val, s.PeerID, writer, waitForDur)
 	select {
 	case s.writeReqCh <- tkt:
 		// proceed to wait below for txt.done
@@ -316,7 +269,7 @@ func (s *HermesNode) Write(key Key, val Val, waitForDur time.Duration) error {
 // which case val will be undefined but typically nil.
 func (s *HermesNode) Read(key Key, waitForDur time.Duration) (val Val, err error) {
 
-	tkt := s.NewTicket(key, val, s.PeerID, reader, waitForDur)
+	tkt := s.NewHermesTicket(key, val, s.PeerID, reader, waitForDur)
 	select {
 	case s.readReqCh <- tkt:
 		// proceed to wait below for txt.Done
@@ -455,7 +408,12 @@ func (s *HermesNode) Start(
 			//zz("%v: sees pushToURL '%v'", s.name, pushToURL)
 
 			//zz("%v: about to new up the server. pushToURL='%v'", s.name, pushToURL)
-			ckt, ctx, _, err := myPeer.NewCircuitToPeerURL("hermes-node", pushToURL, nil, 0)
+			var firstFrag *rpc.Fragment
+			var errWriteDur time.Duration
+			userString := ""
+			remotePeerName := ""
+			ckt, ctx, _, err := myPeer.NewCircuitToPeerURL("hermes-node", pushToURL, firstFrag, errWriteDur, userString, remotePeerName)
+
 			//zz("%v: back from myPeer.NewCircuitToPeerURL(pushToURL: '%v'): err='%v'", s.name, pushToURL, err)
 			panicOn(err)
 			//zz("%v: got ckt = '%v' back from NewCircuitToPeerURL '%v'", s.name, ckt.Name, pushToURL)

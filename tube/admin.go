@@ -452,7 +452,7 @@ func (cfg *TubeConfig) ProdConfigSaneOrPanic(isReplica bool) {
 		fd.Close()
 		os.Remove(path)
 	}
-	if cfg.DataDir != "" && cfg.PeerServiceName != TUBE_CLIENT {
+	if cfg.DataDir != "" && isReplica {
 		path := filepath.Join(cfg.DataDir, "tube_on_start_writable_path_check_DataDir_"+rndstring())
 		fd, err := os.Create(path)
 		if err != nil {

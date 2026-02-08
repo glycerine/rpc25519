@@ -43,7 +43,7 @@ func main() {
 
 	rpc25519.Exit1IfVersionReq()
 
-	fmt.Printf("%v", rpc25519.GetCodeVersion("srv"))
+	fmt.Printf("%v", rpc25519.GetCodeVersion("jsrv"))
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 

@@ -1,4 +1,4 @@
-package main
+package hermes
 
 import (
 	"fmt"
@@ -10,9 +10,9 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"sync/atomic"
-	"time"
 	"unicode"
+	//"sync"
+	"time"
 
 	"4d63.com/tz"
 	rpc "github.com/glycerine/rpc25519"
@@ -20,9 +20,7 @@ import (
 
 // for tons of debug output
 var verbose bool = false
-var VerboseVerbose atomic.Bool // pp() conditional output.
-
-var binVersion string
+var verboseVerbose bool = false
 
 var gtz *time.Location
 var chicago *time.Location
@@ -32,8 +30,6 @@ var londonTz *time.Location
 var frankfurt *time.Location
 
 func init() {
-
-	binVersion = getBinaryVersion()
 
 	// do this is ~/.bashrc so we get the default.
 	os.Setenv("TZ", "America/chicago")
@@ -72,7 +68,7 @@ func nice9(tm time.Time) string {
 }
 
 func pp(format string, a ...interface{}) {
-	if VerboseVerbose.Load() {
+	if verboseVerbose {
 		tsPrintf(format, a...)
 	}
 }
@@ -278,18 +274,4 @@ func hasWhiteSpace(name string) bool {
 
 func panicf(format string, a ...interface{}) {
 	panic(fmt.Sprintf(format, a...))
-}
-
-func getBinaryVersion() string {
-	// nb always going to have +dirty
-	// in the version unless we bother
-	// to get
-	// git status --porcelain -unormal
-	// to give an empty response.
-
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return ""
-	}
-	return fmt.Sprintf("%v@%v built with %v", info.Main.Path, info.Main.Version, info.GoVersion)
 }

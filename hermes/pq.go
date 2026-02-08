@@ -1,4 +1,4 @@
-package main
+package hermes
 
 /* is garbage, this container/heap BS. Use rbtree instead! see pqtree.go
 

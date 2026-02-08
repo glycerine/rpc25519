@@ -1,4 +1,4 @@
-package main
+package hermes
 
 import (
 	"sync"
@@ -24,7 +24,7 @@ type pqTime struct {
 
 // pqTimeItem are the elements in the pqTime
 type pqTimeItem struct {
-	value    *Ticket
+	value    *HermesTicket
 	priority time.Time // The priority of the item in the queue.
 }
 
@@ -78,7 +78,7 @@ func (p *pq) pop() *pqTimeItem {
 	return p.pqtree.pop()
 }
 
-func (p *pq) peek() (tkt *Ticket, timeout time.Time) {
+func (p *pq) peek() (tkt *HermesTicket, timeout time.Time) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	item := p.pqtree.peekItem()
@@ -86,7 +86,7 @@ func (p *pq) peek() (tkt *Ticket, timeout time.Time) {
 }
 
 // add a new item to the queue.
-func (p *pq) add(timeout time.Time, tkt *Ticket) *pqTimeItem {
+func (p *pq) add(timeout time.Time, tkt *HermesTicket) *pqTimeItem {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 
@@ -123,7 +123,7 @@ func (p *pq) delOneItem(item *pqTimeItem) {
 }
 
 // update modifies the priority and value of an pqTimeItem in the queue.
-func (p *pq) update(item *pqTimeItem, value *Ticket, priority time.Time) {
+func (p *pq) update(item *pqTimeItem, value *HermesTicket, priority time.Time) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	p.pqtree.update(item, value, priority)
@@ -142,7 +142,7 @@ func (s *pqTime) peekItem() *pqTimeItem {
 	return it.Item().(*pqTimeItem)
 }
 
-func (pq *pqTime) peek() (tkt *Ticket, timeout time.Time) {
+func (pq *pqTime) peek() (tkt *HermesTicket, timeout time.Time) {
 	if pq.tree.Len() == 0 {
 		return
 	}
@@ -169,7 +169,7 @@ func (s *pqTime) add(item *pqTimeItem) (added bool, it rb.Iterator) {
 */
 
 // add a new item to the queue.
-func (pq *pqTime) add(timeout time.Time, tkt *Ticket) *pqTimeItem {
+func (pq *pqTime) add(timeout time.Time, tkt *HermesTicket) *pqTimeItem {
 	item := &pqTimeItem{
 		priority: timeout,
 		value:    tkt,
@@ -225,7 +225,7 @@ func (pq *pqTime) delOneItem(item *pqTimeItem) {
 }
 
 // update modifies the priority and value of an pqTimeItem in the queue.
-func (pq *pqTime) update(item *pqTimeItem, value *Ticket, priority time.Time) {
+func (pq *pqTime) update(item *pqTimeItem, value *HermesTicket, priority time.Time) {
 
 	it, exact := pq.tree.FindGE_isEqual(item)
 	//if it == pq.tree.Limit() {

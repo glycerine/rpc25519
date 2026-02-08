@@ -1,4 +1,4 @@
-package main
+package hermes
 
 import (
 	"bytes"
@@ -7,6 +7,55 @@ import (
 
 	"testing"
 )
+
+type HermesCluster struct {
+	Cfg   *HermesConfig
+	Nodes []*HermesNode
+}
+
+func NewHermesCluster(cfg *HermesConfig, nodes []*HermesNode) *HermesCluster {
+	return &HermesCluster{Cfg: cfg, Nodes: nodes}
+}
+
+func (s *HermesCluster) Start() {
+	for i, n := range s.Nodes {
+		_ = i
+		err := n.Init()
+		panicOn(err)
+	}
+	time.Sleep(time.Second)
+	// now that they are all started, form a complete mesh
+	// by connecting each to all the others
+	sz := len(s.Nodes)
+	for i, n0 := range s.Nodes {
+		for j, n1 := range s.Nodes {
+			if j <= i || i == sz-1 {
+				continue
+			}
+			// tell a fresh client to connect to server and then pass the
+			// conn to the existing server.
+
+			vv("about to connect i=%v to j=%v", i, j)
+			ckt, _, _, err := n0.myPeer.NewCircuitToPeerURL("hermes-ckt", n1.URL, nil, 0, "", "")
+			panicOn(err)
+			// must manually tell the service goro about the new ckt in this case.
+			n0.myPeer.NewCircuitCh <- ckt
+			vv("created ckt between n0 '%v' and n1 '%v': '%v'", n0.name, n1.name, ckt.String())
+		}
+	}
+}
+
+func (s *HermesCluster) Close() {
+	for _, n := range s.Nodes {
+		n.Close()
+	}
+}
+
+func (s *HermesNode) Close() {
+	s.halt.ReqStop.Close()
+	s.srv.Close()
+	<-s.halt.Done.Chan
+}
 
 func Test010_TS_Compare_is_fair(t *testing.T) {
 	return // green but the fairness version is off atm.

@@ -1,4 +1,4 @@
-package main
+package hermes
 
 import (
 	"fmt"
@@ -166,7 +166,7 @@ func init() {
 }
 
 // also resets mlt on the pendingUpdate.
-func (s *HermesNode) actionAbRecordPending(tkt *Ticket) {
+func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 	vv("%v top of actionAbRecordPending(tkt='%v')", s.me, tkt)
 	if tkt == nil || tkt.keym == nil {
 		panic("tkt.keym was nil where?")
@@ -186,7 +186,7 @@ func (s *HermesNode) actionAbRecordPending(tkt *Ticket) {
 		vv("%v actionAbRecordPending is updating deadline in pq, not "+
 			"adding anew, for tkt='%v'", s.me, item.value)
 		item.value.messageLossTimeout = messageLossTimeout
-		s.timeoutPQ.update(item, item.value, messageLossTimeout)
+		s.timeoutPQ.update(item, item.value, messageLossTimeout) // panic: error on pqTime.update(): item not found!
 		vv("%v actionAbRecordPending after updating deadline, tkt='%v'",
 			s.me, item.value)
 		return
@@ -290,7 +290,7 @@ func (s *HermesNode) actionI(inv *INV, keym *keyMeta) {
 				// Don't freak, just make a new Ticket to
 				// accumulate acks on, so we can go faster (one net hop instead of two
 				// to a valid read).
-				tkt = s.NewTicket(keym.key, nil, inv.FromID, true, 0)
+				tkt = s.NewHermesTicket(keym.key, nil, inv.FromID, true, 0)
 				tkt.TicketID = inv.TicketID // match the sender
 				tkt.PseudoTicketForAckAccum = true
 				tkt.Val = inv.Val
@@ -316,7 +316,7 @@ func (s *HermesNode) actionI(inv *INV, keym *keyMeta) {
 }
 
 // only called by write requests.
-func (s *HermesNode) actionW(tkt *Ticket, key Key, keym *keyMeta, val Val, fromID string, isRMW bool) {
+func (s *HermesNode) actionW(tkt *HermesTicket, key Key, keym *keyMeta, val Val, fromID string, isRMW bool) {
 
 	// "Coord_TS: When a coordinator issues an update, the version of
 	// the logical timestamp is incremented by one if the update
@@ -339,7 +339,7 @@ func (s *HermesNode) actionW(tkt *Ticket, key Key, keym *keyMeta, val Val, fromI
 // actionBR "buffer the read" is only called when the coordinator has failed.
 // Calls actionAbRecordPending(tkt) so it resets mlt on the pendingUpdate
 // as well as clearing the ackVector.
-func (s *HermesNode) actionBR(tkt *Ticket) {
+func (s *HermesNode) actionBR(tkt *HermesTicket) {
 	// "buffer the read, same as actionW, but without incrementing TS"
 
 	s.actionAbRecordPending(tkt)
@@ -348,7 +348,7 @@ func (s *HermesNode) actionBR(tkt *Ticket) {
 	tkt.ackVector = make(map[string]bool)
 }
 
-func (s *HermesNode) anyWritesInProgressFor(key Key) (writers, readers []*Ticket) {
+func (s *HermesNode) anyWritesInProgressFor(key Key) (writers, readers []*HermesTicket) {
 	items, ok := s.key2items[key]
 	if !ok {
 		return // false, nil
@@ -367,7 +367,7 @@ func (s *HermesNode) anyWritesInProgressFor(key Key) (writers, readers []*Ticket
 // PRE: ack.TS.Compare(&keym.TS) == 0,
 // so we know this ack is for the most recent
 // write
-func (s *HermesNode) actionLA(ack *ACK, keym *keyMeta) (isLast, isWrite bool, tkt *Ticket) {
+func (s *HermesNode) actionLA(ack *ACK, keym *keyMeta) (isLast, isWrite bool, tkt *HermesTicket) {
 	vv("%v top of actionLA, ack='%v'; keym='%v'", s.me, ack, keym)
 	// set bit in ack bitmap
 
@@ -538,7 +538,7 @@ func (s *HermesNode) bcastValid(valid *VALIDATE) {
 // (i.e., one with an RM lease) by returning the local value of
 // the requested key if it is in the Valid state.
 // If the key is in any other state, the request is stalled."
-func (s *HermesNode) readReq(tkt *Ticket) (val Val, err error) {
+func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 	key := tkt.Key
 	readFromID := tkt.FromID
 	waitForValid := tkt.waitForValid
@@ -639,7 +639,7 @@ to all live replicas, and any future read cannot return the
 old value (i.e., the write is committed – Figure 2b)."
 */
 // So we want to pause until we get all the acks back.
-func (s *HermesNode) writeReq(tkt *Ticket) {
+func (s *HermesNode) writeReq(tkt *HermesTicket) {
 	vv("top of writeReq. key='%v'; val='%v'; writeFromID='%v'", string(tkt.Key), string(tkt.Val), rpc.AliasDecode(tkt.FromID))
 	// we (s.PeerID) are the coordinator for this write!
 	//
@@ -1089,7 +1089,7 @@ func (s *HermesNode) completeWrite(keym *keyMeta, ticketID string) {
 }
 
 /* replace by unblockReadsFor()
-func (s *HermesNode) completeRead2(keym *keyMeta, tkt *Ticket) {
+func (s *HermesNode) completeRead2(keym *keyMeta, tkt *HermesTicket) {
 	if tkt != nil {
 		vv("top of completeRead() for key '%v', tkt.TicketID='%v'", string(keym.key), tkt.TicketID)
 		tkt.Val = keym.val
@@ -1139,7 +1139,7 @@ func (s *HermesNode) unblockReadsFor(keym *keyMeta) {
 	}
 }
 
-func (s *HermesNode) deleteTicket(ticketID string, wasWrite bool) *Ticket {
+func (s *HermesNode) deleteTicket(ticketID string, wasWrite bool) *HermesTicket {
 	vv("top of deleteTicket for ticketID='%v'", ticketID)
 	item, ok := s.tkt2item[ticketID]
 	if !ok {
@@ -1194,7 +1194,7 @@ func (s *HermesNode) deleteTicket(ticketID string, wasWrite bool) *Ticket {
 
 func (s *HermesNode) recvAck(ack *ACK) (err error) {
 
-	var tkt *Ticket
+	var tkt *HermesTicket
 	vv("%v recvAck(ack='%v')", s.me, ack)
 	key := ack.Key
 	keym, ok := s.store[key]
@@ -1215,7 +1215,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 
 		tkt, ok = s.getTicket(ack.TicketID)
 		if !ok {
-			tkt = s.NewTicket(key, nil, ack.FromID, true, 0)
+			tkt = s.NewHermesTicket(key, nil, ack.FromID, true, 0)
 			tkt.TicketID = ack.TicketID // match the sender
 			tkt.PseudoTicketForAckAccum = true
 			//tkt.Val = inv.Val // not avalil yet. save when the INV comes in.
@@ -1258,7 +1258,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 			// ticket that is not our own. Don't freak, just make a new Ticket to
 			// accumulate acks on, so we can go faster (one net hop instead of two
 			// to a valid read).
-			tkt = s.NewTicket(keym.key, nil, ack.FromID, true, 0)
+			tkt = s.NewHermesTicket(keym.key, nil, ack.FromID, true, 0)
 			tkt.TicketID = ack.TicketID // match the sender
 			tkt.PseudoTicketForAckAccum = true
 			//tkt.Val = ack.Val // will be removed from ack at some point.
@@ -1628,11 +1628,11 @@ func (s *HermesNode) reconfigRM() {
 	}
 }
 
-func (s *HermesNode) replayRMW(tkt *Ticket) {
+func (s *HermesNode) replayRMW(tkt *HermesTicket) {
 	panic("TODO implement s.replayRMW()")
 }
 
-func (s *HermesNode) mustGetTicket(ticketID string) *Ticket {
+func (s *HermesNode) mustGetTicket(ticketID string) *HermesTicket {
 	item, ok := s.tkt2item[ticketID]
 	if !ok {
 		panic(fmt.Sprintf("mustGetTicket(ticketID='%v') could not find Ticket", ticketID))
@@ -1640,7 +1640,7 @@ func (s *HermesNode) mustGetTicket(ticketID string) *Ticket {
 	return item.value
 }
 
-func (s *HermesNode) getTicket(ticketID string) (tkt *Ticket, ok bool) {
+func (s *HermesNode) getTicket(ticketID string) (tkt *HermesTicket, ok bool) {
 	var item *pqTimeItem
 	item, ok = s.tkt2item[ticketID]
 	if !ok {
