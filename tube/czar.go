@@ -1651,6 +1651,23 @@ func (s *PeerDetailPlus) Clone() (r *PeerDetailPlus) {
 	return
 }
 
+func (s *PeerDetailPlus) ShortStringForCzar() string {
+	d := s.Det
+	return fmt.Sprintf(`PeerDetailPlus{
+                  Name: %v
+                   URL: %v
+                PeerID: %v
+                  Addr: %v
+       PeerServiceName: %v
+PeerServiceNameVersion: %v
+             NonVoting: %v
+                   PID: %v
+}`, d.Name, d.URL, d.PeerID, d.Addr,
+		d.PeerServiceName, d.PeerServiceNameVersion,
+		d.NonVoting,
+		d.PID)
+}
+
 func (s *PeerDetailPlus) String() string {
 	now := time.Now()
 	x := ""
@@ -1794,7 +1811,7 @@ func (s *ReliableMembershipList) String() (r string) {
 	}
 	r += fmt.Sprintf(" CzarName: \"%v\"\n", s.CzarName)
 	r += fmt.Sprintf("[ %v PeerNames listed above (%v total with czar) ]\n", npeer, numWithCzar)
-	r += fmt.Sprintf("  CzarDet: %v\n", s.CzarDet)
+	r += fmt.Sprintf("  CzarDet: %v\n", s.CzarDet.ShortStringForCzar())
 	r += fmt.Sprintf("  CzarVersProbablyStale: %v\n", s.CzarVersProbablyStale.Short())
 	r += "}\n"
 	return
