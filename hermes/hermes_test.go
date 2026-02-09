@@ -176,9 +176,12 @@ func Test002_hermes_write_new_value(t *testing.T) {
 	if !bytes.Equal(v, v2) {
 		t.Fatalf("write a:'%v' to node0, read back from node0 '%v'", string(v), string(v2))
 	}
+	vv("good 2: back from nodes[1].Read a -> 123")
+
 }
 
 func Test003_hermes_write_new_value_two_replicas(t *testing.T) {
+
 	n := 3 // number of nodes (primary + 2 replicas)
 	cfg := &HermesConfig{
 		ReplicationDegree:  n,
@@ -201,7 +204,7 @@ func Test003_hermes_write_new_value_two_replicas(t *testing.T) {
 	v := []byte("123")
 	err := nodes[0].Write("a", v, 0)
 	panicOn(err)
-	vv("good 1: back from nodes[0].Write a -> 123")
+	vv("good 1: back from nodes[0].Write a -> 123") // not seen
 
 	//time.Sleep(time.Second)
 
@@ -244,7 +247,7 @@ func Test004_hermes_write_twice(t *testing.T) {
 
 	// have to let the cluster come up, or else we
 	// won't wait for the second node? Not now, because
-	// the nodes know there replication degree, and
+	// the nodes know their replication degree, and
 	// will wait until the INV have been sent.
 	//time.Sleep(time.Second)
 
@@ -341,6 +344,7 @@ func Test005_hermes_second_write_to_different_node(t *testing.T) {
 }
 
 func Test006_hermes_second_write_to_different_node_3_nodes(t *testing.T) {
+
 	n := 3 // number of nodes
 	cfg := &HermesConfig{
 		ReplicationDegree:  n,
@@ -377,7 +381,7 @@ func Test006_hermes_second_write_to_different_node_3_nodes(t *testing.T) {
 	for i := range n {
 		v3, err := nodes[i].Read("a", 0)
 		panicOn(err)
-		//vv("v3 = '%v'", string(v3))
+		vv("v3 = '%v'", string(v3))
 
 		if !bytes.Equal(v3, v2) {
 			t.Fatalf("error 2nd write a:'%v' but read back from node %v '%v'", string(v2), i, string(v3))
@@ -461,6 +465,7 @@ func Test008_coord_fails_before_VALIDATE_then_replay(t *testing.T) {
 }
 
 func Test009_follower_fails_does_not_ACK(t *testing.T) {
+
 	n := 2
 	cfg := &HermesConfig{
 		ReplicationDegree:  n,

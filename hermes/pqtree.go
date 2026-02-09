@@ -263,7 +263,8 @@ func (pq *pqTime) update(item *pqTimeItem, tkt *HermesTicket, priority time.Time
 	it, exact := pq.tree.FindGE_isEqual(item)
 	//if it == pq.tree.Limit() {
 	if !exact {
-		return fmt.Errorf("error on pqTime.update(): item not found in tree of len '%v'! item='%v'\n\n tree='%v'", pq.size(), item, pq)
+		err := fmt.Errorf("error on pqTime.update(): item not found in tree of len '%v'! item='%v'\n\n tree='%v'", pq.size(), item, pq)
+		return err
 	}
 	// delete and re-add to keep the proper tree ordering.
 	item2 := it.Item().(*pqTimeItem)

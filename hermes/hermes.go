@@ -188,9 +188,9 @@ func (v *VALIDATE) String() string {
 }
 
 const (
-	INVmsg      int = 1
-	VALIDATEmsg int = 2
-	ACKmsg      int = 3
+	INVmsg      int = 101
+	VALIDATEmsg int = 102
+	ACKmsg      int = 103
 )
 
 func init() {
@@ -538,10 +538,13 @@ func (s *HermesNode) bcastInval(key Key, inv *INV) {
 	panicOn(err)
 	frag.Payload = bts
 	frag.FragOp = INVmsg
+	frag.FragSubject = "INVmsg"
 	j := 0
+	left := len(s.ckt) - 1
 	for id, ckt := range s.ckt {
 		_ = id
-		_, err = ckt.SendOneWay(frag, 0, 0)
+		err = s.SendOneWay(ckt, frag, -1, left)
+		left--
 		_ = err // don't panic on halting
 		//panicOn(err)
 		if err == nil {
@@ -559,9 +562,11 @@ func (s *HermesNode) bcastAck(ack *ACK) {
 	panicOn(err)
 	frag.Payload = bts
 	frag.FragOp = ACKmsg
+    left := len(s.ckt) - 1
 	for id, ckt := range s.ckt {
 		_ = id
-		err = ckt.SendOneWay(frag, -1)
+		err = s.SendOneWay(ckt, frag, -1, left)
+        left--
 		_ = err // don't panic on halting.
 		if err != nil {
 			alwaysPrintf("non nil error '%v' on bcast/sending ACKmsg", err)
@@ -577,9 +582,12 @@ func (s *HermesNode) bcastValid(valid *VALIDATE) {
 	panicOn(err)
 	frag.Payload = bts
 	frag.FragOp = VALIDATEmsg
+	frag.FragSubject = "VALIDATEmsg"
+	left := len(s.ckt) - 1
 	for id, ckt := range s.ckt {
 		_ = id
-		_, err = ckt.SendOneWay(frag, -1, 0)
+		err = s.SendOneWay(ckt, frag, -1, left)
+		left--
 		_ = err // don't panic on halting.
 		if err != nil {
 			alwaysPrintf("non nil error '%v' on sending VALIDATEmsg", err)
@@ -627,7 +635,7 @@ func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 		}
 
 		// first read of unknown key. make its keym
-		vv("first read of unknown key '%v'", string(key))
+		vv("%v: first read of unknown key '%v'", s.me, string(key))
 		keym = &keyMeta{
 			key: key,
 			//val: tkt.Val, // this is a read, not a write.
@@ -898,6 +906,7 @@ func (s *HermesNode) ack(inv *INV) {
 	panicOn(err)
 	frag.Payload = bts
 	frag.FragOp = ACKmsg
+	frag.FragSubject = "ACKmsg"
 
 	if useBcastAckOptimization {
 		// [O3] Reducing blocking latency In the failure-free case,
@@ -917,6 +926,7 @@ func (s *HermesNode) ack(inv *INV) {
 		for id, ckt := range s.ckt {
 			_ = id
 			err = s.SendOneWay(ckt, frag, -1, left)
+			left--
 			_ = err // don't panic on halting.
 			if err != nil {
 				alwaysPrintf("non nil error '%v' on bcast/sending ACKmsg to '%v'", err, id)
