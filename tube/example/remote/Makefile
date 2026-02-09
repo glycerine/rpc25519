@@ -18,6 +18,7 @@ beg:
 	cd ../../cmd/tuberm; go install
 	cd ../../cmd/tubeadd; go install
 	cd ../../cmd/member; go install
+	cd ../../cmd/hermes; go install
 	./beg
 	sleep 1
 	grep "remote\ URL" log.*
@@ -43,6 +44,7 @@ build:
 	cd ../../cmd/tuberm; go install
 	cd ../../cmd/tubeadd; go install
 	cd ../../cmd/member; go install
+	cd ../../cmd/hermes; go install
 
 clean:
 	pkill -9 -x tube || true
@@ -59,6 +61,7 @@ clean:
 	cd ../../cmd/tuberm; go install
 	cd ../../cmd/tubeadd; go install
 	cd ../../cmd/member; go install
+	cd ../../cmd/hermes; go install
 	mkdir tmp
 
 kill:
@@ -68,6 +71,7 @@ kill:
 who:
 	(ps -ef |grep member |grep -v grep) || true
 	(ps -ef |grep tube |grep -v grep) || true
+	(ps -ef |grep hermes |grep -v grep) || true
 
 view0:
 	################# raft log for node 0:

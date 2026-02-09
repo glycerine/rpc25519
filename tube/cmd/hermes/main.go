@@ -33,9 +33,10 @@ func main() {
 	const quiet = false
 	const isTest = false
 	const useSimNet = false
-	tubeCfg, err := tube.LoadFromDiskTubeConfig("member", quiet, useSimNet, isTest)
+	tubeCfg, err := tube.LoadFromDiskTubeConfig("hermes", quiet, useSimNet, isTest)
 	panicOn(err)
-	////vv("tubeCfg = '%v'", tubeCfg)
+	tubeCfg.PeerServiceName = "hermes"
+	vv("tubeCfg = '%v'", tubeCfg)
 	tubeCfg.RpcCfg.QuietTestMode = false
 	name := tubeCfg.MyName
 

@@ -838,6 +838,10 @@ func (s *TubeNode) Start(
 	// Otherwise every new client call (tubeadd, tup, tubels, member)
 	// makes a directory and set of files that never get used.
 	switch s.cfg.PeerServiceName {
+	default:
+		// e.g. "hermes"
+		s.role = CLIENT
+
 	case TUBE_CLIENT:
 		//vv("%v setting role to CLIENT b/c PeerServiceName is TUBE_CLIENT", s.me())
 		s.role = CLIENT
@@ -1633,7 +1637,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 			case NotifyClientNewLeader:
 				// only for clients
-				if s.role != CLIENT && s.cfg.PeerServiceName != TUBE_CLIENT {
+				if s.role != CLIENT {
 					panicf("%v only send NotifyClientNewLeader to clients. PeerServiceName = '%v'", s.me(), s.cfg.PeerServiceName)
 				}
 				s.leaderName, _ = frag.GetUserArg("leaderName")
@@ -2410,9 +2414,10 @@ func (s *TubeNode) globalPruneCktCheck() {
 		if cktP.dups.Len() < 2 {
 			continue
 		}
-		if cktP.PeerServiceName != TUBE_CLIENT {
-			continue
-		}
+		// comment out now that we have other clients like "hermes" now.
+		//if cktP.PeerServiceName != TUBE_CLIENT {
+		//	continue
+		//}
 		if cktP.ckt.RemoteServiceName == TUBE_REPLICA &&
 			cktP.ckt.LocalServiceName == TUBE_REPLICA {
 			// for now, we never dedup intra-raft traffic ckts, too risky.
@@ -4686,9 +4691,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	if !minimize {
 
 		for id, info := range s.peers {
-			if minimize && info.PeerServiceName == TUBE_CLIENT {
-				continue
-			}
+
 			infoClone := info.clone()
 			ins.Peers[id] = infoClone
 			cktP, ok := s.cktall[id]
@@ -4715,10 +4718,11 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 			MC:                   s.state.MC.Clone(),
 			RemoteBaseServerAddr: s.MyPeer.BaseServerAddr,
 		}
-	}
+	} // end if !minimize
+
 	for id, cktP := range s.cktReplica {
 		ckt := cktP.ckt
-		if minimize && cktP.PeerServiceName == TUBE_CLIENT {
+		if minimize && cktP.PeerServiceName != TUBE_REPLICA {
 			continue
 		}
 		ins.CktReplica[id] = ckt.RemoteCircuitURL() // inspection copy
@@ -12470,7 +12474,8 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 		}
 	}
 	switch s.PeerServiceName {
-	case TUBE_CLIENT, TUBE_OBS_MEMBERS:
+	case TUBE_REPLICA:
+	default: // TUBE_CLIENT, TUBE_OBS_MEMBERS, hermes, ...
 		s.updateLeaderNameFromAckMsg(ackMsg)
 	}
 	return
@@ -12576,7 +12581,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		// lets confirm that with our other trackers...
 		cktP, auditFoundIt := s.cktAuditByPeerID.Get(leaderPeerID)
 		if auditFoundIt && cktP.ckt != nil {
-			panicf("arg! s.cktAuditByPeerID has but s.MyPeer.Remotes does not have leaderPeerID='%v'; \n full cktP.URL='%v'\n leaderURL='%v'", leaderPeerID, cktP.ckt.RemoteCircuitURL(), leaderURL)
+			panicf("arg! s.cktAuditByPeerID has but s.MyPeer.Remotes does not have leaderPeerID='%v'; \n full cktP.URL='%v'\n leaderURL='%v'", leaderPeerID, cktP.ckt.RemoteCircuitURL(), leaderURL) // might be sporadic red after added hermes clients?
 		}
 
 		var peerServiceNameVersion string = binVersion
@@ -12647,7 +12652,9 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		}
 	}
 	switch s.PeerServiceName {
-	case TUBE_CLIENT, TUBE_OBS_MEMBERS:
+	case TUBE_REPLICA:
+
+	default: // case TUBE_CLIENT, TUBE_OBS_MEMBERS, "hermes", ...
 		// made setLeaderCktChan buffered.
 		// but: buffering makes 707 intermit red without a leader! hmm.
 
@@ -15100,11 +15107,9 @@ func (s *TubeNode) serviceMembershipObservers() {
 			continue
 		}
 		switch cktP.PeerServiceName {
-		case TUBE_OBS_MEMBERS: // , TUBE_CLIENT:
-			// clients could also automatically be observers
-			// of membership changes?
-		default:
+		case TUBE_REPLICA:
 			continue
+		default: // TUBE_OBS_MEMBERS, TUBE_CLIENT, "hermes", etc.
 		}
 		alwaysPrintf("%v sees observer '%v'", s.name, name)
 		observers = append(observers, cktP.ckt)
@@ -18170,28 +18175,30 @@ func (s *TubeNode) leaderWasUpdated() {
 }
 
 func (s *TubeNode) updateLeaderNameFromAckMsg(ackMsg *rpc.Message) {
-	if ackMsg != nil {
-		var lname, lid, lurl, lterm string
-		var ok bool
-		lname, ok = ackMsg.HDR.Args["leaderName"]
-		if ok {
-			s.leaderName = lname
-		}
-		lid, ok = ackMsg.HDR.Args["leaderID"]
-		if ok {
-			s.leaderID = lid
-		}
-		lurl, ok = ackMsg.HDR.Args["leaderURL"]
-		if ok {
-			s.leaderURL = lurl
-		}
-		lterm, ok = ackMsg.HDR.Args["leaderTerm"]
-		if ok {
-			s.leaderTerm = mustAtoi64(lterm)
-		}
-		if ok {
-			s.leaderWasUpdated()
-		}
+	if ackMsg == nil {
+		return
+	}
+
+	var lname, lid, lurl, lterm string
+	var ok bool
+	lname, ok = ackMsg.HDR.Args["leaderName"]
+	if ok {
+		s.leaderName = lname
+	}
+	lid, ok = ackMsg.HDR.Args["leaderID"]
+	if ok {
+		s.leaderID = lid
+	}
+	lurl, ok = ackMsg.HDR.Args["leaderURL"]
+	if ok {
+		s.leaderURL = lurl
+	}
+	lterm, ok = ackMsg.HDR.Args["leaderTerm"]
+	if ok {
+		s.leaderTerm = mustAtoi64(lterm)
+	}
+	if ok {
+		s.leaderWasUpdated()
 	}
 }
 

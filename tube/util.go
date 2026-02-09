@@ -78,7 +78,7 @@ func LoadFromDiskTubeConfig(configName string, quiet, useSimNet, isTest bool) (c
 		cfg = &TubeConfig{
 			// distinguish multiple configName clients
 			MyName:          configName + "_" + CryRand15B(),
-			PeerServiceName: TUBE_CLIENT,
+			PeerServiceName: TUBE_CLIENT, // default for member demo, but user probably will updated.
 		}
 		fmt.Fprintf(fd, "%v\n", cfg.SexpString(nil))
 		fd.Close()
@@ -96,6 +96,7 @@ func LoadFromDiskTubeConfig(configName string, quiet, useSimNet, isTest bool) (c
 
 	// distinguish multiple tup clients
 	cfg.MyName = configName + "_" + CryRand15B()
+	// default for member demo, but user probably will updated:
 	cfg.PeerServiceName = TUBE_CLIENT
 
 	myHost := ipaddr.GetExternalIP()
