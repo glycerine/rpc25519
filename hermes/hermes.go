@@ -730,6 +730,7 @@ func (s *HermesNode) writeReq(tkt *HermesTicket) {
 				CoordID: s.PeerID, // we are the coordinator for this write
 			},
 			lastWriterID: tkt.FromID,
+			IsRMW:        tkt.Op == RMW,
 		}
 		s.store[key] = keym
 		tkt.TS = keym.TS
@@ -771,7 +772,8 @@ func (s *HermesNode) writeReq(tkt *HermesTicket) {
 			Val:      val,
 			TS:       keym.TS,
 			EpochV:   s.EpochV,
-			IsRMW:    false,
+			//IsRMW:    false,
+			IsRMW: tkt.Op == RMW,
 		}
 
 		// "Note that the coordinator waits for ACKs only from the live
@@ -911,9 +913,10 @@ func (s *HermesNode) ack(inv *INV) {
 		// cost is further offset by avoiding the need to broadcast VAL
 		// messages. Thus, under the typical small replication degrees,
 		// this optimization comes at negligible cost in bandwidth.
+		left := len(s.ckt) - 1
 		for id, ckt := range s.ckt {
 			_ = id
-			_, err = ckt.SendOneWay(frag, -1, 0)
+			err = s.SendOneWay(ckt, frag, -1, left)
 			_ = err // don't panic on halting.
 			if err != nil {
 				alwaysPrintf("non nil error '%v' on bcast/sending ACKmsg to '%v'", err, id)
@@ -928,6 +931,23 @@ func (s *HermesNode) ack(inv *INV) {
 		_, err = ckt.SendOneWay(frag, -1, 0)
 		_ = err // don't panic on halting
 	}
+}
+
+func (s *HermesNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur time.Duration, keepFragIfPositive int) (err error) {
+	npay := len(frag.Payload)
+	if npay > rpc.UserMaxPayload {
+		panicf("npay(%v) > rpc.UserMaxPayload(%v) cannot send this large a message! frag.FragSubject='%v'; frag.FragOp='%v'", npay, rpc.UserMaxPayload, frag.FragSubject, frag.FragOp)
+	}
+	var anew bool
+	anew, err = ckt.SendOneWay(frag, errWriteDur, keepFragIfPositive)
+	_ = anew
+	if err != nil {
+		alwaysPrintf("%v SendOneWay: non nil error on '%v': '%v'; ckt.RemotePeerName='%v'; is ckt.Context live: %v; caller(0) = '%v'; caller(1) = '%v'; fileLine(2)='%v'; fileLine(3)='%v'", s.me, frag.FragSubject, err, ckt.RemotePeerName, ctxLive(ckt.Context), caller(0), caller(1), fileLine(2), fileLine(3))
+		//if s.wasConnRefused(err, ckt) {
+		//	return
+		//}
+	}
+	return
 }
 
 // received by followers
@@ -1928,19 +1948,22 @@ func (t *HermesTicket) String() string {
 		keymStr = t.keym.String()
 	}
 	return fmt.Sprintf(`HermesTicket{
-                Op: %v,
-               Key: "%v",
-               Val: "%v",
-                TS: %v,
-            FromID: %v,
-               Err: %v,
-          TicketID: %v,
-PseudoTicketForAckAccum: %v,
-              keym: %v,
-         ackVector: %v,
-      waitForValid: %v,
-messageLossTimeout: %v (in %v),
-}`, t.Op, string(t.Key), string(t.Val), t.TS.String(), rpc.AliasDecode(t.FromID), t.Err,
+                Op: %v
+               Key: "%v"
+               Val: "%v"
+                TS: %v
+            FromID: %v
+            EpochV: %v
+               Err: %v
+          TicketID: %v
+PseudoTicketForAckAccum: %v
+              keym: %v
+         ackVector: %v
+      waitForValid: %v
+messageLossTimeout: %v (in %v)
+}`, t.Op, string(t.Key), string(t.Val), t.TS.String(), rpc.AliasDecode(t.FromID),
+		t.EpochV.String(),
+		t.Err,
 		t.TicketID, t.PseudoTicketForAckAccum, keymStr, av, t.waitForValid,
 		t.messageLossTimeout, dur)
 }
@@ -2293,4 +2316,14 @@ func (s *HermesNode) newFrag() (frag *rpc.Fragment) {
 	frag.SetUserArg("ClusterID", s.ClusterID)
 	//vv("newFrag, Serial = %v", frag.Serial)
 	return
+}
+
+// returns false if ctx has been cancelled, else true
+func ctxLive(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	default:
+		return true
+	}
 }

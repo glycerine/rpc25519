@@ -165,6 +165,7 @@ func Test002_hermes_write_new_value(t *testing.T) {
 	v := []byte("123")
 	err := nodes[0].Write("a", v, 0)
 	panicOn(err)
+	vv("good 1: back from nodes[0].Write a -> 123")
 
 	//time.Sleep(time.Second)
 
