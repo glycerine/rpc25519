@@ -188,9 +188,9 @@ func (v *VALIDATE) String() string {
 }
 
 const (
-	INVmsg      int = 101
-	VALIDATEmsg int = 102
-	ACKmsg      int = 103
+	INVmsg      int = 201
+	VALIDATEmsg int = 202
+	ACKmsg      int = 203
 )
 
 func init() {
