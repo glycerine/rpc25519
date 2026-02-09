@@ -1274,6 +1274,7 @@ fullRestart:
 					czar.members.PeerNames.Delkey(czar.myDetail.Det.Name)
 
 					czar.members.CzarDet = czar.myDetail
+					czar.members.CzarVersProbablyStale = czar.vers.Clone()
 
 					bts2, err := czar.members.MarshalMsg(nil)
 					panicOn(err)
@@ -1610,6 +1611,9 @@ func (s *RMVersionTuple) Clone() (r *RMVersionTuple) {
 }
 
 func (z *RMVersionTuple) String() (r string) {
+	if z == nil {
+		return "(nil)"
+	}
 	r = "&RMVersionTuple{\n"
 	r += fmt.Sprintf("    CzarLeaseEpoch: %v\n", z.CzarLeaseEpoch)
 	r += fmt.Sprintf(" WithinCzarVersion: %v\n", z.WithinCzarVersion)
@@ -1681,6 +1685,16 @@ type ReliableMembershipList struct {
 	CzarName string          `zid:"0"`
 	CzarDet  *PeerDetailPlus `zid:"1"`
 
+	// CzarVersProbablyStale the name emphasizes that
+	// only an rpc Ping() call to the czar can give the
+	// latest and authoritative internal version number, and this
+	// is almost surely 10 seconds or more out of date, and
+	// is written here only for a vague convenience during
+	// tup inspection, and only during Czar self-renewal;
+	// so after the primary Czar election it will not be available
+	// at all.
+	CzarVersProbablyStale *RMVersionTuple `zid:"2"`
+
 	// PeerNames never contains the czar itself now, for
 	// ease of update: we don't need to subtract the old
 	// czar if we win as new czar and carry over the old list;
@@ -1688,14 +1702,14 @@ type ReliableMembershipList struct {
 	// ourselves from PeerNames.
 	PeerNames *Omap[string, *PeerDetailPlus] `msg:"-"`
 
-	SerzPeerDetails []*PeerDetailPlus `zid:"2"`
+	SerzPeerDetails []*PeerDetailPlus `zid:"3"`
 
 	// members _must_ stop operations
 	// after their lease has expired. It
 	// is this long, and their PeerNames entry
 	// PeerDetail.RMemberLeaseUntilTm
 	// gives the deadline exactly.
-	MemberLeaseDur time.Duration `zid:"3"`
+	MemberLeaseDur time.Duration `zid:"4"`
 
 	blake *blake3.Hasher
 }
@@ -1736,8 +1750,9 @@ func (z *PingReply) String() (r string) {
 
 func (s *ReliableMembershipList) Clone() (r *ReliableMembershipList) {
 	r = &ReliableMembershipList{
-		CzarName:  s.CzarName,
-		PeerNames: NewOmap[string, *PeerDetailPlus](),
+		CzarName:              s.CzarName,
+		PeerNames:             NewOmap[string, *PeerDetailPlus](),
+		CzarVersProbablyStale: s.CzarVersProbablyStale.Clone(),
 	}
 	if s.CzarDet != nil {
 		r.CzarDet = s.CzarDet.Clone()
@@ -1773,6 +1788,7 @@ func (s *ReliableMembershipList) String() (r string) {
 	r += fmt.Sprintf(" CzarName: \"%v\"\n", s.CzarName)
 	r += fmt.Sprintf("[ %v PeerNames listed above (%v total with czar) ]\n", npeer, numWithCzar)
 	r += fmt.Sprintf("  CzarDet: %v\n", s.CzarDet)
+	r += fmt.Sprintf("  CzarVersProbablyStale: %v\n", s.CzarVersProbablyStale)
 	r += "}\n"
 	return
 }
