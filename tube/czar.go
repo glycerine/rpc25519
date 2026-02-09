@@ -207,7 +207,13 @@ var ErrNotIncreasingRMVersionTuple = fmt.Errorf("error: RMVersionTuple must be m
 
 var ErrExpiredCzarLease = fmt.Errorf("error: CzarLeaseUntilTm has expired")
 
-func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, note string) (err error) {
+func (s *Czar) setVersNoUpcall(v *RMVersionTuple, list *ReliableMembershipList, note string) (err error) {
+	return s.setVers(v, list, false, note)
+}
+func (s *Czar) setVersUpcall(v *RMVersionTuple, list *ReliableMembershipList, note string) (err error) {
+	return s.setVers(v, list, true, note)
+}
+func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, upcall bool, note string) (err error) {
 
 	// is lease expired?
 	now := time.Now()
@@ -246,6 +252,9 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, note str
 		// done early, no change in the set of PeerNames and PeerIDs,
 		// so no upcall needed.
 		//vv("%v: no change in the set of peerIDs in ReliableMembershipList", s.name) // seen, good.
+		return
+	}
+	if !upcall {
 		return
 	}
 
@@ -610,7 +619,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 		}
 	}
 	if updated {
-		err := s.setVers(updatedVers, updatedList, "handlePing updated")
+		err := s.setVersUpcall(updatedVers, updatedList, "handlePing updated")
 		panicOn(err)
 		vv("Czar.Ping: membership has changed (was %v) is now: {%v}", origVers, s.shortRMemberSummary())
 
@@ -1141,7 +1150,7 @@ fullRestart:
 					}
 					//vers = vers2 // avoid confusion with old stale vers below if we print
 
-					err = czar.setVers(vers2, list, "primary transition into amCzar") // amCzar. does upcall for us.
+					err = czar.setVersUpcall(vers2, list, "primary transition into amCzar") // amCzar. does upcall for us.
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
 						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
@@ -1220,7 +1229,11 @@ fullRestart:
 						vers2.WithinCzarVersion = vers.WithinCzarVersion
 					}
 
-					err = czar.setVers(vers2, nonCzarMembers, "notCzar") // in notCzar
+					// this is not an appropriate place to do an upcall,
+					// because we have not pinged the actual czar for its
+					// version. an upcall now will see a rollback in version;
+					// it will drop to zero when other nodes have later.
+					err = czar.setVersNoUpcall(vers2, nonCzarMembers, "notCzar") // in notCzar
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
 						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
@@ -1228,19 +1241,6 @@ fullRestart:
 					}
 
 					vv("%v: just went from unknown to nonCzar, created new vers='%v' (left='%v'); errCzarAttempt was '%v' ; from czarTkt.Val, we got back nonCzarMembers = '%v'", name, vers2, time.Until(vers2.CzarLeaseUntilTm), errCzarAttempt, nonCzarMembers)
-
-					// do the upcall? or should we wait until
-					// we ping the czar for a more reliable/centralized
-					// view? probably more consistent that way,
-					// and less churn--especially since a Ping means
-					// the membership will include us/ourselves, which
-					// is a nice property to have--and a bit awkward
-					// otherwise. "Do something with this group you
-					// are not in..." seems like a non-starter.
-					//select {
-					//case czar.UpcallMembershipChangeCh <- nonCzarMembers.Clone():
-					//default:
-					//}
 
 					//pp("I am not czar, did not write to key: '%v'", err) // seen regularly???
 					////pp("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers) // too much to list all 100 in the log.
@@ -1300,7 +1300,7 @@ fullRestart:
 						//pp("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortRMemberSummary())
 						newvers := czar.vers.Clone()
 						newvers.WithinCzarVersion++
-						czar.setVers(newvers, newlist, "expireCheckCh in amCzar") // in amCzar
+						czar.setVersUpcall(newvers, newlist, "expireCheckCh in amCzar") // in amCzar
 					}
 					expireCheckCh = time.After(5 * time.Second)
 
@@ -1470,7 +1470,7 @@ fullRestart:
 						panicf("err was nil, how can pingReplyToFill be nil??")
 					}
 
-					err = czar.setVers(pingReplyToFill.Vers, pingReplyToFill.Members, "notCzar Ping reply")
+					err = czar.setVersUpcall(pingReplyToFill.Vers, pingReplyToFill.Members, "notCzar Ping reply")
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
 						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
@@ -1559,7 +1559,7 @@ fullRestart:
 						}
 					}
 
-					err = czar.setVers(reply.Vers, reply.Members, "memberHeartBeatCh member heartbeat Ping reply")
+					err = czar.setVersUpcall(reply.Vers, reply.Members, "memberHeartBeatCh member heartbeat Ping reply")
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
 						vv("%v: see err = '%v', doing full restart", name, err)
