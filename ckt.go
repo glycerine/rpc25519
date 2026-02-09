@@ -727,7 +727,7 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 	}
 
 	msg := ckt.ConvertFragmentToMessage(frag)
-	vv("sending frag='%v' to (if To empty, send to:) ckt.RpbTo.NetAddr='%v'; msg='%v'", frag, ckt.RpbTo.NetAddr, msg)
+	//vv("sending frag='%v' to (if To empty, send to:) ckt.RpbTo.NetAddr='%v'; msg='%v'", frag, ckt.RpbTo.NetAddr, msg)
 	s.addUserMeta(msg)
 
 	if keepFragIfPositive <= 0 {
