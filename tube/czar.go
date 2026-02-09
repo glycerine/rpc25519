@@ -220,7 +220,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 	cmp := v.VersionCompare(s.vers)
 
 	if cmp < 0 {
-		//vv("%v: rejecting setVers: insisting RMVersionTuple must never decrease, cmp=%v; s.vers=current='%v'; rejecting proposed new v = '%v'", s.name, cmp, s.vers, v)
+		vv("%v: rejecting setVers: insisting RMVersionTuple must never decrease, cmp=%v; s.vers=current='%v'; rejecting proposed new v = '%v'", s.name, cmp, s.vers, v)
 		err = ErrNotIncreasingRMVersionTuple
 		if s.testingCrashIfNotMonotone {
 			// czar_test 809 asserts we never go backwards during that test.
@@ -1137,7 +1137,7 @@ fullRestart:
 					}
 					//vers = vers2 // avoid confusion with old stale vers below if we print
 
-					err = czar.setVers(vers2, list) // does upcall for us.
+					err = czar.setVers(vers2, list) // amCzar. does upcall for us.
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
 						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
@@ -1216,7 +1216,7 @@ fullRestart:
 						vers2.WithinCzarVersion = vers.WithinCzarVersion
 					}
 
-					err = czar.setVers(vers2, nonCzarMembers)
+					err = czar.setVers(vers2, nonCzarMembers) // in notCzar
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
 						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
@@ -1296,7 +1296,7 @@ fullRestart:
 						//pp("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortRMemberSummary())
 						newvers := czar.vers.Clone()
 						newvers.WithinCzarVersion++
-						czar.setVers(newvers, newlist)
+						czar.setVers(newvers, newlist) // in amCzar
 					}
 					expireCheckCh = time.After(5 * time.Second)
 
@@ -1460,7 +1460,7 @@ fullRestart:
 						time.Sleep(time.Second)
 						continue fullRestart
 					}
-					//pp("member(name='%v') did rpc.Call to Czar.Ping, got reply of %v nodes", name, reply.PeerNames.Len()) // seen regularly
+					vv("member(name='%v') did rpc.Call to Czar.Ping, got reply: %v", name, pingReplyToFill) // seen regularly
 
 					if pingReplyToFill == nil {
 						panicf("err was nil, how can pingReplyToFill be nil??")
