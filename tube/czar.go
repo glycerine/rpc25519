@@ -210,9 +210,11 @@ var ErrExpiredCzarLease = fmt.Errorf("error: CzarLeaseUntilTm has expired")
 func (s *Czar) setVersNoUpcall(v *RMVersionTuple, list *ReliableMembershipList, note string) (err error) {
 	return s.setVers(v, list, false, note)
 }
+
 func (s *Czar) setVersUpcall(v *RMVersionTuple, list *ReliableMembershipList, note string) (err error) {
 	return s.setVers(v, list, true, note)
 }
+
 func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, upcall bool, note string) (err error) {
 
 	// is lease expired?
