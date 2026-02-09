@@ -736,7 +736,7 @@ func (z *PingReply) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields12zgensym_d4b91a75c2094c05_13 = 3
+	const maxFields12zgensym_d4b91a75c2094c05_13 = 4
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields12zgensym_d4b91a75c2094c05_13 uint32
@@ -847,6 +847,12 @@ doneWithStruct12zgensym_d4b91a75c2094c05_13:
 			if err != nil {
 				return
 			}
+		case "CallFrom_zid03_str":
+			found12zgensym_d4b91a75c2094c05_13[3] = true
+			z.CallFrom, err = dc.ReadString()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -870,16 +876,16 @@ doneWithStruct12zgensym_d4b91a75c2094c05_13:
 }
 
 // fields of PingReply
-var decodeMsgFieldOrder12zgensym_d4b91a75c2094c05_13 = []string{"Members_zid00_ptr", "Vers_zid01_ptr", "Status_zid02_i32"}
+var decodeMsgFieldOrder12zgensym_d4b91a75c2094c05_13 = []string{"Members_zid00_ptr", "Vers_zid01_ptr", "Status_zid02_i32", "CallFrom_zid03_str"}
 
-var decodeMsgFieldSkip12zgensym_d4b91a75c2094c05_13 = []bool{false, false, false}
+var decodeMsgFieldSkip12zgensym_d4b91a75c2094c05_13 = []bool{false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *PingReply) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 3
+		return 4
 	}
-	var fieldsInUse uint32 = 3
+	var fieldsInUse uint32 = 4
 	isempty[0] = (z.Members == nil) // pointer, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -890,6 +896,10 @@ func (z *PingReply) fieldsNotEmpty(isempty []bool) uint32 {
 	}
 	isempty[2] = (z.Status == 0) // number, omitempty
 	if isempty[2] {
+		fieldsInUse--
+	}
+	isempty[3] = (len(z.CallFrom) == 0) // string, omitempty
+	if isempty[3] {
 		fieldsInUse--
 	}
 
@@ -903,7 +913,7 @@ func (z *PingReply) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_d4b91a75c2094c05_14 [3]bool
+	var empty_zgensym_d4b91a75c2094c05_14 [4]bool
 	fieldsInUse_zgensym_d4b91a75c2094c05_15 := z.fieldsNotEmpty(empty_zgensym_d4b91a75c2094c05_14[:])
 
 	// map header
@@ -976,6 +986,18 @@ func (z *PingReply) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_d4b91a75c2094c05_14[3] {
+		// write "CallFrom_zid03_str"
+		err = en.Append(0xb2, 0x43, 0x61, 0x6c, 0x6c, 0x46, 0x72, 0x6f, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.CallFrom)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -988,7 +1010,7 @@ func (z *PingReply) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [3]bool
+	var empty [4]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -1032,6 +1054,12 @@ func (z *PingReply) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendInt32(o, z.Status)
 	}
 
+	if !empty[3] {
+		// string "CallFrom_zid03_str"
+		o = append(o, 0xb2, 0x43, 0x61, 0x6c, 0x6c, 0x46, 0x72, 0x6f, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.CallFrom)
+	}
+
 	return
 }
 
@@ -1050,7 +1078,7 @@ func (z *PingReply) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o 
 
 	var field []byte
 	_ = field
-	const maxFields16zgensym_d4b91a75c2094c05_17 = 3
+	const maxFields16zgensym_d4b91a75c2094c05_17 = 4
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields16zgensym_d4b91a75c2094c05_17 uint32
@@ -1167,6 +1195,13 @@ doneWithStruct16zgensym_d4b91a75c2094c05_17:
 			if err != nil {
 				return
 			}
+		case "CallFrom_zid03_str":
+			found16zgensym_d4b91a75c2094c05_17[3] = true
+			z.CallFrom, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1190,9 +1225,9 @@ doneWithStruct16zgensym_d4b91a75c2094c05_17:
 }
 
 // fields of PingReply
-var unmarshalMsgFieldOrder16zgensym_d4b91a75c2094c05_17 = []string{"Members_zid00_ptr", "Vers_zid01_ptr", "Status_zid02_i32"}
+var unmarshalMsgFieldOrder16zgensym_d4b91a75c2094c05_17 = []string{"Members_zid00_ptr", "Vers_zid01_ptr", "Status_zid02_i32", "CallFrom_zid03_str"}
 
-var unmarshalMsgFieldSkip16zgensym_d4b91a75c2094c05_17 = []bool{false, false, false}
+var unmarshalMsgFieldSkip16zgensym_d4b91a75c2094c05_17 = []bool{false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *PingReply) Msgsize() (s int) {
@@ -1208,14 +1243,15 @@ func (z *PingReply) Msgsize() (s int) {
 	} else {
 		s += z.Vers.Msgsize()
 	}
-	s += 17 + msgp.Int32Size
+	s += 17 + msgp.Int32Size + 19 + msgp.StringPrefixSize + len(z.CallFrom)
 	return
 }
 func (z *PingReply) Gstring() (r string) {
 	r = "&PingReply{\n"
-	r += fmt.Sprintf("Members: %v,\n", z.Members)
-	r += fmt.Sprintf("   Vers: %v,\n", z.Vers)
-	r += fmt.Sprintf(" Status: %v,\n", z.Status)
+	r += fmt.Sprintf(" Members: %v,\n", z.Members)
+	r += fmt.Sprintf("    Vers: %v,\n", z.Vers)
+	r += fmt.Sprintf("  Status: %v,\n", z.Status)
+	r += fmt.Sprintf("CallFrom: \"%v\",\n", z.CallFrom)
 	r += "}\n"
 	return
 }

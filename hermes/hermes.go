@@ -2140,7 +2140,7 @@ func (s *HermesNode) Start(
 		case reply := <-s.UpcallMembershipChangeCh:
 			s.EpochV.Epoch = reply.Vers.CzarLeaseEpoch
 			s.EpochV.Version = reply.Vers.WithinCzarVersion
-			vv("%v hermes node sees membership change upcall: '%v'; now s.EpochV = '%v'", s.name, reply, s.EpochV)
+			vv("%v hermes node sees membership change upcall: '%v'; now s.EpochV = '%v'; from '%v'", s.name, reply, s.EpochV, reply.CallFrom)
 
 		case <-s.nextWakeCh:
 			vv("=================== nextWakeCh fired ================")

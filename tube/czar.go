@@ -249,12 +249,14 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 		return
 	}
 
-	//vv("end of setVers(v='%v') s.members is now '%v')", v, s.members)
-	s.doUpcall(nil)
+	callFrom := fileLine(2)
+	vv("end of setVers(v='%v') s.members is now '%v'). callFrom='%v'", v, s.members, callFrom)
+
+	s.doUpcall(nil, callFrom)
 	return nil
 }
 
-func (s *Czar) doUpcall(reply *PingReply) {
+func (s *Czar) doUpcall(reply *PingReply, callFrom string) {
 	// skip the members.Clone() if no upcall requested or possible;
 	// s.UpcallMembershipChangeCh must be buffered so czar
 	// loop does not pause excessively.
@@ -266,7 +268,8 @@ func (s *Czar) doUpcall(reply *PingReply) {
 			Members: s.members.Clone(),
 			Vers:    s.vers.Clone(),
 			// note that Status gives the _local_ member's status as czar or not.
-			Status: s.cState.Load(),
+			Status:   s.cState.Load(),
+			CallFrom: callFrom,
 		}
 	}
 	select {
@@ -785,6 +788,7 @@ func NewRMember(tableSpace string, cfg *TubeConfig) (rm *RMember) {
 		name:            cfg.MyName,
 
 		UpcallMembershipChangeCh: make(chan *PingReply, 10),
+		//UpcallMembershipChangeCh: make(chan *PingReply), // red czar_test.go Test809_lease_epoch_monotone
 	}
 	if cfg.isTest {
 		rm.testingAmCzarCh = make(chan bool, 10)
@@ -1764,6 +1768,8 @@ type PingReply struct {
 	Members *ReliableMembershipList `zid:"0"`
 	Vers    *RMVersionTuple         `zid:"1"`
 	Status  int32                   `zid:"2"`
+
+	CallFrom string `zid:"3"`
 }
 
 func (z *PingReply) String() (r string) {
