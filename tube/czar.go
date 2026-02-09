@@ -615,7 +615,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 		vv("Czar.Ping: membership has changed (was %v) is now: {%v}", origVers, s.shortRMemberSummary())
 
 	} else {
-		vv("Czar.Ping: no membership change with this call. cur: '%v'", s.shortRMemberSummary())
+		//vv("Czar.Ping: no membership change with this call. cur: '%v'", s.shortRMemberSummary())
 	}
 
 	reply := &PingReply{
