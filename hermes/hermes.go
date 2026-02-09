@@ -83,69 +83,105 @@ func (a *TS) Compare(b *TS) int {
 	return 1
 }
 
+type EpochVers struct {
+	Epoch   int64 `zid:"0"`
+	Version int64 `zid:"1"`
+}
+
+func (a *EpochVers) String() string {
+	return fmt.Sprintf("&EpochVers{Epoch: %v, Version: %v}", a.Epoch, a.Version)
+}
+
+func (a *EpochVers) GT(b *EpochVers) bool {
+	if a.Epoch > b.Epoch {
+		return true
+	}
+	if a.Epoch < b.Epoch {
+		return false
+	}
+	return a.Version > b.Version
+}
+
+func (a *EpochVers) GTE(b *EpochVers) bool {
+	if a.Epoch > b.Epoch {
+		return true
+	}
+	if a.Epoch < b.Epoch {
+		return false
+	}
+	return a.Version >= b.Version
+}
+func (a *EpochVers) Equal(b *EpochVers) bool {
+	return a.Epoch == b.Epoch && a.Version == b.Version
+}
+
 type INV struct {
-	FromID   string `zid:"0"` // methinks should correspond to TicketID
-	Key      Key    `zid:"1"`
-	EpochID  int64  `zid:"2"`
-	TS       TS     `zid:"3"`
-	IsRMW    bool   `zid:"4"`
-	Val      Val    `zid:"5"`
-	TicketID string `zid:"6"` // methinks should correspond to FromID
+	Key      Key       `zid:"0"`
+	FromID   string    `zid:"1"` // methinks should correspond to TicketID
+	EpochV   EpochVers `zid:"2"`
+	TS       TS        `zid:"3"`
+	IsRMW    bool      `zid:"4"`
+	Val      Val       `zid:"5"`
+	TicketID string    `zid:"6"` // methinks should correspond to FromID
 }
 
 type ACK struct {
-	FromID   string `zid:"0"`
-	Key      Key    `zid:"1"`
-	EpochID  int64  `zid:"2"`
-	TS       TS     `zid:"3"`
-	TicketID string `zid:"4"`
-	Val      Val    `zid:"5"` // for debugging only, TODO remove.
+	Key      Key       `zid:"0"`
+	FromID   string    `zid:"1"`
+	EpochV   EpochVers `zid:"2"`
+	TS       TS        `zid:"3"`
+	TicketID string    `zid:"4"`
+	Val      Val       `zid:"5"` // for debugging only, TODO remove.
 }
 
 type VALIDATE struct {
-	FromID   string `zid:"0"`
-	Key      Key    `zid:"1"`
-	EpochID  int64  `zid:"2"`
-	TS       TS     `zid:"3"`
-	TicketID string `zid:"4"`
-	Val      Val    `zid:"5"` // for debugging only, TODO remove.
+	Key      Key       `zid:"0"`
+	FromID   string    `zid:"1"`
+	EpochV   EpochVers `zid:"2"`
+	TS       TS        `zid:"3"`
+	TicketID string    `zid:"4"`
+	Val      Val       `zid:"5"` // for debugging only, TODO remove.
 }
 
 func (i *INV) String() string {
 	return fmt.Sprintf(`INV{
-      FromID: %v,
          Key: %v,
-     EpochID: %v,
+      FromID: %v,
+      EpochV: %v,
           TS: %v,
        IsRMW: %v,
          Val: %v,
     TicketID: %v,
-}`, rpc.AliasDecode(i.FromID), string(i.Key), i.EpochID,
+}`, string(i.Key), rpc.AliasDecode(i.FromID), i.EpochV.String(),
 		i.TS.String(), i.IsRMW, string(i.Val), i.TicketID)
 }
 
 func (a *ACK) String() string {
 	return fmt.Sprintf(`ACK{
-      FromID: %v,
          Key: %v,
-     EpochID: %v,
+      FromID: %v,
+      EpochV: %v,
           TS: %v,
          Val: %v, 
     TicketID: %v,
-}`, rpc.AliasDecode(a.FromID), string(a.Key), a.EpochID,
-		a.TS.String(), string(a.Val), a.TicketID) // TODO remove Val
+}`, string(a.Key), rpc.AliasDecode(a.FromID), a.EpochV.String(),
+		a.TS.String(),
+		string(a.Val), // TODO remove Val
+		a.TicketID)
 }
 
 func (v *VALIDATE) String() string {
 	return fmt.Sprintf(`VALIDATE{
-      FromID: %v,
          Key: %v,
-     EpochID: %v,
+      FromID: %v,
+      EpochV: %v,
           TS: %v,
          Val: %v,
     TicketID: %v,
-}`, rpc.AliasDecode(v.FromID), string(v.Key), v.EpochID,
-		v.TS.String(), string(v.Val), v.TicketID) // TODO remove Val
+}`, string(v.Key), rpc.AliasDecode(v.FromID), v.EpochV.String(),
+		v.TS.String(),
+		string(v.Val), // TODO remove Val
+		v.TicketID)
 }
 
 const (
@@ -631,7 +667,7 @@ func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 				Key:      key,
 				Val:      keym.val,
 				TS:       keym.TS,
-				EpochID:  s.EpochID,
+				EpochV:   s.EpochV,
 				FromID:   s.PeerID, // should we be using keym.TS.CoordID ? tkt.FromID ?
 			}
 			s.bcastInval(key, invalidation)
@@ -731,7 +767,7 @@ func (s *HermesNode) writeReq(tkt *HermesTicket) {
 			Key:      key,
 			Val:      val,
 			TS:       keym.TS,
-			EpochID:  s.EpochID,
+			EpochV:   s.EpochV,
 			IsRMW:    false,
 		}
 
@@ -824,7 +860,7 @@ func (s *HermesNode) readModifyWriteReq(key Key, val Val, fromID string) {
 	case sValid, sInvalid:
 		s.actionW(tkt, key, keym, val, tkt.FromID, tkt.IsRMW)
 		keym.state = sWrite
-		invalidation := &INV{Key: key, Val: val, TS: keym.TS, EpochID: s.EpochID, IsRMW: true}
+		invalidation := &INV{Key: key, Val: val, TS: keym.TS, EpochV: s.EpochV, IsRMW: true}
 		s.bcastInval(key, invalidation)
 	case sInvalidWR, sWrite, sReplay:
 		s.actionAbRecordPending(keym, writer, val, fromID)
@@ -848,7 +884,7 @@ func (s *HermesNode) ack(inv *INV) {
 		FromID:   s.PeerID, // this has to be us, so the ackVector can see all the different ACKers.
 		Key:      inv.Key,
 		TS:       inv.TS,
-		EpochID:  s.EpochID,
+		EpochV:   s.EpochV,
 		Val:      inv.Val, // TODO remove
 		TicketID: inv.TicketID,
 	}
@@ -901,7 +937,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 	// INV messages, because those messages are tagged with an
 	// epoch_id greater than the follower’s local epoch_id."
 	// => not needed:
-	//if inv.EpochID != s.EpochID {
+	//if inv.EpochV != s.EpochV {
 	//	return nil
 	//}
 
@@ -1375,11 +1411,11 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 					TicketID: ack.TicketID,
 
 					// FromID could be s.PeerID? but methinks should correspond to TicketID
-					FromID:  ack.FromID,
-					Key:     key,
-					EpochID: s.EpochID,
-					TS:      ack.TS,  // ack.TS is equal to keym.TS, so either is fine.
-					Val:     ack.Val, // TODO remove
+					FromID: ack.FromID,
+					Key:    key,
+					EpochV: s.EpochV,
+					TS:     ack.TS,  // ack.TS is equal to keym.TS, so either is fine.
+					Val:    ack.Val, // TODO remove
 				}
 				// "Send validations once acknowledments are received from all alive nodes"
 				s.bcastValid(valid)
@@ -1427,7 +1463,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 					TicketID: ack.TicketID,
 					FromID:   s.PeerID,
 					Key:      key,
-					EpochID:  s.EpochID,
+					EpochV:   s.EpochV,
 					TS:       ack.TS,  // correct?
 					Val:      ack.Val, // TODO remove
 				}
@@ -1543,7 +1579,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 					Key:      key,
 					Val:      keym.val,
 					TS:       keym.TS,
-					EpochID:  s.EpochID,
+					EpochV:   s.EpochV,
 					FromID:   s.PeerID, // must be us, so they reply to us.
 				}
 				s.bcastInval(key, invalidation)
@@ -1573,7 +1609,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 						TicketID: tkt.TicketID,
 						FromID:   s.PeerID,
 						Key:      keym.key,
-						EpochID:  s.EpochID,
+						EpochV:   s.EpochV,
 						TS:       keym.TS,
 						Val:      keym.val, // TODO remove
 					}
@@ -1593,7 +1629,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 					TicketID: tkt.TicketID,
 					FromID:   s.PeerID,
 					Key:      keym.key,
-					EpochID:  s.EpochID,
+					EpochV:   s.EpochV,
 					TS:       keym.TS,
 					Val:      keym.val, // TODO remove
 				}

@@ -15,7 +15,7 @@ type HermesNode struct {
 
 	// hermes protocol
 	lease     time.Time
-	EpochID   int64
+	EpochV    EpochVers
 	liveNodes []string
 	member    *tube.RMember
 	ClusterID string
@@ -386,7 +386,9 @@ func (s *HermesNode) Start(
 		select {
 
 		case reply := <-s.UpcallMembershipChangeCh:
-			vv("%v hermes node sees membership change upcall: '%v'", s.name, reply)
+			s.EpochV.Epoch = reply.Vers.CzarLeaseEpoch
+			s.EpochV.Version = reply.Vers.WithinCzarVersion
+			vv("%v hermes node sees membership change upcall: '%v'; now s.EpochV = '%v'", s.name, reply, s.EpochV)
 
 		case <-s.nextWakeCh:
 			vv("=================== nextWakeCh fired ================")
@@ -411,7 +413,7 @@ func (s *HermesNode) Start(
 				inv := &INV{}
 				_, err := inv.UnmarshalMsg(frag.Payload)
 				panicOn(err)
-				if inv.EpochID == s.EpochID {
+				if inv.EpochV.Equal(&s.EpochV) {
 					err = s.recvInvalidate(inv)
 					panicOn(err)
 				}
@@ -420,7 +422,7 @@ func (s *HermesNode) Start(
 				valid := &VALIDATE{}
 				_, err := valid.UnmarshalMsg(frag.Payload)
 				panicOn(err)
-				if valid.EpochID == s.EpochID {
+				if valid.EpochV.Equal(&s.EpochV) {
 					err = s.recvValidate(valid)
 					panicOn(err)
 				}
@@ -428,7 +430,7 @@ func (s *HermesNode) Start(
 				ack := &ACK{}
 				_, err := ack.UnmarshalMsg(frag.Payload)
 				panicOn(err)
-				if ack.EpochID == s.EpochID {
+				if ack.EpochV.Equal(&s.EpochV) {
 					err = s.recvAck(ack)
 					panicOn(err)
 				}
