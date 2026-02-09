@@ -494,7 +494,7 @@ var ErrAbortRMW = fmt.Errorf("error RMW was aborted by a higher TS write")
 func (s *HermesNode) bcastInval(key Key, inv *INV) {
 	vv("%v top of bcastInval: inv: '%v'", s.me, inv)
 
-	frag := s.myPeer.NewFragment()
+	frag := s.MyPeer.NewFragment()
 	bts, err := inv.MarshalMsg(nil)
 	panicOn(err)
 	frag.Payload = bts
@@ -515,7 +515,7 @@ func (s *HermesNode) bcastInval(key Key, inv *INV) {
 /* modified ack() instead.
 func (s *HermesNode) bcastAck(ack *ACK) {
 	vv("%v top of bcastAck(ack='%v')", s.me, ack)
-	frag := s.myPeer.U.NewFragment()
+	frag := s.MyPeer.U.NewFragment()
 	bts, err := ack.MarshalMsg(nil)
 	panicOn(err)
 	frag.Payload = bts
@@ -533,7 +533,7 @@ func (s *HermesNode) bcastAck(ack *ACK) {
 
 func (s *HermesNode) bcastValid(valid *VALIDATE) {
 	vv("%v top of bcastValid(valid='%v')", s.me, valid)
-	frag := s.myPeer.NewFragment()
+	frag := s.MyPeer.NewFragment()
 	bts, err := valid.MarshalMsg(nil)
 	panicOn(err)
 	frag.Payload = bts
@@ -680,7 +680,7 @@ func (s *HermesNode) writeReq(tkt *HermesTicket) {
 	val := tkt.Val
 	keym, ok := s.store[key]
 	if !ok {
-		vv("no update, just a new key/value pair")
+		vv("%v writeReq: no update, just a new key/value pair", s.me)
 		keym = &keyMeta{
 			key: key,
 			val: tkt.Val, // apply write locally
@@ -852,7 +852,7 @@ func (s *HermesNode) ack(inv *INV) {
 		Val:      inv.Val, // TODO remove
 		TicketID: inv.TicketID,
 	}
-	frag := s.myPeer.NewFragment()
+	frag := s.MyPeer.NewFragment()
 	bts, err := a.MarshalMsg(nil)
 	panicOn(err)
 	frag.Payload = bts

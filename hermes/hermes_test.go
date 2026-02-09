@@ -35,11 +35,20 @@ func (s *HermesCluster) Start() {
 			// tell a fresh client to connect to server and then pass the
 			// conn to the existing server.
 
+			firstFrag := n0.newFrag()
+			// firstFrag.FragOp = 0 // leave 0
+			firstFrag.ToPeerName = n1.name
+			firstFrag.SetUserArg("fromPeerName", n0.name)
+			firstFrag.SetUserArg("toPeerName", n1.name)
+			remotePeerName := n1.name
+			var userString string
+			var errWriteDur time.Duration
+
 			vv("about to connect i=%v to j=%v", i, j)
-			ckt, _, _, err := n0.myPeer.NewCircuitToPeerURL("hermes-ckt", n1.URL, nil, 0, "", "")
+			ckt, _, _, err := n0.MyPeer.NewCircuitToPeerURL("hermes-ckt", n1.URL, firstFrag, errWriteDur, userString, remotePeerName)
 			panicOn(err)
 			// must manually tell the service goro about the new ckt in this case.
-			n0.myPeer.NewCircuitCh <- ckt
+			n0.MyPeer.NewCircuitCh <- ckt
 			vv("created ckt between n0 '%v' and n1 '%v': '%v'", n0.name, n1.name, ckt.String())
 		}
 	}
@@ -191,7 +200,7 @@ func Test003_hermes_write_new_value_two_replicas(t *testing.T) {
 	v := []byte("123")
 	err := nodes[0].Write("a", v, 0)
 	panicOn(err)
-	vv("good 1: back from Write a -> 123")
+	vv("good 1: back from nodes[0].Write a -> 123")
 
 	//time.Sleep(time.Second)
 
@@ -202,7 +211,7 @@ func Test003_hermes_write_new_value_two_replicas(t *testing.T) {
 	if !bytes.Equal(v, v2) {
 		t.Fatalf("write a:'%v' to node0, read back from node1 '%v'", string(v), string(v2))
 	}
-	vv("good 2: back from node[1].Read a -> 123")
+	vv("good 2: back from nodes[1].Read a -> 123")
 
 	// read back from node 2 too
 	v3, err := nodes[2].Read("a", 0)
@@ -211,7 +220,7 @@ func Test003_hermes_write_new_value_two_replicas(t *testing.T) {
 	if !bytes.Equal(v, v3) {
 		t.Fatalf("write a:'%v' to node0, read back from node2 '%v'", string(v), string(v3))
 	}
-	vv("good 3: back from node[2].Read a -> 123")
+	vv("good 3: back from nodes[2].Read a -> 123")
 
 }
 

@@ -18,6 +18,7 @@ type HermesNode struct {
 	EpochID   int64
 	liveNodes []string
 	member    *tube.RMember
+	ClusterID string
 
 	// the main key/value store.
 	store map[Key]*keyMeta
@@ -40,7 +41,7 @@ type HermesNode struct {
 	URL           string
 	PeerID        string
 	pushToPeerURL chan string
-	myPeer        *rpc.LocalPeer
+	MyPeer        *rpc.LocalPeer
 	halt          *idem.Halter
 
 	// ckt tracks all our peer replicas (does not include ourselves)
@@ -344,10 +345,10 @@ func (s *HermesNode) Init() error {
 
 	const preferExtant = true
 	peerName := s.name
-	s.myPeer, err = s.srv.PeerAPI.StartLocalPeer(context.Background(), "hermes", "", nil, peerName, preferExtant)
+	s.MyPeer, err = s.srv.PeerAPI.StartLocalPeer(context.Background(), "hermes", "", nil, peerName, preferExtant)
 	panicOn(err)
-	s.URL = s.myPeer.URL()
-	s.PeerID = s.myPeer.PeerID
+	s.URL = s.MyPeer.URL()
+	s.PeerID = s.MyPeer.PeerID
 	rpc.AliasRegister(s.PeerID, s.PeerID+" ("+s.name+")")
 
 	vv("HermesNode.Init() started '%v' with url = '%v'; s.PeerID = '%v'", s.name, s.URL, s.PeerID)
@@ -567,4 +568,13 @@ func (s *HermesNode) Start(
 		}
 	}
 	return nil
+}
+
+func (s *HermesNode) newFrag() (frag *rpc.Fragment) {
+	frag = s.MyPeer.NewFragment()
+	frag.Created = time.Now()
+	frag.FromPeerName = s.name
+	frag.SetUserArg("ClusterID", s.ClusterID)
+	//vv("newFrag, Serial = %v", frag.Serial)
+	return
 }
