@@ -1662,7 +1662,7 @@ func (s *PeerDetailPlus) ShortStringForCzar() string {
 PeerServiceNameVersion: %v
              NonVoting: %v
                    PID: %v
-}`, d.Name, d.URL, d.PeerID, d.Addr,
+  }`, d.Name, d.URL, d.PeerID, d.Addr,
 		d.PeerServiceName, d.PeerServiceNameVersion,
 		d.NonVoting,
 		d.PID)
