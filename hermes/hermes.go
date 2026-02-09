@@ -1584,6 +1584,9 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 		}
 		s.timeoutPQ.pop()
 		vv("%v checkCoordFailed detects failure over deadline: tkt='%v'", s.me, tkt)
+		if tkt.PseudoTicketForAckAccum {
+			// TODO: are these fair game too? Should we ignore/delete them?
+		}
 		keym := tkt.keym
 		key := keym.key
 
@@ -1959,15 +1962,15 @@ func (t *HermesTicket) String() string {
                Err: %v
           TicketID: %v
 PseudoTicketForAckAccum: %v
-              keym: %v
          ackVector: %v
       waitForValid: %v
 messageLossTimeout: %v (in %v)
+              keym: %v
 }`, t.Op, string(t.Key), string(t.Val), t.TS.String(), rpc.AliasDecode(t.FromID),
 		t.EpochV.String(),
 		t.Err,
-		t.TicketID, t.PseudoTicketForAckAccum, keymStr, av, t.waitForValid,
-		t.messageLossTimeout, dur)
+		t.TicketID, t.PseudoTicketForAckAccum, av, t.waitForValid,
+		t.messageLossTimeout, dur, keymStr)
 }
 
 func (s *HermesNode) NewHermesTicket(
