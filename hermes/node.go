@@ -51,7 +51,7 @@ type HermesNode struct {
 	writeReqCh chan *HermesTicket
 	readReqCh  chan *HermesTicket
 
-	// let main set this during config if they want to
+	// let main set this during config/Init if they want to
 	// send in membership changes; NewHermesNode does not allocate it
 	// at present as we assume that the reliable membership service
 	// already does.
@@ -121,9 +121,8 @@ type HermesTicket struct {
 	// TicketID is a unique identifier for each HermesTicket.
 	TicketID string `zid:"5"`
 
-	IsWrite                 bool `zid:"6"`
-	IsRMW                   bool `zid:"7"`
-	PseudoTicketForAckAccum bool `zid:"8"`
+	Op                      TicketOp `zid:"6"`
+	PseudoTicketForAckAccum bool     `zid:"7"`
 
 	Done *idem.IdemCloseChan `msg:"-"`
 
@@ -167,6 +166,37 @@ type HermesTicket struct {
 
 }
 
+type TicketOp int64
+
+const (
+	UNSET TicketOp = 0
+	NOOP  TicketOp = 1
+	READ  TicketOp = 2
+	WRITE TicketOp = 3
+	RMW   TicketOp = 4
+	//PSEUDO_WRITE TicketOp = 5
+)
+
+func (t TicketOp) String() (r string) {
+	switch t {
+	case UNSET:
+		return "UNSET"
+	case NOOP:
+		return "NOOP"
+	case READ:
+		return "READ"
+	case WRITE:
+		return "WRITE"
+	case RMW:
+		return "RMW"
+		//case PSEUDO_WRITE:
+		//	return "PSEUDO_WRITE"
+	}
+	r = fmt.Sprintf("(unknown TicketOp: %v", int64(t))
+	panic(r)
+	return
+}
+
 func (t *HermesTicket) String() string {
 	var dur time.Duration
 	if !t.messageLossTimeout.IsZero() {
@@ -180,35 +210,35 @@ func (t *HermesTicket) String() string {
 	}
 	av += "}"
 	return fmt.Sprintf(`HermesTicket{
+                Op: %v,
                Key: "%v",
                Val: "%v",
                 TS: %v,
             FromID: %v,
                Err: %v,
           TicketID: %v,
-           IsWrite: %v,
 PseudoTicketForAckAccum: %v,
               keym: %v,
          ackVector: %v,
       waitForValid: %v,
 messageLossTimeout: %v (in %v),
-}`, string(t.Key), string(t.Val), t.TS.String(), rpc.AliasDecode(t.FromID), t.Err,
-		t.TicketID, t.IsWrite, t.PseudoTicketForAckAccum, t.keym.String(), av, t.waitForValid,
+}`, t.Op, string(t.Key), string(t.Val), t.TS.String(), rpc.AliasDecode(t.FromID), t.Err,
+		t.TicketID, t.PseudoTicketForAckAccum, t.keym.String(), av, t.waitForValid,
 		t.messageLossTimeout, dur)
 }
 
 func (s *HermesNode) NewHermesTicket(
+	op TicketOp,
 	key Key,
 	val Val,
 	fromID string,
-	isWrite bool,
 	waitForDur time.Duration,
 ) (tkt *HermesTicket) {
 
 	tkt = &HermesTicket{
-		IsWrite: isWrite,
-		Key:     key,
-		Val:     val,
+		Op:  op,
+		Key: key,
+		Val: val,
 		//TS:       must be filled in by readReq/writeReq from the current keym.
 		Done:         idem.NewIdemCloseChan(),
 		FromID:       fromID,
@@ -237,7 +267,7 @@ func (s *HermesNode) NewHermesTicket(
 // a synonym for ease of use.
 func (s *HermesNode) Write(key Key, val Val, waitForDur time.Duration) error {
 
-	tkt := s.NewHermesTicket(key, val, s.PeerID, writer, waitForDur)
+	tkt := s.NewHermesTicket(WRITE, key, val, s.PeerID, waitForDur)
 	select {
 	case s.writeReqCh <- tkt:
 		// proceed to wait below for txt.done
@@ -275,7 +305,7 @@ func (s *HermesNode) Write(key Key, val Val, waitForDur time.Duration) error {
 // which case val will be undefined but typically nil.
 func (s *HermesNode) Read(key Key, waitForDur time.Duration) (val Val, err error) {
 
-	tkt := s.NewHermesTicket(key, val, s.PeerID, reader, waitForDur)
+	tkt := s.NewHermesTicket(READ, key, val, s.PeerID, waitForDur)
 	select {
 	case s.readReqCh <- tkt:
 		// proceed to wait below for txt.Done

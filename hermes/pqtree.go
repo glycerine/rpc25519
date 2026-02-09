@@ -1,6 +1,7 @@
 package hermes
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -26,6 +27,34 @@ type pqTime struct {
 type pqTimeItem struct {
 	value    *HermesTicket
 	priority time.Time // The priority of the item in the queue.
+}
+
+func (item *pqTimeItem) String() (r string) {
+	r = fmt.Sprintf(`&pqTimeItem{
+   priority: %v
+      value: %v
+}`, nice(item.priority), item.value)
+	return
+}
+
+func (p *pq) String() (r string) {
+	p.mut.Lock()
+	defer p.mut.Unlock()
+
+	return p.pqtree.String()
+}
+
+func (p *pqTime) String() (r string) {
+	r = fmt.Sprintf(`&pqTime[len %v]{
+`, p.size())
+	i := 0
+	for it := p.tree.Min(); !it.Limit(); it = it.Next() {
+		item := it.Item().(*pqTimeItem)
+		r += fmt.Sprintf("[%02d] %v\n", i, item)
+		i++
+	}
+	r += "}\n"
+	return
 }
 
 // order by time, key, TicketID (so we don't
@@ -230,7 +259,7 @@ func (pq *pqTime) update(item *pqTimeItem, value *HermesTicket, priority time.Ti
 	it, exact := pq.tree.FindGE_isEqual(item)
 	//if it == pq.tree.Limit() {
 	if !exact {
-		panic("error on pqTime.update(): item not found!")
+		panicf("error on pqTime.update(): item not found in tree of len '%v'! item='%v'\n\n tree='%v'", pq.size(), item, pq)
 		return
 	}
 	// delete and re-add to keep the proper tree ordering.

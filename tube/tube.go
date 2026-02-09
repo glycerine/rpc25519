@@ -5418,10 +5418,6 @@ const (
 	REMOVE_SHADOW_NON_VOTING TicketOp = 18
 
 	USER_DEFINED_FSM_OP TicketOp = 19
-
-	// when a ticket acts as a container for a
-	// batch of other tickets.
-	//TKT_BATCH TicketOp = 20
 )
 
 func (t TicketOp) String() (r string) {
@@ -5466,8 +5462,6 @@ func (t TicketOp) String() (r string) {
 		return "REMOVE_SHADOW_NON_VOTING"
 	case USER_DEFINED_FSM_OP:
 		return "USER_DEFINED_FSM_OP"
-		//case TKT_BATCH:
-		//	return "TKT_BATCH"
 	}
 	r = fmt.Sprintf("(unknown TicketOp: %v", int64(t))
 	panic(r)

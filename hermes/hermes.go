@@ -30,11 +30,6 @@ var _ = binary.LittleEndian
 type Key string // for now... []byte later.
 type Val []byte
 
-const writer = true
-const reader = false
-
-//const ReplicationDegree = 3
-
 // timestamp
 type TS struct {
 	Version int64  `zid:"0"`
@@ -169,9 +164,11 @@ func init() {
 func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 	vv("%v top of actionAbRecordPending(tkt='%v')", s.me, tkt)
 	if tkt == nil || tkt.keym == nil {
-		panic("tkt.keym was nil where?")
+		if !tkt.PseudoTicketForAckAccum {
+			panicf("tkt.keym was nil where? tkt='%v'", tkt)
+		}
 	}
-	vv("%v top of actionAbRecordPending: (keym='%v', isWrite='%v', val='%v', fromID='%v')", s.me, tkt.keym, tkt.IsWrite, string(tkt.Val), rpc.AliasDecode(tkt.FromID))
+	vv("%v top of actionAbRecordPending: (keym='%v', op='%v', val='%v', fromID='%v')", s.me, tkt.keym, tkt.Op, string(tkt.Val), rpc.AliasDecode(tkt.FromID))
 
 	// buffer Op
 	messageLossTimeout := time.Now().Add(s.cfg.MessageLossTimeout)
@@ -186,6 +183,7 @@ func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 		vv("%v actionAbRecordPending is updating deadline in pq, not "+
 			"adding anew, for tkt='%v'", s.me, item.value)
 		item.value.messageLossTimeout = messageLossTimeout
+		// will delete and re-add item from timeoutPQ.
 		s.timeoutPQ.update(item, item.value, messageLossTimeout) // panic: error on pqTime.update(): item not found!
 		vv("%v actionAbRecordPending after updating deadline, tkt='%v'",
 			s.me, item.value)
@@ -195,6 +193,8 @@ func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 	tkt.messageLossTimeout = messageLossTimeout
 	item = s.timeoutPQ.add(messageLossTimeout, tkt)
 
+	// _only_ write to tkt2item at the moment. key2item and timeoutPQ are also set
+	// in this execution path.
 	s.tkt2item[tkt.TicketID] = item
 	prior, ok := s.key2items[tkt.Key]
 	if !ok {
@@ -239,7 +239,7 @@ func (s *HermesNode) releaseDiscardedWriter(keym *keyMeta) {
 		tkt2 := it.value
 		// we only release blocked writers because blocked
 		// readers can still complete when the new value is fully ACKed.
-		if tkt2.IsWrite && tkt2.FromID == keym.lastWriterID {
+		if (tkt2.Op == WRITE || tkt2.Op == RMW) && tkt2.FromID == keym.lastWriterID {
 			if 0 == keym.TS.Compare(&tkt2.TS) {
 
 				// great, we have our useless write in progress
@@ -290,7 +290,7 @@ func (s *HermesNode) actionI(inv *INV, keym *keyMeta) {
 				// Don't freak, just make a new Ticket to
 				// accumulate acks on, so we can go faster (one net hop instead of two
 				// to a valid read).
-				tkt = s.NewHermesTicket(keym.key, nil, inv.FromID, true, 0)
+				tkt = s.NewHermesTicket(WRITE, keym.key, nil, inv.FromID, 0)
 				tkt.TicketID = inv.TicketID // match the sender
 				tkt.PseudoTicketForAckAccum = true
 				tkt.Val = inv.Val
@@ -355,7 +355,7 @@ func (s *HermesNode) anyWritesInProgressFor(key Key) (writers, readers []*Hermes
 	}
 	for _, it := range items.slc {
 		tkt := it.value
-		if it.value.IsWrite {
+		if it.value.Op == WRITE || it.value.Op == RMW {
 			writers = append(writers, tkt)
 		} else {
 			readers = append(readers, tkt)
@@ -389,7 +389,7 @@ func (s *HermesNode) actionLA(ack *ACK, keym *keyMeta) (isLast, isWrite bool, tk
 	} else {
 		isLast = len(tkt.ackVector) == s.cfg.ReplicationDegree-1
 	}
-	isWrite = tkt.IsWrite
+	isWrite = tkt.Op == WRITE || tkt.Op == RMW
 	vv("%v actionLA() returning isLast = %v; isWrite = '%v'; len(tkt.ackVector)='%v'; ReplicationDegree-1='%v'", s.me, isLast, isWrite, len(tkt.ackVector), s.cfg.ReplicationDegree-1)
 	return
 }
@@ -574,7 +574,7 @@ func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 		}
 
 		// first read of unknown key. make its keym
-		vv("first read of unknown key '%v'", string(keym.key))
+		vv("first read of unknown key '%v'", string(key))
 		keym = &keyMeta{
 			key: key,
 			//val: tkt.Val, // this is a read, not a write.
@@ -704,7 +704,7 @@ func (s *HermesNode) writeReq(tkt *HermesTicket) {
 		// must be tkt.FromID here, so we can tell early on
 		// if their write is finished by being overwritten
 		// by another; so tkt.FromID will be stored in lastWriterID.
-		s.actionW(tkt, key, keym, val, tkt.FromID, tkt.IsRMW)
+		s.actionW(tkt, key, keym, val, tkt.FromID, tkt.Op == RMW)
 		keym.val = val // apply write locally
 
 		// only write or rmw puts us into the sWrite state,
@@ -974,7 +974,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 			slc := append([]*pqTimeItem{}, pqitems.slc...)
 			for _, it := range slc {
 				tkt := it.value
-				if tkt.IsRMW && inv.TS.Compare(&tkt.TS) > 0 {
+				if tkt.Op == RMW && inv.TS.Compare(&tkt.TS) > 0 {
 					tkt.Err = ErrAbortRMW
 					s.deleteTicket(tkt.TicketID, true)
 					tkt.Done.Close()
@@ -1119,7 +1119,7 @@ func (s *HermesNode) unblockReadsFor(keym *keyMeta) {
 	slc := append([]*pqTimeItem{}, pqitems.slc...)
 	for _, it := range slc {
 		tkt := it.value
-		if !tkt.IsWrite {
+		if tkt.Op != WRITE && tkt.Op != RMW {
 			tkt.Val = keym.val
 			tkt.TS = keym.TS
 			s.deleteTicket(tkt.TicketID, false)
@@ -1156,6 +1156,7 @@ func (s *HermesNode) deleteTicket(ticketID string, wasWrite bool) *HermesTicket 
 		return nil
 	}
 	tkt := item.value
+	// only delete from tkt2item. also deletes from key2items and timeoutPQ.
 	delete(s.tkt2item, ticketID)
 	pqitems, ok := s.key2items[tkt.Key]
 	if ok {
@@ -1215,7 +1216,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 
 		tkt, ok = s.getTicket(ack.TicketID)
 		if !ok {
-			tkt = s.NewHermesTicket(key, nil, ack.FromID, true, 0)
+			tkt = s.NewHermesTicket(WRITE, key, nil, ack.FromID, 0)
 			tkt.TicketID = ack.TicketID // match the sender
 			tkt.PseudoTicketForAckAccum = true
 			//tkt.Val = inv.Val // not avalil yet. save when the INV comes in.
@@ -1258,7 +1259,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 			// ticket that is not our own. Don't freak, just make a new Ticket to
 			// accumulate acks on, so we can go faster (one net hop instead of two
 			// to a valid read).
-			tkt = s.NewHermesTicket(keym.key, nil, ack.FromID, true, 0)
+			tkt = s.NewHermesTicket(WRITE, keym.key, nil, ack.FromID, 0)
 			tkt.TicketID = ack.TicketID // match the sender
 			tkt.PseudoTicketForAckAccum = true
 			//tkt.Val = ack.Val // will be removed from ack at some point.
@@ -1536,7 +1537,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 		case sInvalidWR: // failed follower case
 			// TODO: I think we must wait (for consistency) for a majority of ACK first.
 
-			if tkt.IsWrite {
+			if tkt.Op == WRITE || tkt.Op == RMW {
 				s.completeWrite(keym, tkt.TicketID) // really?
 			} else {
 				keym.state = sInvalid
@@ -1550,7 +1551,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 			// TODO: I think we must wait (for consistency) for a majority of ACK first.
 
 			vv("%v failed follower: complete write, move to Valid, bcast Valid.", s.me)
-			if tkt.IsWrite {
+			if tkt.Op == WRITE {
 				keym.state = sValid
 				s.completeWrite(keym, tkt.TicketID)
 				if !useBcastAckOptimization {
@@ -1621,7 +1622,7 @@ func (s *HermesNode) reconfigRM() {
 		item := *it.Item().(*pqTimeItem)
 
 		tkt := item.value
-		if tkt.IsRMW {
+		if tkt.Op == RMW {
 			tkt.ackVector = make(map[string]bool)
 			s.replayRMW(tkt)
 		}
