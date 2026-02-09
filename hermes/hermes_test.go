@@ -44,12 +44,12 @@ func (s *HermesCluster) Start() {
 			var userString string
 			var errWriteDur time.Duration
 
-			vv("about to connect i=%v to j=%v", i, j)
+			//vv("about to connect i=%v to j=%v", i, j)
 			ckt, _, _, err := n0.MyPeer.NewCircuitToPeerURL("hermes-ckt", n1.URL, firstFrag, errWriteDur, userString, remotePeerName)
 			panicOn(err)
 			// must manually tell the service goro about the new ckt in this case.
 			n0.MyPeer.NewCircuitCh <- ckt
-			vv("created ckt between n0 '%v' and n1 '%v': '%v'", n0.name, n1.name, ckt.String())
+			vv("created ckt between n0 '%v' and n1 '%v'.", n0.name, n1.name) //, ckt.String())
 		}
 	}
 }

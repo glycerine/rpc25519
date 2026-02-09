@@ -213,7 +213,7 @@ func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 			panicf("tkt.keym was nil where? tkt='%v'", tkt)
 		}
 	}
-	vv("%v top of actionAbRecordPending: (keym='%v', op='%v', val='%v', fromID='%v')", s.me, tkt.keym, tkt.Op, string(tkt.Val), rpc.AliasDecode(tkt.FromID))
+	//vv("%v top of actionAbRecordPending: (keym='%v', op='%v', val='%v', fromID='%v')", s.me, tkt.keym, tkt.Op, string(tkt.Val), rpc.AliasDecode(tkt.FromID))
 
 	// buffer Op
 	messageLossTimeout := time.Now().Add(s.cfg.MessageLossTimeout)
@@ -545,7 +545,7 @@ func (s *HermesNode) bcastInval(key Key, inv *INV) {
 		_ = err // don't panic on halting
 		//panicOn(err)
 		if err == nil {
-			vv("%v sent INV (j=%v of %v) to id='%v'; INV='%v", s.me, j, len(s.ckt), rpc.AliasDecode(id), inv)
+			//vv("%v sent INV (j=%v of %v) to id='%v'; INV='%v", s.me, j, len(s.ckt), rpc.AliasDecode(id), inv)
 		}
 		j++
 	}
@@ -719,7 +719,7 @@ func (s *HermesNode) writeReq(tkt *HermesTicket) {
 	val := tkt.Val
 	keym, ok := s.store[key]
 	if !ok {
-		vv("%v writeReq: no update, just a new key/value pair", s.me)
+		//vv("%v writeReq: no update, just a new key/value pair", s.me)
 		keym = &keyMeta{
 			key: key,
 			val: tkt.Val, // apply write locally
@@ -737,13 +737,13 @@ func (s *HermesNode) writeReq(tkt *HermesTicket) {
 
 		// are we a single node?
 		if s.cfg.ReplicationDegree == 1 {
-			vv("single node writing, set to valid immeditely key='%v', val='%v'", key, string(tkt.Val))
+			//vv("single node writing, set to valid immeditely key='%v', val='%v'", key, string(tkt.Val))
 			keym.state = sValid
 			tkt.Done.Close()
 			return
 		}
 	}
-	vv("%v writeReq starting state keym = '%v'", s.me, keym)
+	//vv("%v writeReq starting state keym = '%v'", s.me, keym)
 	tkt.keym = keym
 	tkt.TS = keym.TS
 
@@ -996,7 +996,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 	// the same timestamp as that in the INV message of the write."
 
 	compare := inv.TS.Compare(&keym.TS)
-	vv("%v recvInvalidate compare = %v; keym.state = '%v'", s.me, compare, stateString(keym.state))
+	//vv("%v recvInvalidate compare = %v; keym.state = '%v'", s.me, compare, stateString(keym.state))
 
 	if inv.IsRMW {
 		if compare >= 0 {
@@ -1558,12 +1558,13 @@ func (s *HermesNode) recvValidate(v *VALIDATE) (err error) {
 // and failed-follower logic, so it follows up on
 // both reads and writes in progress.
 //
-// [A] node that finds a key in an Invalid
+// "[A] node that finds a key in an Invalid
 // state for an extended period can
 // safely replay a write by taking on a coordinator role and
 // retransmitting INV messages to the replica ensemble with
 // the original timestamp (i.e., original version number and coordID),
-// hence preserving the global write order.
+// hence preserving the global write order."
+// (page 205 of the hermes paper).
 func (s *HermesNode) checkCoordOrFollowerFailed() {
 	vv("%v top of checkCoordFailed()", s.me)
 
@@ -1604,6 +1605,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 					TS:       keym.TS,
 					EpochV:   s.EpochV,
 					FromID:   s.PeerID, // must be us, so they reply to us.
+					IsRMW:    keym.IsRMW,
 				}
 				s.bcastInval(key, invalidation)
 			}
@@ -2088,7 +2090,7 @@ func (s *HermesNode) Init() error {
 	s.PeerID = s.MyPeer.PeerID
 	rpc.AliasRegister(s.PeerID, s.PeerID+" ("+s.name+")")
 
-	vv("HermesNode.Init() started '%v' with url = '%v'; s.PeerID = '%v'", s.name, s.URL, s.PeerID)
+	//vv("HermesNode.Init() started '%v' with url = '%v'; s.PeerID = '%v'", s.name, s.URL, s.PeerID)
 
 	return nil
 }
@@ -2105,7 +2107,7 @@ func (s *HermesNode) Start(
 		s.halt.Done.Close()
 	}()
 
-	vv("%v: HermesNode.Start() top.", s.name)
+	//vv("%v: HermesNode.Start() top.", s.name)
 
 	// vv() debug print convenience
 	s.me = rpc.AliasDecode(s.PeerID)
