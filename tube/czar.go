@@ -446,9 +446,9 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *PingReply)
 
 	select {
 	case <-rr.done.Chan:
-		if rr.reply != nil {
-			*reply = *(rr.reply)
-		}
+		//if rr.reply != nil {
+		//	*reply = *(rr.reply)
+		//}
 		return rr.err
 
 	case <-s.Halt.ReqStop.Chan:
@@ -461,7 +461,7 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *PingReply)
 		}
 		return
 	}
-
+	panic("unreachable")
 }
 
 // handlePing is internal; called in response to <-czar.requestPingCh.
@@ -476,7 +476,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 
 	// czar_test wants to inspect state of member/czar
 	if rr.inspectOnly {
-		rr.reply = &PingReply{
+		(*rr.reply) = PingReply{
 			Members: s.members.Clone(),
 			Vers:    s.vers.Clone(),
 			Status:  s.cState.Load(),
@@ -606,6 +606,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 		updatedList = newlist
 		if !updated {
 			updated = true
+			updatedVers = s.vers.Clone()
 			updatedVers.WithinCzarVersion++
 		}
 	}
@@ -618,13 +619,12 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 		//vv("Czar.Ping: no membership change with this call. cur: '%v'", s.shortRMemberSummary())
 	}
 
-	reply := &PingReply{
+	(*rr.reply) = PingReply{
 		Members: s.members.Clone(),
 		Vers:    s.vers.Clone(),
 		// note that Status gives the _local_ member's status as czar or not.
 		Status: s.cState.Load(),
 	}
-	rr.reply = reply
 
 	////vv("czar sees Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, czar replies with ='%v'", s.cliName, args, reply)
 }
@@ -1098,7 +1098,7 @@ fullRestart:
 					left := czarLeaseUntilTm.Sub(now)
 					if left < 2*time.Second {
 						//vv("less than 2 sec left on lease as czar?!? try again from haveSess")
-						//cState = unknownCzarState
+
 						czar.cState.Store(int32(unknownCzarState))
 
 						continue haveSess
@@ -1261,7 +1261,7 @@ fullRestart:
 				left := until.Sub(now)
 				if left < 0 {
 					vv("%v: ouch! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces. CzarLeaseUntil(%v) - now(%v) = left = '%v' on czar.vers='%v'", name, nice(until), nice(now), left, czar.vers)
-					//cState = unknownCzarState
+
 					czar.cState.Store(int32(unknownCzarState))
 					continue fullRestart
 				}
@@ -1284,7 +1284,7 @@ fullRestart:
 
 				case <-time.After(left):
 					vv("%v: ouch2! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces.", name)
-					//cState = unknownCzarState
+
 					czar.cState.Store(int32(unknownCzarState))
 
 					continue fullRestart
@@ -1347,7 +1347,6 @@ fullRestart:
 					if err != nil {
 						vv("%v: renewCzarLeaseCh attempt to renew lease with CAS-write to keyCz:'%v' failed: err='%v'", name, czar.keyCz, err)
 
-						//cState = unknownCzarState
 						czar.cState.Store(int32(unknownCzarState))
 
 						continue fullRestart
@@ -1435,7 +1434,7 @@ fullRestart:
 						}
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
-						//cState = unknownCzarState
+
 						czar.cState.Store(int32(unknownCzarState))
 						now = time.Now()
 						if waitDur > 0 {
@@ -1461,7 +1460,7 @@ fullRestart:
 						}
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
-						//cState = unknownCzarState
+
 						czar.cState.Store(int32(unknownCzarState))
 
 						time.Sleep(time.Second)
@@ -1498,7 +1497,7 @@ fullRestart:
 					rpcClientToCzar.Close()
 					rpcClientToCzar = nil
 					rpcClientToCzarDoneCh = nil
-					//cState = unknownCzarState
+
 					czar.cState.Store(int32(unknownCzarState))
 
 					continue fullRestart
@@ -1519,13 +1518,19 @@ fullRestart:
 						}
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
-						//cState = unknownCzarState
+
 						czar.cState.Store(int32(unknownCzarState))
 
 						continue fullRestart
 					}
 					if reply == nil {
 						panicf("err was nil, how can reply be nil??")
+					}
+					if reply.Members == nil {
+						panicf("err was nil, how can reply.Members be nil: ?? reply='%v'", reply)
+					}
+					if reply.Vers == nil {
+						panicf("err was nil, how can reply be Vers be nil: ?? reply='%v'", reply)
 					}
 
 					if reply != nil && reply.Members != nil && reply.Members.PeerNames != nil {
@@ -1549,7 +1554,7 @@ fullRestart:
 							}
 							rpcClientToCzar = nil
 							rpcClientToCzarDoneCh = nil
-							//cState = unknownCzarState
+
 							czar.cState.Store(int32(unknownCzarState))
 
 							continue fullRestart
