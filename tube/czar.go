@@ -1000,24 +1000,6 @@ fullRestart:
 					prevLeaseEpoch = vers.CzarLeaseEpoch
 				}
 
-				// // I think this is borked and giving us split brain:
-
-				// // start with the highest version list we can find.
-				// nonCzarMembers := czar.getNonCzarMembers()
-				// if nonCzarMembers != nil {
-				// 	if nonCzarMembers.Vers.VersionGT(list.Vers) {
-				// 		//vv("nonCzarMembers.Vers(%v) sz=%v; was > list.Vers(%v) sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
-				// 		list = nonCzarMembers.Clone()
-
-				// 		// the lease czar key Vers version is garbage and
-				// 		// always overwritten
-				// 		// anyway with the LeaseEpoch -- used to create a new version,
-				// 		// so there is no need to bother to update it in the raft log.
-				// 	} else {
-				// 		//vv("nonCzarMembers.Vers(%v) nonCzarMembers.sz=%v; was <= list.Vers(%v) list.sz=%v", nonCzarMembers.Vers, nonCzarMembers.PeerNames.Len(), list.Vers, list.PeerNames.Len())
-				// 	}
-				// }
-
 				// if we win the write race, we are the czar.
 				// and the old czar is out; so prepare for that:
 				// so 1) delete the old czar from the list we submit;
@@ -1315,9 +1297,6 @@ fullRestart:
 					czar.myDetailBytes, err = czar.myDetail.MarshalMsg(nil)
 					panicOn(err)
 
-					// we don't want this any more
-					//czar.members.PeerNames.Set(czar.myDetail.Det.Name, czar.myDetail)
-
 					czar.members.PeerNames.Delkey(czar.myDetail.Det.Name)
 
 					czar.members.CzarDet = czar.myDetail
@@ -1337,10 +1316,8 @@ fullRestart:
 					ctx5, canc := context.WithTimeout(ctx, time.Second*5)
 					var czarTkt *Ticket
 					if czar.slow {
-						//czarTkt, err = czar.sess.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse)
 						czarTkt, err = czar.sess.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse, 0, prevLeaseEpoch)
 					} else {
-						//czarTkt, err = cli.Write(ctx5, Key(czar.tableSpace), Key(czar.keyCz), Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse)
 						czarTkt, err = cli.CAS(ctx5, Key(czar.tableSpace), Key(czar.keyCz), nil, Val(bts2), czar.writeAttemptDur, nil, ReliableMembershipListType, czar.leaseDurCzar, leaseAutoDelFalse, 0, prevLeaseEpoch)
 					}
 					canc()
