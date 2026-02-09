@@ -533,33 +533,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	args.RMemberLeaseUntilTm = leasedUntilTm
 	args.RMemberLeaseDur = s.memberLeaseDur
 
-	// don't think we want this now... right? czar is only
-	// in CzarName/Det back from tube leader czar key....
-	// if false {
-
-	// 	// always refresh our (czar) lease in the member list too,
-	// 	// especially in Vers.CzarLeaseUntilTm (!)
-	// 	mePlus, ok := s.members.PeerNames.Get2(s.name)
-	// 	if !ok {
-	// 		// try to fix instead of panic-ing... after checking, it looks
-	// 		// like maybe s.members is stuck?!?
-
-	// 		// fired! why??
-	// 		//panicf("must have self as czar in members! s.name='%v' not found in s.members = '%v'", s.name, s.members)
-
-	// 		// maybe something like this:
-	// 		mePlus = getMyPeerDetailPlus(s.cli)
-	// 		//myDetailBytes, err = mePlus.MarshalMsg(nil)
-	// 		//panicOn(err)
-	// 		s.members.PeerNames.Set(s.name, mePlus)
-	// 	}
-	// 	mePlus.RMemberLeaseUntilTm = leasedUntilTm
-	// 	mePlus.RMemberLeaseDur = s.memberLeaseDur
-	// 	_ = mePlus
-	// }
-
 	s.heard[s.name] = now
-	// but (only) *this* is what the members are checking!!
 
 	updated := false
 	var updatedList *ReliableMembershipList
@@ -621,7 +595,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 		}
 	}
 	if updated {
-		err := s.setVersUpcall(updatedVers, updatedList, "handlePing updated")
+		err := s.setVersUpcall(updatedVers, updatedList, "amCzar: handlePing updated")
 		panicOn(err)
 		vv("Czar.Ping: membership has changed (was %v) is now: {%v}", origVers, s.shortRMemberSummary())
 
@@ -1217,7 +1191,7 @@ fullRestart:
 					// because we have not pinged the actual czar for its
 					// version. an upcall now will see a rollback in version;
 					// it will drop to zero when other nodes have later.
-					err = czar.setVersNoUpcall(vers2, nonCzarMembers, "notCzar") // in notCzar
+					err = czar.setVersNoUpcall(vers2, nonCzarMembers, "notCzar primary") // in notCzar
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
 						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
@@ -1284,7 +1258,7 @@ fullRestart:
 						//pp("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortRMemberSummary())
 						newvers := czar.vers.Clone()
 						newvers.WithinCzarVersion++
-						czar.setVersUpcall(newvers, newlist, "expireCheckCh in amCzar") // in amCzar
+						czar.setVersUpcall(newvers, newlist, "amCzar: expireCheckCh changed") // in amCzar
 					}
 					expireCheckCh = time.After(5 * time.Second)
 
@@ -1449,7 +1423,7 @@ fullRestart:
 						panicf("err was nil, how can pingReplyToFill be nil??")
 					}
 
-					err = czar.setVersUpcall(pingReplyToFill.Vers, pingReplyToFill.Members, "notCzar Ping reply")
+					err = czar.setVersUpcall(pingReplyToFill.Vers, pingReplyToFill.Members, "notCzar: Ping reply")
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
 						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
@@ -1538,7 +1512,7 @@ fullRestart:
 						}
 					}
 
-					err = czar.setVersUpcall(reply.Vers, reply.Members, "memberHeartBeatCh member heartbeat Ping reply")
+					err = czar.setVersUpcall(reply.Vers, reply.Members, "notCzar: memberHeartBeatCh member heartbeat Ping reply")
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
 						vv("%v: see err = '%v', doing full restart", name, err)
