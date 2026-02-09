@@ -19,6 +19,9 @@ import (
 	//"github.com/glycerine/ipaddr"
 )
 
+// ConfigTubeCmd configures the rpc25591/tube/cmd/tube command
+// line program which a provides standalone Tube Raft cluster
+// capability, similar to Etcd, Chubby, or Zookeeper.
 type ConfigTubeCmd struct {
 	ContactName string // -c name of node to contact
 	ClientOnly  bool
