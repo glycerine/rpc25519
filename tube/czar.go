@@ -250,22 +250,30 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 	}
 
 	//vv("end of setVers(v='%v') s.members is now '%v')", v, s.members)
+	s.doUpcall(nil)
+	return nil
+}
+
+func (s *Czar) doUpcall(reply *PingReply) {
 	// skip the members.Clone() if no upcall requested or possible;
 	// s.UpcallMembershipChangeCh must be buffered so czar
 	// loop does not pause excessively.
-	if s.UpcallMembershipChangeCh != nil {
-		select {
-		// should be the only place, so we keep vers and list in sync.
-		case s.UpcallMembershipChangeCh <- &PingReply{
+	if s.UpcallMembershipChangeCh == nil {
+		return
+	}
+	if reply == nil {
+		reply = &PingReply{
 			Members: s.members.Clone(),
 			Vers:    s.vers.Clone(),
 			// note that Status gives the _local_ member's status as czar or not.
 			Status: s.cState.Load(),
-		}:
-		case <-s.Halt.ReqStop.Chan:
 		}
 	}
-	return nil
+	select {
+	// should be the only place, so we keep vers and list in sync.
+	case s.UpcallMembershipChangeCh <- reply:
+	case <-s.Halt.ReqStop.Chan:
+	}
 }
 
 func (s *Czar) memberCount() (numMembers int) {
@@ -276,10 +284,11 @@ func (s *Czar) memberCount() (numMembers int) {
 	return s.members.PeerNames.Len()
 }
 
-func (s *Czar) expireSilentNodes() (changed bool) {
+func (s *Czar) expireSilentNodes(fromList *ReliableMembershipList) (changed bool, newlist *ReliableMembershipList) {
 
-	newvers := s.vers.Clone()
-	newlist := s.members.Clone()
+	if fromList == nil {
+		fromList = s.members.Clone()
+	}
 
 	now := time.Now()
 	for name, plus := range s.members.PeerNames.All() {
@@ -328,14 +337,11 @@ func (s *Czar) expireSilentNodes() (changed bool) {
 			changed = true // might happen multiple times.
 			delete(s.heard, name)
 			// Omap.All allows delete in the middle of iteration.
+			if newlist == nil {
+				newlist = s.members.Clone()
+			}
 			newlist.PeerNames.Delkey(name)
 		}
-	}
-
-	if changed {
-		// just one notifcation for all the deletes we did.
-		newvers.WithinCzarVersion++
-		s.setVers(newvers, newlist)
 	}
 
 	return
@@ -496,7 +502,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	//vv("Czar.handlePing: am czar, process this ping from '%v'", rr.args.Det.Name)
 
 	args := rr.args
-	orig := s.vers
+	origVers := s.vers
 
 	if hdr, ok := rpc.HDRFromContext(rr.ctx); ok {
 		////vv("Ping, from ctx: hdr='%v'", hdr)
@@ -508,7 +514,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	} else {
 		panic("must have rpc.HDRFromContext(ctx) set so we know which tube-client to drop when the rpc.Client drops!")
 	}
-	////vv("Ping called at cliName = '%v', since args = '%v'; orig='%v'", s.CliName, args, orig)
+	////vv("Ping called at cliName = '%v', since args = '%v'; origVers='%v'", s.CliName, args, origVers)
 	if s.memberLeaseDur < time.Millisecond {
 		panicf("s.memberLeaseDur too small! '%v'", s.memberLeaseDur)
 	}
@@ -519,44 +525,56 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 
 	// don't think we want this now... right? czar is only
 	// in CzarName/Det back from tube leader czar key....
-	if false {
+	// if false {
 
-		// always refresh our (czar) lease in the member list too,
-		// especially in Vers.CzarLeaseUntilTm (!)
-		mePlus, ok := s.members.PeerNames.Get2(s.name)
-		if !ok {
-			// try to fix instead of panic-ing... after checking, it looks
-			// like maybe s.members is stuck?!?
+	// 	// always refresh our (czar) lease in the member list too,
+	// 	// especially in Vers.CzarLeaseUntilTm (!)
+	// 	mePlus, ok := s.members.PeerNames.Get2(s.name)
+	// 	if !ok {
+	// 		// try to fix instead of panic-ing... after checking, it looks
+	// 		// like maybe s.members is stuck?!?
 
-			// fired! why??
-			//panicf("must have self as czar in members! s.name='%v' not found in s.members = '%v'", s.name, s.members)
+	// 		// fired! why??
+	// 		//panicf("must have self as czar in members! s.name='%v' not found in s.members = '%v'", s.name, s.members)
 
-			// maybe something like this:
-			mePlus = getMyPeerDetailPlus(s.cli)
-			//myDetailBytes, err = mePlus.MarshalMsg(nil)
-			//panicOn(err)
-			s.members.PeerNames.Set(s.name, mePlus)
-		}
-		mePlus.RMemberLeaseUntilTm = leasedUntilTm
-		mePlus.RMemberLeaseDur = s.memberLeaseDur
-		_ = mePlus
-	}
+	// 		// maybe something like this:
+	// 		mePlus = getMyPeerDetailPlus(s.cli)
+	// 		//myDetailBytes, err = mePlus.MarshalMsg(nil)
+	// 		//panicOn(err)
+	// 		s.members.PeerNames.Set(s.name, mePlus)
+	// 	}
+	// 	mePlus.RMemberLeaseUntilTm = leasedUntilTm
+	// 	mePlus.RMemberLeaseDur = s.memberLeaseDur
+	// 	_ = mePlus
+	// }
 
 	s.heard[s.name] = now
 	// but (only) *this* is what the members are checking!!
+
+	updated := false
+	var updatedList *ReliableMembershipList
+	var updatedVers *RMVersionTuple
 
 	det, ok := s.members.PeerNames.Get2(args.Det.Name)
 	if !ok {
 		////vv("args.Name('%v') is new, adding to PeerNames", args.Name)
 		det = args
-		s.members.PeerNames.Set(args.Det.Name, args)
-		//s.members.Vers.Version++
+		updatedList = s.members.Clone()
+		updatedList.PeerNames.Set(args.Det.Name, args)
+		updatedVers = s.vers.Clone()
+		updatedVers.WithinCzarVersion++
+		updated = true
+
 	} else {
 		if detailsChanged(det.Det, args.Det) {
 			////vv("args.Name('%v') details have changed, updating PeerNames", args.Name)
 			det = args
-			s.members.PeerNames.Set(args.Det.Name, args)
-			//s.vers.Version++
+			updatedList = s.members.Clone()
+			updatedList.PeerNames.Set(args.Det.Name, args)
+			updatedVers = s.vers.Clone()
+			updatedVers.WithinCzarVersion++
+			updated = true
+
 		} else {
 			// do we want lease-extension to increment the Version?
 			// I don't think so. This is the most common
@@ -583,15 +601,30 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	s.members.MemberLeaseDur = s.memberLeaseDur
 
 	s.heard[args.Det.Name] = now
-	s.expireSilentNodes()
-	if s.vers.WithinCzarVersion != orig.WithinCzarVersion {
-		////vv("Czar.Ping: membership has changed (was %v; now %v), is now: {%v}", orig, s.members.Vers, s.shortRMemberSummary())
+	changed, newlist := s.expireSilentNodes(updatedList)
+	if changed {
+		updatedList = newlist
+		if !updated {
+			updated = true
+			updatedVers.WithinCzarVersion++
+		}
+	}
+	if updated {
+		err := s.setVers(updatedVers, updatedList)
+		panicOn(err)
+		vv("Czar.Ping: membership has changed (was %v) is now: {%v}", origVers, s.shortRMemberSummary())
+
+	} else {
+		vv("Czar.Ping: no membership change with this call. cur: '%v'", s.shortRMemberSummary())
 	}
 
-	rr.reply = &PingReply{
+	reply := &PingReply{
 		Members: s.members.Clone(),
 		Vers:    s.vers.Clone(),
+		// note that Status gives the _local_ member's status as czar or not.
+		Status: s.cState.Load(),
 	}
+	rr.reply = reply
 
 	////vv("czar sees Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, czar replies with ='%v'", s.cliName, args, reply)
 }
@@ -1264,9 +1297,12 @@ fullRestart:
 					}
 
 				case <-expireCheckCh:
-					changed := czar.expireSilentNodes()
+					changed, newlist := czar.expireSilentNodes(nil)
 					if changed {
 						//pp("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortRMemberSummary())
+						newvers := czar.vers.Clone()
+						newvers.WithinCzarVersion++
+						czar.setVers(newvers, newlist)
 					}
 					expireCheckCh = time.After(5 * time.Second)
 
