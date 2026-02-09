@@ -446,9 +446,6 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *PingReply)
 
 	select {
 	case <-rr.done.Chan:
-		//if rr.reply != nil {
-		//	*reply = *(rr.reply)
-		//}
 		return rr.err
 
 	case <-s.Halt.ReqStop.Chan:
@@ -476,11 +473,10 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 
 	// czar_test wants to inspect state of member/czar
 	if rr.inspectOnly {
-		(*rr.reply) = PingReply{
-			Members: s.members.Clone(),
-			Vers:    s.vers.Clone(),
-			Status:  s.cState.Load(),
-		}
+		rr.reply.Members = s.members.Clone()
+		rr.reply.Vers = s.vers.Clone()
+		rr.reply.Status = s.cState.Load()
+
 		return
 	}
 
@@ -619,12 +615,10 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 		//vv("Czar.Ping: no membership change with this call. cur: '%v'", s.shortRMemberSummary())
 	}
 
-	(*rr.reply) = PingReply{
-		Members: s.members.Clone(),
-		Vers:    s.vers.Clone(),
-		// note that Status gives the _local_ member's status as czar or not.
-		Status: s.cState.Load(),
-	}
+	rr.reply.Members = s.members.Clone()
+	rr.reply.Vers = s.vers.Clone()
+	// note that Status gives the _local_ member's status as czar or not.
+	rr.reply.Status = s.cState.Load()
 
 	////vv("czar sees Czar.Ping(cliName='%v') called with args='%v', reply with current membership list, czar replies with ='%v'", s.cliName, args, reply)
 }
