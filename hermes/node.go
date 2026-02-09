@@ -209,6 +209,10 @@ func (t *HermesTicket) String() string {
 		extra = ","
 	}
 	av += "}"
+	var keymStr string
+	if t.keym != nil {
+		keymStr = t.keym.String()
+	}
 	return fmt.Sprintf(`HermesTicket{
                 Op: %v,
                Key: "%v",
@@ -223,7 +227,7 @@ PseudoTicketForAckAccum: %v,
       waitForValid: %v,
 messageLossTimeout: %v (in %v),
 }`, t.Op, string(t.Key), string(t.Val), t.TS.String(), rpc.AliasDecode(t.FromID), t.Err,
-		t.TicketID, t.PseudoTicketForAckAccum, t.keym.String(), av, t.waitForValid,
+		t.TicketID, t.PseudoTicketForAckAccum, keymStr, av, t.waitForValid,
 		t.messageLossTimeout, dur)
 }
 
@@ -433,7 +437,7 @@ func (s *HermesNode) Start(
 					vv("do stuff for new replica joining here. TODO.")
 					continue
 				case rpc.CallPeerTraffic:
-					vv("TODO what means CallPeerTraffic here?")
+					vv("TODO what means CallPeerTraffic here? frag = '%v'", frag)
 					continue
 				}
 

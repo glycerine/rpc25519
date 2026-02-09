@@ -162,6 +162,12 @@ func init() {
 
 // also resets mlt on the pendingUpdate.
 func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
+	if s == nil {
+		panic("why is s our *HermesNode nil?")
+	}
+	if tkt == nil {
+		panic("why is tkt nil?")
+	}
 	vv("%v top of actionAbRecordPending(tkt='%v')", s.me, tkt)
 	if tkt == nil || tkt.keym == nil {
 		if !tkt.PseudoTicketForAckAccum {
@@ -177,17 +183,25 @@ func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 	// updating, rather than adding to the timeoutPQ.
 	item, ok := s.tkt2item[tkt.TicketID]
 	if ok {
-		if item.value != tkt {
+		if item.tkt != tkt {
 			panic("internal logic error, item.value must equal tkt")
 		}
+		if item.tkt.PseudoTicketForAckAccum {
+			// do these count?? is what we are having problem with.
+		}
 		vv("%v actionAbRecordPending is updating deadline in pq, not "+
-			"adding anew, for tkt='%v'", s.me, item.value)
-		item.value.messageLossTimeout = messageLossTimeout
+			"adding anew, for tkt='%v'", s.me, tkt)
+		item.tkt.messageLossTimeout = messageLossTimeout
 		// will delete and re-add item from timeoutPQ.
-		s.timeoutPQ.update(item, item.value, messageLossTimeout) // panic: error on pqTime.update(): item not found!
-		vv("%v actionAbRecordPending after updating deadline, tkt='%v'",
-			s.me, item.value)
-		return
+		err := s.timeoutPQ.update(item, tkt, messageLossTimeout) // panic: error on pqTime.update(): item not found!
+		if err != nil {
+			vv("queried s.tkt2item[tkt.TicketID='%v'] -> item.priority='%v' but then not item not found in s.timeoutPQ, err = '%v'", tkt.TicketID, item.priority, err)
+			panic("how to fix?")
+		} else {
+			vv("%v actionAbRecordPending after updating deadline, tkt='%v'",
+				s.me, item.tkt)
+			return
+		}
 	}
 
 	tkt.messageLossTimeout = messageLossTimeout
@@ -236,7 +250,7 @@ func (s *HermesNode) releaseDiscardedWriter(keym *keyMeta) {
 		return
 	}
 	for _, it := range pqitems.slc {
-		tkt2 := it.value
+		tkt2 := it.tkt
 		// we only release blocked writers because blocked
 		// readers can still complete when the new value is fully ACKed.
 		if (tkt2.Op == WRITE || tkt2.Op == RMW) && tkt2.FromID == keym.lastWriterID {
@@ -354,8 +368,8 @@ func (s *HermesNode) anyWritesInProgressFor(key Key) (writers, readers []*Hermes
 		return // false, nil
 	}
 	for _, it := range items.slc {
-		tkt := it.value
-		if it.value.Op == WRITE || it.value.Op == RMW {
+		tkt := it.tkt
+		if tkt.Op == WRITE || tkt.Op == RMW {
 			writers = append(writers, tkt)
 		} else {
 			readers = append(readers, tkt)
@@ -379,7 +393,7 @@ func (s *HermesNode) actionLA(ack *ACK, keym *keyMeta) (isLast, isWrite bool, tk
 			panic(fmt.Sprintf("what here? we are in actionLA(): why is not ack.TicketID='%v' found in our tkt2item index, at node '%v'; the ACK='%v'; tkt2item='%#v'", ack.TicketID, s.me, ack, s.tkt2item))
 		}
 	} else {
-		tkt = item.value
+		tkt = item.tkt
 	}
 	tkt.ackVector[ack.FromID] = true
 
@@ -973,7 +987,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 			// copy as we'll modify pqitems.slc and we might do > 1 here.
 			slc := append([]*pqTimeItem{}, pqitems.slc...)
 			for _, it := range slc {
-				tkt := it.value
+				tkt := it.tkt
 				if tkt.Op == RMW && inv.TS.Compare(&tkt.TS) > 0 {
 					tkt.Err = ErrAbortRMW
 					s.deleteTicket(tkt.TicketID, true)
@@ -1060,7 +1074,7 @@ func (s *HermesNode) completeWrite(keym *keyMeta, ticketID string) {
 			panic(fmt.Sprintf("no pending write for ticketID='%v', key='%v'", ticketID, string(keym.key)))
 			return
 		}
-		tkt := item.value
+		tkt := item.tkt
 
 		// completing the write
 		keym.val = tkt.Val
@@ -1118,7 +1132,7 @@ func (s *HermesNode) unblockReadsFor(keym *keyMeta) {
 	// copy first since it will change as we delete Tickets.
 	slc := append([]*pqTimeItem{}, pqitems.slc...)
 	for _, it := range slc {
-		tkt := it.value
+		tkt := it.tkt
 		if tkt.Op != WRITE && tkt.Op != RMW {
 			tkt.Val = keym.val
 			tkt.TS = keym.TS
@@ -1155,7 +1169,7 @@ func (s *HermesNode) deleteTicket(ticketID string, wasWrite bool) *HermesTicket 
 		//}
 		return nil
 	}
-	tkt := item.value
+	tkt := item.tkt
 	// only delete from tkt2item. also deletes from key2items and timeoutPQ.
 	delete(s.tkt2item, ticketID)
 	pqitems, ok := s.key2items[tkt.Key]
@@ -1219,7 +1233,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 			tkt = s.NewHermesTicket(WRITE, key, nil, ack.FromID, 0)
 			tkt.TicketID = ack.TicketID // match the sender
 			tkt.PseudoTicketForAckAccum = true
-			//tkt.Val = inv.Val // not avalil yet. save when the INV comes in.
+			//tkt.Val = inv.Val // not avail yet. save when the INV comes in.
 			tkt.TS = ack.TS
 			//tkt.keym = keym // not available yet.
 			s.actionAbRecordPending(tkt)
@@ -1621,7 +1635,7 @@ func (s *HermesNode) reconfigRM() {
 	for it := s.timeoutPQ.tree.Min(); !it.Limit(); it = it.Next() {
 		item := *it.Item().(*pqTimeItem)
 
-		tkt := item.value
+		tkt := item.tkt
 		if tkt.Op == RMW {
 			tkt.ackVector = make(map[string]bool)
 			s.replayRMW(tkt)
@@ -1638,7 +1652,7 @@ func (s *HermesNode) mustGetTicket(ticketID string) *HermesTicket {
 	if !ok {
 		panic(fmt.Sprintf("mustGetTicket(ticketID='%v') could not find Ticket", ticketID))
 	}
-	return item.value
+	return item.tkt
 }
 
 func (s *HermesNode) getTicket(ticketID string) (tkt *HermesTicket, ok bool) {
@@ -1647,6 +1661,6 @@ func (s *HermesNode) getTicket(ticketID string) (tkt *HermesTicket, ok bool) {
 	if !ok {
 		return
 	}
-	tkt = item.value
+	tkt = item.tkt
 	return
 }

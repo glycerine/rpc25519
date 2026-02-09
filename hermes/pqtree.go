@@ -25,15 +25,15 @@ type pqTime struct {
 
 // pqTimeItem are the elements in the pqTime
 type pqTimeItem struct {
-	value    *HermesTicket
+	tkt      *HermesTicket
 	priority time.Time // The priority of the item in the queue.
 }
 
 func (item *pqTimeItem) String() (r string) {
 	r = fmt.Sprintf(`&pqTimeItem{
    priority: %v
-      value: %v
-}`, nice(item.priority), item.value)
+        tkt: %v
+}`, nice(item.priority), item.tkt)
 	return
 }
 
@@ -65,9 +65,13 @@ func newPqTime() *pqTime {
 			av := a.(*pqTimeItem)
 			bv := b.(*pqTimeItem)
 
+			if av == bv {
+				return 0 // identical
+			}
+
 			if av.priority.Equal(bv.priority) {
-				atkt := av.value
-				btkt := bv.value
+				atkt := av.tkt
+				btkt := bv.tkt
 				if atkt.Key == btkt.Key {
 					if atkt.TicketID == btkt.TicketID {
 						return 0
@@ -111,7 +115,7 @@ func (p *pq) peek() (tkt *HermesTicket, timeout time.Time) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	item := p.pqtree.peekItem()
-	return item.value, item.priority
+	return item.tkt, item.priority
 }
 
 // add a new item to the queue.
@@ -121,7 +125,7 @@ func (p *pq) add(timeout time.Time, tkt *HermesTicket) *pqTimeItem {
 
 	item := &pqTimeItem{
 		priority: timeout,
-		value:    tkt,
+		tkt:      tkt,
 	}
 	added := p.pqtree.tree.Insert(item)
 	_ = added
@@ -177,7 +181,7 @@ func (pq *pqTime) peek() (tkt *HermesTicket, timeout time.Time) {
 	}
 	it := pq.tree.Min()
 	pqi := it.Item().(*pqTimeItem)
-	return pqi.value, pqi.priority
+	return pqi.tkt, pqi.priority
 }
 
 func (s *pqTime) pop() *pqTimeItem {
@@ -201,7 +205,7 @@ func (s *pqTime) add(item *pqTimeItem) (added bool, it rb.Iterator) {
 func (pq *pqTime) add(timeout time.Time, tkt *HermesTicket) *pqTimeItem {
 	item := &pqTimeItem{
 		priority: timeout,
-		value:    tkt,
+		tkt:      tkt,
 	}
 	added := pq.tree.Insert(item)
 	_ = added
@@ -218,7 +222,7 @@ func (pq *pqTime) get(key Key) (items []*pqTimeItem) {
 
 	for it := pq.tree.Min(); !it.Limit(); it = it.Next() {
 		item := it.Item().(*pqTimeItem)
-		if item.value.keym.key == key {
+		if item.tkt.keym.key == key {
 			items = append(items, item)
 		}
 	}
@@ -254,13 +258,12 @@ func (pq *pqTime) delOneItem(item *pqTimeItem) {
 }
 
 // update modifies the priority and value of an pqTimeItem in the queue.
-func (pq *pqTime) update(item *pqTimeItem, value *HermesTicket, priority time.Time) {
+func (pq *pqTime) update(item *pqTimeItem, tkt *HermesTicket, priority time.Time) error {
 
 	it, exact := pq.tree.FindGE_isEqual(item)
 	//if it == pq.tree.Limit() {
 	if !exact {
-		panicf("error on pqTime.update(): item not found in tree of len '%v'! item='%v'\n\n tree='%v'", pq.size(), item, pq)
-		return
+		return fmt.Errorf("error on pqTime.update(): item not found in tree of len '%v'! item='%v'\n\n tree='%v'", pq.size(), item, pq)
 	}
 	// delete and re-add to keep the proper tree ordering.
 	item2 := it.Item().(*pqTimeItem)
@@ -270,13 +273,14 @@ func (pq *pqTime) update(item *pqTimeItem, value *HermesTicket, priority time.Ti
 			panic("what? should have been able to pq.tree.DeleteWithKey")
 		}
 
-		item.value = value
+		item.tkt = tkt
 		item.priority = priority
 		added := pq.tree.Insert(item)
 		if !added {
 			panic("what? should have been able to pq.tree.Insert()")
 		}
 	}
+	return nil
 }
 
 // for sorting by highest version timestamp
@@ -294,7 +298,7 @@ type highestTSVersionFirst []*pqTimeItem
 func (pq highestTSVersionFirst) Len() int { return len(pq) }
 
 func (pq highestTSVersionFirst) Less(i, j int) bool {
-	return pq[i].value.TS.Compare(&pq[j].value.TS) > 0
+	return pq[i].tkt.TS.Compare(&pq[j].tkt.TS) > 0
 }
 
 func (pq highestTSVersionFirst) Swap(i, j int) {

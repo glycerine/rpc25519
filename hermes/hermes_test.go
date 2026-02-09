@@ -191,6 +191,7 @@ func Test003_hermes_write_new_value_two_replicas(t *testing.T) {
 	v := []byte("123")
 	err := nodes[0].Write("a", v, 0)
 	panicOn(err)
+	vv("good 1: back from Write a -> 123")
 
 	//time.Sleep(time.Second)
 
@@ -201,6 +202,7 @@ func Test003_hermes_write_new_value_two_replicas(t *testing.T) {
 	if !bytes.Equal(v, v2) {
 		t.Fatalf("write a:'%v' to node0, read back from node1 '%v'", string(v), string(v2))
 	}
+	vv("good 2: back from node[1].Read a -> 123")
 
 	// read back from node 2 too
 	v3, err := nodes[2].Read("a", 0)
@@ -209,6 +211,8 @@ func Test003_hermes_write_new_value_two_replicas(t *testing.T) {
 	if !bytes.Equal(v, v3) {
 		t.Fatalf("write a:'%v' to node0, read back from node2 '%v'", string(v), string(v3))
 	}
+	vv("good 3: back from node[2].Read a -> 123")
+
 }
 
 func Test004_hermes_write_twice(t *testing.T) {
