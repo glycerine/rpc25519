@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"time"
 
 	"github.com/glycerine/blake3"
@@ -1703,6 +1704,8 @@ func (s *HermesNode) getTicket(ticketID string) (tkt *HermesTicket, ok bool) {
 	return
 }
 
+//msgp:ignore HermesNode
+
 type HermesNode struct {
 	cfg *HermesConfig
 
@@ -1809,14 +1812,19 @@ type HermesTicket struct {
 	Val Val `zid:"1"`
 	TS  TS  `zid:"2"`
 
-	FromID string `zid:"3"`
-	Err    error  `zid:"4"`
+	FromID string    `zid:"3"`
+	EpochV EpochVers `zid:"4"`
+	Err    error     `msg:"-"`
+
+	// version of Err for transport only
+	// (since the error interface does not serialize well).
+	Errs string `zid:"5"`
 
 	// TicketID is a unique identifier for each HermesTicket.
-	TicketID string `zid:"5"`
+	TicketID string `zid:"6"`
 
-	Op                      TicketOp `zid:"6"`
-	PseudoTicketForAckAccum bool     `zid:"7"`
+	Op                      TicketOp `zid:"7"`
+	PseudoTicketForAckAccum bool     `zid:"8"`
 
 	Done *idem.IdemCloseChan `msg:"-"`
 
@@ -1858,6 +1866,18 @@ type HermesTicket struct {
 	// coordinator suspects a potential message loss and resets the
 	// request's mlt before retransmitting the write's INV broadcast.
 
+}
+
+func (t *HermesTicket) PreSaveHook() {
+	if t.Err != nil {
+		t.Errs = t.Err.Error()
+	}
+}
+
+func (t *HermesTicket) PostLoadHook() {
+	if t.Errs != "" {
+		t.Err = errors.New(t.Errs)
+	}
 }
 
 type TicketOp int64
@@ -1934,9 +1954,10 @@ func (s *HermesNode) NewHermesTicket(
 ) (tkt *HermesTicket) {
 
 	tkt = &HermesTicket{
-		Op:  op,
-		Key: key,
-		Val: val,
+		Op:     op,
+		Key:    key,
+		Val:    val,
+		EpochV: s.EpochV,
 		//TS:       must be filled in by readReq/writeReq from the current keym.
 		Done:         idem.NewIdemCloseChan(),
 		FromID:       fromID,
