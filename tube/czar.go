@@ -262,7 +262,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 			// note that Status gives the _local_ member's status as czar or not.
 			Status: s.cState.Load(),
 		}:
-		default:
+		case <-s.Halt.ReqStop.Chan:
 		}
 	}
 	return nil
