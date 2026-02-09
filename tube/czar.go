@@ -231,12 +231,12 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList) (err err
 
 	listhash := s.hashPeerIDs(list, v)
 	hashDiffers := (listhash != s.listhash)
-	//if hashDiffers {
-	//vv("%v: new membership seen (cur = '%v'; vs new = '%v')\n cur s.listhash='%v'\n versus new listhash='%v'\n", s.name, s.members, list, s.listhash, listhash) // seen a ton, of course.
-	//}
+	if hashDiffers {
+		vv("%v: new membership seen (cur = '%v'; vs new = '%v')\n cur s.listhash='%v'\n versus new listhash='%v'\n", s.name, s.members, list, s.listhash, listhash) // seen a ton, of course.
+	}
 
 	s.members = list.Clone()
-	s.vers = v
+	s.vers = v.Clone()
 	s.listhash = listhash
 	s.t0 = time.Now()
 
