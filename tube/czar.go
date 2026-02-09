@@ -1625,6 +1625,13 @@ func (z *RMVersionTuple) String() (r string) {
 	return
 }
 
+func (z *RMVersionTuple) Short() (r string) {
+	if z == nil {
+		return "(nil)"
+	}
+	return fmt.Sprintf("RMVersionTuple.Short: {CzarLeaseEpoch: %v  WithinCzarVersion: %v}", z.CzarLeaseEpoch, z.WithinCzarVersion)
+}
+
 type PeerDetailPlus struct {
 	Det *PeerDetail `zid:"0"`
 
@@ -1788,7 +1795,7 @@ func (s *ReliableMembershipList) String() (r string) {
 	r += fmt.Sprintf(" CzarName: \"%v\"\n", s.CzarName)
 	r += fmt.Sprintf("[ %v PeerNames listed above (%v total with czar) ]\n", npeer, numWithCzar)
 	r += fmt.Sprintf("  CzarDet: %v\n", s.CzarDet)
-	r += fmt.Sprintf("  CzarVersProbablyStale: %v\n", s.CzarVersProbablyStale)
+	r += fmt.Sprintf("  CzarVersProbablyStale: %v\n", s.CzarVersProbablyStale.Short())
 	r += "}\n"
 	return
 }
