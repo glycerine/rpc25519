@@ -2171,6 +2171,10 @@ func (s *HermesNode) Start(
 			switch frag.FragOp {
 
 			case INVmsg:
+				if time.Now().After(s.operLeaseUntilTm) {
+					vv("%v: hermes node has no operating lease, ignoring INV (since %v)", s.name, time.Since(s.operLeaseUntilTm))
+					continue
+				}
 				//vv("unmarshal INVmsg")
 				inv := &INV{}
 				_, err := inv.UnmarshalMsg(frag.Payload)
@@ -2181,6 +2185,10 @@ func (s *HermesNode) Start(
 				}
 
 			case VALIDATEmsg:
+				if time.Now().After(s.operLeaseUntilTm) {
+					vv("%v: hermes node has no operating lease, ignoring VALIDATE (since %v)", s.name, time.Since(s.operLeaseUntilTm))
+					continue
+				}
 				valid := &VALIDATE{}
 				_, err := valid.UnmarshalMsg(frag.Payload)
 				panicOn(err)
@@ -2189,6 +2197,10 @@ func (s *HermesNode) Start(
 					panicOn(err)
 				}
 			case ACKmsg:
+				if time.Now().After(s.operLeaseUntilTm) {
+					vv("%v: hermes node has no operating lease, ignoring ACK (since %v)", s.name, time.Since(s.operLeaseUntilTm))
+					continue
+				}
 				ack := &ACK{}
 				_, err := ack.UnmarshalMsg(frag.Payload)
 				panicOn(err)

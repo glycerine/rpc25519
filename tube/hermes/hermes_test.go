@@ -104,6 +104,24 @@ func Test010_TS_Compare_is_fair(t *testing.T) {
 	}
 }
 
+func newHermesTestCluster(cfg *HermesConfig) *HermesCluster {
+	n := cfg.ReplicationDegree
+
+	var nodes []*HermesNode
+	for i := range n {
+		name := fmt.Sprintf("hermes_node_%v", i)
+		node := NewHermesNode(name, cfg)
+
+		// fake operating lease for now, since tests were developed
+		// before and we don't want to bring up a full tube raft cluster
+		// to test them at the moment.
+		node.operLeaseUntilTm = time.Now().Add(10 * time.Minute)
+
+		nodes = append(nodes, node)
+	}
+	return NewHermesCluster(cfg, nodes)
+}
+
 func Test001_no_replicas_write_new_value(t *testing.T) {
 	n := 1
 	cfg := &HermesConfig{
@@ -111,13 +129,8 @@ func Test001_no_replicas_write_new_value(t *testing.T) {
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
 	}
-
-	var nodes []*HermesNode
-	for i := range n {
-		name := fmt.Sprintf("hermes_node_%v", i)
-		nodes = append(nodes, NewHermesNode(name, cfg))
-	}
-	c := NewHermesCluster(cfg, nodes)
+	c := newHermesTestCluster(cfg)
+	nodes := c.Nodes
 	c.Start()
 	defer c.Close()
 
@@ -149,13 +162,8 @@ func Test002_hermes_write_new_value(t *testing.T) {
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
 	}
-
-	var nodes []*HermesNode
-	for i := range n {
-		name := fmt.Sprintf("hermes_node_%v", i)
-		nodes = append(nodes, NewHermesNode(name, cfg))
-	}
-	c := NewHermesCluster(cfg, nodes)
+	c := newHermesTestCluster(cfg)
+	nodes := c.Nodes
 	c.Start()
 	defer c.Close()
 
@@ -188,13 +196,8 @@ func Test003_hermes_write_new_value_two_replicas(t *testing.T) {
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
 	}
-
-	var nodes []*HermesNode
-	for i := range n {
-		name := fmt.Sprintf("hermes_node_%v", i)
-		nodes = append(nodes, NewHermesNode(name, cfg))
-	}
-	c := NewHermesCluster(cfg, nodes)
+	c := newHermesTestCluster(cfg)
+	nodes := c.Nodes
 	c.Start()
 	defer c.Close()
 
@@ -235,13 +238,8 @@ func Test004_hermes_write_twice(t *testing.T) {
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
 	}
-
-	var nodes []*HermesNode
-	for i := range n {
-		name := fmt.Sprintf("hermes_node_%v", i)
-		nodes = append(nodes, NewHermesNode(name, cfg))
-	}
-	c := NewHermesCluster(cfg, nodes)
+	c := newHermesTestCluster(cfg)
+	nodes := c.Nodes
 	c.Start()
 	defer c.Close()
 
@@ -297,13 +295,8 @@ func Test005_hermes_second_write_to_different_node(t *testing.T) {
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
 	}
-
-	var nodes []*HermesNode
-	for i := range n {
-		name := fmt.Sprintf("hermes_node_%v", i)
-		nodes = append(nodes, NewHermesNode(name, cfg))
-	}
-	c := NewHermesCluster(cfg, nodes)
+	c := newHermesTestCluster(cfg)
+	nodes := c.Nodes
 	c.Start()
 	defer c.Close()
 
@@ -351,13 +344,8 @@ func Test006_hermes_second_write_to_different_node_3_nodes(t *testing.T) {
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
 	}
-
-	var nodes []*HermesNode
-	for i := range n {
-		name := fmt.Sprintf("hermes_node_%v", i)
-		nodes = append(nodes, NewHermesNode(name, cfg))
-	}
-	c := NewHermesCluster(cfg, nodes)
+	c := newHermesTestCluster(cfg)
+	nodes := c.Nodes
 	c.Start()
 	defer c.Close()
 
@@ -399,13 +387,8 @@ func Test007_reads_should_wait_for_valid_value(t *testing.T) {
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
 	}
-
-	var nodes []*HermesNode
-	for i := range n {
-		name := fmt.Sprintf("hermes_node_%v", i)
-		nodes = append(nodes, NewHermesNode(name, cfg))
-	}
-	c := NewHermesCluster(cfg, nodes)
+	c := newHermesTestCluster(cfg)
+	nodes := c.Nodes
 	c.Start()
 	defer c.Close()
 
@@ -437,13 +420,8 @@ func Test008_coord_fails_before_VALIDATE_then_replay(t *testing.T) {
 
 		testScenario: map[string]bool{"ignore VALIDATE": true},
 	}
-
-	var nodes []*HermesNode
-	for i := range n {
-		name := fmt.Sprintf("hermes_node_%v", i)
-		nodes = append(nodes, NewHermesNode(name, cfg))
-	}
-	c := NewHermesCluster(cfg, nodes)
+	c := newHermesTestCluster(cfg)
+	nodes := c.Nodes
 	c.Start()
 	defer c.Close()
 
@@ -474,13 +452,8 @@ func Test009_follower_fails_does_not_ACK(t *testing.T) {
 
 		testScenario: map[string]bool{"ignore ACK": true},
 	}
-
-	var nodes []*HermesNode
-	for i := range n {
-		name := fmt.Sprintf("hermes_node_%v", i)
-		nodes = append(nodes, NewHermesNode(name, cfg))
-	}
-	c := NewHermesCluster(cfg, nodes)
+	c := newHermesTestCluster(cfg)
+	nodes := c.Nodes
 	c.Start()
 	defer c.Close()
 
