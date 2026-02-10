@@ -1745,11 +1745,14 @@ type HermesNode struct {
 	cfg *HermesConfig
 
 	// hermes protocol
-	lease     time.Time
 	EpochV    EpochVers
 	liveNodes []string
 	member    *tube.RMember
 	ClusterID string
+
+	// our operating lease--for linearizability we
+	// must stop serving if this expires.
+	operLeaseUntilTm time.Time
 
 	// the main key/value store.
 	store map[Key]*keyMeta
@@ -2140,8 +2143,9 @@ func (s *HermesNode) Start(
 		//zz("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
 
-		case operLeaseUntilTm := <-s.OperatingLeaseRenewCh:
-			vv("%v hermes see operating lease renewed until %v (in %v)", s.name, operLeaseUntilTm, time.Until(operLeaseUntilTm))
+		case s.operLeaseUntilTm = <-s.OperatingLeaseRenewCh:
+
+			//vv("%v hermes see operating lease renewed until %v (in %v)", s.name, operLeaseUntilTm, time.Until(operLeaseUntilTm))
 
 		case reply := <-s.UpcallMembershipChangeCh:
 			s.EpochV.Epoch = reply.Vers.CzarLeaseEpoch
