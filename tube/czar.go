@@ -1320,6 +1320,16 @@ fullRestart:
 					czar.renewCzarLeaseDue = now.Add(czar.renewCzarLeaseDur)
 					czar.renewCzarLeaseCh = time.After(czar.renewCzarLeaseDur)
 
+					// tell hermes(czar) node above that their operating lease has renewed.
+					select {
+					case czar.OperatingLeaseRenewCh <- czarTkt.LeaseUntilTm:
+					case <-czar.Halt.ReqStop.Chan:
+						vv("%v shutdown requested", name)
+						return
+						//default:
+						//	alwaysPrintf("warning ugh! could not send lease renewal to hermes!")
+					}
+
 				case <-czar.Halt.ReqStop.Chan:
 					vv("%v: czar halt requested (in amCzar state). exiting.", name)
 					return
@@ -1506,14 +1516,17 @@ fullRestart:
 
 							continue fullRestart
 						}
-						// tell hermes node above that their operating lease has renewed.
+						// tell hermes(squad) node above that their operating lease has renewed.
 						det, ok := reply.Members.PeerNames.Get2(czar.myDetail.Det.Name)
 						if ok {
 							until := det.RMemberLeaseUntilTm
 							select {
 							case czar.OperatingLeaseRenewCh <- until:
-							default:
-								alwaysPrintf("warning ugh! could not send lease renewal to hermes!")
+							case <-czar.Halt.ReqStop.Chan:
+								vv("%v shutdown requested", name)
+								return
+								//default:
+								//	alwaysPrintf("warning ugh! could not send lease renewal to hermes!")
 							}
 						} else {
 							panicf("%v: we (reliable member) are not in our own ping reply, internal logic problem!?!", name)
