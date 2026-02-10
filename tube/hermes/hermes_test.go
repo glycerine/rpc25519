@@ -67,7 +67,7 @@ func (s *HermesNode) Close() {
 }
 
 func Test010_TS_Compare_is_fair(t *testing.T) {
-	return // green but the fairness version is off atm.
+	//return // green but the fairness version is off atm.
 
 	// check that our blake3 hashing gives fair version comparison
 	N := int64(100_000)
@@ -95,7 +95,7 @@ func Test010_TS_Compare_is_fair(t *testing.T) {
 		}
 	}
 	pct := 100 * float64(awin) / float64(N)
-	vv("Coordinator A won %0.1f %% of the time.", pct)
+	vv("Coordinator A won %0.1f %% of the time. N = %v", pct, N)
 	if pct > 55 || pct < 45 {
 		t.Fatalf("exptected pct %v to be closer to 50", pct)
 	}

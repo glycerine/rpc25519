@@ -58,32 +58,41 @@ func (a *TS) Compare(b *TS) int {
 	// INVAR: a.CoordID != b.CoordID
 
 	// option: comment this out and comment in
-	// the fairness variant below; slightlyl slower
+	// the fairness variant below; slightly slower
 	// but statistically fairer in terms of
 	// who wins the version tie-breaking after each
 	// version number increment.
-	if a.CoordID < b.CoordID {
-		return -1
+	if false {
+		// simpler, faster, less fair.
+		if a.CoordID < b.CoordID {
+			return -1
+		} else {
+			return 1
+		}
+	} else {
+		// slightly slower, but more fair.
+
+		// Per the paper discussion on fairness, we implement a
+		// fairness concerned variant: a keyed crypto hash
+		// of the CoordID using the version as the key.
+		// At each version, the winner will be different,
+		// but is still locally computable and globally consistent.
+		//
+		var key [32]byte
+		binary.LittleEndian.PutUint64(key[:], uint64(a.Version))
+
+		h := blake3.New(64, key[:])
+		h.Write([]byte(a.CoordID))
+		aHash := h.Sum(nil)
+		h.Reset()
+		h.Write([]byte(b.CoordID))
+		bHash := h.Sum(nil)
+		if bytes.Compare(aHash, bHash) <= 0 {
+			return -1
+		} else {
+			return 1
+		}
 	}
-	// Per the paper discussion on fairness, we implement a
-	// fairness concerned variant: a keyed crypto hash
-	// of the CoordID using the version as the key.
-	// At each version, the winner will be different,
-	// but is still locally computable and globally consistent.
-	//
-	// var key [32]byte
-	// binary.LittleEndian.PutUint64(key[:], uint64(a.Version))
-	//
-	// h := blake3.New(64, key[:])
-	// h.Write([]byte(a.CoordID))
-	// aHash := h.Sum(nil)
-	// h.Reset()
-	// h.Write([]byte(b.CoordID))
-	// bHash := h.Sum(nil)
-	// if bytes.Compare(aHash, bHash) <= 0 {
-	// 	return -1
-	// }
-	return 1
 }
 
 type EpochVers struct {
