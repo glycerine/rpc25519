@@ -14,8 +14,8 @@ import (
 
 	//rpc "github.com/glycerine/rpc25519"
 	//"github.com/glycerine/ipaddr"
-	"github.com/glycerine/rpc25519/hermes"
 	"github.com/glycerine/rpc25519/tube"
+	"github.com/glycerine/rpc25519/tube/hermes"
 	//"github.com/glycerine/rpc25519/tube/art"
 )
 
@@ -53,6 +53,7 @@ func main() {
 	}
 	hnode := hermes.NewHermesNode(name, hcfg)
 	hnode.UpcallMembershipChangeCh = mem.UpcallMembershipChangeCh
+	hnode.OperatingLeaseRenewCh = mem.OperatingLeaseRenewCh
 	err = hnode.Init()
 	panicOn(err)
 	select {}

@@ -1789,6 +1789,9 @@ type HermesNode struct {
 	// already does.
 	UpcallMembershipChangeCh chan *tube.PingReply
 
+	// same allocation strategy as Upcall
+	OperatingLeaseRenewCh chan time.Time // from PeerDetailPlus.RMemberLeaseUntilTm
+
 	nextWake       time.Time
 	nextWakeCh     <-chan time.Time
 	nextWakeTicket *HermesTicket
@@ -2136,6 +2139,9 @@ func (s *HermesNode) Start(
 	for {
 		//zz("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
+
+		case operLeaseUntilTm := <-s.OperatingLeaseRenewCh:
+			vv("%v hermes see operating lease renewed until %v (in %v)", s.name, operLeaseUntilTm, time.Until(operLeaseUntilTm))
 
 		case reply := <-s.UpcallMembershipChangeCh:
 			s.EpochV.Epoch = reply.Vers.CzarLeaseEpoch

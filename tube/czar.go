@@ -88,6 +88,7 @@ type Czar struct {
 	name string
 
 	UpcallMembershipChangeCh chan *PingReply `msg:"-"`
+	OperatingLeaseRenewCh    chan time.Time  `msg:"-"`
 
 	t0                 time.Time
 	memberHeartBeatDur time.Duration
@@ -376,7 +377,7 @@ type pingReqReply struct {
 // for simnet tests; would not work across real network at the moment.
 func (s *Czar) inspect(ctx context.Context) (reply *PingReply, err error) {
 
-	reply = &PingReply{}
+	reply = &PingReply{CallFrom: "inspect"}
 	rr := &pingReqReply{
 		ctx:         ctx,
 		reply:       reply,
@@ -533,8 +534,6 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	args.RMemberLeaseUntilTm = leasedUntilTm
 	args.RMemberLeaseDur = s.memberLeaseDur
 
-	s.heard[s.name] = now
-
 	updated := false
 	var updatedList *ReliableMembershipList
 	var updatedVers *RMVersionTuple
@@ -560,17 +559,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 			updated = true
 
 		} else {
-			// do we want lease-extension to increment the Version?
-			// I don't think so. This is the most common
-			// failure free path here. On the otherhand, its
-			// hard to know who is most recent and avoid
-			// a late duplicate down-date if we don't increment
-			// Version--besides it is cheap since it is
-			// fully in RAM/memory only. Thus we set a policy
-			// for users: a higher Version may only mean
-			// a later lease duration, not a different
-			// set of members.
-			//s.vers.LeaseUpdateCounter++
+			// lease-extension does not increment the Version.
 		}
 		////vv("args.Name '%v' already exists in PeerNames, det = '%v'", args.Name, det)
 	}
@@ -585,6 +574,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	s.members.MemberLeaseDur = s.memberLeaseDur
 
 	s.heard[args.Det.Name] = now
+	s.heard[s.name] = now
 	changed, newlist := s.expireSilentNodes(updatedList)
 	if changed {
 		updatedList = newlist
@@ -736,6 +726,8 @@ type RMember struct {
 	// changes in membership.
 	UpcallMembershipChangeCh chan *PingReply
 
+	OperatingLeaseRenewCh chan time.Time
+
 	// Ready is closed when UpcallMembershipChangeCh is set
 	// and the RMember is ready to use (call Start(), then
 	// wait for Ready to be closed).
@@ -774,6 +766,8 @@ func NewRMember(tableSpace string, cfg *TubeConfig) (rm *RMember) {
 
 		UpcallMembershipChangeCh: make(chan *PingReply, 10),
 		//UpcallMembershipChangeCh: make(chan *PingReply), // red czar_test.go Test809_lease_epoch_monotone
+
+		OperatingLeaseRenewCh: make(chan time.Time, 10),
 	}
 	if cfg.isTest {
 		rm.testingAmCzarCh = make(chan bool, 10)
@@ -832,6 +826,7 @@ func (membr *RMember) start() {
 	}
 
 	czar.UpcallMembershipChangeCh = membr.UpcallMembershipChangeCh
+	czar.OperatingLeaseRenewCh = membr.OperatingLeaseRenewCh
 
 	// tell user it is safe to listen on
 	// membr.UpcallMembershipChangeCh now.
@@ -1510,6 +1505,18 @@ fullRestart:
 							czar.cState.Store(int32(unknownCzarState))
 
 							continue fullRestart
+						}
+						// tell hermes node above that their operating lease has renewed.
+						det, ok := reply.Members.PeerNames.Get2(czar.myDetail.Det.Name)
+						if ok {
+							until := det.RMemberLeaseUntilTm
+							select {
+							case czar.OperatingLeaseRenewCh <- until:
+							default:
+								alwaysPrintf("warning ugh! could not send lease renewal to hermes!")
+							}
+						} else {
+							panicf("%v: we (reliable member) are not in our own ping reply, internal logic problem!?!", name)
 						}
 					}
 
