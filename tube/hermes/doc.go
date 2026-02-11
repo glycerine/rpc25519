@@ -282,7 +282,7 @@ guaranteed to be successfully linearized
 later in the global order through the
 monotonically increasing timestamps.
 
-Invalidations can be thought as short
+Invalidations can be thought as sort
 of a barrier here since a read that
 happens in the middle of the update
 (to the same object) must wait for

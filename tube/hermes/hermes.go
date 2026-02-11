@@ -654,6 +654,7 @@ func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 				//Version: vers, // leave at 0.
 				CoordID: s.PeerID,
 			},
+			// this is a read. Why are we setting lastWriterID?
 			lastWriterID: tkt.FromID,
 		}
 		s.store[key] = keym
