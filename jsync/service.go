@@ -793,8 +793,9 @@ func (s *SyncService) Start(
 				// directory hard links in APFS and rewrote Time Machine
 				// to use Volume Snapshots instead.
 				//
-				// 2. Why clonefile is Faster
-				// The clonefile syscall (Copy-On-Write) avoids the Sibling overhead.
+				// "2. Why clonefile is Faster
+				//
+				// "The clonefile syscall (Copy-On-Write) avoids the Sibling overhead.
 				// It creates a new Inode (like a hard link).
 				// It points to the same data blocks (like a hard link).
 				// Crucially: It does not link their metadata. The two files
@@ -803,6 +804,14 @@ func (s *SyncService) Start(
 				// relationship or ensure that a chmod on one reflects on the
 				// other, clonefile skips the expensive bookkeeping that link performs."
 				// See cloneFileMacOS() at the bottom on service.go (this file).
+				//
+				// "Option B: The "Apple Native" Way (Volume Snapshots)
+				// If you want the truest instant snapshot on macOS (like
+				// Time Machine), you shouldn't use file-level linking at all.
+				// You should use APFS Volume Snapshots (fs_snapshot_create).
+				// Pros: O(1) for the entire database, regardless of size or
+				// file count. Instant.
+				// Cons: Extremely complex to implement; requires root/entitlements"
 
 				fi, err := os.Stat(syncReq.GiverPath)
 				panicOn(err)
