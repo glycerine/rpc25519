@@ -8,6 +8,7 @@ require (
 	github.com/apoorvam/goterminal v0.0.0-20180523175556-614d345c47e5
 	github.com/caio/go-tdigest v3.1.0+incompatible
 	github.com/cloudflare/circl v1.6.1
+	github.com/cockroachdb/pebble/v2 v2.1.4
 	github.com/cristalhq/base64 v0.1.2
 	github.com/glycerine/base58 v0.24.2
 	github.com/glycerine/blake3 v1.5.2
@@ -29,6 +30,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/quic-go/quic-go v0.59.0
 	github.com/templexxx/cpu v0.1.1
+	github.com/tidwall/btree v1.8.2-0.20251103153907-da3712be86f9
 	golang.org/x/crypto v0.47.0
 	golang.org/x/net v0.49.0
 	golang.org/x/sys v0.40.0
@@ -48,7 +50,6 @@ require (
 	github.com/cockroachdb/crlib v0.0.0-20241112164430-1264a2edc35b // indirect
 	github.com/cockroachdb/errors v1.11.3 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
-	github.com/cockroachdb/pebble/v2 v2.1.4 // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
 	github.com/cockroachdb/swiss v0.0.0-20251224182025-b0f6560f979b // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
@@ -60,6 +61,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.5-0.20231225225746-43d5d4cd4e0e // indirect
+	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/kr/pretty v0.3.1 // indirect
@@ -76,7 +78,6 @@ require (
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/shurcooL/go v0.0.0-20200502201357-93f07166e636 // indirect
 	github.com/shurcooL/go-goon v1.0.0 // indirect
-	github.com/tidwall/btree v1.8.2-0.20251103153907-da3712be86f9 // indirect
 	github.com/tinylib/msgp v1.1.2 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
