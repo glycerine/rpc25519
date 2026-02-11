@@ -508,10 +508,11 @@ func stateString(state HermesKeyState) string {
 
 // per key meta data
 type keyMeta struct {
-	key          Key
-	TS           TS   `zid:"0"`
-	IsRMW        bool `zid:"1"` // accommodates update-replays.
-	state        HermesKeyState
+	key   Key
+	TS    TS   `zid:"0"`
+	IsRMW bool `zid:"1"` // accommodates update-replays.
+
+	state        HermesKeyState // an int: sValid, sInvalid, sWrite, sReplay, sInvalidWR
 	lastWriterID string
 	val          Val
 }
