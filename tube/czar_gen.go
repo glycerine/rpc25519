@@ -23,7 +23,7 @@ func (z *Czar) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields0zgensym_d4b91a75c2094c05_1 = 3
+	const maxFields0zgensym_d4b91a75c2094c05_1 = 4
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields0zgensym_d4b91a75c2094c05_1 uint32
@@ -101,9 +101,9 @@ doneWithStruct0zgensym_d4b91a75c2094c05_1:
 }
 
 // fields of Czar
-var decodeMsgFieldOrder0zgensym_d4b91a75c2094c05_1 = []string{"Placeholder_zid00_int", "", ""}
+var decodeMsgFieldOrder0zgensym_d4b91a75c2094c05_1 = []string{"Placeholder_zid00_int", "", "", ""}
 
-var decodeMsgFieldSkip0zgensym_d4b91a75c2094c05_1 = []bool{false, true, true}
+var decodeMsgFieldSkip0zgensym_d4b91a75c2094c05_1 = []bool{false, true, true, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Czar) fieldsNotEmpty(isempty []bool) uint32 {
@@ -126,7 +126,7 @@ func (z *Czar) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_d4b91a75c2094c05_2 [3]bool
+	var empty_zgensym_d4b91a75c2094c05_2 [4]bool
 	fieldsInUse_zgensym_d4b91a75c2094c05_3 := z.fieldsNotEmpty(empty_zgensym_d4b91a75c2094c05_2[:])
 
 	// map header
@@ -169,7 +169,7 @@ func (z *Czar) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [3]bool
+	var empty [4]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -197,7 +197,7 @@ func (z *Czar) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byt
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_d4b91a75c2094c05_5 = 3
+	const maxFields4zgensym_d4b91a75c2094c05_5 = 4
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields4zgensym_d4b91a75c2094c05_5 uint32
@@ -277,9 +277,9 @@ doneWithStruct4zgensym_d4b91a75c2094c05_5:
 }
 
 // fields of Czar
-var unmarshalMsgFieldOrder4zgensym_d4b91a75c2094c05_5 = []string{"Placeholder_zid00_int", "", ""}
+var unmarshalMsgFieldOrder4zgensym_d4b91a75c2094c05_5 = []string{"Placeholder_zid00_int", "", "", ""}
 
-var unmarshalMsgFieldSkip4zgensym_d4b91a75c2094c05_5 = []bool{false, true, true}
+var unmarshalMsgFieldSkip4zgensym_d4b91a75c2094c05_5 = []bool{false, true, true, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Czar) Msgsize() (s int) {
@@ -308,7 +308,7 @@ func (z *PeerDetailPlus) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields6zgensym_d4b91a75c2094c05_7 = 3
+	const maxFields6zgensym_d4b91a75c2094c05_7 = 4
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields6zgensym_d4b91a75c2094c05_7 uint32
@@ -397,6 +397,12 @@ doneWithStruct6zgensym_d4b91a75c2094c05_7:
 			if err != nil {
 				return
 			}
+		case "BootstrapShadowMode_zid03_boo":
+			found6zgensym_d4b91a75c2094c05_7[3] = true
+			z.BootstrapShadowMode, err = dc.ReadBool()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -420,16 +426,16 @@ doneWithStruct6zgensym_d4b91a75c2094c05_7:
 }
 
 // fields of PeerDetailPlus
-var decodeMsgFieldOrder6zgensym_d4b91a75c2094c05_7 = []string{"Det_zid00_ptr", "RMemberLeaseUntilTm_zid01_tim", "RMemberLeaseDur_zid02_dur"}
+var decodeMsgFieldOrder6zgensym_d4b91a75c2094c05_7 = []string{"Det_zid00_ptr", "RMemberLeaseUntilTm_zid01_tim", "RMemberLeaseDur_zid02_dur", "BootstrapShadowMode_zid03_boo"}
 
-var decodeMsgFieldSkip6zgensym_d4b91a75c2094c05_7 = []bool{false, false, false}
+var decodeMsgFieldSkip6zgensym_d4b91a75c2094c05_7 = []bool{false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *PeerDetailPlus) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 3
+		return 4
 	}
-	var fieldsInUse uint32 = 3
+	var fieldsInUse uint32 = 4
 	isempty[0] = (z.Det == nil) // pointer, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -440,6 +446,10 @@ func (z *PeerDetailPlus) fieldsNotEmpty(isempty []bool) uint32 {
 	}
 	isempty[2] = false
 	if isempty[2] {
+		fieldsInUse--
+	}
+	isempty[3] = (!z.BootstrapShadowMode) // bool, omitempty
+	if isempty[3] {
 		fieldsInUse--
 	}
 
@@ -453,7 +463,7 @@ func (z *PeerDetailPlus) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_d4b91a75c2094c05_8 [3]bool
+	var empty_zgensym_d4b91a75c2094c05_8 [4]bool
 	fieldsInUse_zgensym_d4b91a75c2094c05_9 := z.fieldsNotEmpty(empty_zgensym_d4b91a75c2094c05_8[:])
 
 	// map header
@@ -517,6 +527,18 @@ func (z *PeerDetailPlus) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_d4b91a75c2094c05_8[3] {
+		// write "BootstrapShadowMode_zid03_boo"
+		err = en.Append(0xbd, 0x42, 0x6f, 0x6f, 0x74, 0x73, 0x74, 0x72, 0x61, 0x70, 0x53, 0x68, 0x61, 0x64, 0x6f, 0x77, 0x4d, 0x6f, 0x64, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x62, 0x6f, 0x6f)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBool(z.BootstrapShadowMode)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -529,7 +551,7 @@ func (z *PeerDetailPlus) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [3]bool
+	var empty [4]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -562,6 +584,12 @@ func (z *PeerDetailPlus) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendDuration(o, z.RMemberLeaseDur)
 	}
 
+	if !empty[3] {
+		// string "BootstrapShadowMode_zid03_boo"
+		o = append(o, 0xbd, 0x42, 0x6f, 0x6f, 0x74, 0x73, 0x74, 0x72, 0x61, 0x70, 0x53, 0x68, 0x61, 0x64, 0x6f, 0x77, 0x4d, 0x6f, 0x64, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.BootstrapShadowMode)
+	}
+
 	return
 }
 
@@ -580,7 +608,7 @@ func (z *PeerDetailPlus) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig
 
 	var field []byte
 	_ = field
-	const maxFields10zgensym_d4b91a75c2094c05_11 = 3
+	const maxFields10zgensym_d4b91a75c2094c05_11 = 4
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields10zgensym_d4b91a75c2094c05_11 uint32
@@ -674,6 +702,13 @@ doneWithStruct10zgensym_d4b91a75c2094c05_11:
 			if err != nil {
 				return
 			}
+		case "BootstrapShadowMode_zid03_boo":
+			found10zgensym_d4b91a75c2094c05_11[3] = true
+			z.BootstrapShadowMode, bts, err = nbs.ReadBoolBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -697,9 +732,9 @@ doneWithStruct10zgensym_d4b91a75c2094c05_11:
 }
 
 // fields of PeerDetailPlus
-var unmarshalMsgFieldOrder10zgensym_d4b91a75c2094c05_11 = []string{"Det_zid00_ptr", "RMemberLeaseUntilTm_zid01_tim", "RMemberLeaseDur_zid02_dur"}
+var unmarshalMsgFieldOrder10zgensym_d4b91a75c2094c05_11 = []string{"Det_zid00_ptr", "RMemberLeaseUntilTm_zid01_tim", "RMemberLeaseDur_zid02_dur", "BootstrapShadowMode_zid03_boo"}
 
-var unmarshalMsgFieldSkip10zgensym_d4b91a75c2094c05_11 = []bool{false, false, false}
+var unmarshalMsgFieldSkip10zgensym_d4b91a75c2094c05_11 = []bool{false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *PeerDetailPlus) Msgsize() (s int) {
@@ -709,7 +744,7 @@ func (z *PeerDetailPlus) Msgsize() (s int) {
 	} else {
 		s += z.Det.Msgsize()
 	}
-	s += 30 + msgp.TimeSize + 26 + msgp.DurationSize
+	s += 30 + msgp.TimeSize + 26 + msgp.DurationSize + 30 + msgp.BoolSize
 	return
 }
 func (z *PeerDetailPlus) Gstring() (r string) {
@@ -717,6 +752,7 @@ func (z *PeerDetailPlus) Gstring() (r string) {
 	r += fmt.Sprintf("                Det: %v,\n", z.Det)
 	r += fmt.Sprintf("RMemberLeaseUntilTm: %v,\n", z.RMemberLeaseUntilTm)
 	r += fmt.Sprintf("    RMemberLeaseDur: %v,\n", z.RMemberLeaseDur)
+	r += fmt.Sprintf("BootstrapShadowMode: %v,\n", z.BootstrapShadowMode)
 	r += "}\n"
 	return
 }
