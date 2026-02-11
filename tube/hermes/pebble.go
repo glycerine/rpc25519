@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/pebble/v2"
+	"github.com/glycerine/rpc25519/tube"
 )
 
 func BackupPeebleDatabase(db *pebble.DB, backupRoot string) error {
@@ -29,6 +30,25 @@ func BackupPeebleDatabase(db *pebble.DB, backupRoot string) error {
 	}
 
 	return nil
+}
+
+func (s *HermesNode) dbDir() string {
+	dataDir, err := tube.GetServerDataDir()
+	panicOn(err)
+	app := "hermes_pebble"
+	if s.testName != "" {
+		app += "_test"
+		app = filepath.Join(app, s.testName)
+	}
+	return filepath.Join(dataDir, app, s.name)
+}
+
+func (s *HermesNode) openDB() {
+	path := s.dbDir()
+	db, err := pebble.Open(path, &pebble.Options{})
+	panicOn(err)
+	s.store = db
+	s.storePath = path
 }
 
 var pebbleWriteAndFsync = &pebble.WriteOptions{Sync: true}

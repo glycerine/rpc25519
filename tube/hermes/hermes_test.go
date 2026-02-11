@@ -3,9 +3,13 @@ package hermes
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"testing"
+
+	"github.com/glycerine/rpc25519/tube"
 )
 
 type HermesCluster struct {
@@ -101,6 +105,10 @@ func Test010_TS_Compare_is_fair(t *testing.T) {
 func newHermesTestCluster(cfg *HermesConfig) *HermesCluster {
 	n := cfg.ReplicationDegree
 
+	dataDir, err := tube.GetServerDataDir()
+	panicOn(err)
+	os.RemoveAll(filepath.Join(dataDir, "hermes_pebble_test"))
+
 	var nodes []*HermesNode
 	for i := range n {
 		name := fmt.Sprintf("hermes_node_%v", i)
@@ -122,6 +130,7 @@ func Test001_no_replicas_write_new_value(t *testing.T) {
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
+		testName:           t.Name(),
 	}
 	c := newHermesTestCluster(cfg)
 	nodes := c.Nodes
@@ -155,6 +164,7 @@ func Test002_hermes_write_new_value(t *testing.T) {
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
+		testName:           t.Name(),
 	}
 	c := newHermesTestCluster(cfg)
 	nodes := c.Nodes
@@ -189,6 +199,7 @@ func Test003_hermes_write_new_value_two_replicas(t *testing.T) {
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
+		testName:           t.Name(),
 	}
 	c := newHermesTestCluster(cfg)
 	nodes := c.Nodes
@@ -231,6 +242,7 @@ func Test004_hermes_write_twice(t *testing.T) {
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
+		testName:           t.Name(),
 	}
 	c := newHermesTestCluster(cfg)
 	nodes := c.Nodes
@@ -288,6 +300,7 @@ func Test005_hermes_second_write_to_different_node(t *testing.T) {
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
+		testName:           t.Name(),
 	}
 	c := newHermesTestCluster(cfg)
 	nodes := c.Nodes
@@ -337,6 +350,7 @@ func Test006_hermes_second_write_to_different_node_3_nodes(t *testing.T) {
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
+		testName:           t.Name(),
 	}
 	c := newHermesTestCluster(cfg)
 	nodes := c.Nodes
@@ -380,6 +394,7 @@ func Test007_reads_should_wait_for_valid_value(t *testing.T) {
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
+		testName:           t.Name(),
 	}
 	c := newHermesTestCluster(cfg)
 	nodes := c.Nodes
@@ -413,6 +428,7 @@ func Test008_coord_fails_before_VALIDATE_then_replay(t *testing.T) {
 		TCPonly_no_TLS:     true,
 
 		testScenario: map[string]bool{"ignore VALIDATE": true},
+		testName:     t.Name(),
 	}
 	c := newHermesTestCluster(cfg)
 	nodes := c.Nodes
@@ -445,6 +461,7 @@ func Test009_follower_fails_does_not_ACK(t *testing.T) {
 		TCPonly_no_TLS:     true,
 
 		testScenario: map[string]bool{"ignore ACK": true},
+		testName:     t.Name(),
 	}
 	c := newHermesTestCluster(cfg)
 	nodes := c.Nodes

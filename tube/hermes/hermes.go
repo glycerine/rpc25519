@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"path/filepath"
+	//"path/filepath"
 	"time"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -329,7 +329,9 @@ func (s *HermesNode) actionI(inv *INV, keym *KeyMeta) {
 	keym.TS = inv.TS
 	keym.Val = inv.Val
 	keym.LastWriterID = inv.FromID
-
+	if !useBcastAckOptimization {
+		s.writeDB(keym)
+	}
 	if useBcastAckOptimization {
 		if s.cfg.ReplicationDegree <= 2 {
 			// we know other guy is trying write, so with
@@ -338,8 +340,10 @@ func (s *HermesNode) actionI(inv *INV, keym *KeyMeta) {
 			// still have to apply the inv value.
 
 			keym.State = sValid
+			s.writeDB(keym)
 			s.unblockReadsFor(keym)
 		} else {
+			s.writeDB(keym)
 			tkt, ok := s.getTicket(inv.TicketID)
 			if !ok {
 				// with O3 optimization broadcasting ACKS, we will often get an ack for a
@@ -788,6 +792,8 @@ func (s *HermesNode) writeReq(tkt *HermesTicket) {
 		// and seeing this state also means that we are on the Coordinator
 		// for this write, not the follower.
 		keym.State = sWrite
+		s.writeDB(keym)
+
 		invalidation := &INV{
 			TicketID: tkt.TicketID,
 			FromID:   s.PeerID,
@@ -1166,6 +1172,7 @@ func (s *HermesNode) completeWrite(keym *KeyMeta, ticketID string) {
 		keym.Val = tkt.Val
 		keym.TS = tkt.TS
 		keym.LastWriterID = tkt.FromID
+		s.writeDB(keym)
 
 		s.deleteTicket(tkt.TicketID, true)
 		//if the write was started locally, respond to any waiting writers.
@@ -1646,6 +1653,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 				s.completeWrite(keym, tkt.TicketID) // really?
 			} else {
 				keym.State = sInvalid
+				s.writeDB(keym)
 				//s.actionRR(keym, tkt.TicketID)
 				s.unblockReadsFor(keym)
 			}
@@ -1818,6 +1826,8 @@ type HermesNode struct {
 
 	// convenience in debug printing
 	me string
+
+	testName string
 }
 
 type HermesConfig struct {
@@ -1836,6 +1846,8 @@ type HermesConfig struct {
 	// The int key hould correspond to the test number,
 	// and the string value describes the condition.
 	testScenario map[string]bool
+
+	testName string
 }
 
 func NewHermesNode(name string, cfg *HermesConfig) (node *HermesNode) {
@@ -1858,15 +1870,12 @@ func NewHermesNode(name string, cfg *HermesConfig) (node *HermesNode) {
 		key2items: make(map[Key]*pqitems),
 
 		timeoutPQ: newPqTime(),
+
+		testName: cfg.testName,
 	}
 
 	// setup pebbles database (lsm tree).
-	dataDir, err := tube.GetServerDataDir()
-	path := filepath.Join(dataDir, "hermes_pebble", name)
-	db, err := pebble.Open(path, &pebble.Options{})
-	panicOn(err)
-	node.store = db
-	node.storePath = path
+	node.openDB()
 	return
 }
 
