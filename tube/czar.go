@@ -17,7 +17,7 @@ import (
 
 //go:generate greenpack
 
-// Squady vs Czar: all members are Squady(s), and the
+// Squad vs Czar: all members are Squad members, and the
 // first Squady to win the race to write/obtain the key
 // lease on the "czar" key also becomes the Czar.
 
@@ -308,15 +308,10 @@ func (s *Czar) expireSilentNodes(fromList *ReliableMembershipList) (changed bool
 	now := time.Now()
 	for name, plus := range s.members.PeerNames.All() {
 		if name == s.name {
-			// now that we exclude czar from PeerNames, should not be needed:
-			/*
-				// we ourselves are obviously alive so
-				// we don't bother to heartbeat to ourselves.
-				// Ah-hah! but omitting the below makes us look stale to
-				// other members, yikes! we add in ourselves now:
-				plus.RMemberLeaseUntilTm = now.Add(s.memberLeaseDur)
-				plus.RMemberLeaseDur = s.memberLeaseDur
-			*/
+			// now that we exclude czar from PeerNames, no need
+			// to extend our own plus.RMemberLeaseUntilTm.
+			//plus.RMemberLeaseUntilTm = now.Add(s.memberLeaseDur)
+			//plus.RMemberLeaseDur = s.memberLeaseDur
 			continue
 		}
 		killIt := false
