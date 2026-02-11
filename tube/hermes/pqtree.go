@@ -222,7 +222,7 @@ func (pq *pqTime) get(key Key) (items []*pqTimeItem) {
 
 	for it := pq.tree.Min(); !it.Limit(); it = it.Next() {
 		item := it.Item().(*pqTimeItem)
-		if item.tkt.keym.key == key {
+		if item.tkt.keym.Key == key {
 			items = append(items, item)
 		}
 	}

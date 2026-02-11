@@ -60,12 +60,6 @@ func (s *HermesCluster) Close() {
 	}
 }
 
-func (s *HermesNode) Close() {
-	s.halt.ReqStop.Close()
-	s.srv.Close()
-	<-s.halt.Done.Chan
-}
-
 func Test010_TS_Compare_is_fair(t *testing.T) {
 	//return // green but the fairness version is off atm.
 
