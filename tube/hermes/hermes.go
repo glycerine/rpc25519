@@ -477,35 +477,6 @@ func (s *HermesNode) actionRR(keym *KeyMeta, ticketID string) {
 	s.unblockReadsFor(keym)
 }
 
-type HermesKeyState int
-
-const (
-	// stable
-	sValid   HermesKeyState = 1
-	sInvalid HermesKeyState = 2
-	sWrite   HermesKeyState = 3
-	sReplay  HermesKeyState = 4
-
-	// unstable/transient state:
-	sInvalidWR HermesKeyState = 5
-)
-
-func stateString(state HermesKeyState) string {
-	switch state {
-	case sValid:
-		return "sValid"
-	case sInvalid:
-		return "sInvalid"
-	case sWrite:
-		return "sWrite"
-	case sReplay:
-		return "sReplay"
-	case sInvalidWR:
-		return "sInvalidWR"
-	}
-	panic(fmt.Sprintf("unknown state %v", int(state)))
-}
-
 // per key meta data
 type KeyMeta struct {
 	Key   Key  `zid:"0"`
@@ -1850,6 +1821,35 @@ type HermesConfig struct {
 	testName string
 }
 
+type HermesKeyState int
+
+const (
+	// stable
+	sValid   HermesKeyState = 1
+	sInvalid HermesKeyState = 2
+	sWrite   HermesKeyState = 3
+	sReplay  HermesKeyState = 4
+
+	// unstable/transient state:
+	sInvalidWR HermesKeyState = 5
+)
+
+func stateString(state HermesKeyState) string {
+	switch state {
+	case sValid:
+		return "sValid"
+	case sInvalid:
+		return "sInvalid"
+	case sWrite:
+		return "sWrite"
+	case sReplay:
+		return "sReplay"
+	case sInvalidWR:
+		return "sInvalidWR"
+	}
+	panic(fmt.Sprintf("unknown state %v", int(state)))
+}
+
 func NewHermesNode(name string, cfg *HermesConfig) (node *HermesNode) {
 	node = &HermesNode{
 		cfg:  cfg,
@@ -2193,6 +2193,7 @@ func (s *HermesNode) Start(
 			s.EpochV.Epoch = reply.Vers.CzarLeaseEpoch
 			s.EpochV.Version = reply.Vers.WithinCzarVersion
 			vv("%v hermes node sees membership change upcall: '%v'; now s.EpochV = '%v'; from '%v'", s.name, reply, s.EpochV, reply.CallFrom)
+			//s.reconfigRM() // TODO: uncomment once replayRMW() is implemented.
 
 		case <-s.nextWakeCh:
 			vv("=================== nextWakeCh fired ================")
