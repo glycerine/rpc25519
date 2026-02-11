@@ -143,7 +143,6 @@ type ACK struct {
 	EpochV   EpochVers `zid:"2"`
 	TS       TS        `zid:"3"`
 	TicketID string    `zid:"4"`
-	Val      Val       `zid:"5"` // for debugging only, TODO remove.
 }
 
 type VALIDATE struct {
@@ -152,7 +151,6 @@ type VALIDATE struct {
 	EpochV   EpochVers `zid:"2"`
 	TS       TS        `zid:"3"`
 	TicketID string    `zid:"4"`
-	Val      Val       `zid:"5"` // for debugging only, TODO remove.
 }
 
 func (i *INV) String() string {
@@ -174,11 +172,9 @@ func (a *ACK) String() string {
       FromID: %v,
       EpochV: %v,
           TS: %v,
-         Val: %v, 
     TicketID: %v,
 }`, string(a.Key), rpc.AliasDecode(a.FromID), a.EpochV.String(),
 		a.TS.String(),
-		string(a.Val), // TODO remove Val
 		a.TicketID)
 }
 
@@ -188,11 +184,9 @@ func (v *VALIDATE) String() string {
       FromID: %v,
       EpochV: %v,
           TS: %v,
-         Val: %v,
     TicketID: %v,
 }`, string(v.Key), rpc.AliasDecode(v.FromID), v.EpochV.String(),
 		v.TS.String(),
-		string(v.Val), // TODO remove Val
 		v.TicketID)
 }
 
@@ -703,13 +697,12 @@ func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 	return
 }
 
-/*
-[Section 3.1, Overview] "From the perspective of the coordinator,
-once all ACKs are received, it is safe to respond to a client
-because at this point, the write is guaranteed to be visible
-to all live replicas, and any future read cannot return the
-old value (i.e., the write is committed – Figure 2b)."
-*/
+// [Section 3.1, Overview] "From the perspective of the coordinator,
+// once all ACKs are received, it is safe to respond to a client
+// because at this point, the write is guaranteed to be visible
+// to all live replicas, and any future read cannot return the
+// old value (i.e., the write is committed – Figure 2b)."
+//
 // So we want to pause until we get all the acks back.
 func (s *HermesNode) writeReq(tkt *HermesTicket) {
 	vv("top of writeReq. key='%v'; val='%v'; writeFromID='%v'", string(tkt.Key), string(tkt.Val), rpc.AliasDecode(tkt.FromID))
@@ -909,7 +902,6 @@ func (s *HermesNode) ack(inv *INV) {
 		Key:      inv.Key,
 		TS:       inv.TS,
 		EpochV:   s.EpochV,
-		Val:      inv.Val, // TODO remove
 		TicketID: inv.TicketID,
 	}
 	frag := s.MyPeer.NewFragment()
@@ -1458,8 +1450,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 					FromID: ack.FromID,
 					Key:    key,
 					EpochV: s.EpochV,
-					TS:     ack.TS,  // ack.TS is equal to keym.TS, so either is fine.
-					Val:    ack.Val, // TODO remove
+					TS:     ack.TS, // ack.TS is equal to keym.TS, so either is fine.
 				}
 				// "Send validations once acknowledments are received from all alive nodes"
 				s.bcastValid(valid)
@@ -1508,8 +1499,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 					FromID:   s.PeerID,
 					Key:      key,
 					EpochV:   s.EpochV,
-					TS:       ack.TS,  // correct?
-					Val:      ack.Val, // TODO remove
+					TS:       ack.TS, // correct?
 				}
 				s.bcastValid(valid)
 			}
@@ -1660,7 +1650,6 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 						Key:      keym.key,
 						EpochV:   s.EpochV,
 						TS:       keym.TS,
-						Val:      keym.val, // TODO remove
 					}
 					s.bcastValid(valid)
 				} else {
@@ -1680,7 +1669,6 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 					Key:      keym.key,
 					EpochV:   s.EpochV,
 					TS:       keym.TS,
-					Val:      keym.val, // TODO remove
 				}
 				s.bcastValid(valid)
 			}

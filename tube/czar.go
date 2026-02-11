@@ -1653,6 +1653,48 @@ type PeerDetailPlus struct {
 	// RMembers are granted leases here.
 	RMemberLeaseUntilTm time.Time     `zid:"1"`
 	RMemberLeaseDur     time.Duration `zid:"2"`
+
+	// at startup, before we have the full state available.
+	// From section 3.4 of the hermes paper,
+	// Recovery
+	// "Hermes’ fault tolerance properties enable a data-
+	// store to continue operating even in the presence of
+	// failures. However, as nodes fail, new nodes need to
+	// be added to the datastore to continue operating at
+	// peak performance. To add a new node, the membership
+	// is reliably updated, following which all other live
+	// replicas are notified of the new node’s intention
+	// to join the replica group. Once all the replicas ac-
+	// knowledge this notification, the new node starts
+	// operating as a shadow replica that participates as a
+	// follower for all of the writes but does not serve any
+	// client requests. Additionally, it reads chunks
+	// (multiple keys) from other replicas to fetch the
+	// latest values and reconstruct the datastore similarly
+	// to existing approaches [33, 84]. After reading the
+	// entire datastore, the shadow replica is up-to-date
+	// and transitions to operational state, whereby it is
+	// able to serve client requests."
+	//
+	// me: so does this mean we should not issue an operating lease?
+	// no, I think we need to leave that check in place, and
+	// have the bootstrapping node heatbeat to the czar as
+	// a full/existing member HermesNode. How do we know we
+	// have the whole datastore? using the root hash of a
+	// merkle tree to verify; or a logical clock point... that
+	// would force serialization of all updates, which hermes
+	// does not provide for. hmm. need a way to track
+	// which changes have been applied in the past...
+	// but allowing the commutative updates to different keys
+	// that hermes supports. Each key has its own TS, which
+	// is really all that the client needs to know for its
+	// external serializability check. Would be good to
+	// allow mostly caught-up nodes to fault-in keys that
+	// they do not have the latest of yet, since that
+	// is what needs to happen during normal operation
+	// anyway when the client is reading a key that
+	// the replica has not gotten the latest write for yet.
+	BootstrapShadowMode bool `zid:"3"`
 }
 
 func (s *PeerDetailPlus) Clone() (r *PeerDetailPlus) {
