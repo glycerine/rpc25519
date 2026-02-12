@@ -211,7 +211,7 @@ func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 	if tkt == nil {
 		panic("why is tkt nil?")
 	}
-	vv("%v top of actionAbRecordPending(tkt='%v')", s.me, tkt)
+	//vv("%v top of actionAbRecordPending(tkt='%v')", s.me, tkt)
 	if tkt == nil || tkt.keym == nil {
 		if !tkt.PseudoTicketForAckAccum {
 			panicf("tkt.keym was nil where? tkt='%v'", tkt)
@@ -232,13 +232,12 @@ func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 		if item.tkt.PseudoTicketForAckAccum {
 			// do these count?? is what we are having problem with.
 		}
-		vv("%v actionAbRecordPending is updating deadline in pq, not "+
-			"adding anew, for tkt='%v'", s.me, tkt)
+		//vv("%v actionAbRecordPending is updating deadline in pq, not adding anew, for tkt='%v'", s.me, tkt)
 		item.tkt.messageLossTimeout = messageLossTimeout
 		// will delete and re-add item from timeoutPQ.
 		err := s.timeoutPQ.update(item, tkt, messageLossTimeout) // panic: error on pqTime.update(): item not found!
 		if err != nil {
-			vv("queried s.tkt2item[tkt.TicketID='%v'] -> item.priority='%v' but then not item not found in s.timeoutPQ, err = '%v'", tkt.TicketID, item.priority, err)
+			//vv("queried s.tkt2item[tkt.TicketID='%v'] -> item.priority='%v' but then not item not found in s.timeoutPQ, err = '%v'", tkt.TicketID, item.priority, err)
 			//panic("how to fix?")
 			// just add it? works for 008 hermes_test
 			//item2 := s.timeoutPQ.add(messageLossTimeout, tkt)
@@ -248,8 +247,7 @@ func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 			s.deleteTicket(tkt.TicketID, tkt.Op == WRITE || tkt.Op == RMW)
 			// fall through to add below
 		} else {
-			vv("%v actionAbRecordPending after updating deadline, tkt='%v'",
-				s.me, item.tkt)
+			//vv("%v actionAbRecordPending after updating deadline, tkt='%v'", s.me, item.tkt)
 			return
 		}
 	}
@@ -310,9 +308,7 @@ func (s *HermesNode) releaseDiscardedWriter(keym *KeyMeta) {
 				// that we can discard.
 
 				s.deleteTicket(tkt2.TicketID, true)
-				vv("%v actionI optimization to release "+
-					"discarded writer is about to tkt.Done.Close() on tkt='%v'",
-					s.me, tkt2.String())
+				//vv("%v actionI optimization to release discarded writer is about to tkt.Done.Close() on tkt='%v'", s.me, tkt2.String())
 				tkt2.Err = ErrOverWrit
 				tkt2.Done.Close()
 				// in-flight ACKs will just be discarded, since
@@ -340,7 +336,7 @@ func (s *HermesNode) actionI(inv *INV, keym *KeyMeta) {
 		if s.cfg.ReplicationDegree <= 2 {
 			// we know other guy is trying write, so with
 			// only two nodes, we are done.
-			vv("%v actionI: setting sValid; keym='%v'", s.me, keym) // seen 2x, good.
+			//vv("%v actionI: setting sValid; keym='%v'", s.me, keym) // seen 2x, good.
 			// still have to apply the inv value.
 
 			keym.State = sValid
@@ -432,7 +428,7 @@ func (s *HermesNode) anyWritesInProgressFor(key Key) (writers, readers []*Hermes
 // so we know this ack is for the most recent
 // write
 func (s *HermesNode) actionLA(ack *ACK, keym *KeyMeta) (isLast, isWrite bool, tkt *HermesTicket) {
-	vv("%v top of actionLA, ack='%v'; keym='%v'", s.me, ack, keym)
+	//vv("%v top of actionLA, ack='%v'; keym='%v'", s.me, ack, keym)
 	// set bit in ack bitmap
 
 	// find the pending update
@@ -454,7 +450,7 @@ func (s *HermesNode) actionLA(ack *ACK, keym *KeyMeta) (isLast, isWrite bool, tk
 		isLast = len(tkt.ackVector) == s.cfg.ReplicationDegree-1
 	}
 	isWrite = tkt.Op == WRITE || tkt.Op == RMW
-	vv("%v actionLA() returning isLast = %v; isWrite = '%v'; len(tkt.ackVector)='%v'; ReplicationDegree-1='%v'", s.me, isLast, isWrite, len(tkt.ackVector), s.cfg.ReplicationDegree-1)
+	//vv("%v actionLA() returning isLast = %v; isWrite = '%v'; len(tkt.ackVector)='%v'; ReplicationDegree-1='%v'", s.me, isLast, isWrite, len(tkt.ackVector), s.cfg.ReplicationDegree-1)
 	return
 }
 
@@ -462,7 +458,7 @@ func (s *HermesNode) actionLA(ack *ACK, keym *KeyMeta) (isLast, isWrite bool, tk
 func (s *HermesNode) actionRR(keym *KeyMeta, ticketID string) {
 	tkt := s.deleteTicket(ticketID, false)
 	if tkt != nil {
-		vv("%v actionRR about to tkt.Done.Close() on tkt='%v'", s.me, tkt.String())
+		//vv("%v actionRR about to tkt.Done.Close() on tkt='%v'", s.me, tkt.String())
 		// we can finally apply the value.
 		tkt.Val = keym.Val
 		tkt.TS = keym.TS
@@ -515,7 +511,7 @@ var ErrOverWrit = fmt.Errorf("error write was over-written by a higher TS write"
 var ErrAbortRMW = fmt.Errorf("error RMW was aborted by a higher TS write")
 
 func (s *HermesNode) bcastInval(key Key, inv *INV) {
-	vv("%v top of bcastInval: inv: '%v'", s.me, inv)
+	//vv("%v top of bcastInval: inv: '%v'", s.me, inv)
 
 	frag := s.MyPeer.NewFragment()
 	bts, err := inv.MarshalMsg(nil)
@@ -560,7 +556,7 @@ func (s *HermesNode) bcastAck(ack *ACK) {
 */
 
 func (s *HermesNode) bcastValid(valid *VALIDATE) {
-	vv("%v top of bcastValid(valid='%v')", s.me, valid)
+	//vv("%v top of bcastValid(valid='%v')", s.me, valid)
 	frag := s.MyPeer.NewFragment()
 	bts, err := valid.MarshalMsg(nil)
 	panicOn(err)
@@ -585,16 +581,15 @@ func (s *HermesNode) bcastValid(valid *VALIDATE) {
 // If the key is in any other state, the request is stalled."
 func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 	key := tkt.Key
-	readFromID := tkt.FromID
-	waitForValid := tkt.waitForValid
+	//readFromID := tkt.FromID
 
-	vv("%v readReq(key='%v', readFromID='%v', waitForValid='%v')", s.me, string(key), rpc.AliasDecode(readFromID), waitForValid)
+	//vv("%v readReq(key='%v', readFromID='%v', waitForValid='%v')", s.me, string(key), rpc.AliasDecode(tkt.FromID), tkt.waitForValid)
 	var ok bool
 	var keym *KeyMeta
 	defer func() {
-		vv("%v readReq returning(key='%v', readFromID='%v'): val='%v'; err='%v'; keym='%v'", s.me, string(key), rpc.AliasDecode(readFromID), string(val), err, keym)
+		//vv("%v readReq returning(key='%v', readFromID='%v'): val='%v'; err='%v'; keym='%v'", s.me, string(key), rpc.AliasDecode(tkt.FromID), string(val), err, keym)
 
-		vv("if we aren't finished, get a wake up call to check for follower failure.")
+		//vv("if we aren't finished, get a wake up call to check for follower failure.")
 		if !tkt.Done.IsClosed() {
 			s.setWakeup()
 		}
@@ -619,7 +614,7 @@ func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 		}
 
 		// first read of unknown key. make its keym
-		vv("%v: first read of unknown key '%v'", s.me, string(key))
+		//vv("%v: first read of unknown key '%v'", s.me, string(key))
 		keym = &KeyMeta{
 			Key: key,
 			//val: tkt.Val, // this is a read, not a write.
@@ -639,7 +634,7 @@ func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 	switch keym.State {
 	case sValid:
 		// complete read request
-		vv("%v sees sValid: complete read request (key='%v', readFromID='%v')", s.me, string(key), rpc.AliasDecode(readFromID))
+		//vv("%v sees sValid: complete read request (key='%v', readFromID='%v')", s.me, string(key), rpc.AliasDecode(tkt.FromID))
 		//s.completeRead(keym, tkt)
 		s.unblockReadsFor(keym)
 		tkt.Val = keym.Val
@@ -648,12 +643,12 @@ func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 
 		return keym.Val, nil
 	case sInvalid:
-		vv("%v sees sInvalid: (key='%v', readFromID='%v')", s.me, string(key), rpc.AliasDecode(readFromID))
+		//vv("%v sees sInvalid: (key='%v', readFromID='%v')", s.me, string(key), rpc.AliasDecode(readFromID))
 
 		now := time.Now()
 		coordFailed := !tkt.messageLossTimeout.IsZero() && now.After(tkt.messageLossTimeout)
 
-		vv("%v sees coordFailed = '%v'", s.me, coordFailed)
+		//vv("%v sees coordFailed = '%v'", s.me, coordFailed)
 		if coordFailed {
 			// buffer the read, "same as actionW, but without incrementing TS"
 			s.actionBR(tkt)
@@ -685,7 +680,7 @@ func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 //
 // So we want to pause until we get all the acks back.
 func (s *HermesNode) writeReq(tkt *HermesTicket) {
-	vv("top of writeReq. key='%v'; val='%v'; writeFromID='%v'", string(tkt.Key), string(tkt.Val), rpc.AliasDecode(tkt.FromID))
+	//vv("top of writeReq. key='%v'; val='%v'; writeFromID='%v'", string(tkt.Key), string(tkt.Val), rpc.AliasDecode(tkt.FromID))
 	// we (s.PeerID) are the coordinator for this write!
 	//
 	// "A coordinator node issues a write to a key only if it is in
@@ -868,11 +863,11 @@ func (s *HermesNode) readModifyWriteReq(key Key, val Val, fromID string) {
 */
 
 // initially we see alot more replays happening with this on.
-var useBcastAckOptimization = true // now 30.5 sec. was 65 seconds for test suite. 004 hung w/o nextWake
-//const useBcastAckOptimization = false // 22.5 seconds for test suite.
+var useBcastAckOptimization = true // 004 hung w/o nextWake
+//var useBcastAckOptimization = false
 
 func (s *HermesNode) ack(inv *INV) {
-	vv("%v top of ack(inv:'%v')", s.me, inv)
+	//vv("%v top of ack(inv:'%v')", s.me, inv)
 	// "F_ACK: Irrespective of the result of the
 	// timestamp comparison, a follower always
 	// responds with an ACK containing
@@ -960,7 +955,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 
 	key := inv.Key
 	keym, ok := s.store[key]
-	vv("%v top of recvInvalidate, inv:'%v'; ok='%v' (false => make new keym)", s.me, inv, ok)
+	//vv("%v top of recvInvalidate, inv:'%v'; ok='%v' (false => make new keym)", s.me, inv, ok)
 	if !ok {
 		// this does the same as actionI()
 		keym = &KeyMeta{
@@ -1110,7 +1105,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 		if s.cfg.ReplicationDegree <= 2 {
 			// we know other guy is trying write, so with
 			// only two nodes, we are done.
-			vv("%v recvInvalid: setting sValid; keym='%v'", s.me, keym)
+			//vv("%v recvInvalid: setting sValid; keym='%v'", s.me, keym)
 			// still have to apply the inv value.
 			keym.State = sValid
 			s.unblockReadsFor(keym)
@@ -1138,7 +1133,7 @@ func (s *HermesNode) completeWrite(keym *KeyMeta, ticketID string) {
 
 		s.deleteTicket(tkt.TicketID, true)
 		//if the write was started locally, respond to any waiting writers.
-		vv("%v completeWrite is about to tkt.Done.Close() on tkt='%v'", s.me, tkt.String())
+		//vv("%v completeWrite is about to tkt.Done.Close() on tkt='%v'", s.me, tkt.String())
 		tkt.Done.Close()
 
 		if s.nextWakeTicket == tkt {
@@ -1176,13 +1171,13 @@ func (s *HermesNode) completeRead2(keym *KeyMeta, tkt *HermesTicket) {
 */
 
 func (s *HermesNode) unblockReadsFor(keym *KeyMeta) {
-	vv("%v unblockReadsFor('%v') top", s.me, string(keym.Key))
+	//vv("%v unblockReadsFor('%v') top", s.me, string(keym.Key))
 
 	pqitems, ok := s.key2items[keym.Key]
 	if !ok {
 		return
 	}
-	vv("In unblockReadsFor('%v'): %v other items to maybe complete if they are reads", string(keym.Key), len(pqitems.slc))
+	//vv("In unblockReadsFor('%v'): %v other items to maybe complete if they are reads", string(keym.Key), len(pqitems.slc))
 	// filter out the writes
 	// copy first since it will change as we delete Tickets.
 	slc := append([]*pqTimeItem{}, pqitems.slc...)
@@ -1197,7 +1192,7 @@ func (s *HermesNode) unblockReadsFor(keym *KeyMeta) {
 				s.nextWakeTicket = nil
 			}
 
-			vv("%v unblockReadsFor('%v') about to tkt.Done.Close() on tkt='%v'", s.me, string(keym.Key), tkt.String())
+			//vv("%v unblockReadsFor('%v') about to tkt.Done.Close() on tkt='%v'", s.me, string(keym.Key), tkt.String())
 			tkt.Done.Close()
 		}
 	}
@@ -1209,7 +1204,7 @@ func (s *HermesNode) unblockReadsFor(keym *KeyMeta) {
 }
 
 func (s *HermesNode) deleteTicket(ticketID string, wasWrite bool) *HermesTicket {
-	vv("top of deleteTicket for ticketID='%v'", ticketID)
+	//vv("top of deleteTicket for ticketID='%v'", ticketID)
 	item, ok := s.tkt2item[ticketID]
 	if !ok {
 
@@ -1235,7 +1230,7 @@ func (s *HermesNode) deleteTicket(ticketID string, wasWrite bool) *HermesTicket 
 				if len(pqitems.slc) == 0 {
 					delete(s.key2items, tkt.Key)
 				} else {
-					vv("key '%v' still has %v queued tickets: '%#v'", string(tkt.Key), len(pqitems.slc), pqitems.slc)
+					//vv("key '%v' still has %v queued tickets: '%#v'", string(tkt.Key), len(pqitems.slc), pqitems.slc)
 				}
 				break
 			}
@@ -1265,10 +1260,10 @@ func (s *HermesNode) deleteTicket(ticketID string, wasWrite bool) *HermesTicket 
 func (s *HermesNode) recvAck(ack *ACK) (err error) {
 
 	var tkt *HermesTicket
-	vv("%v recvAck(ack='%v')", s.me, ack)
+	//vv("%v recvAck(ack='%v')", s.me, ack)
 	key := ack.Key
 	keym, ok := s.store[key]
-	vv("%v recvAck ok = '%v', for key='%v': ack='%v'", s.me, ok, string(key), ack)
+	//vv("%v recvAck ok = '%v', for key='%v': ack='%v'", s.me, ok, string(key), ack)
 	if !ok {
 		// no keym, yet. should we be making one?
 		if !useBcastAckOptimization {
@@ -1312,15 +1307,15 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 		tkt, ok := s.getTicket(ack.TicketID)
 
 		if ok {
-			vv("%v recvAck cmp='%v'; tkt[ack.TicketID]='%v'", s.me, cmp, tkt)
+			//vv("%v recvAck cmp='%v'; tkt[ack.TicketID]='%v'", s.me, cmp, tkt)
 			if cmp < 0 {
 				// ack too old
-				vv("%v recvAck ack too old! delete it. cmp='%v'; tkt[ack.TicketID]='%v'", s.me, cmp, tkt)
+				//vv("%v recvAck ack too old! delete it. cmp='%v'; tkt[ack.TicketID]='%v'", s.me, cmp, tkt)
 				s.deleteTicket(tkt.TicketID, false)
 				return
 			}
 		} else {
-			vv("%v recvAck has no tkt for ack", s.me)
+			//vv("%v recvAck has no tkt for ack", s.me)
 		}
 
 		if !ok {
@@ -1341,7 +1336,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 			if s.cfg.ReplicationDegree <= 2 {
 				// we know other guy is trying write, so with
 				// only two nodes, we are done.
-				vv("%v recvAck: setting sValid; keym='%v'", s.me, keym)
+				//vv("%v recvAck: setting sValid; keym='%v'", s.me, keym)
 				// still have to apply the inv value.
 
 				keym.State = sValid
@@ -1351,7 +1346,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 			}
 		} // else have to wait for Val in INV.
 	}
-	vv("%v recvAck cmp = '%v', keym='%v'; ack='%v'", s.me, cmp, keym, ack)
+	//vv("%v recvAck cmp = '%v', keym='%v'; ack='%v'", s.me, cmp, keym, ack)
 	// won't find ticket... if that write already completed.
 
 	// in recvAck
@@ -1362,7 +1357,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 		return
 	}
 	// we are in recvAck
-	vv("%v recvAck state='%v', ack='%v'; keym='%v'", s.me, stateString(keym.State), ack, keym)
+	//vv("%v recvAck state='%v', ack='%v'; keym='%v'", s.me, stateString(keym.State), ack, keym)
 	switch keym.State {
 	case sValid, sInvalid:
 		// ignored, unless...
@@ -1370,7 +1365,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 			// same as sInvaliWR
 			lastAck, isWrite, tkt2 := s.actionLA(ack, keym)
 			if lastAck {
-				vv("%v last ack seen for useBcastAckOptimization in sInvalid", s.me) // not seen
+				//vv("%v last ack seen for useBcastAckOptimization in sInvalid", s.me) // not seen
 
 				// keym has the value, but pseudo tkt does not... and
 				// completeWrite will over-write keym.Val with txt.val, so:
@@ -1418,7 +1413,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 		// we are in recvAck
 	case sWrite:
 		lastAck, isWrite, _ := s.actionLA(ack, keym)
-		vv("%v recvAck state sWrite, ack='%v'; lastAck='%v'; keym='%v'", s.me, ack, lastAck, keym) // node 0 only seen for 1st val 123, not for 2nd val 45; on test 006. and not for node2.
+		//vv("%v recvAck state sWrite, ack='%v'; lastAck='%v'; keym='%v'", s.me, ack, lastAck, keym) // node 0 only seen for 1st val 123, not for 2nd val 45; on test 006. and not for node2.
 		if !isWrite {
 			panic("really should be isWrite true")
 		}
@@ -1495,14 +1490,14 @@ func (s *HermesNode) recvValidate(v *VALIDATE) (err error) {
 
 	key := v.Key
 	keym, ok := s.store[key]
-	vv("%v recvValidate(valid='%v'); keym='%v', ok='%v'", s.me, v, keym, ok)
+	//vv("%v recvValidate(valid='%v'); keym='%v', ok='%v'", s.me, v, keym, ok)
 	if !ok {
 		panic("what here?")
 		return ErrKeyNotFound
 	}
 
 	cmp := v.TS.Compare(&keym.TS)
-	vv("%v recvValidate(valid='%v'); keym='%v', ok='%v'; cmp='%v'", s.me, v, keym, ok, cmp)
+	//vv("%v recvValidate(valid='%v'); keym='%v', ok='%v'; cmp='%v'", s.me, v, keym, ok, cmp)
 	if cmp != 0 {
 		// "F_VAL: When a follower receives a VAL message,
 		// it transitions the key to the Valid state if
@@ -1520,7 +1515,7 @@ func (s *HermesNode) recvValidate(v *VALIDATE) (err error) {
 
 		// now we have to resume any blocked reads, right?
 		// this is not in the transition table...
-		vv("seems like we should be unblocking reads here... len %v buffered='%#v'", len(s.buffered), s.buffered)
+		//vv("seems like we should be unblocking reads here... len %v buffered='%#v'", len(s.buffered), s.buffered)
 		//s.actionRR(keym, v.TicketID)
 		s.unblockReadsFor(keym)
 
@@ -1560,7 +1555,7 @@ func (s *HermesNode) recvValidate(v *VALIDATE) (err error) {
 // hence preserving the global write order."
 // (page 205 of the hermes paper).
 func (s *HermesNode) checkCoordOrFollowerFailed() {
-	vv("%v top of checkCoordFailed()", s.me)
+	//vv("%v top of checkCoordFailed()", s.me)
 
 	s.nextWakeCh = nil // allow GC of timer.
 	s.nextWakeTicket = nil
@@ -1580,7 +1575,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 		//makes 009 red if we add this here; just leave it in the actionBR when coordFailed.
 		//s.deleteTicket(tkt.TicketID, tkt.Op == WRITE || tkt.Op == RMW)
 
-		vv("%v checkCoordFailed detects failure over deadline: tkt='%v'", s.me, tkt)
+		//vv("%v checkCoordFailed detects failure over deadline: tkt='%v'", s.me, tkt)
 		if tkt.PseudoTicketForAckAccum {
 			// TODO: are these fair game too? Should we ignore/delete them?
 		}
@@ -1589,11 +1584,11 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 
 		switch keym.State {
 		case sInvalid: // failed coordinator case
-			vv("%v checkCoordFailed sees sInvalid: (key='%v', tkt.FromID='%v')", s.me, string(key), rpc.AliasDecode(tkt.FromID))
+			//vv("%v checkCoordFailed sees sInvalid: (key='%v', tkt.FromID='%v')", s.me, string(key), rpc.AliasDecode(tkt.FromID))
 
 			coordFailed := !tkt.messageLossTimeout.IsZero() && now.After(tkt.messageLossTimeout)
 
-			vv("%v checkCoordFailed sees coordFailed = '%v'", s.me, coordFailed)
+			//vv("%v checkCoordFailed sees coordFailed = '%v'", s.me, coordFailed)
 			if coordFailed {
 				// buffer the read, "same as actionW, but without incrementing TS"
 				s.actionBR(tkt)
@@ -1625,7 +1620,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 			// least before we do this...
 			// TODO: I think we must wait (for consistency) for a majority of ACK first.
 
-			vv("%v failed follower: complete write, move to Valid, bcast Valid.", s.me)
+			//vv("%v failed follower: complete write, move to Valid, bcast Valid.", s.me)
 			if tkt.Op == WRITE {
 				keym.State = sValid
 				s.completeWrite(keym, tkt.TicketID)
@@ -1666,7 +1661,7 @@ func (s *HermesNode) setWakeup() {
 	//vv("setWakeup disabled for debugging.")
 	//return
 	sz := s.timeoutPQ.size()
-	vv("%v setWakeup() called. timeoutPQ sz = %v", s.me, sz)
+	//vv("%v setWakeup() called. timeoutPQ sz = %v", s.me, sz)
 	if sz > 0 {
 		tkt, nextWake := s.timeoutPQ.peek()
 		if !nextWake.IsZero() && nextWake.After(s.nextWake) {
@@ -1675,7 +1670,7 @@ func (s *HermesNode) setWakeup() {
 			dur := s.nextWake.Sub(time.Now())
 			s.nextWakeCh = time.After(dur)
 			s.nextWakeTicket = tkt
-			vv("setWakeup set nextWakeCh to wake at %v in %v", s.nextWake, dur)
+			//vv("setWakeup set nextWakeCh to wake at %v in %v", s.nextWake, dur)
 			return
 		}
 	}
@@ -2178,11 +2173,11 @@ func (s *HermesNode) Start(
 		case reply := <-s.UpcallMembershipChangeCh:
 			s.EpochV.Epoch = reply.Vers.CzarLeaseEpoch
 			s.EpochV.Version = reply.Vers.WithinCzarVersion
-			vv("%v hermes node sees membership change upcall: '%v'; now s.EpochV = '%v'; from '%v'", s.name, reply, s.EpochV, reply.CallFrom)
+			//vv("%v hermes node sees membership change upcall: '%v'; now s.EpochV = '%v'; from '%v'", s.name, reply, s.EpochV, reply.CallFrom)
 			//s.reconfigRM() // TODO: uncomment once replayRMW() is implemented.
 
 		case <-s.nextWakeCh:
-			vv("=================== nextWakeCh fired ================")
+			//vv("=================== nextWakeCh fired ================")
 			s.checkCoordOrFollowerFailed()
 
 		case tkt := <-s.writeReqCh:
@@ -2240,10 +2235,11 @@ func (s *HermesNode) Start(
 			case 0:
 				switch frag.Typ {
 				case rpc.CallPeerStartCircuit:
-					vv("do stuff for new replica joining here. TODO.")
+					//vv("do stuff for new replica joining here. TODO.")
 					continue
 				case rpc.CallPeerTraffic:
 					vv("TODO what means CallPeerTraffic here? frag = '%v'", frag)
+					panic("wat?")
 					continue
 				}
 
@@ -2305,7 +2301,7 @@ func (s *HermesNode) Start(
 		case ckt := <-newCircuitCh:
 
 			s.ckt[ckt.RemotePeerID] = ckt
-			vv("%v: got from newCircuitCh! service '%v' sees new peerURL: '%v'; s.ckt sz=%v", s.name, myPeer.PeerServiceName, myPeer.URL(), len(s.ckt))
+			//vv("%v: got from newCircuitCh! service '%v' sees new peerURL: '%v'; s.ckt sz=%v", s.name, myPeer.PeerServiceName, myPeer.URL(), len(s.ckt))
 
 			// talk to this peer on a separate goro
 			go func(ckt *rpc.Circuit) (err0 error) {
@@ -2326,7 +2322,7 @@ func (s *HermesNode) Start(
 				for {
 					select {
 					case frag := <-ckt.Reads:
-						vv("%v: (ckt %v) ckt.Reads sees frag:'%s'; my PeerID='%v'", s.name, ckt.Name, frag, s.PeerID)
+						//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'; my PeerID='%v'", s.name, ckt.Name, frag, s.PeerID)
 						// test failure scenarios that cause message loss
 						// (equivalent to machine failure).
 						if s.cfg.testScenario != nil {
