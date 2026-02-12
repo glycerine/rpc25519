@@ -10,7 +10,6 @@ import (
 	//"path/filepath"
 	"time"
 
-	"github.com/cockroachdb/pebble/v2"
 	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
@@ -336,9 +335,7 @@ func (s *HermesNode) actionI(inv *INV, keym *KeyMeta) {
 	keym.TS = inv.TS
 	keym.Val = inv.Val
 	keym.LastWriterID = inv.FromID
-	if !useBcastAckOptimization {
-		s.writeDB(keym)
-	}
+
 	if useBcastAckOptimization {
 		if s.cfg.ReplicationDegree <= 2 {
 			// we know other guy is trying write, so with
@@ -347,10 +344,8 @@ func (s *HermesNode) actionI(inv *INV, keym *KeyMeta) {
 			// still have to apply the inv value.
 
 			keym.State = sValid
-			s.writeDB(keym)
 			s.unblockReadsFor(keym)
 		} else {
-			s.writeDB(keym)
 			tkt, ok := s.getTicket(inv.TicketID)
 			if !ok {
 				// with O3 optimization broadcasting ACKS, we will often get an ack for a
@@ -605,8 +600,7 @@ func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 		}
 	}()
 
-	//keym, ok = s.store[key]
-	keym, ok = s.readDB(key)
+	keym, ok = s.store[key]
 	if !ok {
 		// are we a single node?
 		if s.cfg.ReplicationDegree == 1 {
@@ -637,8 +631,7 @@ func (s *HermesNode) readReq(tkt *HermesTicket) (val Val, err error) {
 			// this is a read. Why are we setting LastWriterID?
 			LastWriterID: tkt.FromID,
 		}
-		//s.store[key] = keym
-		s.writeDB(keym)
+		s.store[key] = keym
 	}
 	tkt.keym = keym
 	tkt.TS = keym.TS
@@ -716,8 +709,7 @@ func (s *HermesNode) writeReq(tkt *HermesTicket) {
 
 	key := tkt.Key
 	val := tkt.Val
-	//keym, ok := s.store[key]
-	keym, ok := s.readDB(key)
+	keym, ok := s.store[key]
 	if !ok {
 		//vv("%v writeReq: no update, just a new key/value pair", s.me)
 		keym = &KeyMeta{
@@ -732,18 +724,14 @@ func (s *HermesNode) writeReq(tkt *HermesTicket) {
 			LastWriterID: tkt.FromID,
 			IsRMW:        tkt.Op == RMW,
 		}
-		if s.cfg.ReplicationDegree == 1 {
-			// avoid double writeDB and two fsyncs
-			keym.State = sValid
-		}
-		//s.store[key] = keym
-		s.writeDB(keym)
+		s.store[key] = keym
 		tkt.TS = keym.TS
 
 		// are we a single node?
 		if s.cfg.ReplicationDegree == 1 {
 			//vv("single node writing, set to valid immeditely key='%v', val='%v'", key, string(tkt.Val))
 			// above to avoid double fsync: keym.State = sValid
+			keym.State = sValid
 			tkt.Done.Close()
 			return
 		}
@@ -770,8 +758,6 @@ func (s *HermesNode) writeReq(tkt *HermesTicket) {
 		// and seeing this state also means that we are on the Coordinator
 		// for this write, not the follower.
 		keym.State = sWrite
-		s.writeDB(keym)
-
 		invalidation := &INV{
 			TicketID: tkt.TicketID,
 			FromID:   s.PeerID,
@@ -854,8 +840,7 @@ Resilience to network faults and RMWs are described in §3.4 and §3.6, respecti
 
 func (s *HermesNode) readModifyWriteReq(key Key, val Val, fromID string) {
 
-	//keym, ok := s.store[key]
-    keym, ok = s.readDB(key)
+    keym, ok := s.store[key]
 	if !ok {
 		// no update, just a new key/value pair. Q: treat as valid?
 		keym = &KeyMeta{
@@ -974,8 +959,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 	//}
 
 	key := inv.Key
-	//keym, ok := s.store[key]
-	keym, ok := s.readDB(key)
+	keym, ok := s.store[key]
 	vv("%v top of recvInvalidate, inv:'%v'; ok='%v' (false => make new keym)", s.me, inv, ok)
 	if !ok {
 		// this does the same as actionI()
@@ -987,8 +971,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 			IsRMW:        inv.IsRMW,
 			State:        sInvalid,
 		}
-		//s.store[key] = keym
-		s.writeDB(keym)
+		s.store[key] = keym
 		// we could just s.ack(inv) and return, but instead we
 		// do a little bit of redundant work below to keep
 		// the code paths uniform and more easily debugable.
@@ -1124,8 +1107,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 		}
 	}
 	if useBcastAckOptimization {
-		//if s.cfg.ReplicationDegree <= 2 {
-		if s.cfg.ReplicationDegree <= 1 {
+		if s.cfg.ReplicationDegree <= 2 {
 			// we know other guy is trying write, so with
 			// only two nodes, we are done.
 			vv("%v recvInvalid: setting sValid; keym='%v'", s.me, keym)
@@ -1153,7 +1135,6 @@ func (s *HermesNode) completeWrite(keym *KeyMeta, ticketID string) {
 		keym.Val = tkt.Val
 		keym.TS = tkt.TS
 		keym.LastWriterID = tkt.FromID
-		s.writeDB(keym)
 
 		s.deleteTicket(tkt.TicketID, true)
 		//if the write was started locally, respond to any waiting writers.
@@ -1286,8 +1267,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 	var tkt *HermesTicket
 	vv("%v recvAck(ack='%v')", s.me, ack)
 	key := ack.Key
-	//keym, ok := s.store[key]
-	keym, ok := s.readDB(key)
+	keym, ok := s.store[key]
 	vv("%v recvAck ok = '%v', for key='%v': ack='%v'", s.me, ok, string(key), ack)
 	if !ok {
 		// no keym, yet. should we be making one?
@@ -1358,8 +1338,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 		}
 		tkt.ackVector[ack.FromID] = true
 		if tkt.Val != nil && useBcastAckOptimization {
-			//if s.cfg.ReplicationDegree <= 2 { // this circumvents out 008 test mechanism? guess not?:
-			if s.cfg.ReplicationDegree <= 1 { // this circumvents out 008 test mechanism
+			if s.cfg.ReplicationDegree <= 2 {
 				// we know other guy is trying write, so with
 				// only two nodes, we are done.
 				vv("%v recvAck: setting sValid; keym='%v'", s.me, keym)
@@ -1515,8 +1494,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 func (s *HermesNode) recvValidate(v *VALIDATE) (err error) {
 
 	key := v.Key
-	//keym, ok := s.store[key]
-	keym, ok := s.readDB(key)
+	keym, ok := s.store[key]
 	vv("%v recvValidate(valid='%v'); keym='%v', ok='%v'", s.me, v, keym, ok)
 	if !ok {
 		panic("what here?")
@@ -1638,7 +1616,6 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 				s.completeWrite(keym, tkt.TicketID) // really?
 			} else {
 				keym.State = sInvalid
-				s.writeDB(keym)
 				//s.actionRR(keym, tkt.TicketID)
 				s.unblockReadsFor(keym)
 			}
@@ -1763,13 +1740,7 @@ type HermesNode struct {
 	operLeaseUntilTm time.Time
 
 	// the main key/value store.
-	storeDB   *pebble.DB
-	storePath string
-
-	// memOnly true means use storeMap and memory only, no disk.
-	// memOnly false means use storeDB above, on disk at storePath.
-	memOnly  bool
-	storeMap map[Key]*KeyMeta
+	store map[Key]*KeyMeta
 
 	// pending reads/writes are stored as HermesTickets in
 	// the timeoutPQ priority queue. The pq is sorted by messageLossTimeout,
@@ -1830,8 +1801,6 @@ type HermesConfig struct {
 	// skip encryption? (used to simplify and speed up tests)
 	TCPonly_no_TLS bool
 
-	MemOnly bool
-
 	// for internal failure recovery testing,
 	// e.g. to drop or ignore messages.
 	// The int key hould correspond to the test number,
@@ -1872,10 +1841,10 @@ func stateString(state HermesKeyState) string {
 
 func NewHermesNode(name string, cfg *HermesConfig) (node *HermesNode) {
 	node = &HermesNode{
-		cfg:  cfg,
-		name: name,
-		ckt:  make(map[string]*rpc.Circuit),
-		//store: make(map[Key]*KeyMeta),
+		cfg:   cfg,
+		name:  name,
+		ckt:   make(map[string]*rpc.Circuit),
+		store: make(map[Key]*KeyMeta),
 
 		// comms
 		pushToPeerURL: make(chan string),
@@ -1892,11 +1861,8 @@ func NewHermesNode(name string, cfg *HermesConfig) (node *HermesNode) {
 		timeoutPQ: newPqTime(),
 	}
 	if cfg != nil {
-		node.memOnly = cfg.MemOnly
 		node.testName = cfg.testName
 	}
-	// setup pebbles database (lsm tree); or storeMap if cfg.MemOnly
-	node.openDB()
 	return
 }
 
@@ -2174,7 +2140,6 @@ func (s *HermesNode) Close() {
 	s.halt.ReqStop.Close()
 	s.srv.Close()
 	<-s.halt.Done.Chan
-	s.closeDB()
 }
 
 func (s *HermesNode) Start(
