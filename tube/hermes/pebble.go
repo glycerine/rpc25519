@@ -44,17 +44,24 @@ func (s *HermesNode) dbDir() string {
 }
 
 func (s *HermesNode) openDB() {
+	if s.memOnly {
+		s.storeMap = make(map[Key]*KeyMeta)
+		return
+	}
 	path := s.dbDir()
 	db, err := pebble.Open(path, &pebble.Options{})
 	panicOn(err)
-	s.store = db
+	s.storeDB = db
 	s.storePath = path
 }
 
 var pebbleWriteAndFsync = &pebble.WriteOptions{Sync: true}
 
 func (s *HermesNode) writeDB(keym *KeyMeta) {
-
+	if s.memOnly {
+		s.storeMap[keym.Key] = keym
+		return
+	}
 	// Write with Durability (Sync = true)
 
 	by, err2 := keym.MarshalMsg(nil)
@@ -63,11 +70,15 @@ func (s *HermesNode) writeDB(keym *KeyMeta) {
 	// docs: "Set sets the value for the given key. It overwrites
 	// any previous value for that key; a DB is not a multi-map.
 	// It is safe to modify the contents of the arguments after Set returns."
-	err := s.store.Set([]byte(keym.Key), by, pebbleWriteAndFsync)
+	err := s.storeDB.Set([]byte(keym.Key), by, pebbleWriteAndFsync)
 	panicOn(err)
 }
 
 func (s *HermesNode) readDB(key Key) (keym *KeyMeta, ok bool) {
+	if s.memOnly {
+		keym, ok = s.storeMap[key]
+		return
+	}
 
 	// docs: "Get gets the value for the given key. It
 	// returns ErrNotFound if the DB does not contain the key.
@@ -77,7 +88,7 @@ func (s *HermesNode) readDB(key Key) (keym *KeyMeta, ok bool) {
 	// will remain valid until the returned Closer is closed.
 	// On success, the caller MUST call closer.Close() or a
 	// memory leak will occur."
-	by, closer, err2 := s.store.Get([]byte(key)) // ([]byte, io.Closer, error)
+	by, closer, err2 := s.storeDB.Get([]byte(key)) // ([]byte, io.Closer, error)
 	if err2 == pebble.ErrNotFound {
 		return nil, false
 	}
@@ -92,7 +103,11 @@ func (s *HermesNode) readDB(key Key) (keym *KeyMeta, ok bool) {
 }
 
 func (s *HermesNode) closeDB() (err error) {
-	err = s.store.Close()
+	if s.memOnly {
+		s.storeMap = nil
+		return
+	}
+	err = s.storeDB.Close()
 	panicOn(err)
 	return
 }

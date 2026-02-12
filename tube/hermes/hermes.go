@@ -1749,9 +1749,13 @@ type HermesNode struct {
 	operLeaseUntilTm time.Time
 
 	// the main key/value store.
-	//store map[Key]*KeyMeta
-	store     *pebble.DB
+	storeDB   *pebble.DB
 	storePath string
+
+	// memOnly true means use storeMap and memory only, no disk.
+	// memOnly false means use storeDB above, on disk at storePath.
+	memOnly  bool
+	storeMap map[Key]*KeyMeta
 
 	// pending reads/writes are stored as HermesTickets in
 	// the timeoutPQ priority queue. The pq is sorted by messageLossTimeout,
@@ -1762,9 +1766,9 @@ type HermesNode struct {
 	// index to find stuff in timeoutPQ,
 	// with HermesTicket.TicketID as the key
 	tkt2item map[string]*pqTimeItem
-	// lookup all the items for a given Key
+	// lookup all the items in timeoutPQ for a given Key
 	key2items map[Key]*pqitems
-	// order of arrival
+	// order of timeoutPQ item arrival
 	buffered []*pqTimeItem
 
 	// comms
@@ -1811,6 +1815,8 @@ type HermesConfig struct {
 
 	// skip encryption? (used to simplify and speed up tests)
 	TCPonly_no_TLS bool
+
+	MemOnly bool
 
 	// for internal failure recovery testing,
 	// e.g. to drop or ignore messages.
@@ -1870,11 +1876,12 @@ func NewHermesNode(name string, cfg *HermesConfig) (node *HermesNode) {
 		key2items: make(map[Key]*pqitems),
 
 		timeoutPQ: newPqTime(),
-
-		testName: cfg.testName,
 	}
-
-	// setup pebbles database (lsm tree).
+	if cfg != nil {
+		node.memOnly = cfg.MemOnly
+		node.testName = cfg.testName
+	}
+	// setup pebbles database (lsm tree); or storeMap if cfg.MemOnly
 	node.openDB()
 	return
 }

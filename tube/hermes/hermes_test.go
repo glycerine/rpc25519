@@ -105,6 +105,8 @@ func Test010_TS_Compare_is_fair(t *testing.T) {
 func newHermesTestCluster(cfg *HermesConfig) *HermesCluster {
 	n := cfg.ReplicationDegree
 
+	//cfg.MemOnly = true
+
 	dataDir, err := tube.GetServerDataDir()
 	panicOn(err)
 	os.RemoveAll(filepath.Join(dataDir, "hermes_pebble_test"))
