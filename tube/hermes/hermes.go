@@ -876,7 +876,7 @@ func (s *HermesNode) readModifyWriteReq(key Key, val Val, fromID string) {
 */
 
 // initially we see alot more replays happening with this on.
-const useBcastAckOptimization = true // now 30.5 sec. was 65 seconds for test suite. 004 hung w/o nextWake
+var useBcastAckOptimization = true // now 30.5 sec. was 65 seconds for test suite. 004 hung w/o nextWake
 //const useBcastAckOptimization = false // 22.5 seconds for test suite.
 
 func (s *HermesNode) ack(inv *INV) {
@@ -1115,7 +1115,8 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 		}
 	}
 	if useBcastAckOptimization {
-		if s.cfg.ReplicationDegree <= 2 {
+		//if s.cfg.ReplicationDegree <= 2 {
+		if s.cfg.ReplicationDegree <= 1 {
 			// we know other guy is trying write, so with
 			// only two nodes, we are done.
 			vv("%v recvInvalid: setting sValid; keym='%v'", s.me, keym)
@@ -1341,14 +1342,15 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 			tkt = s.NewHermesTicket(WRITE, keym.Key, nil, ack.FromID, 0)
 			tkt.TicketID = ack.TicketID // match the sender
 			tkt.PseudoTicketForAckAccum = true
-			//tkt.Val = ack.Val // will be removed from ack at some point.
+
 			tkt.TS = ack.TS
 			tkt.keym = keym
 			s.actionAbRecordPending(tkt)
 		}
 		tkt.ackVector[ack.FromID] = true
 		if tkt.Val != nil && useBcastAckOptimization {
-			if s.cfg.ReplicationDegree <= 2 {
+			//if s.cfg.ReplicationDegree <= 2 { // this circumvents out 008 test mechanism? guess not?:
+			if s.cfg.ReplicationDegree <= 1 { // this circumvents out 008 test mechanism
 				// we know other guy is trying write, so with
 				// only two nodes, we are done.
 				vv("%v recvAck: setting sValid; keym='%v'", s.me, keym)
@@ -2347,7 +2349,7 @@ func (s *HermesNode) Start(
 				for {
 					select {
 					case frag := <-ckt.Reads:
-						//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'; my PeerID='%v'", s.name, ckt.Name, frag, s.PeerID)
+						vv("%v: (ckt %v) ckt.Reads sees frag:'%s'; my PeerID='%v'", s.name, ckt.Name, frag, s.PeerID)
 						// test failure scenarios that cause message loss
 						// (equivalent to machine failure).
 						if s.cfg.testScenario != nil {

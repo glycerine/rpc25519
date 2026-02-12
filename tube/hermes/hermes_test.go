@@ -173,15 +173,11 @@ func Test002_hermes_write_new_value(t *testing.T) {
 	c.Start()
 	defer c.Close()
 
-	//time.Sleep(time.Second)
-
 	// write to node 0
 	v := []byte("123")
 	err := nodes[0].Write("a", v, 0)
 	panicOn(err)
 	vv("good 1: back from nodes[0].Write a -> 123")
-
-	//time.Sleep(time.Second)
 
 	// but read back from node 1
 	v2, err := nodes[1].Read("a", 0)
@@ -252,7 +248,7 @@ func Test004_hermes_write_twice(t *testing.T) {
 	defer c.Close()
 
 	// have to let the cluster come up, or else we
-	// won't wait for the second node? Not now, because
+	// won't wait for the second node? Not needed now, because
 	// the nodes know their replication degree, and
 	// will wait until the INV have been sent.
 	//time.Sleep(time.Second)
@@ -261,8 +257,6 @@ func Test004_hermes_write_twice(t *testing.T) {
 	v := []byte("123")
 	err := nodes[0].Write("a", v, 0)
 	panicOn(err)
-
-	//time.Sleep(time.Second)
 
 	// write to node 0 a new, updated value
 	v2 := []byte("45")
@@ -424,7 +418,14 @@ func Test007_reads_should_wait_for_valid_value(t *testing.T) {
 // re-playing the INV delivered value after a timeout.
 func Test008_coord_fails_before_VALIDATE_then_replay(t *testing.T) {
 	n := 2
+
+	orig := useBcastAckOptimization
+	useBcastAckOptimization = false // otherwise VAL omitted altogether! (and our test tests nothing).
+	defer func() {
+		useBcastAckOptimization = orig
+	}()
 	cfg := &HermesConfig{
+		MemOnly:            true,
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 2,
 		TCPonly_no_TLS:     true,
