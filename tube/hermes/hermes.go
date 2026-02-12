@@ -1599,6 +1599,9 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 			return
 		}
 		s.timeoutPQ.pop()
+		//makes 009 red if we add this here; just leave it in the actionBR when coordFailed.
+		//s.deleteTicket(tkt.TicketID, tkt.Op == WRITE || tkt.Op == RMW)
+
 		vv("%v checkCoordFailed detects failure over deadline: tkt='%v'", s.me, tkt)
 		if tkt.PseudoTicketForAckAccum {
 			// TODO: are these fair game too? Should we ignore/delete them?
