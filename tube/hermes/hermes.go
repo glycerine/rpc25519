@@ -240,7 +240,14 @@ func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 		err := s.timeoutPQ.update(item, tkt, messageLossTimeout) // panic: error on pqTime.update(): item not found!
 		if err != nil {
 			vv("queried s.tkt2item[tkt.TicketID='%v'] -> item.priority='%v' but then not item not found in s.timeoutPQ, err = '%v'", tkt.TicketID, item.priority, err)
-			panic("how to fix?")
+			//panic("how to fix?")
+			// just add it? works for 008 hermes_test
+			//item2 := s.timeoutPQ.add(messageLossTimeout, tkt)
+			//return
+			// thinking again:
+			// better to delete and re-add to get tkt2item, key2items, and s.buffered all updated
+			s.deleteTicket(tkt.TicketID, tkt.Op == WRITE || tkt.Op == RMW)
+			// fall through to add below
 		} else {
 			vv("%v actionAbRecordPending after updating deadline, tkt='%v'",
 				s.me, item.tkt)
@@ -1093,6 +1100,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 			// they are, so we must do this before the actionI
 			// obliterates it. This could be a mini replay or a full writer.
 			s.releaseDiscardedWriter(keym)
+
 			// buffered readers can still wait until
 			// the new write completes and get that value.
 			// Since we do that, the reader(s) still need
@@ -1103,6 +1111,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 			// can get into sInvalidWR, b/c coordinators
 			// never send INV to themselves).
 			s.actionI(inv, keym)
+
 			// "The Transient state indicates a coordinator with a
 			// pending write that got invalidated. While not required,
 			// the Transient state is useful for tracking when
@@ -1553,7 +1562,7 @@ func (s *HermesNode) recvValidate(v *VALIDATE) (err error) {
 	case sWrite:
 		// X, N/A, not expected
 	case sReplay:
-		//s.actionRR(keym, v.TicketID)
+		//s.actionRR(keym, v.TicketID) // is RR == Retry Read?
 		s.unblockReadsFor(keym)
 		keym.State = sValid
 	}
@@ -1581,7 +1590,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 
 	for {
 		// process all until no more past their deadline
-		if s.timeoutPQ.size() < 1 {
+		if s.timeoutPQ.size() <= 0 {
 			return
 		}
 		tkt, deadline := s.timeoutPQ.peek() // s.timeoutPQ is type pqTime

@@ -126,9 +126,12 @@ func newHermesTestCluster(cfg *HermesConfig) *HermesCluster {
 	return NewHermesCluster(cfg, nodes)
 }
 
+const memOnlyTests = true
+
 func Test001_no_replicas_write_new_value(t *testing.T) {
 	n := 1
 	cfg := &HermesConfig{
+		MemOnly:            memOnlyTests,
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
@@ -163,6 +166,7 @@ func Test001_no_replicas_write_new_value(t *testing.T) {
 func Test002_hermes_write_new_value(t *testing.T) {
 	n := 2
 	cfg := &HermesConfig{
+		MemOnly:            memOnlyTests,
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
@@ -194,6 +198,7 @@ func Test003_hermes_write_new_value_two_replicas(t *testing.T) {
 
 	n := 3 // number of nodes (primary + 2 replicas)
 	cfg := &HermesConfig{
+		MemOnly:            memOnlyTests,
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
@@ -237,6 +242,7 @@ func Test003_hermes_write_new_value_two_replicas(t *testing.T) {
 func Test004_hermes_write_twice(t *testing.T) {
 	n := 2 // number of nodes
 	cfg := &HermesConfig{
+		MemOnly:            memOnlyTests,
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
@@ -293,6 +299,7 @@ func Test004_hermes_write_twice(t *testing.T) {
 func Test005_hermes_second_write_to_different_node(t *testing.T) {
 	n := 2 // number of nodes
 	cfg := &HermesConfig{
+		MemOnly:            memOnlyTests,
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
@@ -343,6 +350,7 @@ func Test006_hermes_second_write_to_different_node_3_nodes(t *testing.T) {
 
 	n := 3 // number of nodes
 	cfg := &HermesConfig{
+		MemOnly:            memOnlyTests,
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
@@ -387,6 +395,7 @@ func Test006_hermes_second_write_to_different_node_3_nodes(t *testing.T) {
 func Test007_reads_should_wait_for_valid_value(t *testing.T) {
 	n := 2
 	cfg := &HermesConfig{
+		MemOnly:            memOnlyTests,
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 5,
 		TCPonly_no_TLS:     true,
@@ -425,7 +434,7 @@ func Test008_coord_fails_before_VALIDATE_then_replay(t *testing.T) {
 		useBcastAckOptimization = orig
 	}()
 	cfg := &HermesConfig{
-		MemOnly:            true,
+		MemOnly:            memOnlyTests,
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 2,
 		TCPonly_no_TLS:     true,
@@ -459,6 +468,7 @@ func Test009_follower_fails_does_not_ACK(t *testing.T) {
 
 	n := 2
 	cfg := &HermesConfig{
+		MemOnly:            memOnlyTests,
 		ReplicationDegree:  n,
 		MessageLossTimeout: time.Second * 2,
 		TCPonly_no_TLS:     true,
