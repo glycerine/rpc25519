@@ -191,7 +191,7 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 			}
 			oldVal = cur
 			if !swapped {
-				vv("nice: CAS did not swap!")
+				vv("%v nice: CAS did not swap, on step %v!", s.name, step)
 			}
 			//nemesis.makeTrouble()
 		}
@@ -244,11 +244,11 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 	if tktW.CASwapped {
 		vv("CAS write ok.")
 		swapped = true
-		curVal = newVal
+		curVal = Val(append([]byte{}, newVal...))
 
 	} else {
 		swapped = false // for emphasis
-		curVal = tktW.CASRejectedBecauseCurVal
+		curVal = Val(append([]byte{}, tktW.CASRejectedBecauseCurVal...))
 		vv("CAS write (of %v) failed, we read back current value (%v) instead", string(newVal), string(curVal))
 	}
 	out.valueCur = string(curVal)
@@ -288,6 +288,7 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 	switch err {
 	case ErrShutDown, rpc.ErrShutdown2,
 		ErrTimeOut, rpc.ErrTimeout:
+		// TODO: we could add an Unknown outcome Op, but I see no point atm.
 		return
 	}
 	panicOn(err)
@@ -310,7 +311,7 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 		Call:     begtmRead.UnixNano(), // invocation timestamp
 		//Output:   i2,
 		Output: &casOutput{
-			valueRead: string(val),
+			valueCur: string(val),
 		},
 		Return: endtmRead.UnixNano(), // response timestamp
 	}
@@ -486,7 +487,7 @@ func Test101_userFuzz(t *testing.T) {
 
 			steps := 20
 			numNodes := 3
-			numUsers := 2
+			numUsers := 3
 
 			forceLeader := 0
 			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)
@@ -862,22 +863,19 @@ type casInput struct {
 }
 
 type casOutput struct {
-	swapped   bool   // used for CAS
-	notFound  bool   // used for read
-	valueRead string // used for read
-	unknown   bool   // used when operation times out
-	valueCur  string // when cas rejects
+	swapped  bool   // used for CAS
+	notFound bool   // used for read
+	unknown  bool   // used when operation times out
+	valueCur string // for read/when cas rejects
 }
 
 func (o *casOutput) String() string {
 	return fmt.Sprintf(`casOutput{
        swapped: %v
       notFound: %v
-     valueRead: %v
        unknown: %v
-(CAS) valueCur: %v
+      valueCur: %v
 }`, o.swapped, o.notFound,
-		o.valueRead,
 		o.unknown,
 		o.valueCur)
 }
@@ -908,7 +906,7 @@ var stringCasModel = porc.Model{
 			newState = st // state is unchanged by GET
 
 			legal = (out.notFound && st == "<empty>") ||
-				(!out.notFound && st == out.valueRead) ||
+				(!out.notFound && st == out.valueCur) ||
 				out.unknown
 			return
 
@@ -927,14 +925,21 @@ var stringCasModel = porc.Model{
 				return
 			}
 
-			legal = (inp.oldString == st && out.swapped) ||
-				(inp.oldString != st && !out.swapped) ||
-				out.unknown
-
 			newState = st
 			if inp.oldString == st {
 				newState = inp.newString
 			}
+
+			if out.unknown {
+				legal = true
+			} else if inp.oldString == st && out.swapped {
+				legal = true
+			} else if inp.oldString != st && !out.swapped {
+				legal = true
+			} else {
+				vv("warning: legal is false in CAS because out.swapped = '%v', inp.oldString = '%v', inp.newString = '%v'; old state = '%v', newState = '%v'; out.valueCur = '%v'", out.swapped, inp.oldString, inp.newString, st, newState, out.valueCur)
+			}
+
 			return
 		}
 		return
@@ -949,7 +954,7 @@ var stringCasModel = porc.Model{
 			if out.notFound {
 				r = "<not found>"
 			} else {
-				r = fmt.Sprintf("'%v'", out.valueRead)
+				r = fmt.Sprintf("'%v'", out.valueCur)
 			}
 			return fmt.Sprintf("get() -> %v", r)
 		case STRING_REGISTER_PUT:
