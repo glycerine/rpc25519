@@ -11775,9 +11775,12 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		}
 	case len(tkt.OldVal) > 0:
 		curVal := leaf.Value
-		//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), bytes.Equal(curVal, tkt.OldVal), string(tkt.Val))
 
-		if !bytes.Equal(curVal, tkt.OldVal) { // compare
+		agree := bytes.Equal(curVal, tkt.OldVal)
+		if string(tkt.Val) == "24" {
+			vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), agree, string(tkt.Val))
+		}
+		if !agree { // reject CAS
 			tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
 			tkt.CASwapped = false
 			tkt.Err = fmt.Errorf(rejectedWritePrefix + " CAS on tkt.OldVal != current leaf.Val")
@@ -11787,6 +11790,9 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		}
 
 	default:
+		if string(tkt.Val) == "24" {
+			vv(" cas tkt.Val == '24', len(tkt.OldVal) = %v", len(tkt.OldVal))
+		}
 		// a CAS without any of the 3 cas options is
 		// just a WRITE. Let kvstoreWrite take it.
 	}
