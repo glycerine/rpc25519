@@ -147,7 +147,7 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 			s.halt.Done.Close()
 		}()
 		for step := range steps {
-			vv("%v: fuzzUser.Start on step %v", s.name, step)
+			//vv("%v: fuzzUser.Start on step %v", s.name, step)
 			select {
 			case <-ctx.Done():
 				return
@@ -189,7 +189,7 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 			}
 			oldVal = cur
 			if !swapped {
-				vv("%v nice: CAS did not swap, on step %v!", s.name, step)
+				//vv("%v nice: CAS did not swap, on step %v!", s.name, step)
 			}
 			//nemesis.makeTrouble()
 		}
@@ -215,7 +215,7 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 		//Return:   endtmWrite.UnixNano(), // response timestamp
 	}
 
-	vv("about to write from cli sess, writeMe = '%v'", string(newVal))
+	//vv("about to write from cli sess, writeMe = '%v'", string(newVal))
 
 	// WRITE
 	var tktW *Ticket
@@ -241,7 +241,7 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 
 	// skip adding to porcupine ops if the CAS failed to write.
 	if tktW.CASwapped {
-		vv("CAS write ok.")
+		//vv("CAS write ok.")
 		swapped = true
 		if string(tktW.Val) != string(newVal) {
 			panicf("why does tktW.Val('%v') != newVal('%v')", string(tktW.Val), string(newVal))
@@ -251,7 +251,7 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 	} else {
 		swapped = false // for emphasis
 		curVal = Val(append([]byte{}, tktW.CASRejectedBecauseCurVal...))
-		vv("CAS write failed (did not write new value '%v'), we read back current value (%v) instead", string(newVal), string(curVal))
+		//vv("CAS write failed (did not write new value '%v'), we read back current value (%v) instead", string(newVal), string(curVal))
 	}
 	out.valueCur = string(curVal)
 	out.swapped = swapped
@@ -260,7 +260,7 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 	s.shOps.mut.Lock()
 	out.id = len(s.shOps.ops)
 	s.shOps.ops = append(s.shOps.ops, op)
-	vv("%v len ops now %v", s.name, len(s.shOps.ops))
+	//vv("%v len ops now %v", s.name, len(s.shOps.ops))
 	s.shOps.mut.Unlock()
 
 	return
@@ -280,7 +280,7 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 		err = tkt.Err
 	}
 	if err != nil {
-		vv("read from node/sess='%v', got err = '%v'", s.sess.SessionID, err)
+		//vv("read from node/sess='%v', got err = '%v'", s.sess.SessionID, err)
 		if err == ErrKeyNotFound || err.Error() == "key not found" {
 			return
 		}
@@ -492,7 +492,7 @@ func Test101_userFuzz(t *testing.T) {
 
 			steps := 20
 			numNodes := 3
-			numUsers := 3
+			numUsers := 100
 
 			forceLeader := 0
 			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)

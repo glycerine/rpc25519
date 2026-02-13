@@ -11777,9 +11777,8 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		curVal := leaf.Value
 
 		agree := bytes.Equal(curVal, tkt.OldVal)
-		if string(tkt.Val) == "24" {
-			vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), agree, string(tkt.Val)) // why seen 2x?
-		}
+		//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), agree, string(tkt.Val))
+
 		if !agree { // reject CAS
 			tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
 			tkt.CASwapped = false
@@ -11790,9 +11789,6 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		}
 
 	default:
-		if string(tkt.Val) == "24" {
-			vv(" cas tkt.Val == '24', len(tkt.OldVal) = %v", len(tkt.OldVal)) // not seen 101
-		}
 		// a CAS without any of the 3 cas options is
 		// just a WRITE. Let kvstoreWrite take it.
 	}
