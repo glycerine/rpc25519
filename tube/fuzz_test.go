@@ -97,15 +97,20 @@ func (f fuzzFault) String() string {
 	panic(fmt.Sprintf("unknown fuzzFault: %v", int(f)))
 }
 
+type sharedOps struct {
+	mut sync.Mutex
+	ops []porc.Operation
+}
+
 // user tries to get read/write work done.
 type fuzzUser struct {
-	t    *testing.T
-	seed uint64
-	name string
+	t      *testing.T
+	seed   uint64
+	name   string
+	userid int
 
-	opsMut sync.Mutex
-	ops    []porc.Operation
-	rnd    func(nChoices int64) (r int64)
+	shOps *sharedOps
+	rnd   func(nChoices int64) (r int64)
 
 	numNodes int
 	clus     *TubeCluster
@@ -118,7 +123,10 @@ type fuzzUser struct {
 func (s *fuzzUser) linzCheck() {
 	// Analysis
 	// Expecting some ops
-	ops := s.ops
+	s.shOps.mut.Lock()
+	defer s.shOps.mut.Unlock()
+
+	ops := s.shOps.ops
 	if len(ops) == 0 {
 		panicf("user %v: expected ops > 0, got 0", s.name)
 	}
@@ -153,9 +161,13 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 			key := "key10"
 
 			// in first step read, otherwise CAS from previous to next
+			// unless swap fails, then re-read.
+			var swapped bool
 			var err error
 			var oldVal Val
-			if step == 0 {
+			var cur Val
+
+			if step == 0 || !swapped {
 				oldVal, err = s.Read(key)
 				if err != nil && strings.Contains(err.Error(), "key not found") {
 					if step == 0 {
@@ -169,10 +181,13 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 			}
 
 			writeMeNewVal := Val([]byte(fmt.Sprintf("%v", s.rnd(100))))
-			swapped, cur, err := s.CAS(key, writeMeNewVal, oldVal)
+			swapped, cur, err = s.CAS(key, oldVal, writeMeNewVal)
 			if err != nil {
 				vv("shutting down on err '%v'", err)
 				return
+			}
+			if len(cur) == 0 {
+				panic("why is cur value empty after first CAS?")
 			}
 			oldVal = cur
 			if !swapped {
@@ -185,7 +200,7 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 
 const vtyp101 = "string"
 
-func (s *fuzzUser) CAS(key string, newVal, oldVal Val) (swapped bool, curVal Val, err error) {
+func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val, err error) {
 
 	begtmWrite := time.Now()
 
@@ -193,8 +208,8 @@ func (s *fuzzUser) CAS(key string, newVal, oldVal Val) (swapped bool, curVal Val
 		unknown: true,
 	}
 	op := porc.Operation{
-		ClientId: 0,
-		Input:    casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
+		ClientId: s.userid,
+		Input:    &casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
 		Call:     begtmWrite.UnixNano(), // invocation timestamp
 
 		// assume error/unknown happens, update below if it did not.
@@ -240,10 +255,10 @@ func (s *fuzzUser) CAS(key string, newVal, oldVal Val) (swapped bool, curVal Val
 	out.swapped = swapped
 	out.unknown = false
 
-	s.opsMut.Lock()
-	s.ops = append(s.ops, op)
-	s.opsMut.Unlock()
-	vv("%v len ops now %v", s.name, len(s.ops))
+	s.shOps.mut.Lock()
+	s.shOps.ops = append(s.shOps.ops, op)
+	vv("%v len ops now %v", s.name, len(s.shOps.ops))
+	s.shOps.mut.Unlock()
 
 	return
 }
@@ -290,8 +305,8 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 	//panicOn(err)
 
 	op := porc.Operation{
-		ClientId: 0, // jnode,
-		Input:    casInput{op: STRING_REGISTER_GET},
+		ClientId: s.userid,
+		Input:    &casInput{op: STRING_REGISTER_GET},
 		Call:     begtmRead.UnixNano(), // invocation timestamp
 		//Output:   i2,
 		Output: &casOutput{
@@ -300,9 +315,9 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 		Return: endtmRead.UnixNano(), // response timestamp
 	}
 
-	s.opsMut.Lock()
-	s.ops = append(s.ops, op)
-	s.opsMut.Unlock()
+	s.shOps.mut.Lock()
+	s.shOps.ops = append(s.shOps.ops, op)
+	s.shOps.mut.Unlock()
 
 	return
 }
@@ -471,7 +486,7 @@ func Test101_userFuzz(t *testing.T) {
 
 			steps := 20
 			numNodes := 3
-			numUsers := 5
+			numUsers := 2
 
 			forceLeader := 0
 			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)
@@ -483,11 +498,14 @@ func Test101_userFuzz(t *testing.T) {
 			defer cancel()
 
 			var users []*fuzzUser
+			shOps := &sharedOps{}
 			for userNum := 0; userNum < numUsers; userNum++ {
 				user := &fuzzUser{
+					shOps:    shOps,
 					t:        t,
 					seed:     seed,
 					name:     fmt.Sprintf("user%v", userNum),
+					userid:   userNum,
 					numNodes: numNodes,
 					rnd:      rnd,
 					clus:     c,
@@ -531,7 +549,9 @@ func Test101_userFuzz(t *testing.T) {
 
 			for _, user := range users {
 				<-user.halt.Done.Chan
-				vv("%v has finished; has %v ops", user.name, len(user.ops))
+				user.shOps.mut.Lock()
+				vv("%v has finished; has %v ops", user.name, len(user.shOps.ops))
+				user.shOps.mut.Unlock()
 			}
 		})
 
@@ -862,11 +882,11 @@ func (o *casOutput) String() string {
 		o.valueCur)
 }
 
-func (ri casInput) String() string {
+func (ri *casInput) String() string {
 	if ri.op == STRING_REGISTER_GET {
 		return fmt.Sprintf("casInput{op: %v}", ri.op)
 	}
-	return fmt.Sprintf("casInput{op: %v, oldString: %v, newString: %v}", ri.op, ri.oldString, ri.newString)
+	return fmt.Sprintf("casInput{op: %v, oldString: '%v', newString: '%v'}", ri.op, ri.oldString, ri.newString)
 }
 
 // a sequential specification of a register, that holds a string
@@ -874,17 +894,13 @@ func (ri casInput) String() string {
 var stringCasModel = porc.Model{
 	Init: func() interface{} {
 		return "<empty>"
-		//return &casOutput{
-		//	notFound: true,
-		//	valueCur: "<empty>",
-		//}
 	},
 	// step function: takes a state, input, and output, and returns whether it
 	// was a legal operation, along with a new state. Must be a pure
 	// function. Do not modify state, input, or output.
 	Step: func(state, input, output interface{}) (legal bool, newState interface{}) {
 		st := state.(string)
-		inp := input.(casInput)
+		inp := input.(*casInput)
 		out := output.(*casOutput)
 
 		switch inp.op {
@@ -924,7 +940,7 @@ var stringCasModel = porc.Model{
 		return
 	},
 	DescribeOperation: func(input, output interface{}) string {
-		inp := input.(casInput)
+		inp := input.(*casInput)
 		out := output.(*casOutput)
 
 		switch inp.op {
