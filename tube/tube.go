@@ -11791,7 +11791,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 
 	default:
 		if string(tkt.Val) == "24" {
-			vv(" cas tkt.Val == '24', len(tkt.OldVal) = %v", len(tkt.OldVal))
+			vv(" cas tkt.Val == '24', len(tkt.OldVal) = %v", len(tkt.OldVal)) // not seen 101
 		}
 		// a CAS without any of the 3 cas options is
 		// just a WRITE. Let kvstoreWrite take it.

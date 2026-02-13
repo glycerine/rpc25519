@@ -143,8 +143,6 @@ func (s *fuzzUser) linzCheck() {
 func (s *fuzzUser) Start(ctx context.Context, steps int) {
 	go func() {
 		defer func() {
-			s.linzCheck()
-
 			s.halt.ReqStop.Close()
 			s.halt.Done.Close()
 		}()
@@ -557,10 +555,12 @@ func Test101_userFuzz(t *testing.T) {
 
 			for _, user := range users {
 				<-user.halt.Done.Chan
-				user.shOps.mut.Lock()
-				vv("%v has finished; has %v ops", user.name, len(user.shOps.ops))
-				user.shOps.mut.Unlock()
 			}
+			// the history is shared, wait until all are done or else
+			// we can read back a value before we get a chance to
+			// record the write into the op history, and the linz
+			// checker will false alarm on that.
+			users[0].linzCheck()
 		})
 
 	}
@@ -944,7 +944,7 @@ var stringCasModel = porc.Model{
 			} else if inp.oldString != st && !out.swapped {
 				legal = true
 			} else {
-				vv("warning: legal is false in CAS because out.swapped = '%v', inp.oldString = '%v', inp.newString = '%v'; old state = '%v', newState = '%v'; out.valueCur = '%v'", out.swapped, inp.oldString, inp.newString, st, newState, out.valueCur)
+				//vv("warning: legal is false in CAS because out.swapped = '%v', inp.oldString = '%v', inp.newString = '%v'; old state = '%v', newState = '%v'; out.valueCur = '%v'", out.swapped, inp.oldString, inp.newString, st, newState, out.valueCur)
 			}
 
 			if legal {
