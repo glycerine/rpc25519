@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	//"os"
 	"math"
+	"os"
 	"runtime"
 	"runtime/debug"
 	"runtime/trace"
@@ -99,6 +99,10 @@ func (f fuzzFault) String() string {
 
 // user tries to get read/write work done.
 type fuzzUser struct {
+	t    *testing.T
+	seed uint64
+	name string
+
 	opsMut sync.Mutex
 	ops    []porc.Operation
 	rnd    func(nChoices int64) (r int64)
@@ -111,14 +115,33 @@ type fuzzUser struct {
 	halt *idem.Halter
 }
 
+func (s *fuzzUser) linzCheck() {
+	// Analysis
+	// Expecting some ops
+	ops := s.ops
+	if len(ops) == 0 {
+		panicf("user %v: expected ops > 0, got 0", s.name)
+	}
+
+	linz := porc.CheckOperations(stringCasModel, ops)
+	if !linz {
+		writeToDiskNonLinzFuzz(s.t, s.name, ops)
+		panicf("error: user %v: expected operations to be linearizable! seed='%v'; ops='%v'", s.name, s.seed, opsSlice(ops))
+	}
+
+	vv("user %v: len(ops)=%v passed linearizability checker.", s.name, len(ops))
+}
+
 func (s *fuzzUser) Start(ctx context.Context, steps int) {
 	go func() {
 		defer func() {
+			s.linzCheck()
+
 			s.halt.ReqStop.Close()
 			s.halt.Done.Close()
 		}()
 		for step := range steps {
-			vv("fuzzUser.Start on step %v", step)
+			vv("%v: fuzzUser.Start on step %v", s.name, step)
 			select {
 			case <-ctx.Done():
 				return
@@ -129,20 +152,32 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 
 			key := "key10"
 
-			oldVal, err := s.Read(key)
-			if err != nil && strings.Contains(err.Error(), "key not found") {
-				if step == 0 {
-					// allowed on first
+			// in first step read, otherwise CAS from previous to next
+			var err error
+			var oldVal Val
+			if step == 0 {
+				oldVal, err = s.Read(key)
+				if err != nil && strings.Contains(err.Error(), "key not found") {
+					if step == 0 {
+						// allowed on first
+					} else {
+						panicf("on step %v, key not found!?!", step)
+					}
 				} else {
-					panicf("on step %v, key not found!?!", step)
+					panicOn(err)
 				}
-			} else {
-				panicOn(err)
 			}
 
 			writeMeNewVal := Val([]byte(fmt.Sprintf("%v", s.rnd(100))))
-			s.CAS(key, writeMeNewVal, oldVal)
-
+			swapped, cur, err := s.CAS(key, writeMeNewVal, oldVal)
+			if err != nil {
+				vv("shutting down on err '%v'", err)
+				return
+			}
+			oldVal = cur
+			if !swapped {
+				vv("nice: CAS did not swap!")
+			}
 			//nemesis.makeTrouble()
 		}
 	}()
@@ -150,7 +185,7 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 
 const vtyp101 = "string"
 
-func (s *fuzzUser) CAS(key string, newVal, oldVal Val) (err error) {
+func (s *fuzzUser) CAS(key string, newVal, oldVal Val) (swapped bool, curVal Val, err error) {
 
 	begtmWrite := time.Now()
 
@@ -176,22 +211,31 @@ func (s *fuzzUser) CAS(key string, newVal, oldVal Val) (err error) {
 		vv("CAS write failed: '%v'", err)
 		return
 	}
-	panicOn(err)
+	if err != nil && strings.Contains(err.Error(), "rejected write CAS") {
+		// fair, fine to reject cas; the error forces us to deal with it,
+		// but the occassional CAS reject is fine and working as expected.
+	} else {
+		panicOn(err)
+	}
 
 	op.Return = time.Now().UnixNano() // response timestamp
 
 	// skip adding to porcupine ops if the CAS failed to write.
 	if tktW.CASwapped {
 		vv("CAS write ok.")
+		swapped = true
+		curVal = newVal
 	} else {
-		vv("CAS write failed, read back current value instead")
-		op.Output = string(tktW.CASRejectedBecauseCurVal)
+		vv("CAS write failed, we read back current value instead")
+		swapped = false // for emphasis
+		curVal = tktW.CASRejectedBecauseCurVal
+		op.Output = string(curVal)
 	}
 
 	s.opsMut.Lock()
 	s.ops = append(s.ops, op)
 	s.opsMut.Unlock()
-	vv("len ops now %v", len(s.ops))
+	vv("%v len ops now %v", s.name, len(s.ops))
 
 	return
 }
@@ -411,12 +455,13 @@ func Test101_userFuzz(t *testing.T) {
 		rng := newPRNG(seedBytes)
 		rnd := rng.pseudoRandNonNegInt64Range
 
-		var ops []porc.Operation
+		//var ops []porc.Operation
 
 		onlyBubbled(t, func(t *testing.T) {
 
 			steps := 20
 			numNodes := 3
+			numUsers := 5
 
 			forceLeader := 0
 			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)
@@ -424,69 +469,85 @@ func Test101_userFuzz(t *testing.T) {
 			leaderURL := c.Nodes[leadi].URL
 			defer c.Close()
 
-			user := &fuzzUser{
-				numNodes: numNodes,
-				rnd:      rnd,
-				clus:     c,
-				halt:     idem.NewHalterNamed("fuzzUser"),
-			}
-
-			cliName := "client101"
-			cliCfg := *c.Cfg
-			cliCfg.MyName = cliName
-			cliCfg.PeerServiceName = TUBE_CLIENT
-			cli := NewTubeNode(cliName, &cliCfg)
-			err := cli.InitAndStart()
-			panicOn(err)
-			defer cli.Close()
-
-			// request new session
-			// seems like we want RPC semantics for this
-			// and maybe for other calls?
-
-			sess, err := cli.CreateNewSession(bkg, leaderName, leaderURL)
-			panicOn(err)
-			if sess.ctx == nil {
-				panic(fmt.Sprintf("sess.ctx should be not nil"))
-			}
-			//vv("got sess = '%v'", sess) // not seen.
-			user.sess = sess
-			user.cli = cli
-
-			// no nemesis initially.
-			//nemesis := &fuzzNemesis{
-			//	rng:     rng,
-			//	rnd:     rnd,
-			//	clus:    c,
-			//	damaged: make(map[int]int),
-			//}
-			//_ = nemesis
-
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			user.Start(ctx, steps)
+			var users []*fuzzUser
+			for userNum := 0; userNum < numUsers; userNum++ {
+				user := &fuzzUser{
+					t:        t,
+					seed:     seed,
+					name:     fmt.Sprintf("user%v", userNum),
+					numNodes: numNodes,
+					rnd:      rnd,
+					clus:     c,
+					halt:     idem.NewHalterNamed("fuzzUser"),
+				}
+				users = append(users, user)
 
-			<-ctx.Done()
-			<-user.halt.Done.Chan
+				cliName := "client101_" + user.name
+				cliCfg := *c.Cfg
+				cliCfg.MyName = cliName
+				cliCfg.PeerServiceName = TUBE_CLIENT
+				cli := NewTubeNode(cliName, &cliCfg)
+				err := cli.InitAndStart()
+				panicOn(err)
+				defer cli.Close()
 
-			ops = user.ops
+				// request new session
+				// seems like we want RPC semantics for this
+				// and maybe for other calls?
+
+				sess, err := cli.CreateNewSession(bkg, leaderName, leaderURL)
+				panicOn(err)
+				if sess.ctx == nil {
+					panic(fmt.Sprintf("sess.ctx should be not nil"))
+				}
+				//vv("got sess = '%v'", sess) // not seen.
+				user.sess = sess
+				user.cli = cli
+
+				// no nemesis initially.
+				//nemesis := &fuzzNemesis{
+				//	rng:     rng,
+				//	rnd:     rnd,
+				//	clus:    c,
+				//	damaged: make(map[int]int),
+				//}
+				//_ = nemesis
+
+				user.Start(ctx, steps)
+			}
+
+			for _, user := range users {
+				<-user.halt.Done.Chan
+				vv("%v has finished; has %v ops", user.name, len(user.ops))
+			}
 		})
 
-		// Analysis
-		// Expecting some ops
-		if len(ops) == 0 {
-			panicf("expected ops > 0, got 0")
-		}
-
-		linz := porc.CheckOperations(stringCasModel, ops)
-		if !linz {
-			writeToDiskNonLinz(t, ops)
-			t.Fatalf("error: expected operations to be linearizable! seed='%v'; ops='%v'", seed, opsSlice(ops))
-		}
-
-		vv("len(ops)=%v passed linearizability checker.", len(ops))
 	}
+}
+
+func writeToDiskNonLinzFuzz(t *testing.T, user string, ops []porc.Operation) {
+
+	res, info := porc.CheckOperationsVerbose(stringCasModel, ops, 0)
+	if res != porc.Illegal {
+		t.Fatalf("expected output %v, got output %v", porc.Illegal, res)
+	}
+	nm := fmt.Sprintf("red.nonlinz.%v.%03d.user_%v.html", t.Name(), 0, user)
+	for i := 1; fileExists(nm) && i < 1000; i++ {
+		nm = fmt.Sprintf("red.nonlinz.%v.%03d.user_%v.html", t.Name(), i, user)
+	}
+	vv("writing out non-linearizable ops history '%v'", nm)
+	fd, err := os.Create(nm)
+	panicOn(err)
+	defer fd.Close()
+
+	err = porc.Visualize(stringCasModel, info, fd)
+	if err != nil {
+		t.Fatalf("ops visualization failed")
+	}
+	t.Logf("wrote ops visualization to %s", fd.Name())
 }
 
 func Test199_dsim_seed_string_parsing(t *testing.T) {
@@ -781,7 +842,7 @@ func (ri casInput) String() string {
 // and can CAS.
 var stringCasModel = porc.Model{
 	Init: func() interface{} {
-		return 0
+		return ""
 	},
 	// step function: takes a state, input, and output, and returns whether it
 	// was a legal operation, along with a new state
@@ -830,7 +891,7 @@ var stringCasModel = porc.Model{
 		inp := input.(casInput)
 		switch inp.op {
 		case STRING_REGISTER_GET:
-			return fmt.Sprintf("get() -> '%v'", string(output.([]byte)))
+			return fmt.Sprintf("get() -> '%v'", string(output.(string)))
 		case STRING_REGISTER_PUT:
 			return fmt.Sprintf("put('%v')", inp.newString)
 		case STRING_REGISTER_CAS:
