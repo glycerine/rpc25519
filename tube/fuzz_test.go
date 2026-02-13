@@ -189,13 +189,16 @@ func (s *fuzzUser) CAS(key string, newVal, oldVal Val) (swapped bool, curVal Val
 
 	begtmWrite := time.Now()
 
+	out := &casOutput{
+		unknown: true,
+	}
 	op := porc.Operation{
 		ClientId: 0,
 		Input:    casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
 		Call:     begtmWrite.UnixNano(), // invocation timestamp
 
-		// assume swap will happen, update below if it did not.
-		Output: string(newVal),
+		// assume error/unknown happens, update below if it did not.
+		Output: out,
 		//Return:   endtmWrite.UnixNano(), // response timestamp
 	}
 
@@ -214,6 +217,8 @@ func (s *fuzzUser) CAS(key string, newVal, oldVal Val) (swapped bool, curVal Val
 	if err != nil && strings.Contains(err.Error(), "rejected write CAS") {
 		// fair, fine to reject cas; the error forces us to deal with it,
 		// but the occassional CAS reject is fine and working as expected.
+		err = nil
+		out.unknown = false
 	} else {
 		panicOn(err)
 	}
@@ -225,12 +230,15 @@ func (s *fuzzUser) CAS(key string, newVal, oldVal Val) (swapped bool, curVal Val
 		vv("CAS write ok.")
 		swapped = true
 		curVal = newVal
+
 	} else {
-		vv("CAS write failed, we read back current value instead")
 		swapped = false // for emphasis
 		curVal = tktW.CASRejectedBecauseCurVal
-		op.Output = string(curVal)
+		vv("CAS write (of %v) failed, we read back current value (%v) instead", string(newVal), string(curVal))
 	}
+	out.valueCur = string(curVal)
+	out.swapped = swapped
+	out.unknown = false
 
 	s.opsMut.Lock()
 	s.ops = append(s.ops, op)
@@ -286,7 +294,9 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 		Input:    casInput{op: STRING_REGISTER_GET},
 		Call:     begtmRead.UnixNano(), // invocation timestamp
 		//Output:   i2,
-		Output: string(val),
+		Output: &casOutput{
+			valueRead: string(val),
+		},
 		Return: endtmRead.UnixNano(), // response timestamp
 	}
 
@@ -831,6 +841,27 @@ type casInput struct {
 	newString string
 }
 
+type casOutput struct {
+	swapped   bool   // used for CAS
+	notFound  bool   // used for read
+	valueRead string // used for read
+	unknown   bool   // used when operation times out
+	valueCur  string // when cas rejects
+}
+
+func (o *casOutput) String() string {
+	return fmt.Sprintf(`casOutput{
+       swapped: %v
+      notFound: %v
+     valueRead: %v
+       unknown: %v
+(CAS) valueCur: %v
+}`, o.swapped, o.notFound,
+		o.valueRead,
+		o.unknown,
+		o.valueCur)
+}
+
 func (ri casInput) String() string {
 	if ri.op == STRING_REGISTER_GET {
 		return fmt.Sprintf("casInput{op: %v}", ri.op)
@@ -842,63 +873,81 @@ func (ri casInput) String() string {
 // and can CAS.
 var stringCasModel = porc.Model{
 	Init: func() interface{} {
-		return ""
+		return "<empty>"
+		//return &casOutput{
+		//	notFound: true,
+		//	valueCur: "<empty>",
+		//}
 	},
 	// step function: takes a state, input, and output, and returns whether it
-	// was a legal operation, along with a new state
+	// was a legal operation, along with a new state. Must be a pure
+	// function. Do not modify state, input, or output.
 	Step: func(state, input, output interface{}) (legal bool, newState interface{}) {
-		regInput := input.(casInput)
+		st := state.(string)
+		inp := input.(casInput)
+		out := output.(*casOutput)
 
-		switch regInput.op {
+		switch inp.op {
 		case STRING_REGISTER_GET:
-			newState = state // state is unchanged by GET
+			newState = st // state is unchanged by GET
 
-			if output == state {
-				legal = true
-			}
+			legal = (out.notFound && st == "<empty>") ||
+				(!out.notFound && st == out.valueRead) ||
+				out.unknown
 			return
 
 		case STRING_REGISTER_PUT:
 			legal = true // always ok to execute a put
-			newState = regInput.newString
+			newState = inp.newString
 			return
 
 		case STRING_REGISTER_CAS:
-			if regInput.oldString == "" {
+
+			if inp.oldString == "" {
 				// treat empty string as absent/deleted/anything goes.
 				// So this becomes just a PUT:
 				legal = true
-				newState = regInput.newString
+				newState = inp.newString
 				return
 			}
-			// actual CAS
-			if regInput.oldString == state.(string) {
-				// yes, CAS pre-condition confirmed.
-				// replace oldString with newString
-				newState = regInput.newString
-			} else {
-				// CAS mismatch on existing value, leave unchanged.
-				newState = state
-			}
 
-			if output.(string) == newState.(string) {
-				legal = true
+			legal = (inp.oldString == st && out.swapped) ||
+				(inp.oldString != st && !out.swapped) ||
+				out.unknown
+
+			newState = st
+			if inp.oldString == st {
+				newState = inp.newString
 			}
+			return
 		}
 		return
 	},
 	DescribeOperation: func(input, output interface{}) string {
 		inp := input.(casInput)
+		out := output.(*casOutput)
+
 		switch inp.op {
 		case STRING_REGISTER_GET:
-			return fmt.Sprintf("get() -> '%v'", string(output.(string)))
+			var r string
+			if out.notFound {
+				r = "<not found>"
+			} else {
+				r = fmt.Sprintf("'%v'", out.valueRead)
+			}
+			return fmt.Sprintf("get() -> %v", r)
 		case STRING_REGISTER_PUT:
 			return fmt.Sprintf("put('%v')", inp.newString)
+
 		case STRING_REGISTER_CAS:
-			if inp.newString == output.(string) {
+
+			if out.unknown {
+				return fmt.Sprintf("CAS(unkown/timed-out: if '%v' -> '%v')", inp.oldString, inp.newString)
+			}
+			if out.swapped {
 				return fmt.Sprintf("CAS(ok: was '%v', update to '%v')", inp.oldString, inp.newString)
 			}
-			return fmt.Sprintf("CAS(rejected: inp.Old '%v' != cur '%v')", inp.oldString, output.(string))
+			return fmt.Sprintf("CAS(rejected: inp.Old '%v' != cur '%v')", inp.oldString, out.valueCur)
 		}
 		panic(fmt.Sprintf("invalid inp.op! '%v'", int(inp.op)))
 		return "<invalid>" // unreachable
