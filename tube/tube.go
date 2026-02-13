@@ -1279,10 +1279,11 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			// SHOW_KEYS, READ_KEYRANGE, READ_PREFIX_RANGE, and READ use readReqCh.
 
 			s.countReadCh++
-			//vv("%v got ticket on %v <-s.readReqCh: '%v'", s.me(), s.countReadCh, tkt)
+			//vv("%v got ticket on countReadCh=%v <-s.readReqCh: '%v'", s.me(), s.countReadCh, tkt)
 			tkt.Stage += ":readReqCh"
 
 			if s.redirectToLeader(tkt) {
+				//vv("%v s.redirectToLeader returned true", s.name)
 				if tkt.Err != nil {
 					//vv("%v arg, tried to redirectToLeader but tkt.Err='%v'", s.me(), tkt.Err)
 					continue // bail out, error happened.
@@ -1299,9 +1300,11 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				continue
 			}
 			if !s.leaderServedLocalRead(tkt, false) {
+				//vv("%v false back from leaderServedLocalRead", s.me())
 				tkt.Stage += ":readReqCh_leaderServedLocalRead_false_calling_replicateTicket"
 				s.replicateTicket(tkt)
 			} else {
+				vv("%v true back from leaderServedLocalRead", s.me())
 				tkt.Stage += ":readReqCh_leaderServedLocalRead_true"
 			}
 			//vv("%v what here? leader should have served local read", s.me())
@@ -5762,6 +5765,9 @@ func (s *TubeNode) NewTicket(
 		waitForValid: waitForDur,
 		ctx:          ctx,
 	}
+	//if tkt.TSN == 12 {
+	//panic("where?")
+	//}
 	return
 }
 
@@ -11564,6 +11570,8 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 				tkt.Term = priorTkt.Term
 				// is above already: tkt.AsOfLogIndex = priorTkt.AsOfLogIndex
 
+				//vv("%v: in leaderServedLocalRead() dedup: returning previous read", s.me())
+				s.respondToClientTicketApplied(tkt)
 				return true
 			}
 
@@ -11641,8 +11649,10 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 	}
 
 	if tkt.FromID == s.PeerID {
+		//vv("%v doing FinishTicket", s.name)
 		s.FinishTicket(tkt, true) // true b/c here always leader
 	} else {
+		//vv("%v doing respondToClientTicketApplied", s.name)
 		s.respondToClientTicketApplied(tkt)
 	}
 	return true
@@ -16242,7 +16252,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	// can be logically racy, don't freak out.
 	oldCktP, haveOld = s.cktall[ckt.RemotePeerID]
 	if haveOld && oldCktP.ckt.CircuitID == ckt.CircuitID { // && oldCktP.ckt == ckt {
-		//vv("%v ignoring redunant notice of circuitID from '%v'", s.me(), ckt.RemotePeerName) // not seen 057
+		vv("%v ignoring redunant notice of circuitID '%v' from '%v'", s.me(), ckt.CircuitID, ckt.RemotePeerName) // not seen 057
 		cktP = oldCktP
 		rejected = true
 		return
@@ -16280,7 +16290,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 				//	return oldCktP // and ignore the new one.
 				//}
 			} else {
-				//vv("%v same circuit we already have, just ignore dup call to addToCktall for '%v'", s.name, oldCktP.PeerName) // not seen 057
+				vv("%v same circuit we already have, just ignore dup call to addToCktall for '%v'", s.name, oldCktP.PeerName) // not seen 057
 
 				if ckt != oldCktP.ckt {
 					panic(fmt.Sprintf("how did we get two different ckt that look the same? ckt='%v'; oldCktP.ckt = '%v'", ckt, oldCktP.ckt))

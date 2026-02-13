@@ -1,8 +1,9 @@
 package tube
 
 import (
-	//"context"
+	"context"
 	"fmt"
+
 	//"os"
 	"math"
 	"runtime"
@@ -10,11 +11,12 @@ import (
 	"runtime/trace"
 	"strconv"
 	"sync"
+
 	//"sync/atomic"
 	"testing"
 	"time"
 
-	//"github.com/glycerine/idem"
+	"github.com/glycerine/idem"
 
 	porc "github.com/anishathalye/porcupine"
 	rpc "github.com/glycerine/rpc25519"
@@ -100,8 +102,45 @@ type fuzzUser struct {
 	ops    []porc.Operation
 	rnd    func(nChoices int64) (r int64)
 
-	clus *TubeCluster
-	sess *Session
+	numNodes int
+	clus     *TubeCluster
+	sess     *Session
+
+	cli  *TubeNode
+	halt *idem.Halter
+}
+
+func (s *fuzzUser) Start(ctx context.Context, steps int) {
+	go func() {
+		defer func() {
+			s.halt.ReqStop.Close()
+			s.halt.Done.Close()
+		}()
+		for step := range steps {
+			vv("fuzzUser.Start on step %v", step)
+			select {
+			case <-ctx.Done():
+				return
+			case <-s.halt.ReqStop.Chan:
+				return
+			default:
+			}
+
+			key := "key10"
+
+			jnode := int(s.rnd(int64(s.numNodes)))
+			s.Read(key, jnode)
+
+			writeMe := int(s.rnd(100))
+			s.Write(key, writeMe)
+
+			//nemesis.makeTrouble()
+
+			jnode2 := int(s.rnd(int64(s.numNodes)))
+			s.Read(key, jnode2)
+
+		}
+	}()
 }
 
 func (s *fuzzUser) Write(key string, writeMe int) {
@@ -117,10 +156,12 @@ func (s *fuzzUser) Write(key string, writeMe int) {
 	}
 
 	v := []byte(fmt.Sprintf("%v", writeMe))
-	vv("about to write at node 0, v = writeMe = %v: '%v'", writeMe, string(v))
+	vv("about to write from cli sess, v = writeMe = %v: '%v'", writeMe, string(v))
 
 	// WRITE
-	tktW, err := s.clus.Nodes[0].Write(bkg, "", Key(key), v, 0, nil, "", 0, leaseAutoDelFalse)
+	table := Key("table101")
+	vtyp := ""
+	tktW, err := s.sess.Write(bkg, table, Key(key), v, 0, vtyp, 0, leaseAutoDelFalse)
 
 	switch err {
 	case ErrShutDown, rpc.ErrShutdown2,
@@ -147,7 +188,23 @@ func (s *fuzzUser) Read(key string, jnode int) {
 
 	vv("reading from jnode=%v", jnode)
 	waitForDur := time.Second
-	tkt, err := s.clus.Nodes[jnode].Read(bkg, "", Key(key), waitForDur, s.sess)
+	table := Key("table101")
+
+	// why hung on read?
+	tkt, err := s.clus.Nodes[jnode].Read(bkg, table, Key(key), waitForDur, s.sess)
+	if err != nil {
+		vv("read from node %v got err = '%v'", jnode, err)
+		if err == ErrKeyNotFound || err.Error() == "key not found" {
+			return
+		}
+		if err == rpc.ErrShutdown2 || err.Error() == "error shutdown" {
+			return
+		}
+	}
+	panicOn(err)
+	if tkt == nil {
+		panic("why is tkt nil?")
+	}
 	vv("jnode=%v, back from Read(key='%v') -> tkt.Val:'%v' (tkt.Err='%v')", jnode, key, string(tkt.Val), tkt.Err)
 
 	if tkt != nil && tkt.Err != nil && tkt.Err.Error() == "key not found" {
@@ -319,7 +376,183 @@ func (s *fuzzNemesis) makeTrouble() {
 	time.Sleep(beat)
 }
 
-/*
+func Test101_userFuzz(t *testing.T) {
+
+	runtime.GOMAXPROCS(1)
+
+	defer func() {
+		vv("test 101 wrapping up.")
+	}()
+
+	maxScenario := 1
+	for scenario := 0; scenario < maxScenario; scenario++ {
+
+		seedString := fmt.Sprintf("%v", scenario)
+		seed, seedBytes := parseSeedString(seedString)
+		if int(seed) != scenario {
+			panicf("got %v, wanted same scenario number back %v", int(seed), scenario)
+		}
+		rng := newPRNG(seedBytes)
+		rnd := rng.pseudoRandNonNegInt64Range
+
+		var ops []porc.Operation
+
+		onlyBubbled(t, func(t *testing.T) {
+
+			steps := 20
+			numNodes := 3
+
+			forceLeader := 0
+			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)
+
+			leaderURL := c.Nodes[leadi].URL
+			defer c.Close()
+
+			user := &fuzzUser{
+				numNodes: numNodes,
+				rnd:      rnd,
+				clus:     c,
+				halt:     idem.NewHalterNamed("fuzzUser"),
+			}
+
+			cliName := "client101"
+			cliCfg := *c.Cfg
+			cliCfg.MyName = cliName
+			cliCfg.PeerServiceName = TUBE_CLIENT
+			cli := NewTubeNode(cliName, &cliCfg)
+			err := cli.InitAndStart()
+			panicOn(err)
+			defer cli.Close()
+
+			// request new session
+			// seems like we want RPC semantics for this
+			// and maybe for other calls?
+			_ = bkg.Done()
+			sess, err := cli.CreateNewSession(bkg, leaderName, leaderURL)
+			panicOn(err)
+			if sess.ctx == nil {
+				panic(fmt.Sprintf("sess.ctx should be not nil"))
+			}
+			//vv("got sess = '%v'", sess) // not seen.
+			user.sess = sess
+			user.cli = cli
+
+			// no nemesis initially.
+			//nemesis := &fuzzNemesis{
+			//	rng:     rng,
+			//	rnd:     rnd,
+			//	clus:    c,
+			//	damaged: make(map[int]int),
+			//}
+			//_ = nemesis
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			user.Start(ctx, steps)
+
+			<-ctx.Done()
+			<-user.halt.Done.Chan
+
+			ops = user.ops
+		})
+
+		// Analysis
+		// Expecting some ops
+		if len(ops) == 0 {
+			panicf("expected ops > 0, got 0")
+		}
+
+		linz := porc.CheckOperations(registerModel, ops)
+		if !linz {
+			writeToDiskNonLinz(t, ops)
+			t.Fatalf("error: expected operations to be linearizable! seed='%v'; ops='%v'", seed, opsSlice(ops))
+		}
+
+		vv("len(ops)=%v passed linearizability checker.", len(ops))
+	}
+}
+
+func Test199_dsim_seed_string_parsing(t *testing.T) {
+	// GO_DSIM_SEED env variable is parsed
+	// with the same logic as parseSeedString() code.
+
+	seed, seedBytes := parseSeedString("0")
+	if seed != 0 {
+		panicf("expected seed of 0, got %v", seed)
+	}
+	for i, by := range seedBytes {
+		if by != 0 {
+			panicf("expected seedBytes of 0 at i = %v, got '%v'", i, string(by))
+		}
+	}
+
+	seed, seedBytes = parseSeedString("1")
+	if seed != 1 {
+		panicf("expected seed of 1, got %v", seed)
+	}
+	//vv("on 1: seedBytes = '%#v'", seedBytes)
+	for i, by := range seedBytes {
+		if i == 0 {
+			if by != 1 {
+				panicf("expected seedBytes of 1 at i = %v, got '%v'", i, by)
+			}
+			continue
+		}
+		if by != 0 {
+			panicf("expected seedBytes of 0 at i = %v, got '%v'", i, by)
+		}
+	}
+
+	//vv("start max seed: 1<<64-1")
+	seed, seedBytes = parseSeedString("18_446_744_073_709_551_615")
+	if seed != 18_446_744_073_709_551_615 {
+		panicf("expected seed of 18_446_744_073_709_551_615, got %v", seed)
+	}
+	//vv("good, got seed = %v as expected", seed)
+	//vv("on max: seedBytes = '%#v'", seedBytes)
+	for i, by := range seedBytes {
+		if by != 255 {
+			panicf("expected seedBytes of 255 at i = %v, got '%v'", i, by)
+		}
+		if i == 7 {
+			break
+		}
+	}
+}
+
+func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]byte) {
+
+	var n, n2 uint64
+	for _, ch := range []byte(simseed) {
+		switch {
+		case ch == '#' || ch == '/':
+			break // comments terminate
+		case ch < '0' || ch > '9':
+			continue
+		}
+		//vv("ch='%v'; n = %v", ch, n)
+		ch -= '0'
+		n2 = n*10 + uint64(ch)
+		if n2 > n {
+			n = n2
+		} else {
+			break // no overflow
+		}
+	}
+	simulationModeSeed = n
+	for i := range 8 {
+		// little endian fill
+		//vv("from %v, fill at i = %v with %v", n, i, byte(n>>(i*8)))
+		seedBytes[i] = byte(n >> (i * 8))
+	}
+	//println("simulationModeSeed from GO_DSIM_SEED=", simulationModeSeed)
+	return
+}
+
+/* do not uncomment Test099, since it uses a custom
+derivative of Go called Pont that implements the runtime.ResetDsimSeed(),
+and this is not available in regular Go. Extend or copy Test101 instead.
 func Test099_fuzz_testing_linz(t *testing.T) {
 
 	return
@@ -420,83 +653,6 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 	}
 }
 */
-
-func Test199_dsim_seed_string_parsing(t *testing.T) {
-	// GO_DSIM_SEED env variable is parsed
-	// with the same logic as parseSeedString() code.
-
-	seed, seedBytes := parseSeedString("0")
-	if seed != 0 {
-		panicf("expected seed of 0, got %v", seed)
-	}
-	for i, by := range seedBytes {
-		if by != 0 {
-			panicf("expected seedBytes of 0 at i = %v, got '%v'", i, string(by))
-		}
-	}
-
-	seed, seedBytes = parseSeedString("1")
-	if seed != 1 {
-		panicf("expected seed of 1, got %v", seed)
-	}
-	//vv("on 1: seedBytes = '%#v'", seedBytes)
-	for i, by := range seedBytes {
-		if i == 0 {
-			if by != 1 {
-				panicf("expected seedBytes of 1 at i = %v, got '%v'", i, by)
-			}
-			continue
-		}
-		if by != 0 {
-			panicf("expected seedBytes of 0 at i = %v, got '%v'", i, by)
-		}
-	}
-
-	//vv("start max seed: 1<<64-1")
-	seed, seedBytes = parseSeedString("18_446_744_073_709_551_615")
-	if seed != 18_446_744_073_709_551_615 {
-		panicf("expected seed of 18_446_744_073_709_551_615, got %v", seed)
-	}
-	//vv("good, got seed = %v as expected", seed)
-	//vv("on max: seedBytes = '%#v'", seedBytes)
-	for i, by := range seedBytes {
-		if by != 255 {
-			panicf("expected seedBytes of 255 at i = %v, got '%v'", i, by)
-		}
-		if i == 7 {
-			break
-		}
-	}
-}
-
-func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]byte) {
-
-	var n, n2 uint64
-	for _, ch := range []byte(simseed) {
-		switch {
-		case ch == '#' || ch == '/':
-			break // comments terminate
-		case ch < '0' || ch > '9':
-			continue
-		}
-		//vv("ch='%v'; n = %v", ch, n)
-		ch -= '0'
-		n2 = n*10 + uint64(ch)
-		if n2 > n {
-			n = n2
-		} else {
-			break // no overflow
-		}
-	}
-	simulationModeSeed = n
-	for i := range 8 {
-		// little endian fill
-		//vv("from %v, fill at i = %v with %v", n, i, byte(n>>(i*8)))
-		seedBytes[i] = byte(n >> (i * 8))
-	}
-	//println("simulationModeSeed from GO_DSIM_SEED=", simulationModeSeed)
-	return
-}
 
 /*
 // GOEXPERIMENT=synctest GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 go test -v -run 299 -count=1
