@@ -243,7 +243,7 @@ func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 			//item2 := s.timeoutPQ.add(messageLossTimeout, tkt)
 			//return
 			// thinking again:
-			// better to delete and re-add to get tkt2item, key2items, and s.buffered all updated
+			// better to delete and re-add to get tkt2item, key2items all updated
 			s.deleteTicket(tkt.TicketID, tkt.Op == WRITE || tkt.Op == RMW)
 			// fall through to add below
 		} else {
@@ -264,7 +264,7 @@ func (s *HermesNode) actionAbRecordPending(tkt *HermesTicket) {
 		s.key2items[tkt.Key] = prior
 	}
 	prior.slc = append(prior.slc, item) // and item can be used to update/delete from pq
-	s.buffered = append(s.buffered, item)
+	//s.buffered = append(s.buffered, item)
 }
 
 // must be called _before_ actionI() b/c actionI() will overwrite
@@ -1248,12 +1248,12 @@ func (s *HermesNode) deleteTicket(ticketID string, wasWrite bool) *HermesTicket 
 		s.setWakeup()
 	}
 
-	for i, it := range s.buffered {
-		if it == item {
-			s.buffered = append(s.buffered[:i], s.buffered[i+1:]...)
-			break
-		}
-	}
+	//for i, it := range s.buffered {
+	//	if it == item {
+	//		s.buffered = append(s.buffered[:i], s.buffered[i+1:]...)
+	//		break
+	//	}
+	//}
 	return tkt
 }
 
@@ -1748,8 +1748,9 @@ type HermesNode struct {
 	tkt2item map[string]*pqTimeItem
 	// lookup all the items in timeoutPQ for a given Key
 	key2items map[Key]*pqitems
+
 	// order of timeoutPQ item arrival
-	buffered []*pqTimeItem
+	//buffered []*pqTimeItem
 
 	// comms
 	URL           string
@@ -1849,7 +1850,7 @@ func NewHermesNode(name string, cfg *HermesConfig) (node *HermesNode) {
 
 		// pending reads/writes are stored as HermesTickets in
 		// a priority queue sorted by messageLossTimeout,
-		// and indexed by tkt2items, key2items, and buffered.
+		// and indexed by tkt2items and key2items (and maybe buffered).
 		tkt2item:  make(map[string]*pqTimeItem),
 		key2items: make(map[Key]*pqitems),
 
