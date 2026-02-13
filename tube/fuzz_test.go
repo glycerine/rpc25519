@@ -9,7 +9,8 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/trace"
-	"strconv"
+	"strings"
+	//"strconv"
 	"sync"
 
 	//"sync/atomic"
@@ -128,66 +129,86 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 
 			key := "key10"
 
-			s.Read(key)
+			oldVal, err := s.Read(key)
+			if err != nil && strings.Contains(err.Error(), "key not found") {
+				if step == 0 {
+					// allowed on first
+				} else {
+					panicf("on step %v, key not found!?!", step)
+				}
+			} else {
+				panicOn(err)
+			}
 
-			writeMe := int(s.rnd(100))
-			s.Write(key, writeMe)
+			writeMeNewVal := Val([]byte(fmt.Sprintf("%v", s.rnd(100))))
+			s.CAS(key, writeMeNewVal, oldVal)
 
 			//nemesis.makeTrouble()
-
-			s.Read(key)
-
 		}
 	}()
 }
 
-func (s *fuzzUser) Write(key string, writeMe int) {
+const vtyp101 = "string"
+
+func (s *fuzzUser) CAS(key string, newVal, oldVal Val) (err error) {
 
 	begtmWrite := time.Now()
 
 	op := porc.Operation{
 		ClientId: 0,
-		Input:    registerInput{op: REGISTER_PUT, value: writeMe},
+		Input:    casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
 		Call:     begtmWrite.UnixNano(), // invocation timestamp
-		Output:   writeMe,
+
+		// assume swap will happen, update below if it did not.
+		Output: string(newVal),
 		//Return:   endtmWrite.UnixNano(), // response timestamp
 	}
 
-	v := []byte(fmt.Sprintf("%v", writeMe))
-	vv("about to write from cli sess, v = writeMe = %v: '%v'", writeMe, string(v))
+	vv("about to write from cli sess, writeMe = '%v'", string(newVal))
 
 	// WRITE
-	table := Key("table101")
-	vtyp := ""
-	tktW, err := s.sess.Write(bkg, table, Key(key), v, 0, vtyp, 0, leaseAutoDelFalse)
+	var tktW *Ticket
+	tktW, err = s.sess.CAS(bkg, fuzzTestTable, Key(key), oldVal, newVal, 0, vtyp101, 0, leaseAutoDelFalse, 0, 0)
 
 	switch err {
 	case ErrShutDown, rpc.ErrShutdown2,
 		ErrTimeOut, rpc.ErrTimeout:
-		vv("write failed: '%v'", err)
+		vv("CAS write failed: '%v'", err)
 		return
 	}
 	panicOn(err)
-	endtmWrite := time.Now()
-	_ = tktW
 
-	op.Return = endtmWrite.UnixNano() // response timestamp
+	op.Return = time.Now().UnixNano() // response timestamp
+
+	// skip adding to porcupine ops if the CAS failed to write.
+	if tktW.CASwapped {
+		vv("CAS write ok.")
+	} else {
+		vv("CAS write failed, read back current value instead")
+		op.Output = string(tktW.CASRejectedBecauseCurVal)
+	}
 
 	s.opsMut.Lock()
 	s.ops = append(s.ops, op)
 	s.opsMut.Unlock()
+	vv("len ops now %v", len(s.ops))
 
-	vv("write ok. len ops now %v", len(s.ops))
+	return
 }
 
-func (s *fuzzUser) Read(key string) {
+var fuzzTestTable = Key("table101")
+
+func (s *fuzzUser) Read(key string) (val Val, err error) {
 
 	begtmRead := time.Now()
 
 	waitForDur := time.Second
-	table := Key("table101")
 
-	tkt, err := s.sess.Read(bkg, table, Key(key), waitForDur)
+	var tkt *Ticket
+	tkt, err = s.sess.Read(bkg, fuzzTestTable, Key(key), waitForDur)
+	if err == nil && tkt != nil && tkt.Err != nil {
+		err = tkt.Err
+	}
 	if err != nil {
 		vv("read from node/sess='%v', got err = '%v'", s.sess.SessionID, err)
 		if err == ErrKeyNotFound || err.Error() == "key not found" {
@@ -197,40 +218,39 @@ func (s *fuzzUser) Read(key string) {
 			return
 		}
 	}
-	panicOn(err)
-	if tkt == nil {
-		panic("why is tkt nil?")
-	}
-	//vv("jnode=%v, back from Read(key='%v') -> tkt.Val:'%v' (tkt.Err='%v')", jnode, key, string(tkt.Val), tkt.Err)
-
-	if tkt != nil && tkt.Err != nil && tkt.Err.Error() == "key not found" {
-		return
-	}
-
 	switch err {
 	case ErrShutDown, rpc.ErrShutdown2,
 		ErrTimeOut, rpc.ErrTimeout:
 		return
 	}
 	panicOn(err)
+	if tkt == nil {
+		panic("why is tkt nil?")
+	}
+	//vv("jnode=%v, back from Read(key='%v') -> tkt.Val:'%v' (tkt.Err='%v')", jnode, key, string(tkt.Val), tkt.Err)
+
+	val = Val(tkt.Val)
+
 	endtmRead := time.Now()
 
-	v2 := tkt.Val
-	i2, err := strconv.Atoi(string(v2))
-	panicOn(err)
+	//v2 := tkt.Val
+	//i2, err := strconv.Atoi(string(v2))
+	//panicOn(err)
 
 	op := porc.Operation{
 		ClientId: 0, // jnode,
-		Input:    registerInput{op: REGISTER_GET},
+		Input:    casInput{op: STRING_REGISTER_GET},
 		Call:     begtmRead.UnixNano(), // invocation timestamp
-		Output:   i2,
-		Return:   endtmRead.UnixNano(), // response timestamp
+		//Output:   i2,
+		Output: string(val),
+		Return: endtmRead.UnixNano(), // response timestamp
 	}
 
 	s.opsMut.Lock()
 	s.ops = append(s.ops, op)
 	s.opsMut.Unlock()
 
+	return
 }
 
 // nemesis injects faults, makes trouble for user.
@@ -459,7 +479,7 @@ func Test101_userFuzz(t *testing.T) {
 			panicf("expected ops > 0, got 0")
 		}
 
-		linz := porc.CheckOperations(registerModel, ops)
+		linz := porc.CheckOperations(stringCasModel, ops)
 		if !linz {
 			writeToDiskNonLinz(t, ops)
 			t.Fatalf("error: expected operations to be linearizable! seed='%v'; ops='%v'", seed, opsSlice(ops))
@@ -720,3 +740,106 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 		})
 	}
 */
+
+// string register with CAS (compare and swap)
+
+type stringRegisterOp int
+
+const (
+	STRING_REGISTER_UNK stringRegisterOp = 0
+	STRING_REGISTER_PUT stringRegisterOp = 1
+	STRING_REGISTER_GET stringRegisterOp = 2
+	STRING_REGISTER_CAS stringRegisterOp = 3
+)
+
+func (o stringRegisterOp) String() string {
+	switch o {
+	case STRING_REGISTER_PUT:
+		return "STRING_REGISTER_PUT"
+	case STRING_REGISTER_GET:
+		return "STRING_REGISTER_GET"
+	case STRING_REGISTER_CAS:
+		return "STRING_REGISTER_CAS"
+	}
+	panic(fmt.Sprintf("unknown stringRegisterOp: %v", int(o)))
+}
+
+type casInput struct {
+	op        stringRegisterOp
+	oldString string
+	newString string
+}
+
+func (ri casInput) String() string {
+	if ri.op == STRING_REGISTER_GET {
+		return fmt.Sprintf("casInput{op: %v}", ri.op)
+	}
+	return fmt.Sprintf("casInput{op: %v, oldString: %v, newString: %v}", ri.op, ri.oldString, ri.newString)
+}
+
+// a sequential specification of a register, that holds a string
+// and can CAS.
+var stringCasModel = porc.Model{
+	Init: func() interface{} {
+		return 0
+	},
+	// step function: takes a state, input, and output, and returns whether it
+	// was a legal operation, along with a new state
+	Step: func(state, input, output interface{}) (legal bool, newState interface{}) {
+		regInput := input.(casInput)
+
+		switch regInput.op {
+		case STRING_REGISTER_GET:
+			newState = state // state is unchanged by GET
+
+			if output == state {
+				legal = true
+			}
+			return
+
+		case STRING_REGISTER_PUT:
+			legal = true // always ok to execute a put
+			newState = regInput.newString
+			return
+
+		case STRING_REGISTER_CAS:
+			if regInput.oldString == "" {
+				// treat empty string as absent/deleted/anything goes.
+				// So this becomes just a PUT:
+				legal = true
+				newState = regInput.newString
+				return
+			}
+			// actual CAS
+			if regInput.oldString == state.(string) {
+				// yes, CAS pre-condition confirmed.
+				// replace oldString with newString
+				newState = regInput.newString
+			} else {
+				// CAS mismatch on existing value, leave unchanged.
+				newState = state
+			}
+
+			if output.(string) == newState.(string) {
+				legal = true
+			}
+		}
+		return
+	},
+	DescribeOperation: func(input, output interface{}) string {
+		inp := input.(casInput)
+		switch inp.op {
+		case STRING_REGISTER_GET:
+			return fmt.Sprintf("get() -> '%v'", string(output.([]byte)))
+		case STRING_REGISTER_PUT:
+			return fmt.Sprintf("put('%v')", inp.newString)
+		case STRING_REGISTER_CAS:
+			if inp.newString == output.(string) {
+				return fmt.Sprintf("CAS(ok: was '%v', update to '%v')", inp.oldString, inp.newString)
+			}
+			return fmt.Sprintf("CAS(rejected: inp.Old '%v' != cur '%v')", inp.oldString, output.(string))
+		}
+		panic(fmt.Sprintf("invalid inp.op! '%v'", int(inp.op)))
+		return "<invalid>" // unreachable
+	},
+}
