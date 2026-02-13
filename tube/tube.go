@@ -11778,7 +11778,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 
 		agree := bytes.Equal(curVal, tkt.OldVal)
 		if string(tkt.Val) == "24" {
-			vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), agree, string(tkt.Val))
+			vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), agree, string(tkt.Val)) // why seen 2x?
 		}
 		if !agree { // reject CAS
 			tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)

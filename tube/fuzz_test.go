@@ -302,7 +302,7 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 	}
 	//vv("jnode=%v, back from Read(key='%v') -> tkt.Val:'%v' (tkt.Err='%v')", jnode, key, string(tkt.Val), tkt.Err)
 
-	val = Val(tkt.Val)
+	val = Val(append([]byte{}, tkt.Val...))
 
 	endtmRead := time.Now()
 
