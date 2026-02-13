@@ -229,7 +229,8 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 		vv("CAS write failed: '%v'", err)
 		return
 	}
-	if err != nil && strings.Contains(err.Error(), "rejected write CAS") {
+
+	if err != nil && strings.Contains(err.Error(), rejectedWritePrefix) {
 		// fair, fine to reject cas; the error forces us to deal with it,
 		// but the occassional CAS reject is fine and working as expected.
 		err = nil
@@ -244,18 +245,22 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 	if tktW.CASwapped {
 		vv("CAS write ok.")
 		swapped = true
+		if string(tktW.Val) != string(newVal) {
+			panicf("why does tktW.Val('%v') != newVal('%v')", string(tktW.Val), string(newVal))
+		}
 		curVal = Val(append([]byte{}, newVal...))
 
 	} else {
 		swapped = false // for emphasis
 		curVal = Val(append([]byte{}, tktW.CASRejectedBecauseCurVal...))
-		vv("CAS write (of %v) failed, we read back current value (%v) instead", string(newVal), string(curVal))
+		vv("CAS write failed (did not write new value '%v'), we read back current value (%v) instead", string(newVal), string(curVal))
 	}
 	out.valueCur = string(curVal)
 	out.swapped = swapped
 	out.unknown = false
 
 	s.shOps.mut.Lock()
+	out.id = len(s.shOps.ops)
 	s.shOps.ops = append(s.shOps.ops, op)
 	vv("%v len ops now %v", s.name, len(s.shOps.ops))
 	s.shOps.mut.Unlock()
@@ -305,18 +310,20 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 	//i2, err := strconv.Atoi(string(v2))
 	//panicOn(err)
 
+	out := &casOutput{
+		valueCur: string(val),
+	}
 	op := porc.Operation{
 		ClientId: s.userid,
 		Input:    &casInput{op: STRING_REGISTER_GET},
 		Call:     begtmRead.UnixNano(), // invocation timestamp
 		//Output:   i2,
-		Output: &casOutput{
-			valueCur: string(val),
-		},
+		Output: out,
 		Return: endtmRead.UnixNano(), // response timestamp
 	}
 
 	s.shOps.mut.Lock()
+	out.id = len(s.shOps.ops)
 	s.shOps.ops = append(s.shOps.ops, op)
 	s.shOps.mut.Unlock()
 
@@ -863,6 +870,7 @@ type casInput struct {
 }
 
 type casOutput struct {
+	id       int
 	swapped  bool   // used for CAS
 	notFound bool   // used for read
 	unknown  bool   // used when operation times out
@@ -871,11 +879,12 @@ type casOutput struct {
 
 func (o *casOutput) String() string {
 	return fmt.Sprintf(`casOutput{
+            id: %v
        swapped: %v
       notFound: %v
        unknown: %v
       valueCur: %v
-}`, o.swapped, o.notFound,
+}`, o.id, o.swapped, o.notFound,
 		o.unknown,
 		o.valueCur)
 }
