@@ -1304,7 +1304,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				tkt.Stage += ":readReqCh_leaderServedLocalRead_false_calling_replicateTicket"
 				s.replicateTicket(tkt)
 			} else {
-				vv("%v true back from leaderServedLocalRead", s.me())
+				//vv("%v true back from leaderServedLocalRead", s.me())
 				tkt.Stage += ":readReqCh_leaderServedLocalRead_true"
 			}
 			//vv("%v what here? leader should have served local read", s.me())

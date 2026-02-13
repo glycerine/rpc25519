@@ -128,16 +128,14 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 
 			key := "key10"
 
-			jnode := int(s.rnd(int64(s.numNodes)))
-			s.Read(key, jnode)
+			s.Read(key)
 
 			writeMe := int(s.rnd(100))
 			s.Write(key, writeMe)
 
 			//nemesis.makeTrouble()
 
-			jnode2 := int(s.rnd(int64(s.numNodes)))
-			s.Read(key, jnode2)
+			s.Read(key)
 
 		}
 	}()
@@ -182,18 +180,16 @@ func (s *fuzzUser) Write(key string, writeMe int) {
 	vv("write ok. len ops now %v", len(s.ops))
 }
 
-func (s *fuzzUser) Read(key string, jnode int) {
+func (s *fuzzUser) Read(key string) {
 
 	begtmRead := time.Now()
 
-	vv("reading from jnode=%v", jnode)
 	waitForDur := time.Second
 	table := Key("table101")
 
-	// why hung on read?
-	tkt, err := s.clus.Nodes[jnode].Read(bkg, table, Key(key), waitForDur, s.sess)
+	tkt, err := s.sess.Read(bkg, table, Key(key), waitForDur)
 	if err != nil {
-		vv("read from node %v got err = '%v'", jnode, err)
+		vv("read from node/sess='%v', got err = '%v'", s.sess.SessionID, err)
 		if err == ErrKeyNotFound || err.Error() == "key not found" {
 			return
 		}
@@ -205,7 +201,7 @@ func (s *fuzzUser) Read(key string, jnode int) {
 	if tkt == nil {
 		panic("why is tkt nil?")
 	}
-	vv("jnode=%v, back from Read(key='%v') -> tkt.Val:'%v' (tkt.Err='%v')", jnode, key, string(tkt.Val), tkt.Err)
+	//vv("jnode=%v, back from Read(key='%v') -> tkt.Val:'%v' (tkt.Err='%v')", jnode, key, string(tkt.Val), tkt.Err)
 
 	if tkt != nil && tkt.Err != nil && tkt.Err.Error() == "key not found" {
 		return
@@ -224,7 +220,7 @@ func (s *fuzzUser) Read(key string, jnode int) {
 	panicOn(err)
 
 	op := porc.Operation{
-		ClientId: jnode,
+		ClientId: 0, // jnode,
 		Input:    registerInput{op: REGISTER_GET},
 		Call:     begtmRead.UnixNano(), // invocation timestamp
 		Output:   i2,
@@ -427,7 +423,7 @@ func Test101_userFuzz(t *testing.T) {
 			// request new session
 			// seems like we want RPC semantics for this
 			// and maybe for other calls?
-			_ = bkg.Done()
+
 			sess, err := cli.CreateNewSession(bkg, leaderName, leaderURL)
 			panicOn(err)
 			if sess.ctx == nil {
