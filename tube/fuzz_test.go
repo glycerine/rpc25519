@@ -925,10 +925,8 @@ var stringCasModel = porc.Model{
 				return
 			}
 
+			// the default is that the state stays the same.
 			newState = st
-			if inp.oldString == st {
-				newState = inp.newString
-			}
 
 			if out.unknown {
 				legal = true
@@ -940,6 +938,11 @@ var stringCasModel = porc.Model{
 				vv("warning: legal is false in CAS because out.swapped = '%v', inp.oldString = '%v', inp.newString = '%v'; old state = '%v', newState = '%v'; out.valueCur = '%v'", out.swapped, inp.oldString, inp.newString, st, newState, out.valueCur)
 			}
 
+			if legal {
+				if inp.oldString == st {
+					newState = inp.newString
+				}
+			}
 			return
 		}
 		return
@@ -966,9 +969,9 @@ var stringCasModel = porc.Model{
 				return fmt.Sprintf("CAS(unkown/timed-out: if '%v' -> '%v')", inp.oldString, inp.newString)
 			}
 			if out.swapped {
-				return fmt.Sprintf("CAS(ok: was '%v', update to '%v')", inp.oldString, inp.newString)
+				return fmt.Sprintf("CAS(ok: '%v' ->'%v')", inp.oldString, inp.newString)
 			}
-			return fmt.Sprintf("CAS(rejected: inp.Old '%v' != cur '%v')", inp.oldString, out.valueCur)
+			return fmt.Sprintf("CAS(rejected:old '%v' != cur '%v')", inp.oldString, out.valueCur)
 		}
 		panic(fmt.Sprintf("invalid inp.op! '%v'", int(inp.op)))
 		return "<invalid>" // unreachable
