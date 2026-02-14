@@ -274,8 +274,8 @@ func (s *totalEventStats) String() (r string) {
         dupReturnPct: %0.3f (%v)
 returnWithoutCallPct: %0.3f (%v)
 `,
-		s.countAllEvents,
 		s.callAttemptN,
+		s.countAllEvents,
 
 		s.oneToOneCallsPct,
 		s.oneToOneCallsN,
