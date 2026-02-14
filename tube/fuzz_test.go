@@ -180,7 +180,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			var oldVal Val
 			var cur Val
 
-			if step == 0 { // || !swapped {
+			if step == 0 || !swapped {
 				oldVal, err = s.Read(key)
 				if err != nil {
 					errs := err.Error()
@@ -451,6 +451,7 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 		Id:       eventID, // must match call event
 		Kind:     porc.ReturnEvent,
 		Value: &casOutput{
+			op:       STRING_REGISTER_GET,
 			id:       eventID,
 			valueCur: string(val),
 		},
@@ -1118,22 +1119,31 @@ type casOutput struct {
 }
 
 func (o *casOutput) String() string {
-	return fmt.Sprintf(`casOutput{
-            id: %v,
-            op: %v,
+	var xtra string
+	if o.op == STRING_REGISTER_CAS {
+		xtra = fmt.Sprintf(`
        swapped: %v,
-      notFound: %v,
-      valueCur: %q,
    -- from input --
 	oldString: %q,
 	newString: %q,
-}`, o.id,
+`,
+			o.swapped,
+			o.oldString,
+			o.newString,
+		)
+	}
+	//STRING_REGISTER_GET
+
+	return fmt.Sprintf(`casOutput{
+            id: %v,
+            op: %v,
+      valueCur: %q,
+      notFound: %v,
+%v}`, o.id,
 		o.op,
-		o.swapped,
-		o.notFound,
 		o.valueCur,
-		o.oldString,
-		o.newString,
+		o.notFound,
+		xtra,
 	)
 }
 
