@@ -1121,8 +1121,7 @@ type casOutput struct {
 func (o *casOutput) String() string {
 	var xtra string
 	if o.op == STRING_REGISTER_CAS {
-		xtra = fmt.Sprintf(`
-       swapped: %v,
+		xtra = fmt.Sprintf(`       swapped: %v,
    -- from input --
 	oldString: %q,
 	newString: %q,
