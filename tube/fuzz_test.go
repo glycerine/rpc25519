@@ -135,7 +135,7 @@ func (s *fuzzUser) linzCheck() {
 		panicf("user %v: expected evs > 0, got 0", s.name)
 	}
 
-	vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
+	//vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
 	linz := porc.CheckEvents(stringCasModel, evs)
 	if !linz {
 		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; evs='%v'", s.name, s.seed, eventSlice(evs))
@@ -163,7 +163,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			prevCanc()
 			stepCtx, canc := context.WithTimeout(startCtx, time.Second*10)
 			prevCanc = canc
-			if step%10 == 0 {
+			if false && step%10 == 0 {
 				vv("%v: fuzzUser.Start on step %v", s.name, step)
 			}
 			select {
@@ -263,7 +263,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 				//vv("%v nice: CAS did not swap, on step %v!", s.name, step)
 			}
 
-			//s.nemesis.makeTrouble()
+			s.nemesis.makeTrouble()
 		}
 	}()
 }
@@ -487,7 +487,9 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 
 // nemesis injects faults, makes trouble for user.
 type fuzzNemesis struct {
-	mut sync.Mutex
+	//mut sync.Mutex
+
+	allowTrouble chan bool
 
 	rng     *prng
 	rnd     func(nChoices int64) (r int64)
@@ -501,12 +503,14 @@ type fuzzNemesis struct {
 }
 
 func (s *fuzzNemesis) makeTrouble() {
-	s.mut.Lock() // why deadlocked?
+	<-s.allowTrouble // a channel lock that synctest can durably block on.
+	//s.mut.Lock() // why deadlocked?
 	wantSleep := true
 	//beat := time.Second
 
 	defer func() {
-		s.mut.Unlock()
+		//s.mut.Unlock()
+		s.allowTrouble <- true
 		// we can deadlock under synctest if we don't unlock
 		// before sleeping...
 		if wantSleep {
@@ -608,7 +612,9 @@ func (s *fuzzNemesis) makeTrouble() {
 		probDrop := 1.0
 		probDeaf := 1.0
 		if s.rnd(2) == 1 {
+			vv("about to s.clus.Nodes[node].DropSends(probDrop)")
 			s.clus.Nodes[node].DropSends(probDrop)
+			vv("back from s.clus.Nodes[node].DropSends(probDrop)")
 		} else {
 			s.clus.Nodes[node].DeafToReads(probDeaf)
 		}
@@ -619,6 +625,7 @@ func (s *fuzzNemesis) makeTrouble() {
 			probDrop := s.rng.float64prob()
 			vv("probDrop send = %v on node = %v", probDrop, node)
 			s.clus.Nodes[node].DropSends(probDrop)
+			vv("back from DropSends setting probDrop send = %v on node = %v", probDrop, node)
 			wantSleep = false
 			return
 		}
@@ -671,9 +678,11 @@ func Test101_userFuzz(t *testing.T) {
 
 		onlyBubbled(t, func(t *testing.T) {
 
-			steps := 100
-			numNodes := 5
-			numUsers := 20 // 20 ok, 30 too much for porcupine.
+			steps := 10
+			numNodes := 3
+			// numUsers of 20 ok at 200 steps, but 30 users is
+			// too much for porcupine at even just 30 steps.
+			numUsers := 2
 
 			forceLeader := 0
 			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)
@@ -682,11 +691,14 @@ func Test101_userFuzz(t *testing.T) {
 			defer c.Close()
 
 			nemesis := &fuzzNemesis{
-				rng:     rng,
-				rnd:     rnd,
-				clus:    c,
-				damaged: make(map[int]int),
+				rng:          rng,
+				rnd:          rnd,
+				clus:         c,
+				damaged:      make(map[int]int),
+				allowTrouble: make(chan bool, 1),
 			}
+			// unlock it
+			nemesis.allowTrouble <- true
 
 			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 			defer cancel()
