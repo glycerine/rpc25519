@@ -263,7 +263,9 @@ func newTotalEventStats(countAllEvents int) *totalEventStats {
 }
 
 func (s *totalEventStats) String() (r string) {
-	r = fmt.Sprintf(`totalEventStats{
+	r = fmt.Sprintf(`
+  =======   totalEventStats   ========
+
           callAttemptN: %v
         countAllEvents: %v
 
