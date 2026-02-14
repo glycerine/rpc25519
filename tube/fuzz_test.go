@@ -262,6 +262,35 @@ func newTotalEventStats(countAllEvents int) *totalEventStats {
 	}
 }
 
+func (s *totalEventStats) String() (r string) {
+	r = fmt.Sprintf(`totalEventStats{
+      countAllEvents: %v
+            attemptN: %v
+
+    oneToOneCallsPct: %0.3f (%v)
+    danglingCallsPct: %0.3f (%v)
+
+        dupReturnPct: %0.3f (%v)
+returnWithoutCallPct: %0.3f (%v)
+`,
+		s.countAllEvents,
+		s.attemptN,
+
+		s.oneToOneCallsPct,
+		s.oneToOneCallsN,
+
+		s.danglingCallsPct,
+		s.danglingCallsN,
+
+		s.dupReturnPct,
+		s.dupReturnN,
+
+		s.returnWithoutCallPct,
+		s.returnWithoutCallN,
+	)
+	return
+}
+
 func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 	tot = newTotalEventStats(len(evs))
 
@@ -368,6 +397,9 @@ func (s *fuzzUser) linzCheck() {
 	if len(evs) == 0 {
 		panicf("user %v: expected evs > 0, got 0", s.name)
 	}
+
+	totalStats := basicEventStats(evs)
+	alwaysPrintf("linzCheck basic event stats:\n %v\n", totalStats.String())
 
 	// filter out unmatched gets
 	/*var filt []porc.Event
@@ -906,7 +938,7 @@ func (s *fuzzNemesis) makeTrouble() {
 }
 
 func Test101_userFuzz(t *testing.T) {
-	return
+	//return
 	runtime.GOMAXPROCS(1)
 
 	defer func() {
