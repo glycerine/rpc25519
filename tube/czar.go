@@ -890,7 +890,9 @@ fullRestart:
 				break
 			}
 			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-			czar.sess, err = cli.CreateNewSession(ctx5, leaderName, leaderURL)
+			var redirect *LeaderRedirect
+			_ = redirect // TODO maybe use it?
+			czar.sess, redirect, err = cli.CreateNewSession(ctx5, leaderName, leaderURL)
 			canc()
 			//panicOn(err) // panic: hmm. no leader known to me (node 'node_0')
 			if err == nil {

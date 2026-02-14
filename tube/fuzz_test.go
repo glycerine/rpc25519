@@ -561,7 +561,7 @@ func (s *fuzzNemesis) makeTrouble() {
 }
 
 func Test101_userFuzz(t *testing.T) {
-	return
+
 	runtime.GOMAXPROCS(1)
 
 	defer func() {
@@ -635,7 +635,7 @@ func Test101_userFuzz(t *testing.T) {
 				// and maybe for other calls?
 
 			retry:
-				sess, err := cli.CreateNewSession(ctx, leaderName, leaderURL)
+				sess, redirect, err := cli.CreateNewSession(ctx, leaderName, leaderURL)
 				if err != nil {
 					errs := err.Error()
 					if strings.Contains(errs, "context cancelled") {
@@ -646,6 +646,10 @@ func Test101_userFuzz(t *testing.T) {
 					alwaysPrintf("on userNum = %v, CreateNewSession err = '%v'", userNum, err)
 					errs := err.Error()
 					if strings.Contains(errs, "no leader known to me") {
+						if redirect != nil {
+							leaderName = redirect.LeaderName
+							leaderURL = redirect.LeaderURL
+						}
 						//goto retry // insufficient. we infinite loop.
 						cli.Close()
 						time.Sleep(time.Second)
@@ -654,6 +658,9 @@ func Test101_userFuzz(t *testing.T) {
 						vv("could not find leader. snap0 = '%v'", snap0) // .LongString())
 						user.edition++
 						goto retryCli
+					}
+					if strings.Contains(errs, "time-out waiting for call to complete") {
+						// e.g. ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'error requesting CallPeerStartCircuit from remote: 'time-out waiting for call to complete'; netAddr='simnet://srv_node_0'; remoteAddr='simnet://srv_node_0'';
 					}
 					panic(err)
 				}

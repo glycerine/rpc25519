@@ -12491,9 +12491,15 @@ func (s *TubeNode) internalGetCircuitToLeader(ctx context.Context, leaderName, l
 	return
 }
 
+type LeaderRedirect struct {
+	LeaderName string `zid:"0"`
+	LeaderID   string `zid:"1"`
+	LeaderURL  string `zid:"2"`
+}
+
 // for external users like GetPeerList().
 // see above internalGetCircuitToLeader() for internal users.
-func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, leaderURL string, firstFrag *rpc.Fragment, circuitName string) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, err error) {
+func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, leaderURL string, firstFrag *rpc.Fragment, circuitName string) (ckt *rpc.Circuit, onlyPossibleAddr string, sentOnNewCkt bool, redirect *LeaderRedirect, err error) {
 	//vv("%v top ExternalGetCircuitToLeader(leaderName='%v'; leaderURL='%v')", s.me(), leaderName, leaderURL)
 
 	//if strings.Contains(leaderURL, "100.114.32.72") {
@@ -12684,6 +12690,12 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 					}
 				} else {
 					vv("%v notice we just made a ckt to non-leader. try again. %v thinks leader is '%v' (ID: '%v'; URL='%v')", s.name, ckt.RemotePeerName, lname, ackMsg.HDR.Args["leaderID"], ackMsg.HDR.Args["leaderURL"])
+
+					redirect = &LeaderRedirect{
+						LeaderName: lname,
+						LeaderID:   ackMsg.HDR.Args["leaderID"],
+						LeaderURL:  ackMsg.HDR.Args["leaderURL"],
+					}
 				}
 			}
 		}
@@ -12694,8 +12706,8 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 // client nodes do not get heartbeats anymore,
 // so have to be told where to find the leader/cluster
 // initially.
-func (s *TubeNode) UseLeaderURL(ctx context.Context, leaderName, leaderURL string) (onlyPossibleAddr string, err error) {
-	_, onlyPossibleAddr, _, err = s.ExternalGetCircuitToLeader(ctx, leaderName, leaderURL, nil, "UseLeaderURL")
+func (s *TubeNode) UseLeaderURL(ctx context.Context, leaderName, leaderURL string) (onlyPossibleAddr string, redirect *LeaderRedirect, err error) {
+	_, onlyPossibleAddr, _, redirect, err = s.ExternalGetCircuitToLeader(ctx, leaderName, leaderURL, nil, "UseLeaderURL")
 	return
 }
 
@@ -12715,8 +12727,8 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName st
 
 		panic("ugh. self-circuit? TODO figure out self-circuit or what?")
 	}
-
-	ckt, onlyPossibleAddr, _, err = s.ExternalGetCircuitToLeader(ctx, leaderName, leaderURL, nil, "GetPeerListFrom")
+	var redirect *LeaderRedirect
+	ckt, onlyPossibleAddr, _, redirect, err = s.ExternalGetCircuitToLeader(ctx, leaderName, leaderURL, nil, "GetPeerListFrom")
 
 	if err != nil {
 		//vv("%v GetPeerListFrom got error from ExternalGetCircuitToLeader('%v') err='%v'; s.electionTimeoutCh='%p', s.nextElection in '%v'", s.me(), leaderURL, err, s.electionTimeoutCh, time.Until(s.nextElection))
@@ -12727,6 +12739,13 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName st
 		// seeing a ton of, test 809 czar_test. thus inspection fails with garbage circuit.
 		//vv("%v GetPeerListFrom sees ckt=%p or closed ckt after ExternalGetCircuitToLeader(leaderURL='%v')", s.me(), ckt, leaderURL)
 		return nil, nil, "", "", 0, onlyPossibleAddr, nil, rpc.ErrContextCancelledCkt
+	}
+
+	if redirect != nil {
+		actualLeaderURL = redirect.LeaderURL
+		actualLeaderName = redirect.LeaderName
+		// save another network roundtrip, since we already have it.
+		return
 	}
 
 	//actualLeaderName = ckt.RemotePeerName
@@ -15655,14 +15674,14 @@ func (s *TubeNode) CloseSession(ctx context.Context, sess *Session) (err error) 
 }
 
 // external, client callable
-func (s *TubeNode) CreateNewSession(ctx context.Context, leaderName, leaderURL string) (r *Session, err error) {
+func (s *TubeNode) CreateNewSession(ctx context.Context, leaderName, leaderURL string) (r *Session, redirect *LeaderRedirect, err error) {
 
 	//vv("CreateNewSession() called. stack = \n%v\n", stack())
 
 	var ckt *rpc.Circuit
 	var onlyPossibleAddr string
 	if leaderURL != "" {
-		ckt, onlyPossibleAddr, _, err = s.ExternalGetCircuitToLeader(ctx, leaderName, leaderURL, nil, "CreateNewSession")
+		ckt, onlyPossibleAddr, _, redirect, err = s.ExternalGetCircuitToLeader(ctx, leaderName, leaderURL, nil, "CreateNewSession")
 		if err != nil {
 			return
 		}
@@ -17683,7 +17702,7 @@ func (s *TubeNode) InjectEmptyMC(ctx context.Context, targetURL, nodeName string
 	emptyFrag.FragOp = InstallEmptyMC
 	emptyFrag.FragSubject = "InstallEmptyMC"
 	emptyFrag.SetUserArg("target", nodeName)
-	_, _, _, err = s.ExternalGetCircuitToLeader(ctx, nodeName, targetURL, emptyFrag, "InjectEmptyMC")
+	_, _, _, _, err = s.ExternalGetCircuitToLeader(ctx, nodeName, targetURL, emptyFrag, "InjectEmptyMC")
 	return
 }
 
