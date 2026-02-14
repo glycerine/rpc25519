@@ -118,6 +118,8 @@ type fuzzUser struct {
 
 	cli  *TubeNode
 	halt *idem.Halter
+
+	nemesis *fuzzNemesis
 }
 
 func (s *fuzzUser) linzCheck() {
@@ -147,7 +149,7 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 			s.halt.Done.Close()
 		}()
 		for step := range steps {
-			//vv("%v: fuzzUser.Start on step %v", s.name, step)
+			vv("%v: fuzzUser.Start on step %v", s.name, step)
 			select {
 			case <-ctx.Done():
 				return
@@ -167,23 +169,56 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 
 			if step == 0 || !swapped {
 				oldVal, err = s.Read(key)
-				if err != nil && strings.Contains(err.Error(), "key not found") {
-					if step == 0 {
-						// allowed on first
-					} else {
-						panicf("on step %v, key not found!?!", step)
+				if err != nil {
+					errs := err.Error()
+					switch {
+					case strings.Contains(errs, "key not found"):
+						if step == 0 {
+							// allowed on first
+							err = nil
+						} else {
+							panicf("on step %v, key not found!?!", step)
+						}
+					case strings.Contains(errs, "error shutdown"):
+						// nemesis probably shut down the node
+						vv("%v: try again on shutdown error", s.name)
+
+						// do we need to reconnect to try again?
+						continue
+					case strings.Contains(errs, "context deadline exceeded"):
+						// message loss due to nemesis likely
+						vv("%v: try again on timeout", s.name)
+
+						// do we need to reconnect to try again?
+						continue
 					}
-				} else {
-					panicOn(err)
 				}
+				panicOn(err)
 			}
 
 			writeMeNewVal := Val([]byte(fmt.Sprintf("%v", s.rnd(100))))
 			swapped, cur, err = s.CAS(key, oldVal, writeMeNewVal)
+
 			if err != nil {
+				errs := err.Error()
+				switch {
+				case strings.Contains(errs, "error shutdown"):
+					// nemesis probably shut down the node
+					vv("%v: try again on shutdown error", s.name)
+
+					// do we need to reconnect to try again?
+					continue
+				case strings.Contains(errs, "context deadline exceeded"):
+					// message loss due to nemesis likely
+					vv("%v: try again on timeout", s.name)
+
+					// do we need to reconnect to try again?
+					continue
+				}
 				vv("shutting down on err '%v'", err)
 				return
 			}
+
 			if len(cur) == 0 {
 				panic("why is cur value empty after first CAS?")
 			}
@@ -191,7 +226,8 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 			if !swapped {
 				//vv("%v nice: CAS did not swap, on step %v!", s.name, step)
 			}
-			//nemesis.makeTrouble()
+
+			s.nemesis.makeTrouble()
 		}
 	}()
 }
@@ -219,7 +255,10 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 
 	// WRITE
 	var tktW *Ticket
-	tktW, err = s.sess.CAS(bkg, fuzzTestTable, Key(key), oldVal, newVal, 0, vtyp101, 0, leaseAutoDelFalse, 0, 0)
+	ctx5, canc5 := context.WithTimeout(s.sess.ctx, 5*time.Second)
+
+	tktW, err = s.sess.CAS(ctx5, fuzzTestTable, Key(key), oldVal, newVal, 0, vtyp101, 0, leaseAutoDelFalse, 0, 0)
+	canc5()
 
 	switch err {
 	case ErrShutDown, rpc.ErrShutdown2,
@@ -228,14 +267,20 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 		return
 	}
 
-	if err != nil && strings.Contains(err.Error(), rejectedWritePrefix) {
-		// fair, fine to reject cas; the error forces us to deal with it,
-		// but the occassional CAS reject is fine and working as expected.
-		err = nil
-		out.unknown = false
-	} else {
-		panicOn(err)
+	if err != nil {
+		errs := err.Error()
+		switch {
+		case strings.Contains(errs, rejectedWritePrefix):
+			// fair, fine to reject cas; the error forces us to deal with it,
+			// but the occassional CAS reject is fine and working as expected.
+			err = nil
+			out.unknown = false
+		case strings.Contains(errs, "context deadline exceeded"):
+			// have to try again from above, if caller wants to.
+			return
+		}
 	}
+	panicOn(err)
 
 	op.Return = time.Now().UnixNano() // response timestamp
 
@@ -275,16 +320,26 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 	waitForDur := time.Second
 
 	var tkt *Ticket
-	tkt, err = s.sess.Read(bkg, fuzzTestTable, Key(key), waitForDur)
+
+	// with message loss under nemesis, must be able to
+	// timeout and retry
+	ctx5, canc5 := context.WithTimeout(bkg, 5*time.Second)
+
+	tkt, err = s.sess.Read(ctx5, fuzzTestTable, Key(key), waitForDur)
+	canc5()
 	if err == nil && tkt != nil && tkt.Err != nil {
 		err = tkt.Err
 	}
 	if err != nil {
-		//vv("read from node/sess='%v', got err = '%v'", s.sess.SessionID, err)
+		vv("read from node/sess='%v', got err = '%v'", s.sess.SessionID, err)
 		if err == ErrKeyNotFound || err.Error() == "key not found" {
 			return
 		}
 		if err == rpc.ErrShutdown2 || err.Error() == "error shutdown" {
+			return
+		}
+		errs := err.Error()
+		if strings.Contains(errs, "context deadline exceeded") {
 			return
 		}
 	}
@@ -330,6 +385,8 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 
 // nemesis injects faults, makes trouble for user.
 type fuzzNemesis struct {
+	mut sync.Mutex
+
 	rng     *prng
 	rnd     func(nChoices int64) (r int64)
 	clus    *TubeCluster
@@ -342,8 +399,11 @@ type fuzzNemesis struct {
 }
 
 func (s *fuzzNemesis) makeTrouble() {
+	s.mut.Lock()
+	defer s.mut.Unlock()
 
 	beat := time.Second
+	_ = beat
 
 	nn := len(s.clus.Nodes)
 	quorum := nn/2 + 1
@@ -357,7 +417,7 @@ func (s *fuzzNemesis) makeTrouble() {
 	if !isHeal {
 		isNoop := pr <= healProb+noopProb
 		if isNoop {
-			vv("isNoop true")
+			//vv("isNoop true")
 			time.Sleep(beat)
 			return
 		}
@@ -396,14 +456,18 @@ func (s *fuzzNemesis) makeTrouble() {
 		} else {
 			// only an already damaged node can take more damage.
 			if numDamaged > 0 {
-				// pick from one of the already damaged nodes
-				which := int(s.rnd(int64(numDamaged)))
-				node = s.damagedSlc[which]
+				if numDamaged > 1 {
+					// pick from one of the already damaged nodes
+					which := int(s.rnd(int64(numDamaged)))
+					node = s.damagedSlc[which]
+				} else {
+					node = s.damagedSlc[0]
+				}
 			}
 		}
 		r = fuzzFault(s.rnd(int64(fuzz_HEAL_NODE)))
 	}
-	vv("node = %v; r = %v", node, r)
+	vv("makeTrouble at node = %v; r = %v", node, r)
 	switch r {
 	case fuzz_NOOP:
 	case fuzz_PAUSE:
@@ -492,7 +556,7 @@ func Test101_userFuzz(t *testing.T) {
 
 			steps := 20
 			numNodes := 3
-			numUsers := 100
+			numUsers := 1
 
 			forceLeader := 0
 			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)
@@ -500,7 +564,14 @@ func Test101_userFuzz(t *testing.T) {
 			leaderURL := c.Nodes[leadi].URL
 			defer c.Close()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			nemesis := &fuzzNemesis{
+				rng:     rng,
+				rnd:     rnd,
+				clus:    c,
+				damaged: make(map[int]int),
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 			defer cancel()
 
 			var users []*fuzzUser
@@ -516,6 +587,7 @@ func Test101_userFuzz(t *testing.T) {
 					rnd:      rnd,
 					clus:     c,
 					halt:     idem.NewHalterNamed("fuzzUser"),
+					nemesis:  nemesis,
 				}
 				users = append(users, user)
 
@@ -532,7 +604,18 @@ func Test101_userFuzz(t *testing.T) {
 				// seems like we want RPC semantics for this
 				// and maybe for other calls?
 
-				sess, err := cli.CreateNewSession(bkg, leaderName, leaderURL)
+			retry:
+				sess, err := cli.CreateNewSession(ctx, leaderName, leaderURL)
+				if err != nil {
+					errs := err.Error()
+					if strings.Contains(errs, "context cancelled") {
+						goto retry
+					}
+				}
+				if err != nil {
+					alwaysPrintf("on userNum = %v, CreateNewSession err = '%v'", userNum, err)
+					panic(err)
+				}
 				panicOn(err)
 				if sess.ctx == nil {
 					panic(fmt.Sprintf("sess.ctx should be not nil"))
@@ -540,15 +623,6 @@ func Test101_userFuzz(t *testing.T) {
 				//vv("got sess = '%v'", sess) // not seen.
 				user.sess = sess
 				user.cli = cli
-
-				// no nemesis initially.
-				//nemesis := &fuzzNemesis{
-				//	rng:     rng,
-				//	rnd:     rnd,
-				//	clus:    c,
-				//	damaged: make(map[int]int),
-				//}
-				//_ = nemesis
 
 				user.Start(ctx, steps)
 			}

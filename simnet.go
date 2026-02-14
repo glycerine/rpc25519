@@ -698,7 +698,7 @@ func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 
 // maxX says how big to allocate our x tracking arrays
 // for the execution history of the network.
-const maxX = 1_000_000 // 100K too small for 707/709 test
+const maxX = 10_000_000 // 100K too small for 707/709 test. 1M too small fuzz_test 101
 
 func (s *Simnet) preallocateX() {
 	limit := maxX
