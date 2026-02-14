@@ -159,38 +159,63 @@ type cliInfo struct {
 }
 
 // from and to are eventId
-func (s *cliInfo) addCall(fromIdx, toIdx, eventId int) {
+func (s *cliInfo) addCall(fromIdx, toIdx, eventID int) {
 	calls, ok := s.call[fromIdx]
 	if !ok {
 		calls = make(map[int]int)
 		s.call[fromIdx] = calls
 	}
-	calls[toIdx] = eventId
+	calls[toIdx] = eventID
 }
-func (s *cliInfo) addReturn(fromIdx, toIdx, eventId int) {
+func (s *cliInfo) addReturn(fromIdx, toIdx, eventID int) {
 	rets, ok := s.ret[toIdx]
 	if !ok {
 		rets = make(map[int]int)
 		s.ret[toIdx] = rets
 	}
-	rets[fromIdx] = eventId
+	rets[fromIdx] = eventID
 }
 func newCliInfo(clientId int) *cliInfo {
 	return &cliInfo{
 		clientId: clientId,
-		call:     make(map[int]map[int]int), // fromIdx -> toIdx   -> eventId
-		ret:      make(map[int]map[int]int), // toIdx   -> fromIdx -> eventId
+		call:     make(map[int]map[int]int), // fromIdx -> toIdx   -> eventID
+		ret:      make(map[int]map[int]int), // toIdx   -> fromIdx -> eventID
 	}
 }
 
 type perClientEventStats struct {
-	clientId          int
-	attemptN          int
-	completedCallsN   int
-	completedCallsPct float64
+	clientId int
+
+	// attemptN (is partitioned into) =
+	// oneToOneCallsN (only 1 receive) +
+	// danglingCallsN (no recives; dropped message) +
+	// dupReturnN (2 or more receives for same eventID; duplicated message) +
+	// misDeliveredCallsN (received by wrong counter-party).
+	//
+	// but we cannot see misDelivered calls only looking
+	// from the client side (so no actual counte for them).
+	//
+	// the dupReturnN we know about only if the client
+	// receives a return event for the same eventID twice or more.
+	// We hope for none, but check for them as a sanity check
+	// (is the data really messed up?) anyway -- since the
+	// receiver can re-try sending a reply it thought was lost.
+	//
+	// there could also be erroneous returns without a corresponding
+	// call; we sanity check for those.
+	attemptN int
+
+	oneToOneCallsN   int
+	oneToOneCallsPct float64
 
 	danglingCallsN   int
 	danglingCallsPct float64
+
+	dupReturnN   int
+	dupReturnPct float64
+
+	returnWithoutCallN   int
+	returnWithoutCallPct float64
 
 	cliInfo *cliInfo
 }
@@ -202,12 +227,20 @@ func newPerClientEventStats(clientId int) *perClientEventStats {
 }
 
 type totalEventStats struct {
-	attemptN          int
-	completedCallsN   int
-	completedCallsPct float64
+	countAllEvents int
+
+	attemptN         int // call attempts
+	oneToOneCallsN   int
+	oneToOneCallsPct float64
 
 	danglingCallsN   int
 	danglingCallsPct float64
+
+	dupReturnN   int
+	dupReturnPct float64
+
+	returnWithoutCallN   int
+	returnWithoutCallPct float64
 
 	perCli map[int]*perClientEventStats
 }
@@ -222,33 +255,43 @@ func (s *totalEventStats) getPerClientStats(clientId int) *perClientEventStats {
 	return c
 }
 
-func newTotalEventStats() *totalEventStats {
+func newTotalEventStats(countAllEvents int) *totalEventStats {
 	return &totalEventStats{
-		perCli: make(map[int]*perClientEventStats),
+		countAllEvents: countAllEvents,
+		perCli:         make(map[int]*perClientEventStats),
 	}
 }
 
 func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
-	tot = newTotalEventStats()
-	n := len(evs)
-	s = &eventStats{
-		N: n,
-	}
+	tot = newTotalEventStats(len(evs))
 
 	// eventID -> index of CallEvent in evs.
+	// This we assert must be 1:1 since if
+	// the client re-tries a call, it must (and
+	// does) assign it a new EventID when
+	// is appends the new CallEvent to its
+	// unique index in evs.
 	event2caller := make(map[int]int)
-	_ = event2caller // not sure we need this...
 
-	// eventID -> ReturnEvent indexes
+	// eventID -> ReturnEvent list of indexes into evs
 	event2return := make(map[int]map[int]struct{})
+
+	// track all of the returns to check for any missing a call.
+	unmatchedReturns := make(map[int]int) // index in evs -> eventID
 
 	for i, e := range evs {
 		eventID := e.Id
 		if e.Kind == porc.CallEvent {
-			event2caller[eventId] = i
+			// sanity assert there is no prior event2caller entry.
+			prior, already := event2caller[eventID]
+			if already {
+				panicf("sanity check failed: for eventID(%v) have prior(%v)", eventID, prior)
+			}
+			event2caller[eventID] = i
 			continue
 		}
-		// e is porc.ReturnEvent
+		// e == evs[i] is a porc.ReturnEvent
+		unmatchedReturns[i] = eventID
 		returnList, ok := event2return[eventID]
 		if !ok {
 			returnList = make(map[int]struct{})
@@ -256,49 +299,62 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 		}
 		returnList[i] = struct{}{}
 	}
-	// now do match making
+	// now do matching on eventID
 	for i, e := range evs {
 		eventID := e.Id
-		clientId = e.ClientId
-		stats := tot.getPerClientStats(clientId)
-		info := stats.cliInfo
+		clientID := e.ClientId
+		per := tot.getPerClientStats(clientID)
+		info := per.cliInfo
 
 		if e.Kind == porc.CallEvent {
-			returnList, ok := event2return[eventID]
-			if ok {
-				for j := range returnList {
-					info.addCall(i, j, eventID)
-					info.addReturn(i, j, eventID)
-				}
-			}
-			continue
-		}
-	}
-
-	tot.completedCallsPct
-	tot.danglingCallsN
-	tot.danglingCallsPct
-
-	// compute stats for each client
-	for clientID, perCliStats := range tot.perCli { // map[int]*perClientEventStats
-		cliInfo := perCliStats.cliInfo
-		for cliInfo {
+			per.attemptN++
 			tot.attemptN++
-			stats.attemptN++
-			if completdCall {
-				stats.completedCallsN++
-				tot.completedCallsN++
-			} else {
-				stats.danglingCallsN++
+
+			returnList, ok := event2return[eventID]
+			if !ok {
+				// no returns/replies for this event, it is dangling.
+				per.danglingCallsN++
 				tot.danglingCallsN++
 			}
+			if len(returnList) == 1 {
+				// single call, single return/response.
+				per.oneToOneCallsN++
+				tot.oneToOneCallsN++
+			} else {
+				per.dupReturnN++
+				tot.dupReturnN++
+			}
+			for j := range returnList {
+				info.addCall(i, j, eventID)
+				info.addReturn(i, j, eventID)
+				delete(unmatchedReturns, j)
+			}
 		}
-		stats.completedCallsPct = float64(stats.completedCallsN) / float64(stats.attemptN)
-		stats.danglingCallsPct = float64(stats.danglingCallsN) / float64(stats.attemptN)
 	}
-	tot.completedCallsPct = float64(tot.completedCallsN) / float64(tot.attemptN)
-	tot.danglingCallsPct = float64(tot.danglingCallsN) / float64(tot.attemptN)
 
+	// compute stats per each client, and overall in tot.
+	for _, per := range tot.perCli { // map[int]*perClientEventStats
+		base := float64(per.attemptN)
+		per.oneToOneCallsPct = float64(per.oneToOneCallsN) / base
+		per.danglingCallsPct = float64(per.danglingCallsN) / base
+		per.dupReturnPct = float64(per.dupReturnN) / base
+	}
+	n := float64(tot.attemptN)
+	tot.oneToOneCallsPct = float64(tot.oneToOneCallsN) / n
+	tot.danglingCallsPct = float64(tot.danglingCallsN) / n
+	tot.dupReturnPct = float64(tot.dupReturnN) / n
+
+	tot.returnWithoutCallN = len(unmatchedReturns)
+	tot.returnWithoutCallPct = float64(tot.returnWithoutCallN) / n
+	for _, eventID := range unmatchedReturns {
+		i := event2caller[eventID] // callEvent index for this eventID
+		clientID := evs[i].ClientId
+		per := tot.getPerClientStats(clientID)
+		per.returnWithoutCallN++
+	}
+	for _, per := range tot.perCli {
+		per.returnWithoutCallPct = float64(per.returnWithoutCallN) / float64(per.attemptN)
+	}
 	return
 }
 
