@@ -241,7 +241,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, upcall b
 	listhash := s.hashPeerIDs(list, v)
 	hashDiffers := (listhash != s.listhash)
 	if hashDiffers {
-		vv("%v: new membership seen (cur = '%v'; vs new = '%v')\n cur s.listhash='%v'\n versus new listhash='%v'\n", s.name, s.members, list, s.listhash, listhash) // seen a ton, of course.
+		//vv("%v: new membership seen (cur = '%v'; vs new = '%v')\n cur s.listhash='%v'\n versus new listhash='%v'\n", s.name, s.members, list, s.listhash, listhash) // seen a ton, of course.
 	}
 
 	s.members = list.Clone()
@@ -509,6 +509,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 
 	args := rr.args
 	origVers := s.vers
+	_ = origVers
 
 	if hdr, ok := rpc.HDRFromContext(rr.ctx); ok {
 		////vv("Ping, from ctx: hdr='%v'", hdr)
@@ -582,7 +583,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	if updated {
 		err := s.setVersUpcall(updatedVers, updatedList, "amCzar: handlePing updated")
 		panicOn(err)
-		vv("Czar.Ping: membership has changed (was %v) is now: {%v}", origVers, s.shortRMemberSummary())
+		//vv("Czar.Ping: membership has changed (was %v) is now: {%v}", origVers, s.shortRMemberSummary())
 
 	} else {
 		//vv("Czar.Ping: no membership change with this call. cur: '%v'", s.shortRMemberSummary())
@@ -1158,7 +1159,7 @@ fullRestart:
 					if membr.testingAmCzarCh != nil {
 
 						membr.testingAmCzarCh <- false
-						vv("%v: reported not czar", name)
+						//vv("%v: reported not czar", name)
 					}
 
 					czarLeaseUntilTm = czarTkt.LeaseUntilTm
@@ -1188,7 +1189,7 @@ fullRestart:
 						continue fullRestart
 					}
 
-					vv("%v: just went from unknown to nonCzar, created new vers='%v' (left='%v'); errCzarAttempt was '%v' ; from czarTkt.Val, we got back nonCzarMembers = '%v'", name, vers2, time.Until(vers2.CzarLeaseUntilTm), errCzarAttempt, nonCzarMembers)
+					//vv("%v: just went from unknown to nonCzar, created new vers='%v' (left='%v'); errCzarAttempt was '%v' ; from czarTkt.Val, we got back nonCzarMembers = '%v'", name, vers2, time.Until(vers2.CzarLeaseUntilTm), errCzarAttempt, nonCzarMembers)
 
 					//pp("I am not czar, did not write to key: '%v'", err) // seen regularly???
 					////pp("I am not czar, did not write to key: '%v'; nonCzarMembers = '%v'", err, nonCzarMembers) // too much to list all 100 in the log.
@@ -1418,7 +1419,7 @@ fullRestart:
 						time.Sleep(time.Second)
 						continue fullRestart
 					}
-					vv("member(name='%v') did rpc.Call to Czar.Ping, got reply: %v", name, pingReplyToFill) // seen regularly
+					//vv("member(name='%v') did rpc.Call to Czar.Ping, got reply: %v", name, pingReplyToFill) // seen regularly
 
 					if pingReplyToFill == nil {
 						panicf("err was nil, how can pingReplyToFill be nil??")

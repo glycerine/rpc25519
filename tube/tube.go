@@ -16025,42 +16025,46 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (doneEarly, needSa
 
 		tkt.Err = priorTkt.Err
 
-		switch priorTkt.Op {
-		case READ, READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
-			// return the previous read, to preserve linz.
+		//switch priorTkt.Op {
+		//case READ, READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS, CAS, WRITE:
+		// why not DELETE_KEY, MAKE_TABLE, DELETE_TABLE, RENAME_TABLE too?
+		// return the previous read, to preserve linz.
 
-			// READ and SHOW_KEYS:
-			tkt.Val = priorTkt.Val
-			tkt.Vtype = priorTkt.Vtype
-			tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
-			tkt.Leasor = priorTkt.Leasor
-			tkt.LeasorPeerID = priorTkt.LeasorPeerID
+		// READ and SHOW_KEYS, CAS and WRITE:
+		tkt.Val = priorTkt.Val
+		tkt.Vtype = priorTkt.Vtype
+		tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
+		tkt.Leasor = priorTkt.Leasor
+		tkt.LeasorPeerID = priorTkt.LeasorPeerID
+		tkt.VersionRead = priorTkt.VersionRead
 
-			tkt.LeaseEpoch = priorTkt.LeaseEpoch
-			tkt.LeaseEpochT0 = priorTkt.LeaseEpochT0
+		tkt.LeaseEpoch = priorTkt.LeaseEpoch
+		tkt.LeaseEpochT0 = priorTkt.LeaseEpochT0
 
-			tkt.LeaseAutoDel = priorTkt.LeaseAutoDel
-			tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
-			tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
+		tkt.LeaseAutoDel = priorTkt.LeaseAutoDel
+		tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
+		tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
 
-			// tkt.AsOfLogIndex below, for all.
-			tkt.LeaderLocalReadGoodUntil = priorTkt.LeaderLocalReadGoodUntil
-			tkt.LeaderLocalReadAtTm = priorTkt.LeaderLocalReadAtTm
-			tkt.LeaderLocalReadHLC = priorTkt.LeaderLocalReadHLC
+		// tkt.AsOfLogIndex below, for all.
+		tkt.LeaderLocalReadGoodUntil = priorTkt.LeaderLocalReadGoodUntil
+		tkt.LeaderLocalReadAtTm = priorTkt.LeaderLocalReadAtTm
+		tkt.LeaderLocalReadHLC = priorTkt.LeaderLocalReadHLC
 
-			// READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
-			tkt.KeyValRangeScan = priorTkt.KeyValRangeScan
-			tkt.Stage += ":prev_read_val_used_leaderDoneEarlyOnSessionStuff"
-		default:
-			alwaysPrintf("%v: ignoring duplicated '%v' op; SessionSerial=%v", s.name, tkt.Op, tkt.SessionSerial)
+		// READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
+		tkt.KeyValRangeScan = priorTkt.KeyValRangeScan
 
-			// CAS
-			// essential for fuzz_teast 101 with nemesis, on retry:
-			tkt.CASwapped = priorTkt.CASwapped
-			tkt.CASRejectedBecauseCurVal = priorTkt.CASRejectedBecauseCurVal
+		// CAS
+		tkt.CASwapped = priorTkt.CASwapped
+		tkt.CASRejectedBecauseCurVal = priorTkt.CASRejectedBecauseCurVal
 
-			tkt.Stage += ":already_applied_leaderDoneEarlyOnSessionStuff"
-		}
+		tkt.Stage += ":prev_read_val_used_leaderDoneEarlyOnSessionStuff"
+
+		//default:
+		//	alwaysPrintf("%v: ignoring duplicated '%v' op; SessionSerial=%v", s.name, tkt.Op, tkt.SessionSerial)
+		//
+		//	tkt.Stage += ":already_applied_leaderDoneEarlyOnSessionStuff"
+		//}
+
 		tkt.DupDetected = true
 		tkt.LogIndex = priorTkt.LogIndex
 		tkt.Term = priorTkt.Term
