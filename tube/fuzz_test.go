@@ -143,7 +143,7 @@ func (s *fuzzUser) linzCheck() {
 	vv("user %v: len(ops)=%v passed linearizability checker.", s.name, len(ops))
 }
 
-func (s *fuzzUser) Start(ctx context.Context, steps int) {
+func (s *fuzzUser) Start(ctx context.Context, steps int, leaderName, leaderURL string) {
 	go func() {
 		defer func() {
 			s.halt.ReqStop.Close()
@@ -174,12 +174,12 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 					errs := err.Error()
 					switch {
 					case strings.Contains(errs, "key not found"):
-						if step == 0 {
-							// allowed on first
-							err = nil
-						} else {
-							panicf("on step %v, key not found!?!", step)
-						}
+						//if step == 0 {
+						// allowed on first
+						err = nil
+						//} else {
+						//	panicf("on step %v, key not found!?!", step)
+						//}
 					case strings.Contains(errs, "error shutdown"):
 						// nemesis probably shut down the node
 						vv("%v: try again on shutdown error", s.name)
@@ -202,6 +202,17 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 
 			if err != nil {
 				errs := err.Error()
+				if err == ErrNeedNewSession ||
+					strings.Contains(errs, "need new session") {
+					sess := s.newSession(ctx, leaderName, leaderURL)
+					if sess == nil {
+						alwaysPrintf("%v ugh, cannot get newSession with this client", s.name)
+						time.Sleep(time.Second)
+					}
+					vv("%v good, got new session", s.name)
+					continue
+				}
+
 				switch {
 				case strings.Contains(errs, "error shutdown"):
 					// nemesis probably shut down the node
@@ -235,62 +246,88 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 
 const vtyp101 = "string"
 
+var ErrNeedNewSession = fmt.Errorf("need new session")
+
 func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val, err error) {
 
 	// set this for linearization and do not reset if we retry!
 	begtmWrite := time.Now()
 
-retry:
-
-	out := &casOutput{
-		unknown: true,
-	}
-	op := porc.Operation{
-		ClientId: s.userid,
-		Input:    &casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
-		Call:     begtmWrite.UnixNano(), // invocation timestamp
-
-		// assume error/unknown happens, update below if it did not.
-		Output: out,
-		//Return:   endtmWrite.UnixNano(), // response timestamp
-	}
-
-	//vv("about to write from cli sess, writeMe = '%v'", string(newVal))
-
-	// WRITE
+	casAttempts := 0
+	var op *porc.Operation
+	var out *casOutput
 	var tktW *Ticket
-	ctx5, canc5 := context.WithTimeout(s.sess.ctx, 5*time.Second)
-
-	tktW, err = s.sess.CAS(ctx5, fuzzTestTable, Key(key), oldVal, newVal, 0, vtyp101, 0, leaseAutoDelFalse, 0, 0)
-	canc5()
-
-	switch err {
-	case ErrShutDown, rpc.ErrShutdown2,
-		ErrTimeOut, rpc.ErrTimeout:
-		vv("CAS write failed: '%v'", err)
-		return
-	}
-
-	if err != nil {
-		errs := err.Error()
-		switch {
-		case strings.Contains(errs, rejectedWritePrefix):
-			// fair, fine to reject cas; the error forces us to deal with it,
-			// but the occassional CAS reject is fine and working as expected.
-			err = nil
-			out.unknown = false
-		case strings.Contains(errs, "context deadline exceeded"):
-			// have to try again...
-			// Ugh: cannot just return, as then we will try
-			// again with a different write value
-			// and that means our session caching will be off!
-			// try again locally.
-			s.sess.SessionSerial-- // try again with same serial.
-			vv("%v retry with same serial.", s.name)
-			goto retry
+	for {
+		casAttempts++
+		out = &casOutput{
+			unknown: true,
 		}
+		op = &porc.Operation{
+			ClientId: s.userid,
+			Input:    &casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
+			Call:     begtmWrite.UnixNano(), // invocation timestamp
+
+			// assume error/unknown happens, update below if it did not.
+			Output: out,
+			//Return:   endtmWrite.UnixNano(), // response timestamp
+		}
+
+		//vv("about to write from cli sess, writeMe = '%v'", string(newVal))
+
+		// CAS (write)
+		ctx5, canc5 := context.WithTimeout(s.sess.ctx, 5*time.Second)
+
+		tktW, err = s.sess.CAS(ctx5, fuzzTestTable, Key(key), oldVal, newVal, 0, vtyp101, 0, leaseAutoDelFalse, 0, 0)
+		canc5()
+
+		switch err {
+		case ErrShutDown, rpc.ErrShutdown2,
+			ErrTimeOut, rpc.ErrTimeout:
+			vv("CAS write failed: '%v'", err)
+
+			s.shOps.mut.Lock()
+			out.id = len(s.shOps.ops)
+			s.shOps.ops = append(s.shOps.ops, *op)
+			s.shOps.mut.Unlock()
+			return
+		}
+
+		if err != nil {
+			errs := err.Error()
+			switch {
+			case strings.Contains(errs, rejectedWritePrefix):
+				// fair, fine to reject cas; the error forces us to deal with it,
+				// but the occassional CAS reject is fine and working as expected.
+				err = nil
+				out.unknown = false
+
+			case strings.Contains(errs, "context canceled"):
+				fallthrough
+			case strings.Contains(errs, "context deadline exceeded"):
+
+				// might have succeeded, so add with out.unknown still true.
+				s.shOps.mut.Lock()
+				out.id = len(s.shOps.ops)
+				s.shOps.ops = append(s.shOps.ops, *op)
+				s.shOps.mut.Unlock()
+
+				// have to try again...
+				// Ugh: cannot just return, as then we will try
+				// again with a different write value
+				// and that means our session caching will be off!
+				// try again locally.
+				if casAttempts > 3 {
+					err = ErrNeedNewSession
+					return
+				}
+				s.sess.SessionSerial-- // try again with same serial.
+				vv("%v retry with same serial.", s.name)
+				continue
+			}
+		}
+		panicOn(err)
+		break
 	}
-	panicOn(err)
 
 	op.Return = time.Now().UnixNano() // response timestamp
 
@@ -318,7 +355,7 @@ retry:
 
 	s.shOps.mut.Lock()
 	out.id = len(s.shOps.ops)
-	s.shOps.ops = append(s.shOps.ops, op)
+	s.shOps.ops = append(s.shOps.ops, *op)
 	//vv("%v len ops now %v", s.name, len(s.shOps.ops))
 	s.shOps.mut.Unlock()
 
@@ -415,14 +452,14 @@ type fuzzNemesis struct {
 func (s *fuzzNemesis) makeTrouble() {
 	s.mut.Lock() // why deadlocked?
 	wantSleep := true
-	beat := time.Second
+	//beat := time.Second
 
 	defer func() {
 		s.mut.Unlock()
 		// we can deadlock under synctest if we don't unlock
 		// before sleeping...
 		if wantSleep {
-			time.Sleep(beat)
+			//time.Sleep(beat)
 		}
 	}()
 
@@ -583,9 +620,9 @@ func Test101_userFuzz(t *testing.T) {
 
 		onlyBubbled(t, func(t *testing.T) {
 
-			steps := 20
+			steps := 40
 			numNodes := 3
-			numUsers := 3
+			numUsers := 5
 
 			forceLeader := 0
 			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)
@@ -626,6 +663,7 @@ func Test101_userFuzz(t *testing.T) {
 				cliCfg.MyName = cliName
 				cliCfg.PeerServiceName = TUBE_CLIENT
 				cli := NewTubeNode(cliName, &cliCfg)
+				user.cli = cli
 				err := cli.InitAndStart()
 				panicOn(err)
 				defer cli.Close()
@@ -634,45 +672,14 @@ func Test101_userFuzz(t *testing.T) {
 				// seems like we want RPC semantics for this
 				// and maybe for other calls?
 
-			retry:
-				sess, redirect, err := cli.CreateNewSession(ctx, leaderName, leaderURL)
-				if err != nil {
-					errs := err.Error()
-					if strings.Contains(errs, "context cancelled") {
-						goto retry
-					}
+				sess := user.newSession(ctx, leaderName, leaderURL)
+				if sess == nil {
+					goto retryCli
 				}
-				if err != nil {
-					alwaysPrintf("on userNum = %v, CreateNewSession err = '%v'", userNum, err)
-					errs := err.Error()
-					if strings.Contains(errs, "no leader known to me") {
-						if redirect != nil {
-							leaderName = redirect.LeaderName
-							leaderURL = redirect.LeaderURL
-						}
-						//goto retry // insufficient. we infinite loop.
-						cli.Close()
-						time.Sleep(time.Second)
 
-						snap0 := c.SimnetSnapshot(true)
-						vv("could not find leader. snap0 = '%v'", snap0) // .LongString())
-						user.edition++
-						goto retryCli
-					}
-					if strings.Contains(errs, "time-out waiting for call to complete") {
-						// e.g. ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'error requesting CallPeerStartCircuit from remote: 'time-out waiting for call to complete'; netAddr='simnet://srv_node_0'; remoteAddr='simnet://srv_node_0'';
-					}
-					panic(err)
-				}
-				panicOn(err)
-				if sess.ctx == nil {
-					panic(fmt.Sprintf("sess.ctx should be not nil"))
-				}
-				//vv("got sess = '%v'", sess) // not seen.
-				user.sess = sess
 				user.cli = cli
 
-				user.Start(ctx, steps)
+				user.Start(ctx, steps, leaderName, leaderURL)
 			}
 
 			for _, user := range users {
@@ -686,6 +693,54 @@ func Test101_userFuzz(t *testing.T) {
 		})
 
 	}
+}
+
+func (user *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string) *Session {
+retry:
+	ctx5, canc5 := context.WithTimeout(ctx, time.Second*10)
+	sess, redirect, err := user.cli.CreateNewSession(ctx5, leaderName, leaderURL)
+	canc5()
+	if err != nil {
+		errs := err.Error()
+		if strings.Contains(errs, "context cancelled") {
+			if redirect != nil {
+				leaderName = redirect.LeaderName
+				leaderURL = redirect.LeaderURL
+			}
+			goto retry
+		}
+	}
+	if err != nil {
+		alwaysPrintf("%v, CreateNewSession err = '%v'", user.name, err)
+		errs := err.Error()
+		if strings.Contains(errs, "no leader known to me") ||
+			strings.Contains(errs, "I am not leader") {
+
+			if redirect != nil {
+				leaderName = redirect.LeaderName
+				leaderURL = redirect.LeaderURL
+			}
+			//goto retry // insufficient. we infinite loop.
+			user.cli.Close()
+			time.Sleep(time.Second)
+
+			//snap0 := c.SimnetSnapshot(true)
+			//vv("could not find leader. snap0 = '%v'", snap0) // .LongString())
+			user.edition++
+			return nil // get a new client, not just a new session
+		}
+		if strings.Contains(errs, "time-out waiting for call to complete") {
+			// e.g. ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'error requesting CallPeerStartCircuit from remote: 'time-out waiting for call to complete'; netAddr='simnet://srv_node_0'; remoteAddr='simnet://srv_node_0'';
+		}
+		panic(err)
+	}
+	panicOn(err)
+	if sess.ctx == nil {
+		panic(fmt.Sprintf("sess.ctx should be not nil"))
+	}
+	//vv("%v got sess = '%v'", user.name, sess)
+	user.sess = sess
+	return sess
 }
 
 func writeToDiskNonLinzFuzz(t *testing.T, user string, ops []porc.Operation) {

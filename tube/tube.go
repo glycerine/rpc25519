@@ -12620,7 +12620,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 
 			ckt, ackMsg, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, circuitName, userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
 
-			vv("%v ackMsg = '%v'", s.name, ackMsg)
+			//vv("%v ackMsg = '%v'", s.name, ackMsg)
 
 			// can get errors if we removed the leader and then
 			// got our ckt redirected to new leader, in a logical race.
@@ -12683,13 +12683,13 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 					// responder thinks they are leader, adopt that idea for now.
 					select {
 					case s.setLeaderCktChan <- ckt:
-						vv("in ExternalGetCircuitToLeader(): sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
+						//vv("in ExternalGetCircuitToLeader(): sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
 					case <-s.Halt.ReqStop.Chan:
 						err = ErrShutDown
 						return
 					}
 				} else {
-					vv("%v notice we just made a ckt to non-leader. try again. %v thinks leader is '%v' (ID: '%v'; URL='%v')", s.name, ckt.RemotePeerName, lname, ackMsg.HDR.Args["leaderID"], ackMsg.HDR.Args["leaderURL"])
+					//vv("%v notice we just made a ckt to non-leader. try again. %v thinks leader is '%v' (ID: '%v'; URL='%v')", s.name, ckt.RemotePeerName, lname, ackMsg.HDR.Args["leaderID"], ackMsg.HDR.Args["leaderURL"])
 
 					redirect = &LeaderRedirect{
 						LeaderName: lname,
