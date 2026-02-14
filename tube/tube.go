@@ -15687,7 +15687,7 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderName, leaderURL s
 		}
 		_ = ckt
 		_ = onlyPossibleAddr
-		vv("%v good, cli got ckt to leaderURL='%v': from '%v'", s.name, leaderURL, ckt.LocalPeerName)
+		//vv("%v good, cli got ckt to leaderURL='%v': from '%v'", s.name, leaderURL, ckt.LocalPeerName)
 	}
 
 	desc := fmt.Sprintf("createNewSession at '%v'", s.name)

@@ -375,11 +375,12 @@ func (s *Simnet) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
-	select {
+	vv("about to wait for fault.proceed=%p  on fault='%v'", fault.proceed, fault) // sn 152 not released (ok now). but still sn 452 not released
+	select {                                                                      // fuzz_test 101 hung here. durably blocked.
 	case pause := <-fault.proceed:
 		_ = pause
 		err = fault.err
-		//vv("server '%v' hostFault from '%v'; dd='%v'; err = '%v'", hostName, dd, err)
+		vv("'%v' server, we have received on fault.proceed=%p from '%v'; dd='%v'; err = '%v'; pause = %v", hostName, fault.proceed, dd, err, pause)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -886,7 +887,7 @@ type hostFault struct {
 }
 
 func (s *Simnet) newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSends bool) *hostFault {
-	return &hostFault{
+	f := &hostFault{
 		hostName:            hostName,
 		DropDeafSpec:        dd,
 		deliverDroppedSends: deliverDroppedSends,
@@ -895,6 +896,14 @@ func (s *Simnet) newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSe
 		reqtm:               time.Now(),
 		who:                 goID(),
 	}
+	//if f.sn == 152 || f.sn == 153 || f.sn == 452 {
+	if f.sn == 452 {
+		vv("issue sn: %v  hostFault  at proceed=%p \n stack= %v", f.sn, f.proceed, stack())
+		// simnet_api.go:900 [goID 97] 2000-01-01 00:00:04.718000001 +0000 UTC issue sn: 152  hostFault  at proceed=0xc088dc8c80
+		// which matches with
+		// simnet.go:414 [goID 12] 2000-01-01 00:00:04.719000000 +0000 UTC op.sn released (sn=153): 'mop{SERVER(origin nil) FAULT_HOST init:unk, arr:unk, complete:unk op.sn:153, who:97, msg.sn:0}'; op.proceed=0xc088dc8c80
+	}
+	return f
 }
 
 type closeSimnode struct {

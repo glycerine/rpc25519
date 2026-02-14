@@ -13,6 +13,7 @@ import (
 	"github.com/glycerine/idem"
 
 	porc "github.com/glycerine/porcupine"
+	//porc "github.com/anishathalye/porcupine"
 	rpc "github.com/glycerine/rpc25519"
 )
 
@@ -317,9 +318,9 @@ func opstring(e porc.Operation) string {
 }
 
 func evstring(e porc.Event) string {
-	k := "CallEvent"
+	k := "porc.CallEvent"
 	if e.Kind {
-		k = "ReturnEvent"
+		k = "porc.ReturnEvent"
 	}
 	return fmt.Sprintf(`porc.Event{
     ClientId: %v,

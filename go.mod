@@ -4,7 +4,6 @@ go 1.24.3
 
 require (
 	4d63.com/tz v1.2.0
-	github.com/glycerine/porcupine v1.2.0-jea
 	github.com/apoorvam/goterminal v0.0.0-20180523175556-614d345c47e5
 	github.com/caio/go-tdigest v3.1.0+incompatible
 	github.com/cloudflare/circl v1.6.1
@@ -19,6 +18,7 @@ require (
 	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
 	github.com/glycerine/parallelwalk v0.3.1
+	github.com/glycerine/porcupine v1.2.3-jea
 	github.com/glycerine/rbtree v0.2.1
 	github.com/glycerine/restic-chunker-mod v0.5.0
 	github.com/glycerine/zygomys/v9 v9.1.2

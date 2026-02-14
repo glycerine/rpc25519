@@ -411,6 +411,7 @@ func (s *Simnet) release(op *mop, addme int) {
 	default:
 		select {
 		case op.proceed <- time.Duration(addme):
+			//vv("op.sn released (sn=%v): '%v'; op.proceed=%p", op.sn, op, op.proceed) // seen sn=153 fuzz_test 101. not seen for sn=452
 		//case op.proceed <- s.scenario.tick + time.Duration(addme):
 		case <-s.halt.ReqStop.Chan:
 			return
@@ -435,9 +436,11 @@ func (s *Simnet) release(op *mop, addme int) {
 	// REPAIR_HOST,
 	// SCENARIO,
 	// BATCH:
-
+	panic("not reachable anymore, right?")
 	close(op.proceed)
-
+	//if op.sn == 153 {
+	//vv("op.sn released (sn=%v): '%v'", op.sn, op) // not seen!
+	//}
 	// panic(fmt.Sprintf("mop kind '%v' needs release() policy", int(s.kind)))
 }
 
@@ -676,7 +679,9 @@ func (op *mop) cliOrSrvString() (cs string) {
 func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 
 	sn = s.nextMopSn.Add(1)
-	//vv("issue sn: %v  %v  at %v", sn, desc, fileLine(2))
+	//if sn == 152 || sn == 153 {
+	//	vv("issue sn: %v  %v  at\n stack= %v", sn, desc, stack())
+	//}
 
 	if s.cfg.skipExecutionHistory {
 		return
@@ -3890,7 +3895,7 @@ func (s *Simnet) startMEQacceptor() {
 				s.add2meq(s.newCktFaultMop(cktFault), j)
 
 			case hostFault := <-s.injectHostFaultCh:
-				//vv("j=%v injectHostFaultCh ->  hostFault='%v'", j, hostFault)
+				vv("j=%v injectHostFaultCh ->  hostFault='%v' with hostFault.proceed=%p", j, hostFault, hostFault.proceed)
 				//s.injectHostFault(hostFault)
 				s.add2meq(s.newHostFaultMop(hostFault), j)
 
