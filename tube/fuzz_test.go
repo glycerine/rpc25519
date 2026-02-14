@@ -126,7 +126,7 @@ type fuzzUser struct {
 
 func (s *fuzzUser) linzCheck() {
 	// Analysis
-	// Expecting some ops
+	// Expecting some events
 	s.shEvents.mut.Lock()
 	defer s.shEvents.mut.Unlock()
 
@@ -1080,10 +1080,10 @@ type casOutput struct {
 
 func (o *casOutput) String() string {
 	return fmt.Sprintf(`casOutput{
-            id: %v
-       swapped: %v
-      notFound: %v
-      valueCur: %v
+            id: %v,
+       swapped: %v,
+      notFound: %v,
+      valueCur: %q,
 }`, o.id, o.swapped, o.notFound,
 		o.valueCur)
 }
@@ -1092,7 +1092,7 @@ func (ri *casInput) String() string {
 	if ri.op == STRING_REGISTER_GET {
 		return fmt.Sprintf("casInput{op: %v}", ri.op)
 	}
-	return fmt.Sprintf("casInput{op: %v, oldString: '%v', newString: '%v'}", ri.op, ri.oldString, ri.newString)
+	return fmt.Sprintf(`casInput{op: %v, oldString: %q, newString: %q}`, ri.op, ri.oldString, ri.newString)
 }
 
 // a sequential specification of a register, that holds a string
