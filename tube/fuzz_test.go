@@ -186,12 +186,12 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 					errs := err.Error()
 					switch {
 					case strings.Contains(errs, "key not found"):
-						//if step == 0 {
-						// allowed on first
-						err = nil
-						//} else {
-						//	panicf("on step %v, key not found!?!", step)
-						//}
+						if step == 0 {
+							// allowed on first
+							err = nil
+						} else {
+							panicf("%v key not found on step %v!?!", s.name, step)
+						}
 					case strings.Contains(errs, "error shutdown"):
 						// nemesis probably shut down the node
 						vv("%v: try again on shutdown error", s.name)
@@ -422,6 +422,22 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 	if err != nil {
 		vv("read from node/sess='%v', got err = '%v'", s.sess.SessionID, err)
 		if err == ErrKeyNotFound || err.Error() == "key not found" {
+
+			returnEvent := porc.Event{
+				ClientId: s.userid,
+				Id:       eventID, // must match call event
+				Kind:     porc.ReturnEvent,
+				Value: &casOutput{
+					op:       STRING_REGISTER_GET,
+					id:       eventID,
+					notFound: true,
+				},
+			}
+
+			s.shEvents.mut.Lock()
+			s.shEvents.evs = append(s.shEvents.evs, returnEvent)
+			s.shEvents.mut.Unlock()
+
 			return
 		}
 		if err == rpc.ErrShutdown2 || err.Error() == "error shutdown" {
