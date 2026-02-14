@@ -317,12 +317,16 @@ func opstring(e porc.Operation) string {
 }
 
 func evstring(e porc.Event) string {
+	k := "CallEvent"
+	if e.Kind {
+		k = "ReturnEvent"
+	}
 	return fmt.Sprintf(`porc.Event{
     ClientId: %v,
         Kind: %v,
           Id: %v,
        Value: %v,
-}`, e.ClientId, e.Kind, e.Id, e.Value)
+}`, e.ClientId, k, e.Id, e.Value)
 }
 
 type eventSlice []porc.Event
