@@ -320,9 +320,9 @@ func evstring(e porc.Event) string {
 	return fmt.Sprintf(`porc.Event{
     ClientId: %v,
         Kind: %v,
-       Value: %v,
           Id: %v,
-}`, e.ClientId, e.Kind, e.Value, e.Id)
+       Value: %v,
+}`, e.ClientId, e.Kind, e.Id, e.Value)
 }
 
 type eventSlice []porc.Event
@@ -341,9 +341,9 @@ func (s opsSlice) String() (r string) {
 }
 
 func (s eventSlice) String() (r string) {
-	r = "eventSlice{\n"
+	r = "[]porc.Event{\n"
 	for i, e := range s {
-		r += fmt.Sprintf("%02d: %v,\n", i, evstring(e))
+		r += fmt.Sprintf("/* %02d: */ %v,\n", i, evstring(e))
 	}
 	r += "}"
 	return

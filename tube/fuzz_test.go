@@ -13,7 +13,7 @@ import (
 	//"strconv"
 	"sync"
 
-	//"sync/atomic"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -97,21 +97,22 @@ func (f fuzzFault) String() string {
 	panic(fmt.Sprintf("unknown fuzzFault: %v", int(f)))
 }
 
-type sharedOps struct {
+type sharedEvents struct {
 	mut sync.Mutex
-	ops []porc.Operation
+	evs []porc.Event
 }
 
 // user tries to get read/write work done.
 type fuzzUser struct {
-	t       *testing.T
-	seed    uint64
-	name    string
-	userid  int
-	edition int // avoid simnet freak out on reuse of server name
+	atomicLastEventID *atomic.Int64
+	t                 *testing.T
+	seed              uint64
+	name              string
+	userid            int
+	edition           int // avoid simnet freak out on reuse of server name
 
-	shOps *sharedOps
-	rnd   func(nChoices int64) (r int64)
+	shEvents *sharedEvents
+	rnd      func(nChoices int64) (r int64)
 
 	numNodes int
 	clus     *TubeCluster
@@ -126,21 +127,22 @@ type fuzzUser struct {
 func (s *fuzzUser) linzCheck() {
 	// Analysis
 	// Expecting some ops
-	s.shOps.mut.Lock()
-	defer s.shOps.mut.Unlock()
+	s.shEvents.mut.Lock()
+	defer s.shEvents.mut.Unlock()
 
-	ops := s.shOps.ops
-	if len(ops) == 0 {
-		panicf("user %v: expected ops > 0, got 0", s.name)
+	evs := s.shEvents.evs
+	if len(evs) == 0 {
+		panicf("user %v: expected evs > 0, got 0", s.name)
 	}
 
-	linz := porc.CheckOperations(stringCasModel, ops)
+	linz := porc.CheckEvents(stringCasModel, evs)
 	if !linz {
-		writeToDiskNonLinzFuzz(s.t, s.name, ops)
-		panicf("error: user %v: expected operations to be linearizable! seed='%v'; ops='%v'", s.name, s.seed, opsSlice(ops))
+		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; evs='%v'", s.name, s.seed, eventSlice(evs))
+		writeToDiskNonLinzFuzzEvents(s.t, s.name, evs)
+		panicf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
 	}
 
-	vv("user %v: len(ops)=%v passed linearizability checker.", s.name, len(ops))
+	vv("user %v: len(evs)=%v passed linearizability checker.", s.name, len(evs))
 }
 
 func (s *fuzzUser) Start(ctx context.Context, steps int, leaderName, leaderURL string) {
@@ -250,27 +252,29 @@ var ErrNeedNewSession = fmt.Errorf("need new session")
 
 func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val, err error) {
 
-	// set this for linearization and do not reset if we retry!
-	begtmWrite := time.Now()
+	var eventID int
 
 	casAttempts := 0
-	var op *porc.Operation
-	var out *casOutput
 	var tktW *Ticket
 	for {
+		eventID = int(s.atomicLastEventID.Add(1))
 		casAttempts++
-		out = &casOutput{
-			unknown: true,
-		}
-		op = &porc.Operation{
+		callEvent := porc.Event{
 			ClientId: s.userid,
-			Input:    &casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
-			Call:     begtmWrite.UnixNano(), // invocation timestamp
+			//Input:    &casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
+			Kind:  porc.CallEvent,
+			Value: &casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
+			Id:    eventID,
+			//Call:  begtmWrite.UnixNano(), // invocation timestamp
 
 			// assume error/unknown happens, update below if it did not.
-			Output: out,
+			//Output: out,
 			//Return:   endtmWrite.UnixNano(), // response timestamp
 		}
+
+		s.shEvents.mut.Lock()
+		s.shEvents.evs = append(s.shEvents.evs, callEvent)
+		s.shEvents.mut.Unlock()
 
 		//vv("about to write from cli sess, writeMe = '%v'", string(newVal))
 
@@ -285,10 +289,6 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 			ErrTimeOut, rpc.ErrTimeout:
 			vv("CAS write failed: '%v'", err)
 
-			s.shOps.mut.Lock()
-			out.id = len(s.shOps.ops)
-			s.shOps.ops = append(s.shOps.ops, *op)
-			s.shOps.mut.Unlock()
 			return
 		}
 
@@ -299,17 +299,10 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 				// fair, fine to reject cas; the error forces us to deal with it,
 				// but the occassional CAS reject is fine and working as expected.
 				err = nil
-				out.unknown = false
 
 			case strings.Contains(errs, "context canceled"):
 				fallthrough
 			case strings.Contains(errs, "context deadline exceeded"):
-
-				// might have succeeded, so add with out.unknown still true.
-				s.shOps.mut.Lock()
-				out.id = len(s.shOps.ops)
-				s.shOps.ops = append(s.shOps.ops, *op)
-				s.shOps.mut.Unlock()
 
 				// have to try again...
 				// Ugh: cannot just return, as then we will try
@@ -329,15 +322,12 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 		break
 	}
 
-	op.Return = time.Now().UnixNano() // response timestamp
-
 	if tktW.DupDetected {
 		vv("%v tkt.DupDetected true!", s.name)
 	}
 
-	// skip adding to porcupine ops if the CAS failed to write.
 	if tktW.CASwapped {
-		vv("%v: CAS write ok on tktW = '%v'; tktW.Val='%v'", s.name, tktW.Desc, string(tktW.Val)) // why not seen 101?
+		vv("%v: CAS write ok on tktW = '%v'; tktW.Val='%v'", s.name, tktW.Desc, string(tktW.Val))
 		swapped = true
 		if string(tktW.Val) != string(newVal) {
 			panicf("why does tktW.Val('%v') != newVal('%v')", string(tktW.Val), string(newVal))
@@ -349,15 +339,25 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 		curVal = Val(append([]byte{}, tktW.CASRejectedBecauseCurVal...))
 		vv("CAS write failed (did not write new value '%v'), we read back current value ('%v') instead", string(newVal), string(curVal))
 	}
-	out.valueCur = string(curVal)
-	out.swapped = swapped
-	out.unknown = false
+	out := &casOutput{
+		id:       eventID,
+		valueCur: string(curVal),
+		swapped:  swapped,
+	}
+	resultEvent := porc.Event{
+		ClientId: s.userid,
+		Kind:     porc.ReturnEvent,
+		Id:       int(eventID),
+		Value:    out,
+		// no timestamp, because, from the porcupine docs:
+		// "returns are only relatively ordered and do not
+		// have absolute timestamps"
+	}
 
-	s.shOps.mut.Lock()
-	out.id = len(s.shOps.ops)
-	s.shOps.ops = append(s.shOps.ops, *op)
-	//vv("%v len ops now %v", s.name, len(s.shOps.ops))
-	s.shOps.mut.Unlock()
+	s.shEvents.mut.Lock()
+	s.shEvents.evs = append(s.shEvents.evs, resultEvent)
+	//vv("%v len shEvents.evs now %v", s.name, len(s.shEvents.evs))
+	s.shEvents.mut.Unlock()
 
 	return
 }
@@ -366,16 +366,25 @@ var fuzzTestTable = Key("table101")
 
 func (s *fuzzUser) Read(key string) (val Val, err error) {
 
-	begtmRead := time.Now()
-
 	waitForDur := time.Second
 
 	var tkt *Ticket
 
+	eventID := int(s.atomicLastEventID.Add(1))
+	callEvent := porc.Event{
+		ClientId: s.userid,
+		Id:       eventID,
+		Kind:     porc.CallEvent,
+		Value:    &casInput{op: STRING_REGISTER_GET},
+	}
+
+	s.shEvents.mut.Lock()
+	s.shEvents.evs = append(s.shEvents.evs, callEvent)
+	s.shEvents.mut.Unlock()
+
 	// with message loss under nemesis, must be able to
 	// timeout and retry
 	ctx5, canc5 := context.WithTimeout(bkg, 5*time.Second)
-
 	tkt, err = s.sess.Read(ctx5, fuzzTestTable, Key(key), waitForDur)
 	canc5()
 	if err == nil && tkt != nil && tkt.Err != nil {
@@ -408,28 +417,19 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 
 	val = Val(append([]byte{}, tkt.Val...))
 
-	endtmRead := time.Now()
-
-	//v2 := tkt.Val
-	//i2, err := strconv.Atoi(string(v2))
-	//panicOn(err)
-
-	out := &casOutput{
-		valueCur: string(val),
-	}
-	op := porc.Operation{
+	returnEvent := porc.Event{
 		ClientId: s.userid,
-		Input:    &casInput{op: STRING_REGISTER_GET},
-		Call:     begtmRead.UnixNano(), // invocation timestamp
-		//Output:   i2,
-		Output: out,
-		Return: endtmRead.UnixNano(), // response timestamp
+		Id:       eventID, // must match call event
+		Kind:     porc.ReturnEvent,
+		Value: &casOutput{
+			id:       eventID,
+			valueCur: string(val),
+		},
 	}
 
-	s.shOps.mut.Lock()
-	out.id = len(s.shOps.ops)
-	s.shOps.ops = append(s.shOps.ops, op)
-	s.shOps.mut.Unlock()
+	s.shEvents.mut.Lock()
+	s.shEvents.evs = append(s.shEvents.evs, returnEvent)
+	s.shEvents.mut.Unlock()
 
 	return
 }
@@ -640,20 +640,22 @@ func Test101_userFuzz(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 			defer cancel()
 
+			atomicLastEventID := &atomic.Int64{}
 			var users []*fuzzUser
-			shOps := &sharedOps{}
+			shEvents := &sharedEvents{}
 			for userNum := 0; userNum < numUsers; userNum++ {
 				user := &fuzzUser{
-					shOps:    shOps,
-					t:        t,
-					seed:     seed,
-					name:     fmt.Sprintf("user%v", userNum),
-					userid:   userNum,
-					numNodes: numNodes,
-					rnd:      rnd,
-					clus:     c,
-					halt:     idem.NewHalterNamed("fuzzUser"),
-					nemesis:  nemesis,
+					atomicLastEventID: atomicLastEventID,
+					shEvents:          shEvents,
+					t:                 t,
+					seed:              seed,
+					name:              fmt.Sprintf("user%v", userNum),
+					userid:            userNum,
+					numNodes:          numNodes,
+					rnd:               rnd,
+					clus:              c,
+					halt:              idem.NewHalterNamed("fuzzUser"),
+					nemesis:           nemesis,
 				}
 				users = append(users, user)
 
@@ -763,6 +765,28 @@ func writeToDiskNonLinzFuzz(t *testing.T, user string, ops []porc.Operation) {
 		t.Fatalf("ops visualization failed")
 	}
 	t.Logf("wrote ops visualization to %s", fd.Name())
+}
+
+func writeToDiskNonLinzFuzzEvents(t *testing.T, user string, evs []porc.Event) {
+
+	res, info := porc.CheckEventsVerbose(stringCasModel, evs, 0)
+	if res != porc.Illegal {
+		t.Fatalf("expected output %v, got output %v", porc.Illegal, res)
+	}
+	nm := fmt.Sprintf("red.nonlinz.%v.%03d.user_%v.html", t.Name(), 0, user)
+	for i := 1; fileExists(nm) && i < 1000; i++ {
+		nm = fmt.Sprintf("red.nonlinz.%v.%03d.user_%v.html", t.Name(), i, user)
+	}
+	vv("writing out non-linearizable evs history '%v'", nm)
+	fd, err := os.Create(nm)
+	panicOn(err)
+	defer fd.Close()
+
+	err = porc.Visualize(stringCasModel, info, fd)
+	if err != nil {
+		t.Fatalf("evs visualization failed")
+	}
+	t.Logf("wrote evs visualization to %s", fd.Name())
 }
 
 func Test199_dsim_seed_string_parsing(t *testing.T) {
@@ -932,7 +956,7 @@ func Test099_fuzz_testing_linz(t *testing.T) {
 			jnode2 := int(rnd(int64(numNodes)))
 			user.Read(key, jnode2)
 
-			ops = user.ops
+			ops = user.evs
 		})
 
 		linz := porc.CheckOperations(registerModel, ops)
@@ -1041,6 +1065,7 @@ func (o stringRegisterOp) String() string {
 }
 
 type casInput struct {
+	id        int
 	op        stringRegisterOp
 	oldString string
 	newString string
@@ -1050,7 +1075,6 @@ type casOutput struct {
 	id       int
 	swapped  bool   // used for CAS
 	notFound bool   // used for read
-	unknown  bool   // used when operation times out
 	valueCur string // for read/when cas rejects
 }
 
@@ -1059,10 +1083,8 @@ func (o *casOutput) String() string {
             id: %v
        swapped: %v
       notFound: %v
-       unknown: %v
       valueCur: %v
 }`, o.id, o.swapped, o.notFound,
-		o.unknown,
 		o.valueCur)
 }
 
@@ -1092,8 +1114,7 @@ var stringCasModel = porc.Model{
 			newState = st // state is unchanged by GET
 
 			legal = (out.notFound && st == "<empty>") ||
-				(!out.notFound && st == out.valueCur) ||
-				out.unknown
+				(!out.notFound && st == out.valueCur)
 			return
 
 		case STRING_REGISTER_PUT:
@@ -1114,9 +1135,7 @@ var stringCasModel = porc.Model{
 			// the default is that the state stays the same.
 			newState = st
 
-			if out.unknown {
-				legal = true
-			} else if inp.oldString == st && out.swapped {
+			if inp.oldString == st && out.swapped {
 				legal = true
 			} else if inp.oldString != st && !out.swapped {
 				legal = true
@@ -1151,9 +1170,6 @@ var stringCasModel = porc.Model{
 
 		case STRING_REGISTER_CAS:
 
-			if out.unknown {
-				return fmt.Sprintf("CAS(unkown/timed-out: if '%v' -> '%v')", inp.oldString, inp.newString)
-			}
 			if out.swapped {
 				return fmt.Sprintf("CAS(ok: '%v' ->'%v')", inp.oldString, inp.newString)
 			}
