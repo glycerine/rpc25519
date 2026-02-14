@@ -220,7 +220,7 @@ func (s *fuzzUser) Start(ctx context.Context, steps int) {
 			}
 
 			if len(cur) == 0 {
-				panic("why is cur value empty after first CAS?")
+				panicf("why is cur value empty after first CAS? oldVal='%v', writeMeNewVal='%v', swapped='%v', err='%v'", string(oldVal), string(writeMeNewVal), swapped, err)
 			}
 			oldVal = cur
 			if !swapped {
@@ -236,6 +236,7 @@ const vtyp101 = "string"
 
 func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val, err error) {
 
+retry:
 	begtmWrite := time.Now()
 
 	out := &casOutput{
@@ -276,17 +277,27 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 			err = nil
 			out.unknown = false
 		case strings.Contains(errs, "context deadline exceeded"):
-			// have to try again from above, if caller wants to.
-			return
+			// have to try again...
+			// Ugh: cannot just return, as then we will try
+			// again with a different write value
+			// and that means our session caching will be off!
+			// try again locally.
+			s.sess.SessionSerial-- // try again with same serial.
+			vv("%v retry with same serial.", s.name)
+			goto retry
 		}
 	}
 	panicOn(err)
 
 	op.Return = time.Now().UnixNano() // response timestamp
 
+	if tktW.DupDetected {
+		vv("%v tkt.DupDetected true!", s.name)
+	}
+
 	// skip adding to porcupine ops if the CAS failed to write.
 	if tktW.CASwapped {
-		//vv("CAS write ok.")
+		vv("%v: CAS write ok on tktW = '%v'; tktW.Val='%v'", s.name, tktW.Desc, string(tktW.Val)) // why not seen 101?
 		swapped = true
 		if string(tktW.Val) != string(newVal) {
 			panicf("why does tktW.Val('%v') != newVal('%v')", string(tktW.Val), string(newVal))
@@ -296,7 +307,7 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 	} else {
 		swapped = false // for emphasis
 		curVal = Val(append([]byte{}, tktW.CASRejectedBecauseCurVal...))
-		//vv("CAS write failed (did not write new value '%v'), we read back current value (%v) instead", string(newVal), string(curVal))
+		vv("CAS write failed (did not write new value '%v'), we read back current value ('%v') instead", string(newVal), string(curVal))
 	}
 	out.valueCur = string(curVal)
 	out.swapped = swapped
@@ -1018,7 +1029,7 @@ var stringCasModel = porc.Model{
 			} else if inp.oldString != st && !out.swapped {
 				legal = true
 			} else {
-				//vv("warning: legal is false in CAS because out.swapped = '%v', inp.oldString = '%v', inp.newString = '%v'; old state = '%v', newState = '%v'; out.valueCur = '%v'", out.swapped, inp.oldString, inp.newString, st, newState, out.valueCur)
+				vv("warning: legal is false in CAS because out.swapped = '%v', inp.oldString = '%v', inp.newString = '%v'; old state = '%v', newState = '%v'; out.valueCur = '%v'", out.swapped, inp.oldString, inp.newString, st, newState, out.valueCur)
 			}
 
 			if legal {

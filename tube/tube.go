@@ -11777,8 +11777,9 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		curVal := leaf.Value
 
 		agree := bytes.Equal(curVal, tkt.OldVal)
-		//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), agree, string(tkt.Val))
-
+		if agree {
+			vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), agree, string(tkt.Val))
+		}
 		if !agree { // reject CAS
 			tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
 			tkt.CASwapped = false
@@ -11796,6 +11797,9 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	//vv("kvstoreWrite takes care of leasing rejections")
 	s.kvstoreWrite(tkt, false, false)
 	tkt.CASwapped = (tkt.Err == nil)
+	if !tkt.CASwapped {
+		vv("%v not tkt.CASwapped b/c tkt.Err = '%v'", s.name, tkt.Err) // not seen
+	}
 }
 
 func (s *TubeNode) validLease(tkt *Ticket, leaf *art.Leaf) bool {
@@ -16048,7 +16052,13 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (doneEarly, needSa
 			tkt.KeyValRangeScan = priorTkt.KeyValRangeScan
 			tkt.Stage += ":prev_read_val_used_leaderDoneEarlyOnSessionStuff"
 		default:
-			//alwaysPrintf("%v: ignoring duplicated '%v' op; SessionSerial=%v", s.name, tkt.Op, tkt.SessionSerial)
+			alwaysPrintf("%v: ignoring duplicated '%v' op; SessionSerial=%v", s.name, tkt.Op, tkt.SessionSerial)
+
+			// CAS
+			// essential for fuzz_teast 101 with nemesis, on retry:
+			tkt.CASwapped = priorTkt.CASwapped
+			tkt.CASRejectedBecauseCurVal = priorTkt.CASRejectedBecauseCurVal
+
 			tkt.Stage += ":already_applied_leaderDoneEarlyOnSessionStuff"
 		}
 		tkt.DupDetected = true
