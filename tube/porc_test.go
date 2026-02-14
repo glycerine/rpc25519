@@ -12,7 +12,7 @@ import (
 
 	"github.com/glycerine/idem"
 
-	porc "github.com/anishathalye/porcupine"
+	porc "github.com/glycerine/porcupine"
 	rpc "github.com/glycerine/rpc25519"
 )
 

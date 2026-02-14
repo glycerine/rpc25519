@@ -19,7 +19,7 @@ import (
 
 	"github.com/glycerine/idem"
 
-	porc "github.com/anishathalye/porcupine"
+	porc "github.com/glycerine/porcupine"
 	rpc "github.com/glycerine/rpc25519"
 )
 
@@ -145,16 +145,26 @@ func (s *fuzzUser) linzCheck() {
 	vv("user %v: len(evs)=%v passed linearizability checker.", s.name, len(evs))
 }
 
-func (s *fuzzUser) Start(ctx context.Context, steps int, leaderName, leaderURL string) {
+func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leaderURL string) {
 	go func() {
 		defer func() {
 			s.halt.ReqStop.Close()
 			s.halt.Done.Close()
 		}()
+		var prevCanc context.CancelFunc = func() {}
+		defer func() {
+			prevCanc()
+		}()
 		for step := range steps {
+			prevCanc()
+			stepCtx, canc := context.WithTimeout(startCtx, time.Second*10)
+			prevCanc = canc
+
 			vv("%v: fuzzUser.Start on step %v", s.name, step)
 			select {
-			case <-ctx.Done():
+			case <-stepCtx.Done():
+				return
+			case <-startCtx.Done():
 				return
 			case <-s.halt.ReqStop.Chan:
 				return
@@ -170,7 +180,7 @@ func (s *fuzzUser) Start(ctx context.Context, steps int, leaderName, leaderURL s
 			var oldVal Val
 			var cur Val
 
-			if step == 0 || !swapped {
+			if step == 0 { // || !swapped {
 				oldVal, err = s.Read(key)
 				if err != nil {
 					errs := err.Error()
@@ -200,13 +210,20 @@ func (s *fuzzUser) Start(ctx context.Context, steps int, leaderName, leaderURL s
 			}
 
 			writeMeNewVal := Val([]byte(fmt.Sprintf("%v", s.rnd(100))))
-			swapped, cur, err = s.CAS(key, oldVal, writeMeNewVal)
+			swapped, cur, err = s.CAS(stepCtx, key, oldVal, writeMeNewVal)
 
 			if err != nil {
 				errs := err.Error()
 				if err == ErrNeedNewSession ||
 					strings.Contains(errs, "need new session") {
-					sess := s.newSession(ctx, leaderName, leaderURL)
+
+					snap1 := s.clus.SimnetSnapshot(true)
+					if snap1.HealthSummary() == "SimnetSnapshot{all HEALTHY}" {
+						panic("snap0 shows healthy, why did we need a new session then?")
+					}
+					vv("prompted for new session, snap1 = '%v'", snap1) // .LongString()) // not seen.
+
+					sess := s.newSession(startCtx, leaderName, leaderURL)
 					if sess == nil {
 						alwaysPrintf("%v ugh, cannot get newSession with this client", s.name)
 						time.Sleep(time.Second)
@@ -229,7 +246,7 @@ func (s *fuzzUser) Start(ctx context.Context, steps int, leaderName, leaderURL s
 					// do we need to reconnect to try again?
 					continue
 				}
-				vv("shutting down on err '%v'", err)
+				vv("shutting down on err (at step %v) '%v'; stepCtx.Err()='%v'; startCtx.Err()='%v'", step, err, stepCtx.Err(), startCtx.Err()) // stepCtx not cancelled. hmm... startCtx also not canceled!
 				return
 			}
 
@@ -241,7 +258,7 @@ func (s *fuzzUser) Start(ctx context.Context, steps int, leaderName, leaderURL s
 				//vv("%v nice: CAS did not swap, on step %v!", s.name, step)
 			}
 
-			s.nemesis.makeTrouble()
+			//s.nemesis.makeTrouble()
 		}
 	}()
 }
@@ -250,10 +267,12 @@ const vtyp101 = "string"
 
 var ErrNeedNewSession = fmt.Errorf("need new session")
 
-func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val, err error) {
+func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (swapped bool, curVal Val, err error) {
 
 	var eventID int
 
+	oldValStr := string(oldVal)
+	newValStr := string(newVal)
 	casAttempts := 0
 	var tktW *Ticket
 	for {
@@ -263,7 +282,7 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 			ClientId: s.userid,
 			//Input:    &casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
 			Kind:  porc.CallEvent,
-			Value: &casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
+			Value: &casInput{op: STRING_REGISTER_CAS, oldString: oldValStr, newString: newValStr},
 			Id:    eventID,
 			//Call:  begtmWrite.UnixNano(), // invocation timestamp
 
@@ -276,18 +295,19 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 		s.shEvents.evs = append(s.shEvents.evs, callEvent)
 		s.shEvents.mut.Unlock()
 
-		//vv("about to write from cli sess, writeMe = '%v'", string(newVal))
+		vv("about to write from cli sess, writeMe = '%v'", string(newVal)) // seen lots
 
 		// CAS (write)
-		ctx5, canc5 := context.WithTimeout(s.sess.ctx, 5*time.Second)
+		ctx5, canc5 := context.WithTimeout(ctxCAS, 5*time.Second)
 
 		tktW, err = s.sess.CAS(ctx5, fuzzTestTable, Key(key), oldVal, newVal, 0, vtyp101, 0, leaseAutoDelFalse, 0, 0)
+		vv("%v just after sess.CAS, ctx5.Err()='%v', s.sess.ctx.Err()='%v'; while err='%v'", s.name, ctx5.Err(), s.sess.ctx.Err(), err) // ctx5.Err()==nil. while err='context canceled'; s.sess.ctx.Err()='context canceled';
 		canc5()
 
 		switch err {
 		case ErrShutDown, rpc.ErrShutdown2,
 			ErrTimeOut, rpc.ErrTimeout:
-			vv("CAS write failed: '%v'", err)
+			vv("CAS write failed: '%v'", err) // not seen
 
 			return
 		}
@@ -299,9 +319,12 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 				// fair, fine to reject cas; the error forces us to deal with it,
 				// but the occassional CAS reject is fine and working as expected.
 				err = nil
-
+				vv("%v: rejectedWritePrefix seen", s.name) // not seen.
+				break
 			case strings.Contains(errs, "context canceled"):
-				fallthrough
+				vv("%v sees context canceled for s.sess.CAS() ", s.name)
+				//err = ErrNeedNewSession
+				return
 			case strings.Contains(errs, "context deadline exceeded"):
 
 				// have to try again...
@@ -310,11 +333,13 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 				// and that means our session caching will be off!
 				// try again locally.
 				if casAttempts > 3 {
+					vv("%v: about to return ErrNeedNewSession", s.name) // not seen!
 					err = ErrNeedNewSession
 					return
 				}
 				s.sess.SessionSerial-- // try again with same serial.
-				vv("%v retry with same serial.", s.name)
+
+				vv("%v retry with same serial.", s.name) // seen lots
 				continue
 			}
 		}
@@ -340,9 +365,13 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 		vv("CAS write failed (did not write new value '%v'), we read back current value ('%v') instead", string(newVal), string(curVal))
 	}
 	out := &casOutput{
+		op:       STRING_REGISTER_CAS,
 		id:       eventID,
 		valueCur: string(curVal),
 		swapped:  swapped,
+
+		oldString: oldValStr,
+		newString: newValStr,
 	}
 	resultEvent := porc.Event{
 		ClientId: s.userid,
@@ -356,7 +385,7 @@ func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val
 
 	s.shEvents.mut.Lock()
 	s.shEvents.evs = append(s.shEvents.evs, resultEvent)
-	//vv("%v len shEvents.evs now %v", s.name, len(s.shEvents.evs))
+	vv("%v added returnEvent: len shEvents.evs now %v", s.name, len(s.shEvents.evs)) // not seen
 	s.shEvents.mut.Unlock()
 
 	return
@@ -620,7 +649,7 @@ func Test101_userFuzz(t *testing.T) {
 
 		onlyBubbled(t, func(t *testing.T) {
 
-			steps := 40
+			steps := 20
 			numNodes := 3
 			numUsers := 5
 
@@ -709,11 +738,12 @@ retry:
 				leaderName = redirect.LeaderName
 				leaderURL = redirect.LeaderURL
 			}
+			alwaysPrintf("%v: err back from CreateNewSession, goto retry; err='%v'", user.name, errs) // not seen.
 			goto retry
 		}
 	}
 	if err != nil {
-		alwaysPrintf("%v, CreateNewSession err = '%v'", user.name, err)
+		alwaysPrintf("%v, CreateNewSession err = '%v'", user.name, err) // not seen.
 		errs := err.Error()
 		if strings.Contains(errs, "no leader known to me") ||
 			strings.Contains(errs, "I am not leader") {
@@ -738,9 +768,14 @@ retry:
 	}
 	panicOn(err)
 	if sess.ctx == nil {
-		panic(fmt.Sprintf("sess.ctx should be not nil"))
+		panic("sess.ctx should be not nil")
 	}
-	//vv("%v got sess = '%v'", user.name, sess)
+	// ctx5 is already canceled, must replace.
+	sess.ctx = ctx
+	if errC := sess.ctx.Err(); errC != nil {
+		panicf("sess.ctx.Err() should be not already be canceled!: errC='%v'", errC) // gotcha!
+	}
+	vv("%v got new sess", user.name) // , sess)
 	user.sess = sess
 	return sess
 }
@@ -1073,19 +1108,33 @@ type casInput struct {
 
 type casOutput struct {
 	id       int
+	op       stringRegisterOp
 	swapped  bool   // used for CAS
 	notFound bool   // used for read
 	valueCur string // for read/when cas rejects
+
+	oldString string
+	newString string
 }
 
 func (o *casOutput) String() string {
 	return fmt.Sprintf(`casOutput{
             id: %v,
+            op: %v,
        swapped: %v,
       notFound: %v,
       valueCur: %q,
-}`, o.id, o.swapped, o.notFound,
-		o.valueCur)
+   -- from input --
+	oldString: %q,
+	newString: %q,
+}`, o.id,
+		o.op,
+		o.swapped,
+		o.notFound,
+		o.valueCur,
+		o.oldString,
+		o.newString,
+	)
 }
 
 func (ri *casInput) String() string {

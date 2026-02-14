@@ -140,6 +140,12 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 // The leasing operations are still applied as usual for a Write.
 func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string, leaseDur time.Duration, leaseAutoDel bool, oldVersionCAS, oldLeaseEpochCAS int64) (tkt *Ticket, err error) {
 
+	if ctx.Err() != nil {
+		vv("%v: TubeNode.CAS sees already cancelled ctx, bailing early", s.name) // not seen
+		err = ErrNeedNewSession
+		return
+	}
+
 	if oldVersionCAS > 0 && oldLeaseEpochCAS > 0 {
 		return nil, fmt.Errorf("error in call to CAS: cannot have both oldVersionCAS and oldLeaseEpochCAS set.")
 	}
@@ -185,19 +191,26 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 		tkt.Leasor = s.name
 	}
 
+	var sessDone <-chan struct{}
 	if sess != nil {
 		tkt.SessionID = sess.SessionID
 		tkt.SessionSerial = sess.SessionSerial
 		tkt.MinSessSerialWaiting = sess.MinSessSerialWaiting
 		tkt.SessionLastKnownIndex = sess.LastKnownIndex
 		//vv("Write set tkt.SessionSerial = %v", tkt.SessionSerial)
+		sessDone = sess.ctx.Done()
 	}
 
 	select {
 	case s.writeReqCh <- tkt:
 		// proceed to wait below for txt.done
 	case <-ctx.Done():
+		vv("case <-ctx.Done() 1") // not seen.
 		err = ctx.Err()
+		return
+	case <-sessDone:
+		err = sess.ctx.Err()
+		vv("case <-sessDone 1, err='%v'", err) // seen 3x! err='context canceled'
 		return
 	case <-s.Halt.ReqStop.Chan:
 		err = ErrTimeOut
@@ -218,7 +231,12 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 		//vv("CAS set err = '%v'", err)
 		return
 	case <-ctx.Done():
+		vv("case <-ctx.Done() 2") // not seen.
 		err = ctx.Err()
+		return
+	case <-sessDone:
+		err = sess.ctx.Err()
+		vv("case <-sessDone 2, err = '%v'", err) // seen 2x! err='context canceled'
 		return
 	case <-s.Halt.ReqStop.Chan:
 		err = ErrShutDown
@@ -1134,6 +1152,18 @@ func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, w
 	s.SessionSerial++
 	if ctx == nil {
 		ctx = s.ctx
+
+		if s.ctx.Err() != nil {
+			vv("%v: Session.CAS sees already cancelled Session.ctx, bailing early", s.cli.name) // not seen.
+			err = ErrNeedNewSession
+			return
+		}
+	} else {
+		if ctx.Err() != nil {
+			vv("%v: Session.CAS sees already cancelled ctx, bailing early", s.cli.name) // not seen.
+			err = ErrNeedNewSession
+			return
+		}
 	}
 	return s.cli.CAS(ctx, table, key, oldVal, newVal, waitForDur, s, newVtype, leaseDur, leaseAutoDel, oldVersionCAS, oldLeaseEpochCAS)
 }

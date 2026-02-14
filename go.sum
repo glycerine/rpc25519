@@ -44,6 +44,8 @@ github.com/glycerine/one_tree_rwmut v1.0.0 h1:S9/US5QeXZVrXc/0tSUD58NAxKQY9CaezD
 github.com/glycerine/one_tree_rwmut v1.0.0/go.mod h1:eKKXEG3WkBtQOka9ANdHuIlhqNCc45NcDjBFaG/FMmU=
 github.com/glycerine/parallelwalk v0.3.1 h1:wZNqvQfii3oxe8GNkRAbi55LxRIn5rN4ybtnS9mHg5M=
 github.com/glycerine/parallelwalk v0.3.1/go.mod h1:FLWmYJpTF7DeatAfHWT0wu1idKfNd1sfPX9V+S7j0L4=
+github.com/glycerine/porcupine v1.2.0-jea h1:kBG2GXSlTWe+nnaqs7rEzcX0xGkXvmel0xcMSi9OwtA=
+github.com/glycerine/porcupine v1.2.0-jea/go.mod h1:1vppLL4iLDWEqe3ETxmvjYLkS6fQo/ljqmGN7oBnm3k=
 github.com/glycerine/rbtree v0.2.1 h1:9nD5PDojW8gu1slYBzzH7VND9gbSjB86tusW5YRKghc=
 github.com/glycerine/rbtree v0.2.1/go.mod h1:skpUtSrm1HHyLo+HayukOvAmXtE/F6tsVW0uCpaBGWE=
 github.com/glycerine/restic-chunker-mod v0.5.0 h1:6OA/O0rEHvENyTlzYJ2/E7UNQBu3+8NY3Du2hxVp5Gw=

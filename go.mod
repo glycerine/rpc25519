@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	4d63.com/tz v1.2.0
-	github.com/anishathalye/porcupine v1.1.0
+	github.com/glycerine/porcupine v1.2.0-jea
 	github.com/apoorvam/goterminal v0.0.0-20180523175556-614d345c47e5
 	github.com/caio/go-tdigest v3.1.0+incompatible
 	github.com/cloudflare/circl v1.6.1
