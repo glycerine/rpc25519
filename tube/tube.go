@@ -11777,9 +11777,9 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		curVal := leaf.Value
 
 		agree := bytes.Equal(curVal, tkt.OldVal)
-		if agree {
-			vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), agree, string(tkt.Val))
-		}
+		//if agree {
+		//vv("%v cas: have curVal = '%v' for key='%v' from table '%v'; tkt.OldVal='%v'; will swap = %v (new val = '%v')", s.name, string(curVal), tkt.Key, tkt.Table, string(tkt.OldVal), agree, string(tkt.Val))
+		//}
 		if !agree { // reject CAS
 			tkt.CASRejectedBecauseCurVal = append([]byte{}, curVal...)
 			tkt.CASwapped = false

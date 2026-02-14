@@ -135,6 +135,7 @@ func (s *fuzzUser) linzCheck() {
 		panicf("user %v: expected evs > 0, got 0", s.name)
 	}
 
+	vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
 	linz := porc.CheckEvents(stringCasModel, evs)
 	if !linz {
 		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; evs='%v'", s.name, s.seed, eventSlice(evs))
@@ -143,6 +144,9 @@ func (s *fuzzUser) linzCheck() {
 	}
 
 	vv("user %v: len(evs)=%v passed linearizability checker.", s.name, len(evs))
+
+	// nothing much to see really.
+	//writeToDiskOkEvents(s.t, s.name, evs)
 }
 
 func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leaderURL string) {
@@ -159,8 +163,9 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			prevCanc()
 			stepCtx, canc := context.WithTimeout(startCtx, time.Second*10)
 			prevCanc = canc
-
-			vv("%v: fuzzUser.Start on step %v", s.name, step)
+			if step%10 == 0 {
+				vv("%v: fuzzUser.Start on step %v", s.name, step)
+			}
 			select {
 			case <-stepCtx.Done():
 				return
@@ -295,13 +300,13 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 		s.shEvents.evs = append(s.shEvents.evs, callEvent)
 		s.shEvents.mut.Unlock()
 
-		vv("about to write from cli sess, writeMe = '%v'", string(newVal)) // seen lots
+		//vv("about to write from cli sess, writeMe = '%v'", string(newVal)) // seen lots
 
 		// CAS (write)
 		ctx5, canc5 := context.WithTimeout(ctxCAS, 5*time.Second)
 
 		tktW, err = s.sess.CAS(ctx5, fuzzTestTable, Key(key), oldVal, newVal, 0, vtyp101, 0, leaseAutoDelFalse, 0, 0)
-		vv("%v just after sess.CAS, ctx5.Err()='%v', s.sess.ctx.Err()='%v'; while err='%v'", s.name, ctx5.Err(), s.sess.ctx.Err(), err) // ctx5.Err()==nil. while err='context canceled'; s.sess.ctx.Err()='context canceled';
+		//vv("%v just after sess.CAS, ctx5.Err()='%v', s.sess.ctx.Err()='%v'; while err='%v'", s.name, ctx5.Err(), s.sess.ctx.Err(), err) // ctx5.Err()==nil. while err='context canceled'; s.sess.ctx.Err()='context canceled';
 		canc5()
 
 		switch err {
@@ -319,7 +324,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 				// fair, fine to reject cas; the error forces us to deal with it,
 				// but the occassional CAS reject is fine and working as expected.
 				err = nil
-				vv("%v: rejectedWritePrefix seen", s.name) // not seen.
+				//vv("%v: rejectedWritePrefix seen", s.name) // seen.
 				break
 			case strings.Contains(errs, "context canceled"):
 				vv("%v sees context canceled for s.sess.CAS() ", s.name)
@@ -352,7 +357,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 	}
 
 	if tktW.CASwapped {
-		vv("%v: CAS write ok on tktW = '%v'; tktW.Val='%v'", s.name, tktW.Desc, string(tktW.Val))
+		//vv("%v: CAS write ok on tktW = '%v'; tktW.Val='%v'", s.name, tktW.Desc, string(tktW.Val))
 		swapped = true
 		if string(tktW.Val) != string(newVal) {
 			panicf("why does tktW.Val('%v') != newVal('%v')", string(tktW.Val), string(newVal))
@@ -362,7 +367,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 	} else {
 		swapped = false // for emphasis
 		curVal = Val(append([]byte{}, tktW.CASRejectedBecauseCurVal...))
-		vv("CAS write failed (did not write new value '%v'), we read back current value ('%v') instead", string(newVal), string(curVal))
+		//vv("CAS write failed (did not write new value '%v'), we read back current value ('%v') instead", string(newVal), string(curVal))
 	}
 	out := &casOutput{
 		op:       STRING_REGISTER_CAS,
@@ -385,7 +390,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 
 	s.shEvents.mut.Lock()
 	s.shEvents.evs = append(s.shEvents.evs, resultEvent)
-	vv("%v added returnEvent: len shEvents.evs now %v", s.name, len(s.shEvents.evs)) // not seen
+	//vv("%v added returnEvent: len shEvents.evs now %v", s.name, len(s.shEvents.evs)) // not seen
 	s.shEvents.mut.Unlock()
 
 	return
@@ -666,9 +671,9 @@ func Test101_userFuzz(t *testing.T) {
 
 		onlyBubbled(t, func(t *testing.T) {
 
-			steps := 20
-			numNodes := 3
-			numUsers := 5
+			steps := 100
+			numNodes := 5
+			numUsers := 20 // 20 ok, 30 too much for porcupine.
 
 			forceLeader := 0
 			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)
@@ -830,6 +835,28 @@ func writeToDiskNonLinzFuzzEvents(t *testing.T, user string, evs []porc.Event) {
 		nm = fmt.Sprintf("red.nonlinz.%v.%03d.user_%v.html", t.Name(), i, user)
 	}
 	vv("writing out non-linearizable evs history '%v'", nm)
+	fd, err := os.Create(nm)
+	panicOn(err)
+	defer fd.Close()
+
+	err = porc.Visualize(stringCasModel, info, fd)
+	if err != nil {
+		t.Fatalf("evs visualization failed")
+	}
+	t.Logf("wrote evs visualization to %s", fd.Name())
+}
+
+func writeToDiskOkEvents(t *testing.T, user string, evs []porc.Event) {
+
+	res, info := porc.CheckEventsVerbose(stringCasModel, evs, 0)
+	if res == porc.Illegal {
+		t.Fatalf("expected output %v, got output %v", porc.Ok, res)
+	}
+	nm := fmt.Sprintf("green.linz.%v.%03d.user_%v.html", t.Name(), 0, user)
+	for i := 1; fileExists(nm) && i < 1000; i++ {
+		nm = fmt.Sprintf("green.linz.%v.%03d.user_%v.html", t.Name(), i, user)
+	}
+	vv("writing out linearizable evs history '%v'", nm)
 	fd, err := os.Create(nm)
 	panicOn(err)
 	defer fd.Close()
@@ -1214,10 +1241,10 @@ var stringCasModel = porc.Model{
 			} else if inp.oldString != st && !out.swapped {
 				legal = true
 			} else {
-				vv("warning: legal is false in CAS because out.swapped = '%v', inp.oldString = '%v', inp.newString = '%v'; old state = '%v', newState = '%v'; out.valueCur = '%v'", out.swapped, inp.oldString, inp.newString, st, newState, out.valueCur)
+				//vv("warning: legal is false in CAS because out.swapped = '%v', inp.oldString = '%v', inp.newString = '%v'; old state = '%v', newState = '%v'; out.valueCur = '%v'", out.swapped, inp.oldString, inp.newString, st, newState, out.valueCur)
 			}
 
-			if legal {
+			if legal { // does not seem to make a difference?? at least when green 101
 				if inp.oldString == st {
 					newState = inp.newString
 				}
