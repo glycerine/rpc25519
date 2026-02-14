@@ -1909,7 +1909,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				}
 			case TellClientSteppedDown:
 				//s.ay("%v sees TellClientSteppedDown, redirect tickets to new leader?", s.me())
-				leaderID, ok := frag.GetUserArg("leader")
+				leaderID, ok := frag.GetUserArg("leaderID")
 				if ok && leaderID != "" {
 					s.leaderID = leaderID
 				}
@@ -4942,7 +4942,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 			//addOther = true
 			xtra = fmt.Sprintf(" MEMBERSHIP_SET_UPDATE tkt.AddPeerName='%v'. To prevent a node from adding a dead neighbor (the drowned sailor scenario, page 22, The Part-Time Parliament) by mistake, we require additions to leaderless clusters to come from self-add only. See also bootstrappedOrForcedMembership() circa tube.go:15131. This error from redirectToLeader() circa %v. Update: the tubeadd -f forcedNodeAddition can be used as a last resort, but risks membership corruption...", tkt.AddPeerName, fileLine(1))
 		}
-		tkt.Err = fmt.Errorf("ahem. no leader known to me (node '%v'). stashForLeader is false.%v", s.name, xtra)
+		tkt.Err = fmt.Errorf("ahem. no leader known to me (node '%v'). stashForLeader is false.%v", s.name, xtra) // seen fuzz_test 101
 
 		// page 22 of Lamport 1998, "The Part-Time Parliament".
 		// "Changing the composition of Parliament in this
@@ -5024,7 +5024,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 
 	frag.SetUserArg("redirectedByName", s.name)
 
-	frag.SetUserArg("leader", s.leaderID)
+	frag.SetUserArg("leaderID", s.leaderID)
 	frag.SetUserArg("leaderName", s.leaderName)
 	//err = s.SendOneWay(ckt, frag, -1, 0)
 	//vv("tkt.waitForValid = %v; s.leaderName = '%v'; ckt='%v'", tkt.waitForValid, s.leaderName, ckt)
@@ -7298,8 +7298,8 @@ func (s *TubeNode) notifyClientSessionsOfNewLeader() {
 		fragUpdateLeader.FragOp = NotifyClientNewLeader
 		fragUpdateLeader.FragSubject = "NotifyClientNewLeader"
 		fragUpdateLeader.SetUserArg("leaderName", s.leaderName)
-		fragUpdateLeader.SetUserArg("leaderURL", s.leaderURL)
 		fragUpdateLeader.SetUserArg("leaderID", s.leaderID)
+		fragUpdateLeader.SetUserArg("leaderURL", s.leaderURL)
 
 		if s.state.MC != nil && s.state.MC.BootCount == 0 {
 			// BootCount == 0 means is not a psuedo-config from boot time.
@@ -10583,7 +10583,7 @@ func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
 		panicf("why so big? will not get through... len(bts) is %v > rpc.UserMaxPayload(%v) footprint = %v", len(bts), rpc.UserMaxPayload, tkt.Footprint()) // a large keyrange scan failed here... KeyValRangeScan: 1274739 after reading dead zone after 2k clients gone.
 	}
 
-	frag.SetUserArg("leader", s.leaderID)
+	frag.SetUserArg("leaderID", s.leaderID)
 	frag.SetUserArg("leaderName", s.leaderName)
 	frag.SetUserArg("leaderURL", s.leaderURL)
 
@@ -10645,7 +10645,7 @@ func (s *TubeNode) tellClientsImNotLeader() {
 		panicOn(err)
 		frag.Payload = bts
 
-		frag.SetUserArg("leader", s.leaderID)
+		frag.SetUserArg("leaderID", s.leaderID)
 		frag.SetUserArg("leaderName", s.leaderName)
 		frag.SetUserArg("leaderURL", s.leaderURL)
 
@@ -12614,7 +12614,7 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 
 			ckt, ackMsg, _, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(ctx, circuitName, userString, firstFrag, string(TUBE_REPLICA), peerServiceNameVersion, netAddr, 0, nil, waitForAckTrue)
 
-			//vv("ackMsg = '%v'", ackMsg)
+			vv("%v ackMsg = '%v'", s.name, ackMsg)
 
 			// can get errors if we removed the leader and then
 			// got our ckt redirected to new leader, in a logical race.
@@ -12672,15 +12672,18 @@ func (s *TubeNode) ExternalGetCircuitToLeader(ctx context.Context, leaderName, l
 		if ackMsg != nil {
 			lname, ok := ackMsg.HDR.Args["leaderName"]
 			if ok && lname != "" {
+				// adopt their view if we have none!
 				if ckt.RemotePeerName == lname {
 					// responder thinks they are leader, adopt that idea for now.
 					select {
 					case s.setLeaderCktChan <- ckt:
-						//vv("in ExternalGetCircuitToLeader(): sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
+						vv("in ExternalGetCircuitToLeader(): sent on s.setLeaderCktChan a ckt to '%v'", ckt.RemotePeerName)
 					case <-s.Halt.ReqStop.Chan:
 						err = ErrShutDown
 						return
 					}
+				} else {
+					vv("%v notice we just made a ckt to non-leader. try again. %v thinks leader is '%v' (ID: '%v'; URL='%v')", s.name, ckt.RemotePeerName, lname, ackMsg.HDR.Args["leaderID"], ackMsg.HDR.Args["leaderURL"])
 				}
 			}
 		}
@@ -13100,7 +13103,7 @@ func (s *TubeNode) peerListRequestHandler(frag *rpc.Fragment, ckt *rpc.Circuit) 
 		panicf("problem! our peer list reply (%v) is over maxMessage(%v)", len(bts), rpc.UserMaxPayload)
 	}
 
-	frag1.SetUserArg("leader", insp.CurrentLeaderID)
+	frag1.SetUserArg("leaderID", insp.CurrentLeaderID)
 	frag1.SetUserArg("leaderName", insp.CurrentLeaderName)
 	frag1.SetUserArg("leaderURL", insp.CurrentLeaderURL)
 
@@ -14451,7 +14454,7 @@ func (s *TubeNode) replyToForwardedTicketWithError(tkt *Ticket) {
 	panicOn(err)
 	fragErr.Payload = bts
 
-	fragErr.SetUserArg("leader", s.leaderID)
+	fragErr.SetUserArg("leaderID", s.leaderID)
 	fragErr.SetUserArg("leaderName", s.leaderName)
 	err = s.SendOneWay(cktP.ckt, fragErr, -1, 0)
 	_ = err // don't panic on halting.
@@ -15130,7 +15133,7 @@ func (s *TubeNode) serviceMembershipObservers() {
 	left := len(observers) - 1
 
 	frag := s.newFrag()
-	frag.SetUserArg("leader", s.leaderID)
+	frag.SetUserArg("leaderID", s.leaderID)
 	frag.SetUserArg("leaderName", s.leaderName)
 	frag.SetUserArg("leaderURL", s.leaderURL)
 
@@ -15665,7 +15668,7 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderName, leaderURL s
 		}
 		_ = ckt
 		_ = onlyPossibleAddr
-		vv("good, cli got ckt to leaderURL='%v': from '%v'", leaderURL, ckt.LocalPeerName)
+		vv("%v good, cli got ckt to leaderURL='%v': from '%v'", s.name, leaderURL, ckt.LocalPeerName)
 	}
 
 	desc := fmt.Sprintf("createNewSession at '%v'", s.name)
@@ -15694,6 +15697,10 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderName, leaderURL s
 			r.cli = s
 			r.ctx = ctx // because is different from the request
 		} else {
+			// why do we see this:
+			// tube.go:15697 [goID 9] 2000-01-01T00:01:23.486000001+00:00 r is nil. err = ahem. no leader known to me (node 'client101_user2_8'). stashForLeader is false.
+			// even though above we got a ckt:
+			// tube.go:15668 [goID 9] 2000-01-01T00:01:23.486000001+00:00 good, cli got ckt to leaderURL='simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv': from 'client101_user2_8'good, cli got ckt to leaderURL='simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv': from 'client101_user2_8'
 			vv("r is nil. err = %v", err)
 		}
 		return
@@ -15763,7 +15770,7 @@ func (s *TubeNode) handleNewSessionRequestTicket(tkt *Ticket) {
 	if s.redirectToLeader(tkt) {
 		if tkt.Err != nil {
 
-			//vv("%v bail out in handleNewSessionRequestTicket; error happened '%v'", s.me(), tkt.Err)
+			vv("%v bail out in handleNewSessionRequestTicket; error happened '%v'", s.me(), tkt.Err)
 			s.FinishTicket(tkt, false)
 			return // bail out, error happened.
 		}
@@ -17117,7 +17124,7 @@ func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circu
 			frag := s.newFrag()
 			frag.FragOp = StateSnapshotEnclosed
 			frag.FragSubject = "StateSnapshotEnclosed"
-			frag.SetUserArg("leader", s.leaderID)
+			frag.SetUserArg("leaderID", s.leaderID)
 			frag.SetUserArg("leaderName", s.leaderName)
 			frag.SetUserArg("b3checksumWhole", b3checksumWhole)
 
@@ -17138,8 +17145,9 @@ func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circu
 		fragEnc := s.newFrag()
 		fragEnc.FragOp = StateSnapshotEnclosed
 		fragEnc.FragSubject = "StateSnapshotEnclosed"
-		fragEnc.SetUserArg("leader", s.leaderID)
+		fragEnc.SetUserArg("leaderID", s.leaderID)
 		fragEnc.SetUserArg("leaderName", s.leaderName)
+		fragEnc.SetUserArg("leaderURL", s.leaderURL)
 
 		// just one part
 		fragEnc.FragPart = 0 // redundant; for emphasis.

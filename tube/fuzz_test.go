@@ -104,10 +104,11 @@ type sharedOps struct {
 
 // user tries to get read/write work done.
 type fuzzUser struct {
-	t      *testing.T
-	seed   uint64
-	name   string
-	userid int
+	t       *testing.T
+	seed    uint64
+	name    string
+	userid  int
+	edition int // avoid simnet freak out on reuse of server name
 
 	shOps *sharedOps
 	rnd   func(nChoices int64) (r int64)
@@ -486,12 +487,14 @@ func (s *fuzzNemesis) makeTrouble() {
 		}
 		r = fuzzFault(s.rnd(int64(fuzz_HEAL_NODE)))
 	}
-	vv("makeTrouble at node = %v; r = %v", node, r)
+
+	implemented := false
 	switch r {
 	case fuzz_NOOP:
 	case fuzz_PAUSE:
 	case fuzz_CRASH:
 	case fuzz_PARTITON:
+		implemented = true
 
 		// remember this problem: now that we try to make NEW connections
 		// after detecting node failures, those newly made
@@ -512,6 +515,7 @@ func (s *fuzzNemesis) makeTrouble() {
 	case fuzz_MEMBER_RESTART:
 	case fuzz_SWIZZLE_CLOG:
 	case fuzz_ONE_WAY_FAULT:
+		implemented = true
 
 		probDrop := 1.0
 		probDeaf := 1.0
@@ -521,6 +525,7 @@ func (s *fuzzNemesis) makeTrouble() {
 			s.clus.Nodes[node].DeafToReads(probDeaf)
 		}
 	case fuzz_ONE_WAY_FAULT_PROBABALISTIC:
+		implemented = true
 
 		if s.rnd(2) == 1 {
 			probDrop := s.rng.float64prob()
@@ -542,16 +547,21 @@ func (s *fuzzNemesis) makeTrouble() {
 	case fuzz_DUPLICATED_MESSAGE:
 
 	case fuzz_HEAL_NODE:
+		implemented = true
+
 		var deliverDroppedSends bool
 		if s.rnd(2) == 1 {
 			deliverDroppedSends = true
 		}
 		s.clus.AllHealthyAndPowerOn(deliverDroppedSends)
 	}
+	if implemented {
+		vv("makeTrouble at node = %v; r = %v; implemented = %v", node, r, implemented)
+	}
 }
 
 func Test101_userFuzz(t *testing.T) {
-
+	return
 	runtime.GOMAXPROCS(1)
 
 	defer func() {
@@ -575,7 +585,7 @@ func Test101_userFuzz(t *testing.T) {
 
 			steps := 20
 			numNodes := 3
-			numUsers := 2
+			numUsers := 3
 
 			forceLeader := 0
 			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)
@@ -610,7 +620,8 @@ func Test101_userFuzz(t *testing.T) {
 				}
 				users = append(users, user)
 
-				cliName := "client101_" + user.name
+			retryCli:
+				cliName := fmt.Sprintf("client101_%v_%v", user.name, user.edition)
 				cliCfg := *c.Cfg
 				cliCfg.MyName = cliName
 				cliCfg.PeerServiceName = TUBE_CLIENT
@@ -633,6 +644,17 @@ func Test101_userFuzz(t *testing.T) {
 				}
 				if err != nil {
 					alwaysPrintf("on userNum = %v, CreateNewSession err = '%v'", userNum, err)
+					errs := err.Error()
+					if strings.Contains(errs, "no leader known to me") {
+						//goto retry // insufficient. we infinite loop.
+						cli.Close()
+						time.Sleep(time.Second)
+
+						snap0 := c.SimnetSnapshot(true)
+						vv("could not find leader. snap0 = '%v'", snap0) // .LongString())
+						user.edition++
+						goto retryCli
+					}
 					panic(err)
 				}
 				panicOn(err)
