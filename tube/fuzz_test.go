@@ -186,7 +186,7 @@ func newCliInfo(clientId int) *cliInfo {
 type perClientEventStats struct {
 	clientId int
 
-	// attemptN (is partitioned into) =
+	// callAttemptN (is partitioned into) =
 	// oneToOneCallsN (only 1 receive) +
 	// danglingCallsN (no recives; dropped message) +
 	// dupReturnN (2 or more receives for same eventID; duplicated message) +
@@ -203,7 +203,7 @@ type perClientEventStats struct {
 	//
 	// there could also be erroneous returns without a corresponding
 	// call; we sanity check for those.
-	attemptN int
+	callAttemptN int
 
 	oneToOneCallsN   int
 	oneToOneCallsPct float64
@@ -229,7 +229,7 @@ func newPerClientEventStats(clientId int) *perClientEventStats {
 type totalEventStats struct {
 	countAllEvents int
 
-	attemptN         int // call attempts
+	callAttemptN     int // call attempts
 	oneToOneCallsN   int
 	oneToOneCallsPct float64
 
@@ -264,17 +264,18 @@ func newTotalEventStats(countAllEvents int) *totalEventStats {
 
 func (s *totalEventStats) String() (r string) {
 	r = fmt.Sprintf(`totalEventStats{
-      countAllEvents: %v
-            attemptN: %v
+          callAttemptN: %v
+        countAllEvents: %v
 
-    oneToOneCallsPct: %0.3f (%v)
-    danglingCallsPct: %0.3f (%v)
+     [ok call] oneToOneCallsPct: %0.3f (%v)
+
+ [failed call] danglingCallsPct: %0.3f (%v)
 
         dupReturnPct: %0.3f (%v)
 returnWithoutCallPct: %0.3f (%v)
 `,
 		s.countAllEvents,
-		s.attemptN,
+		s.callAttemptN,
 
 		s.oneToOneCallsPct,
 		s.oneToOneCallsN,
@@ -336,8 +337,8 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 		info := per.cliInfo
 
 		if e.Kind == porc.CallEvent {
-			per.attemptN++
-			tot.attemptN++
+			per.callAttemptN++
+			tot.callAttemptN++
 
 			returnList, ok := event2return[eventID]
 			if !ok {
@@ -363,12 +364,12 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 
 	// compute stats per each client, and overall in tot.
 	for _, per := range tot.perCli { // map[int]*perClientEventStats
-		base := float64(per.attemptN)
+		base := float64(per.callAttemptN)
 		per.oneToOneCallsPct = float64(per.oneToOneCallsN) / base
 		per.danglingCallsPct = float64(per.danglingCallsN) / base
 		per.dupReturnPct = float64(per.dupReturnN) / base
 	}
-	n := float64(tot.attemptN)
+	n := float64(tot.callAttemptN)
 	tot.oneToOneCallsPct = float64(tot.oneToOneCallsN) / n
 	tot.danglingCallsPct = float64(tot.danglingCallsN) / n
 	tot.dupReturnPct = float64(tot.dupReturnN) / n
@@ -382,7 +383,7 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 		per.returnWithoutCallN++
 	}
 	for _, per := range tot.perCli {
-		per.returnWithoutCallPct = float64(per.returnWithoutCallN) / float64(per.attemptN)
+		per.returnWithoutCallPct = float64(per.returnWithoutCallN) / float64(per.callAttemptN)
 	}
 	return
 }
