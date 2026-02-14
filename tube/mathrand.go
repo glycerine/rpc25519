@@ -97,7 +97,8 @@ func (rng *prng) pseudoRandNonNegInt64Range(nChoices int64) (r int64) {
 
 func chachaRandNonNegInt64Range(cha8 *mathrand2.ChaCha8, nChoices int64) (r int64) {
 	if nChoices <= 1 {
-		panic(fmt.Sprintf("nChoices must be in [2, MaxInt64]; we see %v", nChoices))
+		return 0
+		//panic(fmt.Sprintf("nChoices must be in [2, MaxInt64]; we see %v", nChoices))
 	}
 
 	b := make([]byte, 8)

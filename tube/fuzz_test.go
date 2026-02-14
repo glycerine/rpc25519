@@ -410,11 +410,18 @@ type fuzzNemesis struct {
 }
 
 func (s *fuzzNemesis) makeTrouble() {
-	s.mut.Lock()
-	defer s.mut.Unlock()
-
+	s.mut.Lock() // why deadlocked?
+	wantSleep := true
 	beat := time.Second
-	_ = beat
+
+	defer func() {
+		s.mut.Unlock()
+		// we can deadlock under synctest if we don't unlock
+		// before sleeping...
+		if wantSleep {
+			time.Sleep(beat)
+		}
+	}()
 
 	nn := len(s.clus.Nodes)
 	quorum := nn/2 + 1
@@ -429,7 +436,6 @@ func (s *fuzzNemesis) makeTrouble() {
 		isNoop := pr <= healProb+noopProb
 		if isNoop {
 			//vv("isNoop true")
-			time.Sleep(beat)
 			return
 		}
 	} else {
@@ -518,6 +524,7 @@ func (s *fuzzNemesis) makeTrouble() {
 			probDrop := s.rng.float64prob()
 			vv("probDrop send = %v on node = %v", probDrop, node)
 			s.clus.Nodes[node].DropSends(probDrop)
+			wantSleep = false
 			return
 		}
 		probDeaf := s.rng.float64prob()
@@ -539,7 +546,6 @@ func (s *fuzzNemesis) makeTrouble() {
 		}
 		s.clus.AllHealthyAndPowerOn(deliverDroppedSends)
 	}
-	time.Sleep(beat)
 }
 
 func Test101_userFuzz(t *testing.T) {
@@ -567,7 +573,7 @@ func Test101_userFuzz(t *testing.T) {
 
 			steps := 20
 			numNodes := 3
-			numUsers := 1
+			numUsers := 2
 
 			forceLeader := 0
 			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)
