@@ -16046,9 +16046,11 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (doneEarly, needSa
 		tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
 
 		// tkt.AsOfLogIndex below, for all.
+		tkt.LeaderGotTicketTm = priorTkt.LeaderGotTicketTm
 		tkt.LeaderLocalReadGoodUntil = priorTkt.LeaderLocalReadGoodUntil
 		tkt.LeaderLocalReadAtTm = priorTkt.LeaderLocalReadAtTm
 		tkt.LeaderLocalReadHLC = priorTkt.LeaderLocalReadHLC
+		tkt.ClientLocalSubmitTm = priorTkt.ClientLocalSubmitTm
 
 		// READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
 		tkt.KeyValRangeScan = priorTkt.KeyValRangeScan

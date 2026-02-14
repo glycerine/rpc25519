@@ -236,8 +236,10 @@ const vtyp101 = "string"
 
 func (s *fuzzUser) CAS(key string, oldVal, newVal Val) (swapped bool, curVal Val, err error) {
 
-retry:
+	// set this for linearization and do not reset if we retry!
 	begtmWrite := time.Now()
+
+retry:
 
 	out := &casOutput{
 		unknown: true,
