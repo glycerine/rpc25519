@@ -646,9 +646,17 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event, tot *totalEven
 
 	hist := newHistoryTree(evs)
 	tree := hist.tree
-	del := func(d int, why string) {
-		vv("del d=%v (%v) which was: %v", d, why, evs[d])
+	delWrite := func(d int, why string) {
+		vv("delWrite d=%v (%v) which was: %v", d, why, evs[d])
 		hist.del(d)
+
+		// delete the corresponding CallEvent
+		call, ok := event2caller[evs[d].Id]
+		if !ok {
+			panicf("where is call for write d=%v", d)
+		}
+		vv("delWrite corresponding call=%v (%v) which was: %v", call, why, evs[call])
+		hist.del(call)
 	}
 
 topLoop:
@@ -751,6 +759,7 @@ topLoop:
 			// the swap happened, then we know it was that
 			// attempt that worked, and we do not want a phantom.
 
+			vv("at i = %v, wl.slc = '%#v'", elem.origi, wl.slc)
 			remain := intSlice2set(wl.slc)
 			for q, k := range wl.slc {
 				if k >= o {
@@ -759,7 +768,7 @@ topLoop:
 					why := fmt.Sprintf("past o=%v", o)
 					for qq := q; qq < len(wl.slc); qq++ {
 						kk := wl.slc[qq]
-						del(kk, why)
+						delWrite(kk, why)
 						delete(remain, kk)
 					}
 					if len(remain) == 0 {
@@ -785,7 +794,7 @@ topLoop:
 					for k2 := range wl.slc {
 						if k2 != k {
 							if tot.dangling[k2] {
-								del(k2, why)
+								delWrite(k2, why)
 								delete(remain, k2)
 							} else {
 								panicf("how can we have more than one successful CAS on this eventID_ %v ? k=%v and k2=%v", eventID_, k, k2)
@@ -814,8 +823,9 @@ topLoop:
 						delme = append(delme, r)
 					}
 				}
+				why := "must be after writValMin[oldString]"
 				for _, d := range delme {
-					del(d, "must be after writValMin[oldString]")
+					delWrite(d, why)
 					delete(remain, d)
 				}
 			}
@@ -833,11 +843,12 @@ topLoop:
 				// since they will dangle anyway.
 
 				slc := set2intSliceSorted(remain)
+				why := "picked smallest remain for w0"
 				for si, r := range slc {
 					if si == 0 {
 						w0 = r
 					} else {
-						del(r, "picked smallest remain for w0")
+						delWrite(r, why)
 					}
 				}
 			}
