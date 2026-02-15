@@ -26,29 +26,34 @@ import (
 	rpc "github.com/glycerine/rpc25519"
 )
 
-// 2026 Feb 15: a note on why we use glycerine/porcupine (v.1.2.4-jea)
-// rather than anishathalye/porcupine (v1.1.0) as of this writing
+// 2026 Feb 15: a note on why we use
+// github.com/glycerine/porcupine (v.1.2.4-jea)
+// rather than github.com/anishathalye/porcupine (v1.1.0)
+// as of this writing
 //
 // Per https://github.com/anishathalye/porcupine/issues/42
-// there are two problems with anishathalye/porcupine (v1.1.0):
+// there are two problems with anishathalye/porcupine (v1.1.0)
+// for my use in fault tolerance testing:
 //
 // a) it rejects event histories where some calls do not have returns.
 // Since our network partition/dropped packets robustness testing
 // involves lost replies, porcupine will spuriously reject
-// such histories. glycerine/porcupine (v1.2.4-jea) filters out
-// unmatched calls (with commit 2122eb2).
+// such histories on their face. glycerine/porcupine (v1.2.4-jea) filters out
+// unmatched calls (with commit 2122eb2) from the history.
 //
 // b) filtering alone though will itself create non-linearizability
 // if done alone, because those writes may have succeeded at
 // the raft database server side, and it may have simply been
-// the reply that got lost. So instead, below, we also tackle
-// this by adding phatom porc.ReturnEvent(s) only when an
-// unmatched write/cass CallEvent is observed to have actually
-// succeeded. We know it actually succeeded because we write a unique
-// value on every write/cas attempt, and so if that value
-// is ever observed, then we know there was a successful
+// the reply indicating success that got lost. So instead,
+// below, we also tackle this by adding phantom
+// porc.ReturnEvent(s) only when an unmatched write/cass
+// CallEvent is observed to have actually succeeded in this fuzz test.
+//
+// We know a put/write/CAS actually succeeded because we write a unique
+// value on every attempt, and so if that value
+// is ever observed later in the history, then we know there was a successful
 // write but a lost reply. We insert a phantom reply just
-// before the first observation of written value.
+// before the first (earliest) observation of the written value.
 
 var _ = runtime.GOMAXPROCS
 var _ = trace.Stop
