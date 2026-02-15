@@ -457,7 +457,7 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 	}
 
 	// compute stats per each client, and overall in tot.
-	for _, per := range tot.perCli { // map[int]*perClientEventStats
+	for _, per := range tot.perCli { // map[clientID]*perClientEventStats
 		base := float64(per.callAttemptN)
 		per.oneToOneCallsPct = float64(per.oneToOneCallsN) / base
 		per.danglingCallsPct = float64(per.danglingCallsN) / base
@@ -483,11 +483,229 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 	return
 }
 
+func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
+
+	event2caller := make(map[int]int)
+	// eventID -> ReturnEvent list of indexes into evs
+	event2return := make(map[int]map[int]struct{})
+
+	for i, e := range evs {
+		eventID := e.Id
+		if e.Kind == porc.CallEvent {
+			// sanity assert there is no prior event2caller entry.
+			prior, already := event2caller[eventID]
+			if already {
+				panicf("sanity check failed: for eventID(%v) have prior(%v)", eventID, prior)
+			}
+			event2caller[eventID] = i
+			continue
+		}
+		// e == evs[i] is a porc.ReturnEvent
+		returnList, ok := event2return[eventID]
+		if !ok {
+			returnList = make(map[int]struct{})
+			event2return[eventID] = returnList
+		}
+		// sanity check
+		_, already := returnList[i]
+		if already {
+			panicf("internal assumptions not holding?! why already in returnList? do we need a counter instead of set here?")
+		}
+		returnList[i] = struct{}{}
+	}
+
+	// now do matching on eventID, filling in seenVal in outputs
+	// for all events.
+	writVal := make(map[string]int) // written string -> index written at
+	seenVal := make(map[string]int) // written string -> index observed at
+	for i, e := range evs {
+		//eventID := e.Id
+
+		if e.Kind == porc.CallEvent {
+			// extract written value for un-matched calls.
+			inp, isInput := e.Value.(*casInput)
+			if !isInput {
+				panicf("why not input? e.Value='%#v'", e.Value)
+			}
+			switch inp.op {
+			case STRING_REGISTER_UNK:
+				panic("should be no STRING_REGISTER_UNK")
+			case STRING_REGISTER_PUT:
+				writVal[inp.newString] = i
+			case STRING_REGISTER_GET:
+			case STRING_REGISTER_CAS:
+				writVal[inp.newString] = i
+			}
+		} else {
+			// INVAR: e.Kind == porc.ReturnEvent
+			out, isOutput := e.Value.(*casOutput)
+			if !isOutput {
+				panicf("why not casOuput? e.Value='%#v'", e.Value)
+			}
+			switch out.op {
+			case STRING_REGISTER_UNK:
+				panic("should be no STRING_REGISTER_UNK")
+			case STRING_REGISTER_PUT:
+				// not using puts currently, so not sure
+				// if there output will have anything relevant;
+				// probably not.
+			case STRING_REGISTER_GET:
+				k, prior := seenVal[out.valueCur]
+				if !prior || i < k {
+					// keep the smallest index observed.
+					seenVal[out.valueCur] = i
+				}
+			case STRING_REGISTER_CAS:
+				k, prior := seenVal[out.oldString]
+				if !prior || i < k {
+					// keep the smallest index observed.
+					seenVal[out.oldString] = i
+				}
+			}
+		}
+	}
+
+	// cannot use range, since we insert into evs during this loop.
+	for i := 0; i < len(evs); i++ {
+		e := evs[i]
+		eventID := e.Id
+		clientID := e.ClientId
+
+		if e.Kind != porc.CallEvent {
+			continue
+		}
+		// INVAR: only CallEvents are being handled now.
+
+		// For un-answered CallEvents (those without
+		// a corresponding ReturnEvent) that actually did
+		// succeed (because we observed their unique
+		// written values in the history), we insert
+		// a phantom ReturnEvent to let porcupine not choke.
+		inp := e.Value.(*casInput)
+
+		_, ok := event2return[eventID]
+		if ok {
+			// this call has a response, not need for a phantom one.
+			continue
+		}
+		// no returns/replies for this event, it needs a phantom
+		// if observed (hidden but successful write)
+
+		var newString string
+		switch inp.op {
+		case STRING_REGISTER_UNK:
+			panic("should be no STRING_REGISTER_UNK")
+		case STRING_REGISTER_PUT:
+			newString = inp.newString
+		case STRING_REGISTER_GET:
+			// unmatched reads can just be deleted.
+			// In fact this helps an unpatched porcupine
+			// not spuriously reject a history for not
+			// having a matched return. i.e. if using
+			// anishathalye/porcupine instead of glycerine/porcupine
+			// where I fixed that issue by filtering
+			// out unmatched calls first.
+
+			// TODO: delete i without messing up anything else?
+
+			// Really we have no idea what should be observed, and no
+			// way to know what observed value would be
+			// linearizable, so we cannot insert a phantom value
+			// without breaking the checker.
+
+			// For now we just let the glycerine/phantom checker.go
+			// fix filter out un-matched calls after adding phantom returns.
+
+			continue // skip the read, move on to next unmatched write.
+
+		case STRING_REGISTER_CAS:
+			newString = inp.newString
+		}
+		if newString == "" {
+			continue
+		}
+		// o is the first (minimal) observed index.
+		o, ok := seenVal[newString]
+		if !ok {
+			continue
+		}
+		// value can be observed more than once so o != i is viable.
+		// w is the written index.
+		w, ok := writVal[newString]
+		if !ok {
+			panicf("internal logic error: we should have newString='%v' in writVal", newString)
+		}
+		if o < w {
+			panicf("invalid history: cannot observe(o=%v) before unique(!) value is writte(w=%v). has uniqueness been violated?", o, w)
+		}
+		if i > o {
+			panicf("invalid history: how can we write a unique value *after* it has been observed already?? i(%v) should not be > o(%v)", i, o)
+		}
+		// INVAR: i <= o
+		// INVAR: w <= o
+
+		// seen, so insert the phantom successful ReturnEvent (just) before o.
+		var out *casOutput
+
+		switch inp.op {
+		case STRING_REGISTER_UNK:
+			panic("should be no STRING_REGISTER_UNK")
+		case STRING_REGISTER_PUT:
+			out = &casOutput{
+				op:        STRING_REGISTER_PUT,
+				id:        eventID,
+				valueCur:  inp.newString,
+				newString: inp.newString,
+				phantom:   true,
+			}
+		case STRING_REGISTER_GET:
+			panic("GET should have been ignored above")
+			// do not insert, no idea what the value should be.
+		case STRING_REGISTER_CAS:
+			out = &casOutput{
+				op:        STRING_REGISTER_CAS,
+				id:        eventID,
+				valueCur:  inp.newString, // because we know the CAS actually wrote.
+				swapped:   true,
+				oldString: inp.oldString,
+				newString: inp.newString,
+				phantom:   true,
+			}
+		}
+
+		phantom := []porc.Event{
+			porc.Event{
+				ClientId: clientID,
+				Kind:     porc.ReturnEvent,
+				Id:       eventID,
+				Value:    out,
+			},
+		}
+		evs = append(evs[:o], append(phantom, evs[o:]...)...)
+		// note:
+		// we know o >= i, so we should not have to adjust i the loop variable.
+
+	} // end for i
+
+	return evs
+}
+
 func (s *fuzzUser) linzCheck() {
 	// Analysis
 	// Expecting some events
 	s.shEvents.mut.Lock()
 	defer s.shEvents.mut.Unlock()
+
+	// calls that may or may not have succeeded can mess up
+	// the linearization check. write/cas only unique values,
+	// and if an uncertain (unmatched CallEvent) is observed
+	// later then we know it must have succeeded after all; so
+	// insert a phantom ReturnEvent just prior to the first
+	// observation of that unique value later in the
+	// event sequence. Note: we cannot support deletes
+	// under this regime. We might turn them negative or
+	// invent something else later, but for now, no deletion.
+	s.shEvents.evs = s.addPhantomsForUnmatchedCalls(s.shEvents.evs)
 
 	evs := s.shEvents.evs
 	if len(evs) == 0 {
@@ -517,7 +735,8 @@ func (s *fuzzUser) linzCheck() {
 	//writeToDiskOkEvents(s.t, s.name, evs)
 }
 
-func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leaderURL string) {
+func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leaderURL string, domain int, domainSeen *sync.Map) {
+
 	go func() {
 		defer func() {
 			s.halt.ReqStop.Close()
@@ -527,6 +746,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 		defer func() {
 			prevCanc()
 		}()
+
 		for step := range steps {
 			prevCanc()
 			stepCtx, canc := context.WithTimeout(startCtx, time.Second*10)
@@ -582,7 +802,21 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 				panicOn(err)
 			}
 
-			writeMeNewVal := Val([]byte(fmt.Sprintf("%v", s.rnd(100))))
+			// draw unique values from domain, and only
+			// accept unique new write/cas values every time,
+			// so we can insert phantom ReturnEvents for
+			// calls that did not get an actual return.
+			// check in domainSeen to make sure they are unique.
+			var proposedVal int
+			for {
+				proposedVal = int(s.rnd(int64(domain)))
+				_, loaded := domainSeen.LoadOrStore(proposedVal, true)
+				if !loaded {
+					// proposedVal is uniquely ours now, across all client users.
+					break
+				}
+			}
+			writeMeNewVal := Val([]byte(fmt.Sprintf("%v", proposedVal)))
 			swapped, cur, err = s.CAS(stepCtx, key, oldVal, writeMeNewVal)
 
 			if err != nil {
@@ -1055,6 +1289,11 @@ func Test101_userFuzz(t *testing.T) {
 			// too much for porcupine at even just 30 steps.
 			numUsers := 2
 
+			// 1% or less collision probability, to minimize
+			// rejection sampling and get unique write values quickly.
+			domain := steps * numUsers * 100
+			domainSeen := &sync.Map{}
+
 			forceLeader := 0
 			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)
 
@@ -1115,7 +1354,7 @@ func Test101_userFuzz(t *testing.T) {
 
 				user.cli = cli
 
-				user.Start(ctx, steps, leaderName, leaderURL)
+				user.Start(ctx, steps, leaderName, leaderURL, domain, domainSeen)
 			}
 
 			for _, user := range users {
@@ -1542,6 +1781,8 @@ type casOutput struct {
 
 	oldString string
 	newString string
+
+	phantom bool
 }
 
 func (o *casOutput) String() string {
