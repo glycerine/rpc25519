@@ -646,6 +646,10 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event, tot *totalEven
 
 	hist := newHistoryTree(evs)
 	tree := hist.tree
+	del := func(d int, why string) {
+		vv("del d=%v (%v) which was: %v", d, why, evs[d])
+		hist.del(d)
+	}
 
 topLoop:
 	for it := tree.Min(); !it.Limit(); it = it.Next() {
@@ -754,7 +758,7 @@ topLoop:
 					// wl.slc is sorted, we can delete k and all after too
 					for qq := q; qq < len(wl.slc); qq++ {
 						kk := wl.slc[qq]
-						hist.del(kk)
+						del(kk, "past o")
 						delete(remain, kk)
 					}
 					if len(remain) == 0 {
@@ -776,10 +780,11 @@ topLoop:
 					// this one succeeded. We can
 					// delete the others if they are dangling;
 					// they had better be!
+					why := fmt.Sprintf("fine/swapped at %v", iRet)
 					for k2 := range wl.slc {
 						if k2 != k {
 							if tot.dangling[k2] {
-								hist.del(k2)
+								del(k2, why)
 								delete(remain, k2)
 							} else {
 								panicf("how can we have more than one successful CAS on this eventID_ %v ? k=%v and k2=%v", eventID_, k, k2)
@@ -809,7 +814,7 @@ topLoop:
 					}
 				}
 				for _, d := range delme {
-					hist.del(d)
+					del(d, "must be after writValMin[oldString]")
 					delete(remain, d)
 				}
 			}
@@ -831,7 +836,7 @@ topLoop:
 					if si == 0 {
 						w0 = r
 					} else {
-						hist.del(r)
+						del(r, "picked smallest remain for w0")
 					}
 				}
 			}
@@ -951,6 +956,7 @@ func newHistoryTree(evs []porc.Event) (s *historyTree) {
 var bigZero = big.NewRat(0, 1)
 
 func (s *historyTree) del(d int) {
+	//vv("del d=%v", d)
 	dkey := big.NewRat(int64(d), 1)
 	query := &eventHistoryElem{
 		key: dkey,
@@ -1001,6 +1007,8 @@ func (s *fuzzUser) linzCheck() {
 
 	totalStats := basicEventStats(evs)
 	alwaysPrintf("linzCheck basic event stats (pre-phantom):\n %v", totalStats)
+
+	alwaysPrintf("debug print all events: evs =\n %v", eventSlice(evs))
 
 	// calls that may or may not have succeeded can mess up
 	// the linearization check. write/cas only unique values,
@@ -2200,7 +2208,7 @@ var stringCasModel = porc.Model{
 		return
 	},
 	DescribeOperation: func(input, output interface{}) string {
-		inp := input.(*casInput)
+		inp := input.(*casInput) // nil?
 		out := output.(*casOutput)
 
 		switch inp.op {
