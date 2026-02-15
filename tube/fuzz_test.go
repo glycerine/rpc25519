@@ -1070,6 +1070,10 @@ func (s *fuzzUser) linzCheck() {
 	//vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
 	linz := porc.CheckEvents(stringCasModel, evs)
 	if !linz {
+		alwaysPrintf("not linz! wal:\n")
+		err := s.clus.Nodes[0].DumpRaftWAL()
+		panicOn(err)
+
 		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; evs='%v'", s.name, s.seed, eventSlice(evs))
 		writeToDiskNonLinzFuzzEvents(s.t, s.name, evs)
 		panicf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
@@ -1647,7 +1651,10 @@ func Test101_userFuzz(t *testing.T) {
 			domainSeen := &sync.Map{}
 
 			forceLeader := 0
-			c, leaderName, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 101)
+			cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
+			cfg.NoLogCompaction = true // made bug go away... compaction bug?!?
+
+			c, leaderName, leadi, _ := setupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 101)
 
 			leaderURL := c.Nodes[leadi].URL
 			defer c.Close()
