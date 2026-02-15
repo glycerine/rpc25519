@@ -291,12 +291,11 @@ func (s *totalEventStats) getPerClientStats(clientID int) *perClientEventStats {
 	return c
 }
 
-func newTotalEventStats(countAllEvents int) *totalEventStats {
+func newTotalEventStats() *totalEventStats {
 	s := &totalEventStats{
 		perCli:   make(map[int]*perClientEventStats),
 		dangling: make(map[int]bool),
 	}
-	s.countAllEvents = countAllEvents
 	return s
 }
 
@@ -307,9 +306,14 @@ func (s *perClientEventStats) String() (r string) {
 }
 
 func (s *totalEventStats) String() (r string) {
-	return fmt.Sprintf(`
+	r = fmt.Sprintf(`
   =======   total event stats   ========
 %v`, s.eventStats.String())
+
+	for clientID, per := range s.perCli {
+		r += fmt.Sprintf("clientID %v stats: \n %v", clientID, per)
+	}
+	return
 }
 
 func (s *eventStats) String() (r string) {
@@ -353,7 +357,7 @@ returnWithoutCallPct: %0.3f (%v)
 }
 
 func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
-	tot = newTotalEventStats(len(evs))
+	tot = newTotalEventStats()
 
 	// eventID -> index of CallEvent in evs.
 	// This we assert must be 1:1 since if
@@ -393,13 +397,16 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 			panicf("internal assumptions not holding?! why already in returnList? do we need a counter instead of set here?")
 		}
 		returnList[i] = struct{}{}
-	}
+	} // end for range over evs
+
 	// now do matching on eventID
 	for i, e := range evs {
 		eventID := e.Id
 		clientID := e.ClientId
 		per := tot.getPerClientStats(clientID)
 		per.countAllEvents++
+		tot.countAllEvents++
+
 		info := per.cliInfo
 
 		if e.Kind == porc.CallEvent {
@@ -647,7 +654,7 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event, tot *totalEven
 	hist := newHistoryTree(evs)
 	tree := hist.tree
 	delWrite := func(d int, why string) {
-		vv("delWrite d=%v (%v) which was: %v", d, why, evs[d])
+		vv("delWrite d=%v (%v) which was: %v", d, why, evs[d].String())
 		hist.del(d)
 
 		// delete the corresponding ReturnEvent if any
@@ -656,7 +663,7 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event, tot *totalEven
 			return
 		}
 		for r := range returnList {
-			vv("delWrite corresponding ret=%v (%v) which was: %v", r, why, evs[r])
+			vv("delWrite corresponding ret=%v (%v) which was: %v", r, why, evs[r].String())
 			hist.del(r)
 		}
 		/*		call, ok := event2caller[evs[d].Id]
@@ -1048,10 +1055,6 @@ func (s *fuzzUser) linzCheck() {
 
 	if len(evs) == 0 {
 		panicf("user %v: expected evs > 0, got 0", s.name)
-	}
-
-	for clientID, per := range totalStats.perCli {
-		alwaysPrintf("clientID %v stats: \n %v", clientID, per)
 	}
 
 	// filter out unmatched gets?
