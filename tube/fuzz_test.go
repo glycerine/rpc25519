@@ -46,7 +46,7 @@ import (
 // the raft database server side, and it may have simply been
 // the reply indicating success that got lost. So instead,
 // below, we also tackle this by adding phantom
-// porc.ReturnEvent(s) only when an unmatched write/cass
+// porc.ReturnEvent(s) only when an unmatched write/cas
 // CallEvent is observed to have actually succeeded in this fuzz test.
 //
 // We know a put/write/CAS actually succeeded because we write a unique
@@ -547,8 +547,9 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 
 	// now do matching on eventID, filling in seenVal in outputs
 	// for all events.
-	writVal := make(map[string]int) // written string -> index written at
-	seenVal := make(map[string]int) // written string -> index observed at
+	writValMin := make(map[string]int) // written string -> index written at (min)
+	writValMax := make(map[string]int) // written string -> index written at (max)
+	seenVal := make(map[string]int)    // written string -> index observed at (min)
 	for i, e := range evs {
 		//eventID := e.Id
 
@@ -562,10 +563,33 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 			case STRING_REGISTER_UNK:
 				panic("should be no STRING_REGISTER_UNK")
 			case STRING_REGISTER_PUT:
-				writVal[inp.newString] = i
+				k, prior := writValMin[inp.newString]
+				if !prior || i < k {
+					// keep the smallest index observed.
+					writValMin[inp.newString] = i
+				}
+				k, prior = writValMax[inp.newString]
+				if !prior || i > k {
+					// keep the largest index observed.
+					writValMax[inp.newString] = i
+				}
 			case STRING_REGISTER_GET:
 			case STRING_REGISTER_CAS:
-				writVal[inp.newString] = i
+				// so on retry at the same session
+				// we _want_ to write the
+				// exact same value again; so allow that
+				// but find the minimum (first possible successful
+				// write) index.
+				k, prior := writValMin[inp.newString]
+				if !prior || i < k {
+					// keep the smallest index observed.
+					writValMin[inp.newString] = i
+				}
+				k, prior = writValMax[inp.newString]
+				if !prior || i > k {
+					// keep the largest index observed.
+					writValMax[inp.newString] = i
+				}
 			}
 		} else {
 			// INVAR: e.Kind == porc.ReturnEvent
@@ -610,7 +634,7 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 			continue // only add these, don't analyze them; skip over.
 		}
 		e := elem.pev
-		i := elem.origi
+		//i := elem.origi
 
 		eventID := e.Id
 		clientID := e.ClientId
@@ -674,19 +698,33 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 			continue
 		}
 		// value can be observed more than once so o != i is viable.
-		// w is the written index.
-		w, ok := writVal[newString]
+
+		// w is the earliest (smallest) write index.
+		// we might have multiple retries attempting the same write.
+		// which one of them succeeded? all we know is that the
+		// write should linearize between the first and the last
+		// attempt at writing if the value is actually observed
+		// at some point.
+		w0, ok := writValMin[newString]
 		if !ok {
-			panicf("internal logic error: we should have newString='%v' in writVal", newString)
+			panicf("internal logic error: we should have newString='%v' in writValMin", newString)
 		}
-		if o < w {
-			panicf("invalid history: cannot observe(o=%v) before unique(!) value is writte(w=%v). has uniqueness been violated?", o, w)
+		w1, ok := writValMax[newString]
+		if !ok {
+			panicf("internal logic error: we should have newString='%v' in writValMax", newString)
 		}
-		if i > o {
-			panicf("invalid history: how can we write a unique value *after* it has been observed already?? i(%v) should not be > o(%v)", i, o)
+		_ = w1
+		if o <= w0 {
+			alwaysPrintf("evs='%v'", eventSlice(evs))
+			panicf("invalid history: cannot observe(o=%v) before unique(!) value is written at earliest (w0=%v). has uniqueness been violated? value newString='%v'", o, w0, newString)
 		}
-		// INVAR: i <= o
-		// INVAR: w <= o
+		// this can certainly happen when i is a retry after a failed write
+		// but someone else sees the actually successful write.
+		//if i > o {
+		//	panicf("invalid history: how can we write a unique value *after* it has been observed already?? i(%v) should not be > o(%v)", i, o)
+		//}
+
+		// INVAR: w0 < o
 
 		// seen, so insert the phantom successful ReturnEvent (just) before o.
 		var out *casOutput
@@ -724,7 +762,8 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 			Value:    out,
 		}
 
-		hist.insertBefore(w, phantom)
+		vv("inserting phantom at o, where o(%v) > w0(%v): '%v'", o, w0, phantom)
+		hist.insertBefore(o, phantom)
 
 	} // end for over all nodes in tree
 
@@ -1006,9 +1045,15 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 		callEvent := porc.Event{
 			ClientId: s.userid,
 			//Input:    &casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
-			Kind:  porc.CallEvent,
-			Value: &casInput{op: STRING_REGISTER_CAS, oldString: oldValStr, newString: newValStr},
-			Id:    eventID,
+			Kind: porc.CallEvent,
+			Value: &casInput{
+				op:        STRING_REGISTER_CAS,
+				oldString: oldValStr,
+				newString: newValStr,
+				sessSN:    s.sess.SessionSerial + 1,
+				sessID:    s.sess.SessionID,
+			},
+			Id: eventID,
 			//Call:  begtmWrite.UnixNano(), // invocation timestamp
 
 			// assume error/unknown happens, update below if it did not.
@@ -1401,7 +1446,7 @@ func Test101_userFuzz(t *testing.T) {
 
 		onlyBubbled(t, func(t *testing.T) {
 
-			steps := 2
+			steps := 10
 			numNodes := 3
 			// numUsers of 20 ok at 200 steps, but 30 users is
 			// too much for porcupine at even just 30 steps.
@@ -1574,7 +1619,7 @@ func writeToDiskNonLinzFuzzEvents(t *testing.T, user string, evs []porc.Event) {
 	for i := 1; fileExists(nm) && i < 1000; i++ {
 		nm = fmt.Sprintf("red.nonlinz.%v.%03d.user_%v.html", t.Name(), i, user)
 	}
-	vv("writing out non-linearizable evs history '%v'", nm)
+	vv("writing out non-linearizable evs history '%v' len %v", nm, len(evs))
 	fd, err := os.Create(nm)
 	panicOn(err)
 	defer fd.Close()
@@ -1596,7 +1641,7 @@ func writeToDiskOkEvents(t *testing.T, user string, evs []porc.Event) {
 	for i := 1; fileExists(nm) && i < 1000; i++ {
 		nm = fmt.Sprintf("green.linz.%v.%03d.user_%v.html", t.Name(), i, user)
 	}
-	vv("writing out linearizable evs history '%v'", nm)
+	vv("writing out linearizable evs history '%v', len %v", nm, len(evs))
 	fd, err := os.Create(nm)
 	panicOn(err)
 	defer fd.Close()
@@ -1888,6 +1933,9 @@ type casInput struct {
 	op        stringRegisterOp
 	oldString string
 	newString string
+
+	sessSN int64
+	sessID string
 }
 
 type casOutput struct {
@@ -1901,10 +1949,16 @@ type casOutput struct {
 	newString string
 
 	phantom bool
+	sessSN  int64
 }
 
 func (o *casOutput) String() string {
-	var xtra string
+	var xtra, phant string
+	if o.phantom {
+		phant = `
+      phantom: true
+`
+	}
 	if o.op == STRING_REGISTER_CAS {
 		xtra = fmt.Sprintf(`       swapped: %v,
   // -- from input --
@@ -1923,11 +1977,12 @@ func (o *casOutput) String() string {
             op: %v,
       valueCur: %q,
       notFound: %v,
-%v}`, o.id,
+%v%v}`, o.id,
 		o.op,
 		o.valueCur,
 		o.notFound,
 		xtra,
+		phant,
 	)
 }
 
