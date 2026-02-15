@@ -311,7 +311,14 @@ func (s *totalEventStats) String() (r string) {
   =======   total event stats   ========
 %v`, s.eventStats.String())
 
-	for clientID, per := range s.perCli {
+	// sort so display order of per client is consistent
+	var ids []int
+	for clientID := range s.perCli {
+		ids = append(ids, clientID)
+	}
+	sort.Ints(ids)
+	for _, clientID := range ids {
+		per := s.perCli[clientID]
 		r += fmt.Sprintf("clientID %v stats: \n %v", clientID, per)
 	}
 	return
@@ -782,7 +789,7 @@ topLoop:
 				if k >= o {
 					// we know the write had to come before the observation.
 					// wl.slc is sorted, we can delete k and all after too
-					why := fmt.Sprintf("past o=%v", o)
+					why := fmt.Sprintf("past o=%v; w0=%v; w1=%v", o, w0, w1)
 					for qq := q; qq < len(wl.slc); qq++ {
 						kk := wl.slc[qq]
 						delWrite(kk, why)
@@ -1037,7 +1044,7 @@ func (s *fuzzUser) linzCheck() {
 	totalStats := basicEventStats(evs)
 	alwaysPrintf("linzCheck basic event stats (pre-phantom):\n %v", totalStats)
 
-	alwaysPrintf("debug print all events: evs =\n %v", eventSlice(evs))
+	//alwaysPrintf("debug print all events: evs =\n %v", eventSlice(evs))
 
 	// calls that may or may not have succeeded can mess up
 	// the linearization check. write/cas only unique values,
@@ -1632,7 +1639,7 @@ func Test101_userFuzz(t *testing.T) {
 			numNodes := 3
 			// numUsers of 20 ok at 200 steps, but 30 users is
 			// too much for porcupine at even just 30 steps.
-			numUsers := 2
+			numUsers := 10 // non-linz at 10!
 
 			// 1% or less collision probability, to minimize
 			// rejection sampling and get unique write values quickly.
