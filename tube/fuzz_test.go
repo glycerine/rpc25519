@@ -329,6 +329,11 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 			returnList = make(map[int]struct{})
 			event2return[eventID] = returnList
 		}
+		// sanity check
+		_, already := returnList[i]
+		if already {
+			panicf("internal assumptions not holding?! why already in returnList? do we need a counter instead of set here?")
+		}
 		returnList[i] = struct{}{}
 	}
 	// now do matching on eventID
@@ -347,12 +352,22 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 				// no returns/replies for this event, it is dangling.
 				per.danglingCallsN++
 				tot.danglingCallsN++
+				continue
 			}
-			if len(returnList) == 1 {
+			nReturn := len(returnList)
+			switch nReturn {
+			case 0:
+				// nil map, should have skipped above on !ok
+				panic("why have a returnList at all?")
+			case 1:
 				// single call, single return/response.
 				per.oneToOneCallsN++
 				tot.oneToOneCallsN++
-			} else {
+			default:
+				vv("eventID %v has multiple returns:", eventID)
+				for j := range returnList {
+					vv("dup returns: j=%v  for eventID %v", j, eventID)
+				}
 				per.dupReturnN++
 				tot.dupReturnN++
 			}
