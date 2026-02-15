@@ -305,6 +305,7 @@ func (s *perClientEventStats) String() (r string) {
 %v`, s.clientID, s.eventStats.String())
 }
 
+// show both total and include per-client specific.
 func (s *totalEventStats) String() (r string) {
 	r = fmt.Sprintf(`
   =======   total event stats   ========
