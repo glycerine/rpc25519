@@ -650,13 +650,22 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event, tot *totalEven
 		vv("delWrite d=%v (%v) which was: %v", d, why, evs[d])
 		hist.del(d)
 
-		// delete the corresponding CallEvent
-		call, ok := event2caller[evs[d].Id]
+		// delete the corresponding ReturnEvent if any
+		returnList, ok := event2return[evs[d].Id]
 		if !ok {
-			panicf("where is call for write d=%v", d)
+			return
 		}
-		vv("delWrite corresponding call=%v (%v) which was: %v", call, why, evs[call])
-		hist.del(call)
+		for r := range returnList {
+			vv("delWrite corresponding ret=%v (%v) which was: %v", r, why, evs[r])
+			hist.del(r)
+		}
+		/*		call, ok := event2caller[evs[d].Id]
+				if !ok {
+					panicf("where is call for write d=%v", d)
+				}
+				vv("delWrite corresponding call=%v (%v) which was: %v", call, why, evs[call])
+				hist.del(call)
+		*/
 	}
 
 topLoop:
