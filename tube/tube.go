@@ -8237,13 +8237,30 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 		// general sanity assert to our AE logic.
 		if s.cfg.NoLogCompaction {
-			if keepCount < s.state.CommitIndex {
+			// this simple assertion is insufficient in Fig 3.7 like scenarios:
+			// the old leader failed to commit an entry, the new
+			// leader (new term) has already committed an overwriting
+			// log entry, and now this follower needs to both advance
+			// the commit index AND overwrite the old on disk old term
+			// log entries with the new leader's committed log.
+			// The problem is that above we eagerly advanced the
+			// s.state.CommitIndex to match the leader's idea of what
+			// is committed, but did this _before_ we overwrote the
+			// old uncommitted log entry... overwrite entries should
+			// be allowed to replace previous term uncommitted entries.
+			// The *real* problem is that we are adjusting CommitIndex
+			// before we have done overwriteEntries, so the
+			// "current" curCommitIndex we pass them is...outdated.
+			// should we just pass prevci?
+			//if keepCount < s.state.CommitIndex {
+			if keepCount < prevci {
 				panic(fmt.Sprintf("%v log violation: keepCount(%v) < s.state.CommitIndex(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, s.state.CommitIndex))
 			}
 		}
 
 		// in handleAppendEntries here.
-		err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
+		//err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
+		err := s.wal.overwriteEntries(keepCount, neededEntries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
 		panicOn(err)
 		if true { // TODO restore: s.cfg.isTest {
 			s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
@@ -8295,7 +8312,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 				// general sanity assert to our AE logic
 				if s.cfg.NoLogCompaction {
-					if keepCount < s.state.CommitIndex {
+					//if keepCount < s.state.CommitIndex {
+					if keepCount < prevci {
 						panic(fmt.Sprintf("%v log violation: keepCount(%v) < s.state.CommitIndex(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, s.state.CommitIndex))
 					}
 				}
@@ -8304,7 +8322,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 				numTruncated = 0
 				numAppended = int64(len(entries))
 				// in handleAppendEntries here.
-				err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
+				//err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
+				err := s.wal.overwriteEntries(keepCount, entries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
 				panicOn(err)
 
 				if true { // TODO restore: s.cfg.isTest {
