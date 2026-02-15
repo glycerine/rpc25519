@@ -756,9 +756,10 @@ topLoop:
 				if k >= o {
 					// we know the write had to come before the observation.
 					// wl.slc is sorted, we can delete k and all after too
+					why := fmt.Sprintf("past o=%v", o)
 					for qq := q; qq < len(wl.slc); qq++ {
 						kk := wl.slc[qq]
-						del(kk, "past o")
+						del(kk, why)
 						delete(remain, kk)
 					}
 					if len(remain) == 0 {
