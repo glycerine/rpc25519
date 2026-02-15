@@ -1124,9 +1124,10 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			var err error
 			var oldVal Val
 			var cur Val
+			var redirect *LeaderRedirect
 
 			if step == 0 || !swapped {
-				oldVal, err = s.Read(key)
+				oldVal, redirect, err = s.Read(key)
 				if err != nil {
 					errs := err.Error()
 					switch {
@@ -1149,7 +1150,14 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 
 						// do we need to reconnect to try again?
 						continue
+
+					case strings.Contains(errs, "error: I am not leader."):
+						// e.g. error: I am not leader. I ('node_0') think leader is 'node_2'
+						// use redirect
+						s.newSession(startCtx, redirect.LeaderName, redirect.LeaderURL)
+						continue
 					}
+
 				}
 				panicOn(err)
 			}
@@ -1358,7 +1366,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 
 var fuzzTestTable = Key("table101")
 
-func (s *fuzzUser) Read(key string) (val Val, err error) {
+func (s *fuzzUser) Read(key string) (val Val, redir *LeaderRedirect, err error) {
 
 	waitForDur := time.Second
 
@@ -1372,7 +1380,8 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 		Value:    &casInput{op: STRING_REGISTER_GET},
 	}
 
-	if false {
+	//if false {
+	if true {
 		s.shEvents.mut.Lock()
 		s.shEvents.evs = append(s.shEvents.evs, callEvent)
 		s.shEvents.mut.Unlock()
@@ -1412,8 +1421,21 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 		}
 		errs := err.Error()
 		if strings.Contains(errs, "context deadline exceeded") {
+			vv("%v fuzzUser.Read returning on err: context deadline exceeded", s.name)
 			return
 		}
+
+		// e.g. error: I am not leader. I ('node_0') think leader is 'node_2'
+		if strings.Contains(errs, "error: I am not leader.") {
+			redir = &LeaderRedirect{
+				LeaderID:   tkt.LeaderID,
+				LeaderName: tkt.LeaderName,
+				LeaderURL:  tkt.LeaderURL,
+			}
+			return
+		}
+
+		// panic: node_2 leader error: clock mis-behavior detected and client must re-submit ticket to preserve sequential consistency. Ticket.SessionID='evpvvaOdaoCuW30JNWFJ_ZcgK960' (SessionSerial='16'); tkt.SessionLastKnownIndex(61) > s.state.LastApplied(57)
 	}
 	switch err {
 	case ErrShutDown, rpc.ErrShutdown2,
@@ -1441,7 +1463,7 @@ func (s *fuzzUser) Read(key string) (val Val, err error) {
 	}
 
 	s.shEvents.mut.Lock()
-	s.shEvents.evs = append(s.shEvents.evs, callEvent)
+	//s.shEvents.evs = append(s.shEvents.evs, callEvent)
 	s.shEvents.evs = append(s.shEvents.evs, returnEvent)
 	s.shEvents.mut.Unlock()
 
@@ -1619,7 +1641,7 @@ func (s *fuzzNemesis) makeTrouble() {
 }
 
 func Test101_userFuzz(t *testing.T) {
-	return
+	//return
 	runtime.GOMAXPROCS(1)
 
 	defer func() {
@@ -1739,12 +1761,15 @@ retry:
 	canc5()
 	if err != nil {
 		errs := err.Error()
-		if strings.Contains(errs, "context cancelled") {
+		if strings.Contains(errs, "context cancelled") ||
+			strings.Contains(errs, "context deadline exceeded") ||
+			strings.Contains(errs, "time-out waiting for call to complete") {
+
 			if redirect != nil {
 				leaderName = redirect.LeaderName
 				leaderURL = redirect.LeaderURL
 			}
-			alwaysPrintf("%v: err back from CreateNewSession, goto retry; err='%v'", user.name, errs) // not seen.
+			alwaysPrintf("%v: err back from CreateNewSession, goto retry; err='%v'", user.name, errs) // stuck in infinite loop of these: fuzz_test.go:1772 [goID 11] 2000-01-01T00:01:45.308000001+00:00 user11: err back from CreateNewSession, goto retry; err='ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'error requesting CallPeerStartCircuit from remote: 'time-out waiting for call to complete'; netAddr='simnet://srv_node_0'; remoteAddr='simnet://srv_node_0''; '
 			goto retry
 		}
 	}
@@ -1768,6 +1793,7 @@ retry:
 			return nil // get a new client, not just a new session
 		}
 		if strings.Contains(errs, "time-out waiting for call to complete") {
+			vv("error with leaderName '%v'", leaderName)
 			// e.g. ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'error requesting CallPeerStartCircuit from remote: 'time-out waiting for call to complete'; netAddr='simnet://srv_node_0'; remoteAddr='simnet://srv_node_0'';
 		}
 		panic(err)
