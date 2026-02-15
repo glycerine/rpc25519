@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"math"
+	"math/big"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -18,11 +19,36 @@ import (
 	"time"
 
 	"github.com/glycerine/idem"
+	rb "github.com/glycerine/rbtree"
 
 	porc "github.com/glycerine/porcupine"
 	//porc "github.com/anishathalye/porcupine"
 	rpc "github.com/glycerine/rpc25519"
 )
+
+// 2026 Feb 15: a note on why we use glycerine/porcupine (v.1.2.4-jea)
+// rather than anishathalye/porcupine (v1.1.0) as of this writing
+//
+// Per https://github.com/anishathalye/porcupine/issues/42
+// there are two problems with anishathalye/porcupine (v1.1.0):
+//
+// a) it rejects event histories where some calls do not have returns.
+// Since our network partition/dropped packets robustness testing
+// involves lost replies, porcupine will spuriously reject
+// such histories. glycerine/porcupine (v1.2.4-jea) filters out
+// unmatched calls (with commit 2122eb2).
+//
+// b) filtering alone though will itself create non-linearizability
+// if done alone, because those writes may have succeeded at
+// the raft database server side, and it may have simply been
+// the reply that got lost. So instead, below, we also tackle
+// this by adding phatom porc.ReturnEvent(s) only when an
+// unmatched write/cass CallEvent is observed to have actually
+// succeeded. We know it actually succeeded because we write a unique
+// value on every write/cas attempt, and so if that value
+// is ever observed, then we know there was a successful
+// write but a lost reply. We insert a phantom reply just
+// before the first observation of written value.
 
 var _ = runtime.GOMAXPROCS
 var _ = trace.Stop
@@ -565,9 +591,22 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 		}
 	}
 
-	// cannot use range, since we insert into evs during this loop.
-	for i := 0; i < len(evs); i++ {
-		e := evs[i]
+	// leave evs untouched so that we do not mess up
+	// our indexing as we insert into the tree. keys
+	// are big.Rat so original will be on whole numbers
+	// while phantoms will be have fractional keys.
+
+	hist := newHistoryTree(evs)
+	tree := hist.tree
+
+	for it := tree.Min(); !it.Limit(); it = it.Next() {
+		elem := it.Item().(*eventHistoryElem)
+		if elem.phantom {
+			continue // only add these, don't analyze them; skip over.
+		}
+		e := elem.pev
+		i := elem.origi
+
 		eventID := e.Id
 		clientID := e.ClientId
 
@@ -673,21 +712,95 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 			}
 		}
 
-		phantom := []porc.Event{
-			porc.Event{
-				ClientId: clientID,
-				Kind:     porc.ReturnEvent,
-				Id:       eventID,
-				Value:    out,
-			},
+		phantom := &porc.Event{
+			ClientId: clientID,
+			Kind:     porc.ReturnEvent,
+			Id:       eventID,
+			Value:    out,
 		}
-		evs = append(evs[:o], append(phantom, evs[o:]...)...)
-		// note:
-		// we know o >= i, so we should not have to adjust i the loop variable.
 
-	} // end for i
+		hist.insertBefore(w, phantom)
 
-	return evs
+	} // end for over all nodes in tree
+
+	// copy into new slice.
+	evs2 := make([]porc.Event, hist.tree.Len())
+	i := 0
+	for it := tree.Min(); !it.Limit(); it = it.Next() {
+		evs2[i] = *(it.Item().(*eventHistoryElem).pev)
+		i++
+	}
+	return evs2
+}
+
+type eventHistoryElem struct {
+	key     *big.Rat
+	pev     *porc.Event
+	origi   int
+	phantom bool
+}
+type historyTree struct {
+	tree *rb.Tree
+}
+
+func newHistoryTree(evs []porc.Event) (s *historyTree) {
+	s = &historyTree{
+		tree: rb.NewTree(func(a, b rb.Item) int {
+			av := a.(*eventHistoryElem)
+			bv := b.(*eventHistoryElem)
+			if av == bv {
+				return 0
+			}
+			return av.key.Cmp(bv.key)
+		}),
+	}
+	for i := range evs {
+		elem := &eventHistoryElem{
+			// we never have to insert before the first event,
+			// so we can start at 0 and still keep all keys >= 0.
+			key:   big.NewRat(int64(i), 1),
+			pev:   &(evs[i]),
+			origi: i,
+		}
+		s.tree.Insert(elem)
+	}
+	return
+}
+
+var bigZero = big.NewRat(0, 1)
+
+func (s *historyTree) insertBefore(w int, addme *porc.Event) {
+	wkey := big.NewRat(int64(w), 1)
+	query := &eventHistoryElem{
+		key: wkey,
+	}
+	it, exact := s.tree.FindGE_isEqual(query)
+	if !exact {
+		panicf("could not find w = %v in tree", w)
+	}
+	ahead := it.Item().(*eventHistoryElem)
+	var key *big.Rat
+	if it.Min() {
+		panic("currently we cannot insert before the 0-th element in the original event history")
+	} else {
+		prev := it.Prev().Item().(*eventHistoryElem)
+		key = keyBetween(prev.key, ahead.key)
+	}
+	add := &eventHistoryElem{
+		key:     key,
+		pev:     addme,
+		phantom: true,
+	}
+	added := s.tree.Insert(add)
+	if !added {
+		panicf("why was not added to tree key '%v'?", key)
+	}
+}
+
+// to insert between two existing keys
+func keyBetween(a, b *big.Rat) *big.Rat {
+	sum := new(big.Rat).Add(a, b)
+	return sum.Quo(sum, big.NewRat(2, 1))
 }
 
 func (s *fuzzUser) linzCheck() {
