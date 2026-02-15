@@ -175,16 +175,15 @@ func (s *cliInfo) addReturn(fromIdx, toIdx, eventID int) {
 	}
 	rets[fromIdx] = eventID
 }
-func newCliInfo(clientId int) *cliInfo {
+func newCliInfo(clientID int) *cliInfo {
 	return &cliInfo{
-		clientId: clientId,
+		clientId: clientID,
 		call:     make(map[int]map[int]int), // fromIdx -> toIdx   -> eventID
 		ret:      make(map[int]map[int]int), // toIdx   -> fromIdx -> eventID
 	}
 }
 
-type perClientEventStats struct {
-	clientId int
+type eventStats struct {
 
 	// callAttemptN (is partitioned into) =
 	// oneToOneCallsN (only 1 receive) +
@@ -203,30 +202,6 @@ type perClientEventStats struct {
 	//
 	// there could also be erroneous returns without a corresponding
 	// call; we sanity check for those.
-	callAttemptN int
-
-	oneToOneCallsN   int
-	oneToOneCallsPct float64
-
-	danglingCallsN   int
-	danglingCallsPct float64
-
-	dupReturnN   int
-	dupReturnPct float64
-
-	returnWithoutCallN   int
-	returnWithoutCallPct float64
-
-	cliInfo *cliInfo
-}
-
-func newPerClientEventStats(clientId int) *perClientEventStats {
-	return &perClientEventStats{
-		cliInfo: newCliInfo(clientId),
-	}
-}
-
-type totalEventStats struct {
 	countAllEvents int
 
 	callAttemptN     int // call attempts
@@ -242,30 +217,70 @@ type totalEventStats struct {
 	returnWithoutCallN   int
 	returnWithoutCallPct float64
 
+	numPut     int
+	numPut11   int
+	numPutFail int
+
+	numGet     int
+	numGet11   int
+	numGetFail int
+
+	numCAS       int
+	numCAS11     int
+	numCASFail   int
+	numCASwapped int
+}
+
+type perClientEventStats struct {
+	eventStats
+	clientID int
+	cliInfo  *cliInfo
+}
+
+func newPerClientEventStats(clientID int) *perClientEventStats {
+	return &perClientEventStats{
+		clientID: clientID,
+		cliInfo:  newCliInfo(clientID),
+	}
+}
+
+type totalEventStats struct {
+	eventStats
 	perCli map[int]*perClientEventStats
 }
 
-func (s *totalEventStats) getPerClientStats(clientId int) *perClientEventStats {
-	c, ok := s.perCli[clientId]
+func (s *totalEventStats) getPerClientStats(clientID int) *perClientEventStats {
+	c, ok := s.perCli[clientID]
 	if ok {
 		return c
 	}
-	c = newPerClientEventStats(clientId)
-	s.perCli[clientId] = c
+	c = newPerClientEventStats(clientID)
+	s.perCli[clientID] = c
 	return c
 }
 
 func newTotalEventStats(countAllEvents int) *totalEventStats {
-	return &totalEventStats{
-		countAllEvents: countAllEvents,
-		perCli:         make(map[int]*perClientEventStats),
+	s := &totalEventStats{
+		perCli: make(map[int]*perClientEventStats),
 	}
+	s.countAllEvents = countAllEvents
+	return s
+}
+
+func (s *perClientEventStats) String() (r string) {
+	return fmt.Sprintf(`
+  =======   client %v event stats   ========
+%v`, s.clientID, s.eventStats.String())
 }
 
 func (s *totalEventStats) String() (r string) {
-	r = fmt.Sprintf(`
-  =======   totalEventStats   ========
+	return fmt.Sprintf(`
+  =======   total event stats   ========
+%v`, s.eventStats.String())
+}
 
+func (s *eventStats) String() (r string) {
+	r = fmt.Sprintf(`
           callAttemptN: %v
         countAllEvents: %v
 
@@ -275,6 +290,11 @@ func (s *totalEventStats) String() (r string) {
 
         dupReturnPct: %0.3f (%v)
 returnWithoutCallPct: %0.3f (%v)
+
+  -- categorizing attempted calls --
+	numPut: %v  [dangling: %v, one-to-one: %v]
+	numGet: %v  [dangling: %v, one-to-one: %v]
+	numCAS: %v  [dangling: %v, one-to-one: %v, swapped: %v (%0.2f %%)]
 `,
 		s.callAttemptN,
 		s.countAllEvents,
@@ -290,6 +310,11 @@ returnWithoutCallPct: %0.3f (%v)
 
 		s.returnWithoutCallPct,
 		s.returnWithoutCallN,
+
+		s.numPut, s.numPutFail, s.numPut11,
+		s.numGet, s.numGetFail, s.numGet11,
+		s.numCAS, s.numCASFail, s.numCAS11, s.numCASwapped,
+		100*float64(s.numCASwapped)/float64(s.numCAS11),
 	)
 	return
 }
@@ -341,17 +366,55 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 		eventID := e.Id
 		clientID := e.ClientId
 		per := tot.getPerClientStats(clientID)
+		per.countAllEvents++
 		info := per.cliInfo
 
 		if e.Kind == porc.CallEvent {
 			per.callAttemptN++
 			tot.callAttemptN++
 
+			// count call type
+			inp, isInput := e.Value.(*casInput)
+			if !isInput {
+				panicf("why not input? e.Value='%#v'", e.Value)
+			}
+			var failCount, perFailCount *int
+			var okCount, perOkCount *int
+			var isCAS bool
+			switch inp.op {
+			case STRING_REGISTER_UNK:
+				panic("should be no STRING_REGISTER_UNK")
+			case STRING_REGISTER_PUT:
+				tot.numPut++
+				per.numPut++
+				failCount = &(tot.numPutFail)
+				okCount = &(tot.numPut11)
+				perFailCount = &(per.numPutFail)
+				perOkCount = &(per.numPut11)
+			case STRING_REGISTER_GET:
+				tot.numGet++
+				per.numGet++
+				failCount = &(tot.numGetFail)
+				okCount = &(tot.numGet11)
+				perFailCount = &(per.numGetFail)
+				perOkCount = &(per.numGet11)
+			case STRING_REGISTER_CAS:
+				tot.numCAS++
+				per.numCAS++
+				failCount = &(tot.numCASFail)
+				okCount = &(tot.numCAS11)
+				perFailCount = &(per.numCASFail)
+				perOkCount = &(per.numCAS11)
+				isCAS = true
+			}
+
 			returnList, ok := event2return[eventID]
 			if !ok {
 				// no returns/replies for this event, it is dangling.
 				per.danglingCallsN++
 				tot.danglingCallsN++
+				(*failCount)++
+				(*perFailCount)++
 				continue
 			}
 			nReturn := len(returnList)
@@ -363,6 +426,20 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 				// single call, single return/response.
 				per.oneToOneCallsN++
 				tot.oneToOneCallsN++
+				(*okCount)++
+				(*perOkCount)++
+				if isCAS {
+					for j := range returnList {
+						out, ok := evs[j].Value.(*casOutput)
+						if !ok {
+							panicf("j=%v should have *casOutput, not %#v", j, evs[j].Value)
+						}
+						if out.swapped {
+							tot.numCASwapped++
+							per.numCASwapped++
+						}
+					}
+				}
 			default:
 				vv("eventID %v has multiple returns:", eventID)
 				for j := range returnList {
@@ -402,6 +479,7 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 	for _, per := range tot.perCli {
 		per.returnWithoutCallPct = float64(per.returnWithoutCallN) / float64(per.callAttemptN)
 	}
+
 	return
 }
 
@@ -417,20 +495,13 @@ func (s *fuzzUser) linzCheck() {
 	}
 
 	totalStats := basicEventStats(evs)
-	alwaysPrintf("linzCheck basic event stats:\n %v\n", totalStats.String())
+	alwaysPrintf("linzCheck basic event stats:\n %v", totalStats)
 
-	// filter out unmatched gets
-	/*var filt []porc.Event
-	response := make(map[int]bool)
-	for _, e := range evs {
-		if e.Kind == porc.CallEvent {
-			inp := e.Value.(*casInput)
-			if inp.op == STRING_REGISTER_GET {
-
-			}
-		}
+	for clientID, per := range totalStats.perCli {
+		alwaysPrintf("clientID %v stats: \n %v", clientID, per)
 	}
-	*/
+
+	// filter out unmatched gets?
 
 	//vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
 	linz := porc.CheckEvents(stringCasModel, evs)

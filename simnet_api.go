@@ -380,7 +380,7 @@ func (s *Simnet) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends
 	case pause := <-fault.proceed:
 		_ = pause
 		err = fault.err
-		vv("'%v' server, we have received on fault.proceed=%p from '%v'; dd='%v'; err = '%v'; pause = %v", hostName, fault.proceed, dd, err, pause)
+		vv("'%v' server, we have received on fault.proceed=%p; dd='%v'; err = '%v'; pause = %v", hostName, fault.proceed, dd, err, pause)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
