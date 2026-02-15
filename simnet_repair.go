@@ -440,7 +440,16 @@ func (s *Simnet) localCircuitFaultsPresent(origin, target *simnode) (ans bool) {
 // at origin. otherwise just the conn from origin -> target.
 func (s *Simnet) localCircuitDeafForSure(origin, target *simnode) bool {
 
-	for rem, conn := range s.circuits.get(origin).all() {
+	// try to address segfault on nil back
+	// from s.circuits.get(origin) below.
+	if origin == nil {
+		return false // really don't know for sure.
+	}
+	got := s.circuits.get(origin)
+	if got == nil {
+		return false
+	}
+	for rem, conn := range got.all() {
 		if target == nil || target == rem {
 			if conn.deafRead < 1 {
 				return false

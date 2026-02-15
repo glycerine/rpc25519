@@ -295,6 +295,10 @@ func (s *dmap[K, V]) all() iter.Seq2[K, V] {
 
 	seq2 := func(yield func(K, V) bool) {
 
+		if s == nil || s.tree == nil {
+			return
+		}
+
 		//vv("start of all iteration.")
 		n := s.tree.Len()
 		nc := len(s.ordercache)
