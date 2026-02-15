@@ -1042,7 +1042,7 @@ func (s *fuzzUser) linzCheck() {
 	evs := s.shEvents.evs
 
 	totalStats := basicEventStats(evs)
-	alwaysPrintf("linzCheck basic event stats (pre-phantom):\n %v", totalStats)
+	//alwaysPrintf("linzCheck basic event stats (pre-phantom):\n %v", totalStats)
 
 	//alwaysPrintf("debug print all events: evs =\n %v", eventSlice(evs))
 
@@ -1058,8 +1058,8 @@ func (s *fuzzUser) linzCheck() {
 	s.shEvents.evs = s.addPhantomsForUnmatchedCalls(s.shEvents.evs, totalStats)
 	evs = s.shEvents.evs
 
-	totalStats2 := basicEventStats(evs)
-	alwaysPrintf("linzCheck basic event stats (post-phantom):\n %v", totalStats2)
+	//totalStats2 := basicEventStats(evs)
+	//alwaysPrintf("linzCheck basic event stats (post-phantom):\n %v", totalStats2)
 
 	if len(evs) == 0 {
 		panicf("user %v: expected evs > 0, got 0", s.name)
@@ -1067,12 +1067,14 @@ func (s *fuzzUser) linzCheck() {
 
 	// filter out unmatched gets?
 
+	alwaysPrintf(" wal:\n")
+	err := s.clus.Nodes[0].DumpRaftWAL()
+	panicOn(err)
+
 	//vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
 	linz := porc.CheckEvents(stringCasModel, evs)
 	if !linz {
-		alwaysPrintf("not linz! wal:\n")
-		err := s.clus.Nodes[0].DumpRaftWAL()
-		panicOn(err)
+		//alwaysPrintf("not linz! wal:\n")
 
 		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; evs='%v'", s.name, s.seed, eventSlice(evs))
 		writeToDiskNonLinzFuzzEvents(s.t, s.name, evs)
@@ -1082,7 +1084,7 @@ func (s *fuzzUser) linzCheck() {
 	vv("user %v: len(evs)=%v passed linearizability checker.", s.name, len(evs))
 
 	// nothing much to see really.
-	//writeToDiskOkEvents(s.t, s.name, evs)
+	writeToDiskOkEvents(s.t, s.name, evs)
 }
 
 func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leaderURL string, domain int, domainSeen *sync.Map) {
@@ -1643,7 +1645,8 @@ func Test101_userFuzz(t *testing.T) {
 			numNodes := 3
 			// numUsers of 20 ok at 200 steps, but 30 users is
 			// too much for porcupine at even just 30 steps.
-			numUsers := 10 // non-linz at 10!
+			//numUsers := 10 // non-linz at 10!
+			numUsers := 15
 
 			// 1% or less collision probability, to minimize
 			// rejection sampling and get unique write values quickly.
@@ -1652,7 +1655,7 @@ func Test101_userFuzz(t *testing.T) {
 
 			forceLeader := 0
 			cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
-			cfg.NoLogCompaction = true // made bug go away... compaction bug?!?
+			cfg.NoLogCompaction = true // made bug go away... compaction bug?!? or did we just change the rng access enough to shift things.
 
 			c, leaderName, leadi, _ := setupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 101)
 

@@ -165,7 +165,7 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 		}
 	}
 
-	desc := fmt.Sprintf("cas(table(%v), key(%v)", table, key)
+	desc := fmt.Sprintf("cas(table(%v), key(%v) write newval '%v'", table, key, string(newval))
 	if len(oldval) > 0 {
 		//desc += fmt.Sprintf("; if oldval(len %v) present", len(oldval))
 		desc += fmt.Sprintf("; if oldval('%v') present", string(oldval))
