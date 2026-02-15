@@ -8237,10 +8237,12 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 		// general sanity assert to our AE logic.
 		if s.cfg.NoLogCompaction {
-			// this simple assertion is insufficient in Fig 3.7 like scenarios:
-			// the old leader failed to commit an entry, the new
+			// this simple assertion:
+			//     if keepCount < s.state.CommitIndex {panic},
+			// is wrong in Fig 3.7 like scenarios, where
+			// the old leader failed to commit an entry, and the new
 			// leader (new term) has already committed an overwriting
-			// log entry, and now this follower needs to both advance
+			// log entry. Now this follower needs to both advance
 			// the commit index AND overwrite the old on disk old term
 			// log entries with the new leader's committed log.
 			// The problem is that above we eagerly advanced the
@@ -8251,16 +8253,23 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			// The *real* problem is that we are adjusting CommitIndex
 			// before we have done overwriteEntries, so the
 			// "current" curCommitIndex we pass them is...outdated.
-			// should we just pass prevci?
-			//if keepCount < s.state.CommitIndex {
+			// should we just pass prevci? we tried that, it seems
+			// to work, so go with that now. We could also be
+			// checking the term, since that is an essential part;
+			// but really we just do not want to overwrite any
+			// _previous_ commited (before getting this AE) log
+			// entries, and prevci seems appropriate for that.
+			// was:
+			// if keepCount < s.state.CommitIndex {
+			// now:
 			if keepCount < prevci {
-				panic(fmt.Sprintf("%v log violation: keepCount(%v) < s.state.CommitIndex(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, s.state.CommitIndex))
+				panic(fmt.Sprintf("%v log violation: keepCount(%v) < prevci(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, prevci))
 			}
 		}
 
 		// in handleAppendEntries here.
 		//err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
-		err := s.wal.overwriteEntries(keepCount, neededEntries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
+		err := s.wal.overwriteEntries(keepCount, neededEntries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s) // prefer to pass prevci
 		panicOn(err)
 		if true { // TODO restore: s.cfg.isTest {
 			s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
@@ -8323,7 +8332,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 				numAppended = int64(len(entries))
 				// in handleAppendEntries here.
 				//err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
-				err := s.wal.overwriteEntries(keepCount, entries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
+				err := s.wal.overwriteEntries(keepCount, entries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s) // prefer to pass prevci
 				panicOn(err)
 
 				if true { // TODO restore: s.cfg.isTest {
@@ -16391,13 +16400,17 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	// and only afterwards starting the watchdog.
 	//vv("%v we have added cktP.PeerName='%v' to cktAllByName (and ctkall); calling startWatchdog in addToCktall on cktP=%p for '%v'", s.me(), cktP.PeerName, cktP, cktP.PeerName)
 
-	// surely we do not want to do this for all the clients!
+	// surely we do not want to do this for all the clients! (actually...)
 	if cktP.PeerServiceName == TUBE_REPLICA {
 		// in fact, if we are a client ourselves, no watchdog. Only Raft replicas.
-		if s.PeerServiceName == TUBE_REPLICA {
-			//vv("%v cktP.PeerServiceName='%v' calling startWatchdog!", s.me(), cktP.PeerServiceName)
-			cktP.startWatchdog() // ckt non-nil means isUp=true
-		}
+		// Update: under fuzz_test, the client really needs help
+		// maintaining connection to the cluster and the leader
+		// as both change. Try allowing TUBE_CLIENT to use the
+		// watchdog too.
+		//if s.PeerServiceName == TUBE_REPLICA {
+		//vv("%v cktP.PeerServiceName='%v' calling startWatchdog!", s.me(), cktP.PeerServiceName)
+		cktP.startWatchdog() // ckt non-nil means isUp=true
+		//}
 	}
 	cktP.seen(nil, 0, 0, 0) // in addToCktall
 
