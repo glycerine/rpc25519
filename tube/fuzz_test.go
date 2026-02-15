@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/trace"
+	"sort"
 	"strings"
 	//"strconv"
 	"sync"
@@ -180,16 +181,15 @@ type fuzzUser struct {
 
 type cliInfo struct {
 	clientId int
-	// out-bound edges: from these ini (Call) event
-	// to the matching fin (Return) events.
+	// out-bound CallEvent edges:
+	// fromIdx -> toIdx -> eventID
 	call map[int]map[int]int
 
-	// in-bound edges: this event has incoming from
-	// these fin (Return) events to the set of matching ini (Call) events.
+	// in-bound ReturnEvent edges:
+	// toIdx -> fromIdx -> eventID
 	ret map[int]map[int]int
 }
 
-// from and to are eventId
 func (s *cliInfo) addCall(fromIdx, toIdx, eventID int) {
 	calls, ok := s.call[fromIdx]
 	if !ok {
@@ -277,7 +277,8 @@ func newPerClientEventStats(clientID int) *perClientEventStats {
 
 type totalEventStats struct {
 	eventStats
-	perCli map[int]*perClientEventStats
+	perCli   map[int]*perClientEventStats
+	dangling map[int]bool
 }
 
 func (s *totalEventStats) getPerClientStats(clientID int) *perClientEventStats {
@@ -292,7 +293,8 @@ func (s *totalEventStats) getPerClientStats(clientID int) *perClientEventStats {
 
 func newTotalEventStats(countAllEvents int) *totalEventStats {
 	s := &totalEventStats{
-		perCli: make(map[int]*perClientEventStats),
+		perCli:   make(map[int]*perClientEventStats),
+		dangling: make(map[int]bool),
 	}
 	s.countAllEvents = countAllEvents
 	return s
@@ -446,6 +448,7 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 				tot.danglingCallsN++
 				(*failCount)++
 				(*perFailCount)++
+				tot.dangling[i] = true
 				continue
 			}
 			nReturn := len(returnList)
@@ -514,8 +517,10 @@ func basicEventStats(evs []porc.Event) (tot *totalEventStats) {
 	return
 }
 
-func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
-
+func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event, tot *totalEventStats) []porc.Event {
+	if tot == nil {
+		tot = basicEventStats(evs)
+	}
 	event2caller := make(map[int]int)
 	// eventID -> ReturnEvent list of indexes into evs
 	event2return := make(map[int]map[int]struct{})
@@ -547,6 +552,8 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 
 	// now do matching on eventID, filling in seenVal in outputs
 	// for all events.
+	writeList := make(map[string]*intSet) // written string -> all the Call event indexes that attempted to write it.
+
 	writValMin := make(map[string]int) // written string -> index written at (min)
 	writValMax := make(map[string]int) // written string -> index written at (max)
 	seenVal := make(map[string]int)    // written string -> index observed at (min)
@@ -557,7 +564,7 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 			// extract written value for un-matched calls.
 			inp, isInput := e.Value.(*casInput)
 			if !isInput {
-				panicf("why not input? e.Value='%#v'", e.Value)
+				panicf("why not casInput? e.Value='%#v'", e.Value)
 			}
 			switch inp.op {
 			case STRING_REGISTER_UNK:
@@ -573,6 +580,12 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 					// keep the largest index observed.
 					writValMax[inp.newString] = i
 				}
+				wl, ok := writeList[inp.newString]
+				if !ok {
+					wl = &intSet{}
+					writeList[inp.newString] = wl
+				}
+				wl.slc = append(wl.slc, i)
 			case STRING_REGISTER_GET:
 			case STRING_REGISTER_CAS:
 				// so on retry at the same session
@@ -590,6 +603,12 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 					// keep the largest index observed.
 					writValMax[inp.newString] = i
 				}
+				wl, ok := writeList[inp.newString]
+				if !ok {
+					wl = &intSet{}
+					writeList[inp.newString] = wl
+				}
+				wl.slc = append(wl.slc, i)
 			}
 		} else {
 			// INVAR: e.Kind == porc.ReturnEvent
@@ -628,6 +647,7 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 	hist := newHistoryTree(evs)
 	tree := hist.tree
 
+topLoop:
 	for it := tree.Min(); !it.Limit(); it = it.Next() {
 		elem := it.Item().(*eventHistoryElem)
 		if elem.phantom {
@@ -653,13 +673,13 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 
 		_, ok := event2return[eventID]
 		if ok {
-			// this call has a response, not need for a phantom one.
+			// this call has a response, no need for a phantom one.
 			continue
 		}
 		// no returns/replies for this event, it needs a phantom
 		// if observed (hidden but successful write)
 
-		var newString string
+		var newString, oldString string
 		switch inp.op {
 		case STRING_REGISTER_UNK:
 			panic("should be no STRING_REGISTER_UNK")
@@ -688,6 +708,7 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 
 		case STRING_REGISTER_CAS:
 			newString = inp.newString
+			oldString = inp.oldString
 		}
 		if newString == "" {
 			continue
@@ -713,8 +734,109 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event) []porc.Event {
 		if !ok {
 			panicf("internal logic error: we should have newString='%v' in writValMax", newString)
 		}
-		_ = w1
-		if o <= w0 {
+		if w1 != w0 {
+			// pick an actual w0 between [w0, w1]
+
+			// what are all the attempts at writing?
+
+			//ci := tot.getPerClientStats(clientID).cliInfo
+
+			wl := writeList[newString]
+			sort.Ints(wl.slc)
+			// if we saw a later CAS that got a reply AND
+			// the swap happened, then we know it was that
+			// attempt that worked, and we do not want a phantom.
+
+			remain := intSlice2set(wl.slc)
+			for q, k := range wl.slc {
+				if k >= o {
+					// we know the write had to come before the observation.
+					// wl.slc is sorted, we can delete k and all after too
+					for qq := q; qq < len(wl.slc); qq++ {
+						kk := wl.slc[qq]
+						hist.del(kk)
+						delete(remain, kk)
+					}
+					if len(remain) == 0 {
+						continue topLoop
+					}
+					break // done looking at all of wl.slc
+				}
+				eventID_ := evs[k].Id
+				returnList, ok := event2return[eventID_]
+				if !ok {
+					continue
+				}
+				for iRet := range returnList {
+					out := evs[iRet].Value.(*casOutput)
+					if !out.swapped {
+						continue
+					}
+					//swappedAt = iRet
+					// this one succeeded. We can
+					// delete the others if they are dangling;
+					// they had better be!
+					for k2 := range wl.slc {
+						if k2 != k {
+							if tot.dangling[k2] {
+								hist.del(k2)
+								delete(remain, k2)
+							} else {
+								panicf("how can we have more than one successful CAS on this eventID_ %v ? k=%v and k2=%v", eventID_, k, k2)
+							}
+						}
+					}
+					// since we found a successfully swapped CAS,
+					// we don't want to inject a phantom for this write.
+					continue topLoop
+				}
+			}
+			if len(remain) == 0 {
+				continue topLoop
+			}
+			// all of remain are dangling or not-swapped;
+			// none completed that we know of.
+
+			// also we need to be after the oldString value was written!
+			old, ok := writValMin[oldString]
+			if !ok {
+				// never seen so any will work
+			} else {
+				var delme []int
+				for r := range remain {
+					if r <= old {
+						delme = append(delme, r)
+					}
+				}
+				for _, d := range delme {
+					hist.del(d)
+					delete(remain, d)
+				}
+			}
+			nr := len(remain)
+			if nr == 0 {
+				continue topLoop
+			}
+			if nr == 1 {
+				for r := range remain {
+					w0 = r
+				}
+			} else {
+				// INVAR: any of the dangling remain can be used;
+				// pick the smallest one, and delete the others
+				// since they will dangle anyway.
+
+				slc := set2intSliceSorted(remain)
+				for si, r := range slc {
+					if si == 0 {
+						w0 = r
+					} else {
+						hist.del(r)
+					}
+				}
+			}
+		}
+		if w0 >= o {
 			alwaysPrintf("evs='%v'", eventSlice(evs))
 			panicf("invalid history: cannot observe(o=%v) before unique(!) value is written at earliest (w0=%v). has uniqueness been violated? value newString='%v'", o, w0, newString)
 		}
@@ -787,6 +909,21 @@ type historyTree struct {
 	tree *rb.Tree
 }
 
+func set2intSliceSorted(m map[int]bool) (slc []int) {
+	for k := range m {
+		slc = append(slc, k)
+	}
+	sort.Ints(slc)
+	return
+}
+func intSlice2set(slc []int) (m map[int]bool) {
+	m = make(map[int]bool)
+	for _, i := range slc {
+		m[i] = true
+	}
+	return
+}
+
 func newHistoryTree(evs []porc.Event) (s *historyTree) {
 	s = &historyTree{
 		tree: rb.NewTree(func(a, b rb.Item) int {
@@ -813,6 +950,13 @@ func newHistoryTree(evs []porc.Event) (s *historyTree) {
 
 var bigZero = big.NewRat(0, 1)
 
+func (s *historyTree) del(d int) {
+	dkey := big.NewRat(int64(d), 1)
+	query := &eventHistoryElem{
+		key: dkey,
+	}
+	s.tree.DeleteWithKey(query)
+}
 func (s *historyTree) insertBefore(w int, addme *porc.Event) {
 	wkey := big.NewRat(int64(w), 1)
 	query := &eventHistoryElem{
@@ -853,6 +997,11 @@ func (s *fuzzUser) linzCheck() {
 	s.shEvents.mut.Lock()
 	defer s.shEvents.mut.Unlock()
 
+	evs := s.shEvents.evs
+
+	totalStats := basicEventStats(evs)
+	alwaysPrintf("linzCheck basic event stats (pre-phantom):\n %v", totalStats)
+
 	// calls that may or may not have succeeded can mess up
 	// the linearization check. write/cas only unique values,
 	// and if an uncertain (unmatched CallEvent) is observed
@@ -862,15 +1011,15 @@ func (s *fuzzUser) linzCheck() {
 	// event sequence. Note: we cannot support deletes
 	// under this regime. We might turn them negative or
 	// invent something else later, but for now, no deletion.
-	s.shEvents.evs = s.addPhantomsForUnmatchedCalls(s.shEvents.evs)
+	s.shEvents.evs = s.addPhantomsForUnmatchedCalls(s.shEvents.evs, totalStats)
+	evs = s.shEvents.evs
 
-	evs := s.shEvents.evs
+	totalStats2 := basicEventStats(evs)
+	alwaysPrintf("linzCheck basic event stats (post-phantom):\n %v", totalStats2)
+
 	if len(evs) == 0 {
 		panicf("user %v: expected evs > 0, got 0", s.name)
 	}
-
-	totalStats := basicEventStats(evs)
-	alwaysPrintf("linzCheck basic event stats:\n %v", totalStats)
 
 	for clientID, per := range totalStats.perCli {
 		alwaysPrintf("clientID %v stats: \n %v", clientID, per)
@@ -2076,4 +2225,8 @@ var stringCasModel = porc.Model{
 		panic(fmt.Sprintf("invalid inp.op! '%v'", int(inp.op)))
 		return "<invalid>" // unreachable
 	},
+}
+
+type intSet struct {
+	slc []int
 }
