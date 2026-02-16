@@ -627,7 +627,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		t.Fatalf("error: expected srv readch to have %v, got: %v", want, got)
 	}
 	if got, want := len(j.clis.sendch), 2; got != want {
-		t.Fatalf("error: expected cli sendch to have %v, got: %v", want, got)
+		t.Fatalf("error: expected cli sendch to have %v, got: %v", want, got) // flake without synctest: ckt_test.go:630: error: expected cli sendch to have 2, got: 1
 	}
 	if got, want := len(j.srvs.sendch), 1; got != want {
 		t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)

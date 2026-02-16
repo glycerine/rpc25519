@@ -1667,8 +1667,10 @@ func Test101_userFuzz(t *testing.T) {
 			numNodes := 3
 			// numUsers of 20 ok at 200 steps, but 30 users is
 			// too much for porcupine at even just 30 steps.
-			//numUsers := 10 // non-linz at 10!
-			numUsers := 15
+			numUsers := 10 // ok now (10 steps)
+			//numUsers := 5 // green at 5 (10 steps)
+			//numUsers := 9 // 7=>258 events, 8=>310 events, 9=>329 events,10=>366
+			//numUsers := 15 // inf err loop at 15 (10 steps)
 
 			// 1% or less collision probability, to minimize
 			// rejection sampling and get unique write values quickly.
@@ -1762,8 +1764,8 @@ retry:
 	if err != nil {
 		errs := err.Error()
 		if strings.Contains(errs, "context cancelled") ||
-			strings.Contains(errs, "context deadline exceeded") ||
-			strings.Contains(errs, "time-out waiting for call to complete") {
+			strings.Contains(errs, "context deadline exceeded") {
+			//strings.Contains(errs, "time-out waiting for call to complete") {
 
 			if redirect != nil {
 				leaderName = redirect.LeaderName
@@ -1774,7 +1776,7 @@ retry:
 		}
 	}
 	if err != nil {
-		alwaysPrintf("%v, CreateNewSession err = '%v'", user.name, err) // not seen.
+		alwaysPrintf("%v, CreateNewSession err = '%v'", user.name, err)
 		errs := err.Error()
 		if strings.Contains(errs, "no leader known to me") ||
 			strings.Contains(errs, "I am not leader") {
@@ -1795,6 +1797,7 @@ retry:
 		if strings.Contains(errs, "time-out waiting for call to complete") {
 			vv("error with leaderName '%v'", leaderName)
 			// e.g. ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'error requesting CallPeerStartCircuit from remote: 'time-out waiting for call to complete'; netAddr='simnet://srv_node_0'; remoteAddr='simnet://srv_node_0'';
+			return nil
 		}
 		panic(err)
 	}

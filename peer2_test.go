@@ -151,7 +151,7 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 	select {
 	case <-serverCkt.Halt.Done.Chan:
 	case <-timeout.C:
-		t.Fatalf("error: server circuit '%v' did not close after 10 sec", serverCkt.Name)
+		panicf("error: server circuit '%v' did not close after 10 sec", serverCkt.Name)
 	}
 	timeout.Discard()
 	if !serverCkt.IsClosed() {
