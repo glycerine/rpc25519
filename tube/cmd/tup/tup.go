@@ -134,10 +134,11 @@ func main() {
 
 	// when no leader, we hang, our tkt in awaitingLeader.
 	pp("%v: calling node.CreateNewSession(leaderURL = '%v')", cfg.MyName, leaderURL)
-	sess, err := node.CreateNewSession(ctx, leaderName, leaderURL)
+	sess, redir, err := node.CreateNewSession(ctx, leaderName, leaderURL)
 	panicOn(err)
 	defer sess.Close()
 	//pp("back from node.CreateNewSession(leaderURL='%v')", leaderURL)
+	_ = redir
 
 	needNewSess := func(sess *tube.Session, err error) (s2 *tube.Session) {
 		if err == nil {
@@ -149,7 +150,7 @@ func main() {
 				strings.Contains(errs, "no leader known to me") {
 				sess.Close()
 
-				s2, err = node.CreateNewSession(ctx, leaderName, leaderURL)
+				s2, redir, err = node.CreateNewSession(ctx, leaderName, leaderURL)
 				if err == nil {
 					return
 				}
@@ -162,7 +163,7 @@ func main() {
 				if !reallyLeader {
 					panic("could not find leader")
 				}
-				s2, err = node.CreateNewSession(ctx, leaderName, leaderURL)
+				s2, redir, err = node.CreateNewSession(ctx, leaderName, leaderURL)
 				if err == nil {
 					return
 				}

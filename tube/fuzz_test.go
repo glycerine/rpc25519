@@ -1232,8 +1232,6 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 
 const vtyp101 = "string"
 
-var ErrNeedNewSession = fmt.Errorf("need new session")
-
 func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (swapped bool, curVal Val, err error) {
 
 	var eventID int
@@ -2308,4 +2306,64 @@ var stringCasModel = porc.Model{
 
 type intSet struct {
 	slc []int
+}
+
+func (s *fuzzUser) restartFull(ctx context.Context, name string, cli *TubeNode, pSess **Session) (err error) {
+
+fullRestart:
+	for {
+		select {
+		case <-s.halt.ReqStop.Chan:
+			vv("%v: fuzzUser.halt requested (at restartFull top). exiting.", name)
+			return
+		case <-ctx.Done():
+			vv("%v: ctx fuzzUser.halt requested (at restartFull top). exiting.", name)
+			return
+		default:
+		}
+
+		if (*pSess) != nil {
+			ctx2, canc := context.WithTimeout(ctx, time.Second*2)
+			err = cli.CloseSession(ctx2, (*pSess))
+			canc()
+			if err != nil {
+				vv("%v: closing prior session err='%v'", name, err)
+			}
+		}
+
+		const requireOnlyContact = false
+
+		for k := 0; ; k++ {
+			//vv("%v: find leader loop k = %v", name, k)
+			//vv("%v: cliCfg.Node2Addr = '%#v'", name, cliCfg.Node2Addr)
+			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, &cli.cfg, "", requireOnlyContact, KEEP_CKT_ONLY_IF_LEADER) // KEEP_CKT_UP) // KEEP_CKT_ONLY_IF_LEADER)
+			//vv("%v: helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", name, leaderURL, reallyLeader, err)
+			panicOn(err)
+			if !reallyLeader {
+				vv("%v: arg. we see not really leader? why?", name)
+				cli.closeAutoClientSockets()
+				continue fullRestart
+			}
+			// should have updated our notion of leader, else on leader change we can be stuck
+			// see peerListReplyHandler() tube.go:13234
+			insp := cli.Inspect()
+			if insp.CurrentLeaderName != "" &&
+				insp.CurrentLeaderName != leaderName {
+				panicf("why was insp.CurrentLeaderName(%v) != leaderName(%v) back from helper?", insp.CurrentLeaderName, leaderName)
+			}
+
+			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
+			var redirect *LeaderRedirect
+			_ = redirect // TODO maybe use it?
+			(*pSess), redirect, err = cli.CreateNewSession(ctx5, leaderName, leaderURL)
+			canc()
+			//panicOn(err) // panic: hmm. no leader known to me (node 'node_0')
+			if err == nil {
+				vv("%v: got sess = '%v'", name, *pSess)
+				return nil
+			}
+			alwaysPrintf("%v: got err from CreateNewSession, sleep 1 sec and try again: '%v'", name, err)
+			time.Sleep(time.Second)
+		}
+	} // end for ever
 }

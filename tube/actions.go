@@ -29,6 +29,8 @@ import (
 	"github.com/glycerine/rpc25519/tube/art"
 )
 
+var ErrNeedNewSession = fmt.Errorf("need new session")
+
 // The 9 fsm actions here, on both TubeNode and Session:
 // Read, Write, CAS,
 // ReadKeyRange, DeleteKey, ShowKeys,

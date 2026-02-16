@@ -65,8 +65,10 @@ func (k KeepCkt) String() string {
 // remember them even after a reboot.
 //
 // If requireOnlyContact is true, then
-// HelperFindLeader will immediately exit(1) if
+// HelperFindLeader will immediately os.Exit(1) if
 // the contactName is not also the current leader.
+// (This is used by tuberm at the moment).
+//
 // If keepCktUp says so, then we will leave the circuit
 // to the leader we established up; otherwise
 // we will close it before returning.
@@ -340,7 +342,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			if lastLeaderName != contactName {
 				if requireOnlyContact {
 					fmt.Printf("abort: we see existing leader '%v'; conflicts with request -c %v\n", lastLeaderName, contactName)
-					os.Exit(1)
+					os.Exit(1) // used by tuberm
 				}
 			}
 		}
