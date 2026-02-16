@@ -1398,22 +1398,22 @@ func (s *fuzzUser) Read(key string) (val Val, redir *LeaderRedirect, err error) 
 	if err != nil {
 		vv("read from node/sess='%v', got err = '%v'", s.sess.SessionID, err)
 		if err == ErrKeyNotFound || err.Error() == "key not found" {
-			if false {
-				returnEvent := porc.Event{
-					ClientId: s.userid,
-					Id:       eventID, // must match call event
-					Kind:     porc.ReturnEvent,
-					Value: &casOutput{
-						op:       STRING_REGISTER_GET,
-						id:       eventID,
-						notFound: true,
-					},
-				}
-
-				s.shEvents.mut.Lock()
-				s.shEvents.evs = append(s.shEvents.evs, returnEvent)
-				s.shEvents.mut.Unlock()
-			}
+			// if false {
+			// 	returnEvent := porc.Event{
+			// 		ClientId: s.userid,
+			// 		Id:       eventID, // must match call event
+			// 		Kind:     porc.ReturnEvent,
+			// 		Value: &casOutput{
+			// 			op:       STRING_REGISTER_GET,
+			// 			id:       eventID,
+			// 			notFound: true,
+			// 		},
+			// 	}
+			//
+			// 	s.shEvents.mut.Lock()
+			// 	s.shEvents.evs = append(s.shEvents.evs, returnEvent)
+			// 	s.shEvents.mut.Unlock()
+			// }
 			return
 		}
 		if err == rpc.ErrShutdown2 || err.Error() == "error shutdown" {

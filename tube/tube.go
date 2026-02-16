@@ -16407,10 +16407,10 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 		// maintaining connection to the cluster and the leader
 		// as both change. Try allowing TUBE_CLIENT to use the
 		// watchdog too.
-		//if s.PeerServiceName == TUBE_REPLICA {
-		//vv("%v cktP.PeerServiceName='%v' calling startWatchdog!", s.me(), cktP.PeerServiceName)
-		cktP.startWatchdog() // ckt non-nil means isUp=true
-		//}
+		if s.PeerServiceName == TUBE_REPLICA {
+			vv("%v cktP.PeerServiceName='%v' calling startWatchdog!", s.me(), cktP.PeerServiceName)
+			cktP.startWatchdog() // ckt non-nil means isUp=true
+		}
 	}
 	cktP.seen(nil, 0, 0, 0) // in addToCktall
 
