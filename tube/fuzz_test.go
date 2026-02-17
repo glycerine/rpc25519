@@ -1163,6 +1163,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			prevCanc()
 		}()
 
+		s.newSession(startCtx, leaderName, leaderURL)
 		for step := range steps {
 			prevCanc()
 			stepCtx, canc := context.WithTimeout(startCtx, time.Second*10)
@@ -1215,14 +1216,18 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 						// do we need to reconnect to try again?
 						continue
 
-					case strings.Contains(errs, "error: I am not leader."):
+					case strings.Contains(errs, "error: I am not leader.") ||
+						strings.Contains(errs, "Must call CreateNewSession first"):
 						// e.g. error: I am not leader. I ('node_0') think leader is 'node_2'
 						// use redirect
-						vv("using redirect = '%#v'", redirect)
+						if redirect != nil {
+							vv("using redirect = '%#v'", redirect)
+							leaderName = redirect.LeaderName
+							leaderURL = redirect.LeaderURL
+						}
 						s.newSession(startCtx, redirect.LeaderName, redirect.LeaderURL)
 						continue
 					}
-
 				}
 				panicOn(err)
 			}
@@ -1740,11 +1745,11 @@ func Test101_userFuzz(t *testing.T) {
 
 		onlyBubbled(t, func(t *testing.T) {
 
-			steps := 10
+			steps := 15
 			numNodes := 3
 			// numUsers of 20 ok at 200 steps, but 30 users is
 			// too much for porcupine at even just 30 steps.
-			numUsers := 10 // inf loop now (10 steps)
+			numUsers := 10
 			//numUsers := 5 // green at 5 (10 steps)
 			//numUsers := 9 // 7=>258 events, 8=>310 events, 9=>329 events,10=>366
 			//numUsers := 15 // inf err loop at 15 (10 steps)
@@ -1792,13 +1797,16 @@ func Test101_userFuzz(t *testing.T) {
 					clus:              c,
 					halt:              idem.NewHalterNamed("fuzzUser"),
 					nemesis:           nemesis,
-					edition:           -1, // increment just below to start at 0.
 				}
 				users = append(users, user)
 
-			retryCli:
-				user.edition++
-				cliName := fmt.Sprintf("client101_%v_%v", user.name, user.edition)
+				// try to never create a whole new TubeNode;
+				// should just be able to restart its sessions and connections!
+				// otherwise the names in the simnet dns explode/overlap.
+				//retryCli:
+				//user.edition++
+				//cliName := fmt.Sprintf("client101_%v_%v", user.name, user.edition)
+				cliName := fmt.Sprintf("client101_%v", user.name)
 				cliCfg := *c.Cfg
 				cliCfg.MyName = cliName
 				cliCfg.PeerServiceName = TUBE_CLIENT
@@ -1809,17 +1817,6 @@ func Test101_userFuzz(t *testing.T) {
 				defer cli.Close()
 
 				vv("userNum:%v -> cli.name = '%v'", userNum, cli.name)
-
-				// request new session
-				// seems like we want RPC semantics for this
-				// and maybe for other calls?
-
-				sess := user.newSession(ctx, leaderName, leaderURL)
-				if sess == nil {
-					goto retryCli
-				}
-
-				user.cli = cli
 
 				user.Start(ctx, steps, leaderName, leaderURL, domain, domainSeen)
 			}
@@ -1848,7 +1845,7 @@ func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string)
 		ctx5, canc5 := context.WithTimeout(ctx, time.Second*5)
 		err2 := restartFullHelper(ctx5, s.name, s.cli, &s.sess, s.halt)
 		canc5()
-		panicOn(err2)
+		panicOn(err2) // error: I am not leader
 		if sess == nil {
 			return nil
 		}
