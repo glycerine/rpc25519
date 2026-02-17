@@ -212,7 +212,7 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 		return
 	case <-sessDone:
 		err = sess.ctx.Err()
-		vv("case <-sessDone 1, err='%v'", err) // seen 3x! err='context canceled'
+		//vv("case <-sessDone 1, err='%v'", err) // seen lots. err='context canceled'
 		return
 	case <-s.Halt.ReqStop.Chan:
 		err = ErrTimeOut
@@ -238,7 +238,7 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 		return
 	case <-sessDone:
 		err = sess.ctx.Err()
-		vv("case <-sessDone 2, err = '%v'", err) // seen 2x! err='context canceled'
+		//vv("case <-sessDone 2, err = '%v'", err) // seen lots. err='context canceled'
 		return
 	case <-s.Halt.ReqStop.Chan:
 		err = ErrShutDown

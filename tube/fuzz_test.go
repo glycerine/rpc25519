@@ -1214,7 +1214,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			prevCanc()
 			stepCtx, canc := context.WithTimeout(startCtx, time.Second*10)
 			prevCanc = canc
-			if true { //false && step%10 == 0 {
+			if false && step%10 == 0 {
 				vv("%v: fuzzUser.Start on step %v", s.name, step)
 			}
 			select {
@@ -1437,7 +1437,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 				//vv("%v: rejectedWritePrefix seen", s.name) // seen.
 				break
 			case strings.Contains(errs, "context canceled"):
-				vv("%v sees context canceled for s.sess.CAS() ", s.name)
+				//vv("%v sees context canceled for s.sess.CAS() ", s.name) // seen
 				//err = ErrNeedNewSession
 				return
 			case strings.Contains(errs, "context deadline exceeded"):
@@ -1825,11 +1825,13 @@ func Test101_userFuzz(t *testing.T) {
 			// 10 users, 30 steps => 319 ops.
 			// 10 users, 40 steps => 429 ops.
 			// 10 users, 50 steps => 539 ops. (12.8s runtime)
-			steps := 50 // 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
+			// 15 users, 100 steps => 1584 ops. (4.6s with prints quiet)
+			// 20 users, 100 steps => 2079 ops. (5.1s)
+			steps := 100 // 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
 			numNodes := 3
 			// numUsers of 20 ok at 200 steps, but 30 users is
 			// too much for porcupine at even just 30 steps.
-			numUsers := 10
+			numUsers := 20
 			//numUsers := 5 // green at 5 (10 steps)
 			//numUsers := 9 // 7=>258 events, 8=>310 events, 9=>329 events,10=>366
 			//numUsers := 15 // inf err loop at 15 (10 steps)
