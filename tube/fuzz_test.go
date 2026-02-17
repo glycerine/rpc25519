@@ -1818,7 +1818,7 @@ func Test101_userFuzz(t *testing.T) {
 
 		onlyBubbled(t, func(t *testing.T) {
 
-			steps := 15
+			steps := 15 // ok for one run; but had "still have a ticket in waiting"
 			numNodes := 3
 			// numUsers of 20 ok at 200 steps, but 30 users is
 			// too much for porcupine at even just 30 steps.
