@@ -48,6 +48,7 @@ github.com/glycerine/porcupine v1.2.5-jea h1:5B4SPkCQ3ezs4IMIRPyZhesfXwi2nFuDsse
 github.com/glycerine/porcupine v1.2.5-jea/go.mod h1:1vppLL4iLDWEqe3ETxmvjYLkS6fQo/ljqmGN7oBnm3k=
 github.com/glycerine/porcupine v1.2.6-jea h1:no9WSZx2xpt6HKnVS5qhH6ahIXqeb+3Kp3JDsS8tOb8=
 github.com/glycerine/porcupine v1.2.6-jea/go.mod h1:1vppLL4iLDWEqe3ETxmvjYLkS6fQo/ljqmGN7oBnm3k=
+github.com/glycerine/porcupine v1.2.7-jea/go.mod h1:1vppLL4iLDWEqe3ETxmvjYLkS6fQo/ljqmGN7oBnm3k=
 github.com/glycerine/rbtree v0.2.1 h1:9nD5PDojW8gu1slYBzzH7VND9gbSjB86tusW5YRKghc=
 github.com/glycerine/rbtree v0.2.1/go.mod h1:skpUtSrm1HHyLo+HayukOvAmXtE/F6tsVW0uCpaBGWE=
 github.com/glycerine/restic-chunker-mod v0.5.0 h1:6OA/O0rEHvENyTlzYJ2/E7UNQBu3+8NY3Du2hxVp5Gw=
