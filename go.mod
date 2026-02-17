@@ -38,7 +38,7 @@ require (
 )
 
 //replace github.com/glycerine/idem => /Users/jaten/go/src/github.com/glycerine/idem
-//replace github.com/glycerine/porcupine => /Users/jaten/go/src/github.com/glycerine/porcupine
+replace github.com/glycerine/porcupine => /Users/jaten/go/src/github.com/glycerine/porcupine
 
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect

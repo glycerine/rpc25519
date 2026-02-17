@@ -312,9 +312,11 @@ func opstring(e porc.Operation) string {
     ClientId: %v,
        Input: %v,
       Output: %v,
-      Call: %v,
-    Return: %v,
-}`, e.ClientId, e.Input, e.Output, niceu(e.Call), niceu(e.Return))
+      Call: %v  (%v),
+    Return: %v  (%v),
+}`, e.ClientId, e.Input, e.Output,
+		niceu(e.Call), e.Call,
+		niceu(e.Return), e.Return)
 }
 
 func evstring(e porc.Event) string {

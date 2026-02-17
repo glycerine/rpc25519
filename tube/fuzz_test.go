@@ -1072,27 +1072,29 @@ func (s *fuzzUser) linzCheck() {
 
 	s.events2obsThenCheck(evs)
 	return
+	/*
+	   //vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
+	   linz := porc.CheckEvents(stringCasModel, evs)
 
-	//vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
-	linz := porc.CheckEvents(stringCasModel, evs)
-	if !linz {
-		alwaysPrintf("not linz! wal:\n")
-		dump := "test101fuzz_test.wal.dump"
-		fd, err := os.Create(dump)
-		panicOn(err)
-		err = s.clus.Nodes[0].DumpRaftWAL(fd)
-		fd.Close()
-		panicOn(err)
+	   	if !linz {
+	   		alwaysPrintf("not linz! wal:\n")
+	   		dump := "test101fuzz_test.wal.dump"
+	   		fd, err := os.Create(dump)
+	   		panicOn(err)
+	   		err = s.clus.Nodes[0].DumpRaftWAL(fd)
+	   		fd.Close()
+	   		panicOn(err)
 
-		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; evs='%v'", s.name, s.seed, eventSlice(evs))
-		writeToDiskNonLinzFuzzEvents(s.t, s.name, evs)
-		panicf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
-	}
+	   		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; evs='%v'", s.name, s.seed, eventSlice(evs))
+	   		writeToDiskNonLinzFuzzEvents(s.t, s.name, evs)
+	   		panicf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
+	   	}
 
-	vv("user %v: len(evs)=%v passed linearizability checker.", s.name, len(evs))
+	   vv("user %v: len(evs)=%v passed linearizability checker.", s.name, len(evs))
 
-	// nothing much to see really.
-	writeToDiskOkEvents(s.t, s.name, evs)
+	   // nothing much to see really.
+	   writeToDiskOkEvents(s.t, s.name, evs)
+	*/
 }
 
 func (s *fuzzUser) events2obsThenCheck(evs []porc.Event) {
@@ -1144,7 +1146,13 @@ func (s *fuzzUser) events2obsThenCheck(evs []porc.Event) {
 	//vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
 	linz := porc.CheckOperations(stringCasModel, ops)
 	if !linz {
-		//alwaysPrintf("not linz! wal:\n")
+		dump := "test101fuzz_test.wal.dump"
+		alwaysPrintf("not linz! wal dumped to '%v'\n", dump)
+		fd, err := os.Create(dump)
+		panicOn(err)
+		err = s.clus.Nodes[0].DumpRaftWAL(fd)
+		fd.Close()
+		panicOn(err)
 
 		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; ops='%v'", s.name, s.seed, opsSlice(ops)) // eventSlice(evs))
 		writeToDiskNonLinzFuzz(s.t, s.name, ops)
@@ -1223,6 +1231,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 						continue
 
 					case strings.Contains(errs, "error: I am not leader.") ||
+						strings.Contains(errs, "hmm. no leader known to me") ||
 						strings.Contains(errs, "Must call CreateNewSession first"):
 						// e.g. error: I am not leader. I ('node_0') think leader is 'node_2'
 						// use redirect
@@ -1231,11 +1240,12 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 							leaderName = redirect.LeaderName
 							leaderURL = redirect.LeaderURL
 						}
+						time.Sleep(time.Second)
 						s.newSession(startCtx, leaderName, leaderURL)
 						continue
 					}
 				}
-				panicOn(err)
+				panicOn(err) // hmm. no leader known to me (node 'client101_user3')
 			}
 
 			// draw unique values from domain, and only
