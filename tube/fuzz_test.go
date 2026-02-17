@@ -1159,7 +1159,7 @@ func (s *fuzzUser) events2obsThenCheck(evs []porc.Event) {
 		panicf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
 	}
 
-	vv("user %v: len(evs)=%v passed linearizability checker.", s.name, len(ops))
+	vv("user %v: len(ops)=%v passed linearizability checker.", s.name, len(ops))
 
 	// nothing much to see really.
 	writeToDiskOkOperations(s.t, s.name, ops) // not written yet.
@@ -1818,7 +1818,14 @@ func Test101_userFuzz(t *testing.T) {
 
 		onlyBubbled(t, func(t *testing.T) {
 
-			steps := 15 // ok for one run; but had "still have a ticket in waiting"
+			// seed 0 numbers: 3 node cluster.
+			// 10 users,  5 steps =>  44 ops.
+			// 10 users, 10 steps =>  99 ops.
+			// 10 users, 20 steps => 209 ops.
+			// 10 users, 30 steps => 319 ops.
+			// 10 users, 40 steps => 429 ops.
+			// 10 users, 50 steps => 539 ops. (12.8s runtime)
+			steps := 50 // 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
 			numNodes := 3
 			// numUsers of 20 ok at 200 steps, but 30 users is
 			// too much for porcupine at even just 30 steps.
@@ -1918,7 +1925,7 @@ func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string)
 	sess, _, err := s.cli.CreateNewSession(ctx5, leaderName, leaderURL)
 	canc5()
 	if err == nil {
-		vv("%v got new sess", s.name) // , sess)
+		//vv("%v got new sess", s.name) // , sess)
 		s.sess = sess
 		return sess, nil
 	}
