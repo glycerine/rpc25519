@@ -1792,10 +1792,12 @@ func Test101_userFuzz(t *testing.T) {
 					clus:              c,
 					halt:              idem.NewHalterNamed("fuzzUser"),
 					nemesis:           nemesis,
+					edition:           -1, // increment just below to start at 0.
 				}
 				users = append(users, user)
 
 			retryCli:
+				user.edition++
 				cliName := fmt.Sprintf("client101_%v_%v", user.name, user.edition)
 				cliCfg := *c.Cfg
 				cliCfg.MyName = cliName
@@ -1838,14 +1840,19 @@ func Test101_userFuzz(t *testing.T) {
 func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string) *Session {
 
 	//retry:
-	ctx5, canc5 := context.WithTimeout(ctx, time.Second*10)
+	ctx5, canc5 := context.WithTimeout(ctx, time.Second*5)
 	sess, redirect, err := s.cli.CreateNewSession(ctx5, leaderName, leaderURL)
 	canc5()
 	if err != nil {
 		vv("%v try restartFullHelper after seeing CreateNewSession -> err = '%v'", s.name, err)
-
-		err2 := restartFullHelper(ctx, s.name, s.cli, &s.sess, s.halt)
+		ctx5, canc5 := context.WithTimeout(ctx, time.Second*5)
+		err2 := restartFullHelper(ctx5, s.name, s.cli, &s.sess, s.halt)
+		canc5()
 		panicOn(err2)
+		if sess == nil {
+			return nil
+		}
+		// have sess and no error, hopefully good to go.
 		sess = s.sess
 		err = nil
 		/*
@@ -1882,6 +1889,7 @@ func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string)
 			//snap0 := c.SimnetSnapshot(true)
 			//vv("could not find leader. snap0 = '%v'", snap0) // .LongString())
 			s.edition++
+			vv("could not find leader. new TubeNode edition: %v", s.edition)
 			return nil // get a new client, not just a new session
 		}
 		if strings.Contains(errs, "time-out waiting for call to complete") {

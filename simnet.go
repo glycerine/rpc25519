@@ -1050,7 +1050,7 @@ func (s *Simnet) handleServerRegistration(op *mop) {
 	s.circuits.set(srvnode, newDmap[*simnode, *simconn]())
 	_, already := s.dns[srvnode.name]
 	if already {
-		panic(fmt.Sprintf("server name already taken: '%v'", srvnode.name))
+		panicf("server name already taken: '%v'", srvnode.name)
 	}
 
 	s.dns[srvnode.name] = srvnode
