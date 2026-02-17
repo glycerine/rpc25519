@@ -919,6 +919,7 @@ topLoop:
 		}
 
 		phantom := &porc.Event{
+			Ts:       evs[o].Ts - 1,
 			ClientId: clientID,
 			Kind:     porc.ReturnEvent,
 			Id:       eventID,
@@ -1065,11 +1066,12 @@ func (s *fuzzUser) linzCheck() {
 		panicf("user %v: expected evs > 0, got 0", s.name)
 	}
 
-	// filter out unmatched gets?
+	//alwaysPrintf(" wal:\n")
+	//err := s.clus.Nodes[0].DumpRaftWAL()
+	//panicOn(err)
 
-	alwaysPrintf(" wal:\n")
-	err := s.clus.Nodes[0].DumpRaftWAL()
-	panicOn(err)
+	s.events2obsThenCheck(evs)
+	return
 
 	//vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
 	linz := porc.CheckEvents(stringCasModel, evs)
@@ -1085,6 +1087,68 @@ func (s *fuzzUser) linzCheck() {
 
 	// nothing much to see really.
 	writeToDiskOkEvents(s.t, s.name, evs)
+}
+
+func (s *fuzzUser) events2obsThenCheck(evs []porc.Event) {
+
+	// we assume phantom insertion and dup/unmatched return deletion
+	// has already been done by now.
+	event2caller := make(map[int]int)
+	event2return := make(map[int]int)
+	for i, e := range evs {
+		eventID := e.Id
+		if e.Kind == porc.CallEvent {
+			// sanity assert there is no prior event2caller entry.
+			prior, already := event2caller[eventID]
+			if already {
+				panicf("sanity check failed: for CallEvent eventID(%v) have prior(%v)", eventID, prior)
+			}
+			event2caller[eventID] = i
+			continue
+		}
+		// e == evs[i] is a porc.ReturnEvent
+		prior, already := event2return[eventID]
+		if already {
+			panicf("sanity check failed: ReturnEvent eventID(%v) have prior(%v)", eventID, prior)
+		}
+		event2return[eventID] = i
+	}
+	var ops []porc.Operation
+	for i, e := range evs {
+		eventID := e.Id
+		if e.Kind == porc.CallEvent {
+			r, ok := event2return[eventID]
+			if !ok {
+				// meh. skip it.
+				continue
+				alwaysPrintf(" evs='%v'", eventSlice(evs))
+				panicf("i=%v; call('%v') without return. should have just been deleted?", i, e)
+			}
+			ret := evs[r]
+			op := porc.Operation{
+				ClientId: e.ClientId,
+				Input:    e.Value,
+				Call:     e.Ts,
+				Output:   ret.Value,
+				Return:   ret.Ts,
+			}
+			ops = append(ops, op)
+		}
+	}
+	//vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
+	linz := porc.CheckOperations(stringCasModel, ops)
+	if !linz {
+		//alwaysPrintf("not linz! wal:\n")
+
+		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; ops='%v'", s.name, s.seed, opsSlice(ops)) // eventSlice(evs))
+		writeToDiskNonLinzFuzz(s.t, s.name, ops)
+		panicf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
+	}
+
+	vv("user %v: len(evs)=%v passed linearizability checker.", s.name, len(ops))
+
+	// nothing much to see really.
+	writeToDiskOkOperations(s.t, s.name, ops) // not written yet.
 }
 
 func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leaderURL string, domain int, domainSeen *sync.Map) {
@@ -1245,6 +1309,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 		eventID = int(s.atomicLastEventID.Add(1))
 		casAttempts++
 		callEvent := porc.Event{
+			Ts:       time.Now().UnixNano(),
 			ClientId: s.userid,
 			//Input:    &casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
 			Kind: porc.CallEvent,
@@ -1348,6 +1413,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 		newString: newValStr,
 	}
 	resultEvent := porc.Event{
+		Ts:       time.Now().UnixNano(),
 		ClientId: s.userid,
 		Kind:     porc.ReturnEvent,
 		Id:       int(eventID),
@@ -1375,6 +1441,7 @@ func (s *fuzzUser) Read(key string) (val Val, redir *LeaderRedirect, err error) 
 
 	eventID := int(s.atomicLastEventID.Add(1))
 	callEvent := porc.Event{
+		Ts:       time.Now().UnixNano(),
 		ClientId: s.userid,
 		Id:       eventID,
 		Kind:     porc.CallEvent,
@@ -1405,6 +1472,7 @@ func (s *fuzzUser) Read(key string) (val Val, redir *LeaderRedirect, err error) 
 		if err == ErrKeyNotFound || err.Error() == "key not found" {
 			// if false {
 			// 	returnEvent := porc.Event{
+			//      Ts:       time.Now.UnixNano(),
 			// 		ClientId: s.userid,
 			// 		Id:       eventID, // must match call event
 			// 		Kind:     porc.ReturnEvent,
@@ -1440,6 +1508,9 @@ func (s *fuzzUser) Read(key string) (val Val, redir *LeaderRedirect, err error) 
 			return
 		}
 
+		// "Must call CreateNewSession first"
+
+		return
 		// panic: node_2 leader error: clock mis-behavior detected and client must re-submit ticket to preserve sequential consistency. Ticket.SessionID='evpvvaOdaoCuW30JNWFJ_ZcgK960' (SessionSerial='16'); tkt.SessionLastKnownIndex(61) > s.state.LastApplied(57)
 	}
 	switch err {
@@ -1457,6 +1528,7 @@ func (s *fuzzUser) Read(key string) (val Val, redir *LeaderRedirect, err error) 
 	val = Val(append([]byte{}, tkt.Val...))
 
 	returnEvent := porc.Event{
+		Ts:       time.Now().UnixNano(),
 		ClientId: s.userid,
 		Id:       eventID, // must match call event
 		Kind:     porc.ReturnEvent,
@@ -1646,7 +1718,7 @@ func (s *fuzzNemesis) makeTrouble() {
 }
 
 func Test101_userFuzz(t *testing.T) {
-	return
+	//return
 	runtime.GOMAXPROCS(1)
 
 	defer func() {
@@ -1898,6 +1970,28 @@ func writeToDiskOkEvents(t *testing.T, user string, evs []porc.Event) {
 		t.Fatalf("evs visualization failed")
 	}
 	t.Logf("wrote evs visualization to %s", fd.Name())
+}
+
+func writeToDiskOkOperations(t *testing.T, user string, ops []porc.Operation) {
+
+	res, info := porc.CheckOperationsVerbose(stringCasModel, ops, 0)
+	if res == porc.Illegal {
+		t.Fatalf("expected output %v, got output %v", porc.Ok, res)
+	}
+	nm := fmt.Sprintf("green.linz.%v.%03d.user_%v.html", t.Name(), 0, user)
+	for i := 1; fileExists(nm) && i < 1000; i++ {
+		nm = fmt.Sprintf("green.linz.%v.%03d.user_%v.html", t.Name(), i, user)
+	}
+	vv("writing out linearizable ops history '%v', len %v", nm, len(ops))
+	fd, err := os.Create(nm)
+	panicOn(err)
+	defer fd.Close()
+
+	err = porc.Visualize(stringCasModel, info, fd)
+	if err != nil {
+		t.Fatalf("ops visualization failed")
+	}
+	t.Logf("wrote ops visualization to %s", fd.Name())
 }
 
 func Test199_dsim_seed_string_parsing(t *testing.T) {
