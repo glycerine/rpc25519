@@ -1,5 +1,9 @@
 package rpc25519
 
+import (
+//"strings"
+)
+
 // doLoops is for traditional rpc/peer where we need the
 // readLoop and the sendLoop going. The Dial/net.Conn
 // stuff does not want these loops, so sets doLoops false.
@@ -27,6 +31,11 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 	}
 
 	//vv("runSimNetClient c.simnet = %p, '%v', goro = %v", c.simnet, c.name, GoroNumber())
+
+	//vv("c.cfg.ClientDialToHostPort = '%v'; localHostPort='%v'; serverAddr='%v'", c.cfg.ClientDialToHostPort, localHostPort, serverAddr)
+	//if strings.HasPrefix(c.cfg.ClientDialToHostPort, "auto-cli-from-srv_client101_user2_0-to-srv_node_0") {
+	//	panic("where?")
+	//}
 
 	// ignore serverAddr in favor of cfg.ClientDialToHostPort
 	// which tests actually set.

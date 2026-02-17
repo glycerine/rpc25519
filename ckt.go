@@ -742,7 +742,7 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 		// share it between the origin frag and the new Message.
 	}
 
-	madeNewAutoCli, _, err = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur)
+	madeNewAutoCli, _, err = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur, false)
 	if err != nil {
 		return
 	}
@@ -1186,7 +1186,7 @@ func (lpb *LocalPeer) newCircuit(
 		lpb.addUserMeta(msg)
 
 		var lpy *LoopComm
-		madeNewAutoCli, lpy, err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+		madeNewAutoCli, lpy, err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur, false)
 		if ckt.loopy == nil {
 			ckt.loopy = lpy
 		}
@@ -1282,7 +1282,7 @@ func (lpb *LocalPeer) newCircuit(
 		lpb.addUserMeta(msg)
 
 		var lpy *LoopComm
-		madeNewAutoCli, lpy, err = lpb.U.SendOneWayMessage(ctx2, msg, -1)
+		madeNewAutoCli, lpy, err = lpb.U.SendOneWayMessage(ctx2, msg, -1, false)
 		if ckt.loopy == nil {
 			ckt.loopy = lpy
 		}
@@ -1730,7 +1730,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, peerServ
 
 	var madeNewAutoCli0 bool
 	for i := 0; i < 50; i++ {
-		madeNewAutoCli0, _, err = p.u.SendOneWayMessage(ctx, msg, 0)
+		madeNewAutoCli0, _, err = p.u.SendOneWayMessage(ctx, msg, 0, false)
 		if madeNewAutoCli0 {
 			madeNewAutoCli = true // latch and stick at true
 		}

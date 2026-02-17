@@ -2396,7 +2396,7 @@ type UniversalCliSrv interface {
 
 	PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName, userString string, frag *Fragment, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, autoSendNewCircuitCh chan *Circuit, waitForAck bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error)
 
-	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch *LoopComm, err error)
+	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration, forbidAutoCli bool) (madeNewAutoCli bool, ch *LoopComm, err error)
 
 	GetReadsForCallID(ch chan *Message, callID string)
 	GetErrorsForCallID(ch chan *Message, callID string)
@@ -2460,7 +2460,7 @@ var _ UniversalCliSrv = &Server{}
 // for symmetry: see srv.go for details, under the same func name.
 //
 // SendOneWayMessage only sets msg.HDR.From to its correct value.
-func (cli *Client) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch *LoopComm, err error) {
+func (cli *Client) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration, forbidAutoCli bool) (madeNewAutoCli bool, ch *LoopComm, err error) {
 	err, ch = sendOneWayMessage(cli, ctx, msg, errWriteDur)
 	return
 }

@@ -104,7 +104,14 @@ func (pb *LocalPeer) peerbackPump() {
 							"panic on system shutdown: '%v' %v", name, r, stack())
 					}
 				}()
-				madeAutoCli, queueSendCh, err := pb.U.SendOneWayMessage(pb.Ctx, msg, -2)
+				// forbidAutoCli true here makes perfect sense:
+				// we are trying to tear down the circuit; do not
+				// auto create a new client just to tell the other
+				// side to shut down any connections; there are already
+				// none if we have to connections and thus might need
+				// an autocli(!)
+				const forbidAutoCli = true
+				madeAutoCli, queueSendCh, err := pb.U.SendOneWayMessage(pb.Ctx, msg, -2, forbidAutoCli)
 				_ = madeAutoCli
 				if err == ErrAntiDeadlockMustQueue {
 					countErrAntiDeadlockMustQueue++
@@ -402,7 +409,7 @@ func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 	shut.HDR.FromPeerServiceNameVersion = pb.PeerServiceNameVersion
 
 	// -2 version => almost no blocking; err below if cannot send in 1 msec.
-	madeNewAutoCli, queueSendCh, err := pb.U.SendOneWayMessage(ctxB, shut, -2)
+	madeNewAutoCli, queueSendCh, err := pb.U.SendOneWayMessage(ctxB, shut, -2, false)
 	_ = madeNewAutoCli
 	if err == ErrAntiDeadlockMustQueue {
 		//vv("err == ErrAntiDeadlockMustQueue, closing in background goro")

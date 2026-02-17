@@ -1154,6 +1154,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 					case strings.Contains(errs, "error: I am not leader."):
 						// e.g. error: I am not leader. I ('node_0') think leader is 'node_2'
 						// use redirect
+						vv("using redirect = '%#v'", redirect)
 						s.newSession(startCtx, redirect.LeaderName, redirect.LeaderURL)
 						continue
 					}
@@ -1189,7 +1190,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 						panic("snap0 shows healthy, why did we need a new session then?")
 					}
 					vv("prompted for new session, snap1 = '%v'", snap1) // .LongString()) // not seen.
-
+					vv("%v: about to call s.newSession to leaderName '%v'", s.name, leaderName)
 					sess := s.newSession(startCtx, leaderName, leaderURL)
 					if sess == nil {
 						alwaysPrintf("%v ugh, cannot get newSession with this client", s.name)
@@ -1312,6 +1313,8 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 
 				vv("%v retry with same serial.", s.name) // seen lots
 				continue
+			case err == ErrNeedNewSession:
+				return
 			}
 		}
 		panicOn(err)
@@ -1390,6 +1393,10 @@ func (s *fuzzUser) Read(key string) (val Val, redir *LeaderRedirect, err error) 
 	ctx5, canc5 := context.WithTimeout(bkg, 5*time.Second)
 	tkt, err = s.sess.Read(ctx5, fuzzTestTable, Key(key), waitForDur)
 	canc5()
+	if err != nil && ((err == ErrShutDown || err == rpc.ErrShutdown2) ||
+		strings.Contains(err.Error(), "shutdown")) {
+		return
+	}
 	if err == nil && tkt != nil && tkt.Err != nil {
 		err = tkt.Err
 	}
@@ -1639,7 +1646,7 @@ func (s *fuzzNemesis) makeTrouble() {
 }
 
 func Test101_userFuzz(t *testing.T) {
-	//return
+	return
 	runtime.GOMAXPROCS(1)
 
 	defer func() {
@@ -1727,6 +1734,8 @@ func Test101_userFuzz(t *testing.T) {
 				panicOn(err)
 				defer cli.Close()
 
+				vv("userNum:%v -> cli.name = '%v'", userNum, cli.name)
+
 				// request new session
 				// seems like we want RPC semantics for this
 				// and maybe for other calls?
@@ -1754,27 +1763,38 @@ func Test101_userFuzz(t *testing.T) {
 	}
 }
 
-func (user *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string) *Session {
-retry:
+func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string) *Session {
+
+	//retry:
 	ctx5, canc5 := context.WithTimeout(ctx, time.Second*10)
-	sess, redirect, err := user.cli.CreateNewSession(ctx5, leaderName, leaderURL)
+	sess, redirect, err := s.cli.CreateNewSession(ctx5, leaderName, leaderURL)
 	canc5()
 	if err != nil {
-		errs := err.Error()
-		if strings.Contains(errs, "context cancelled") ||
-			strings.Contains(errs, "context deadline exceeded") {
-			//strings.Contains(errs, "time-out waiting for call to complete") {
+		vv("%v try restartFullHelper after seeing CreateNewSession -> err = '%v'", s.name, err)
 
-			if redirect != nil {
-				leaderName = redirect.LeaderName
-				leaderURL = redirect.LeaderURL
+		err2 := restartFullHelper(ctx, s.name, s.cli, &s.sess, s.halt)
+		panicOn(err2)
+		sess = s.sess
+		err = nil
+		/*
+			if false {
+				errs := err.Error()
+				if strings.Contains(errs, "context cancelled") ||
+					strings.Contains(errs, "context deadline exceeded") {
+					//strings.Contains(errs, "time-out waiting for call to complete") {
+
+					if redirect != nil {
+						leaderName = redirect.LeaderName
+						leaderURL = redirect.LeaderURL
+					}
+					alwaysPrintf("%v: err back from CreateNewSession, goto retry; err='%v'", s.name, errs) // stuck in infinite loop of these: fuzz_test.go:1772 [goID 11] 2000-01-01T00:01:45.308000001+00:00 user11: err back from CreateNewSession, goto retry; err='ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'error requesting CallPeerStartCircuit from remote: 'time-out waiting for call to complete'; netAddr='simnet://srv_node_0'; remoteAddr='simnet://srv_node_0''; '
+					goto retry
+				}
 			}
-			alwaysPrintf("%v: err back from CreateNewSession, goto retry; err='%v'", user.name, errs) // stuck in infinite loop of these: fuzz_test.go:1772 [goID 11] 2000-01-01T00:01:45.308000001+00:00 user11: err back from CreateNewSession, goto retry; err='ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'error requesting CallPeerStartCircuit from remote: 'time-out waiting for call to complete'; netAddr='simnet://srv_node_0'; remoteAddr='simnet://srv_node_0''; '
-			goto retry
-		}
+		*/
 	}
 	if err != nil {
-		alwaysPrintf("%v, CreateNewSession err = '%v'", user.name, err)
+		alwaysPrintf("%v, CreateNewSession err = '%v'", s.name, err)
 		errs := err.Error()
 		if strings.Contains(errs, "no leader known to me") ||
 			strings.Contains(errs, "I am not leader") {
@@ -1784,12 +1804,12 @@ retry:
 				leaderURL = redirect.LeaderURL
 			}
 			//goto retry // insufficient. we infinite loop.
-			user.cli.Close()
+			s.cli.Close()
 			time.Sleep(time.Second)
 
 			//snap0 := c.SimnetSnapshot(true)
 			//vv("could not find leader. snap0 = '%v'", snap0) // .LongString())
-			user.edition++
+			s.edition++
 			return nil // get a new client, not just a new session
 		}
 		if strings.Contains(errs, "time-out waiting for call to complete") {
@@ -1797,7 +1817,8 @@ retry:
 			// e.g. ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'error requesting CallPeerStartCircuit from remote: 'time-out waiting for call to complete'; netAddr='simnet://srv_node_0'; remoteAddr='simnet://srv_node_0'';
 			return nil
 		}
-		panic(err)
+		panic(err) // cli.go:1955 [goID 108] 2000-01-01 00:00:25.336000002 +0000 UTC panic: ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'rpc25519 error: context cancelled';
+
 	}
 	panicOn(err)
 	if sess.ctx == nil {
@@ -1808,8 +1829,8 @@ retry:
 	if errC := sess.ctx.Err(); errC != nil {
 		panicf("sess.ctx.Err() should be not already be canceled!: errC='%v'", errC) // gotcha!
 	}
-	vv("%v got new sess", user.name) // , sess)
-	user.sess = sess
+	vv("%v got new sess", s.name) // , sess)
+	s.sess = sess
 	return sess
 }
 
@@ -2308,16 +2329,17 @@ type intSet struct {
 	slc []int
 }
 
-func (s *fuzzUser) restartFull(ctx context.Context, name string, cli *TubeNode, pSess **Session) (err error) {
+// extracted and generalized from czar.go
+func restartFullHelper(ctx context.Context, name string, cli *TubeNode, pSess **Session, halt *idem.Halter) (err error) {
 
 fullRestart:
 	for {
 		select {
-		case <-s.halt.ReqStop.Chan:
-			vv("%v: fuzzUser.halt requested (at restartFull top). exiting.", name)
+		case <-halt.ReqStop.Chan:
+			vv("%v: halt requested (at restartFull top). exiting.", name)
 			return
 		case <-ctx.Done():
-			vv("%v: ctx fuzzUser.halt requested (at restartFull top). exiting.", name)
+			vv("%v: ctx Done requested (at restartFull top). exiting.", name)
 			return
 		default:
 		}

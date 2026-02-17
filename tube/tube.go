@@ -16400,15 +16400,13 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	// and only afterwards starting the watchdog.
 	//vv("%v we have added cktP.PeerName='%v' to cktAllByName (and ctkall); calling startWatchdog in addToCktall on cktP=%p for '%v'", s.me(), cktP.PeerName, cktP, cktP.PeerName)
 
-	// surely we do not want to do this for all the clients! (actually...)
+	// surely we do not want to do this for all the clients!
 	if cktP.PeerServiceName == TUBE_REPLICA {
 		// in fact, if we are a client ourselves, no watchdog. Only Raft replicas.
-		// Update: under fuzz_test, the client really needs help
-		// maintaining connection to the cluster and the leader
-		// as both change. Try allowing TUBE_CLIENT to use the
-		// watchdog too.
+		// clients do not get append-entries (AE) heartbeats and so would
+		// not stave off watch-dog retires!
 		if s.PeerServiceName == TUBE_REPLICA {
-			vv("%v cktP.PeerServiceName='%v' calling startWatchdog!", s.me(), cktP.PeerServiceName)
+			//vv("%v cktP.PeerServiceName='%v' calling startWatchdog!", s.me(), cktP.PeerServiceName)
 			cktP.startWatchdog() // ckt non-nil means isUp=true
 		}
 	}

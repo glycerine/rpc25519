@@ -2262,12 +2262,12 @@ func fromToAutoCliName(from, dest string) string {
 // the send loop becomes available. See pump.go and how
 // it calls closeCktInBackgroundToAvoidDeadlock() to avoid
 // deadlocks on circuit shutdown.
-func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch *LoopComm, err error) {
+func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration, forbidAutoCli bool) (madeNewAutoCli bool, ch *LoopComm, err error) {
 
 	err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	if err == ErrNetConnectionNotFound {
-		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
-			//vv("Server sendOneWayMessage got ErrNetConnectionNotFound and auto-dial out is OFF!")
+		if forbidAutoCli || !s.cfg.ServerAutoCreateClientsToDialOtherServers {
+			//vv("Server sendOneWayMessage got ErrNetConnectionNotFound and auto-dial out is %v (or forbidAutoCli = %v) ! msg.HDR.To='%v'", s.cfg.ServerAutoCreateClientsToDialOtherServers, forbidAutoCli, msg.HDR.To)
 			return
 		}
 		if !s.cfg.QuietTestMode {
@@ -2275,13 +2275,12 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			lenAutoCli := len(s.autoClients) + 1
 			s.mut.Unlock()
 			_ = lenAutoCli
-			//alwaysPrintf("%v server(%p) did not find destAddr (msg.HDR.To='%v') in "+
-			//	"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
-			//	" is true so spinning up new client... for a total of %v autoClients", s.name, s, msg.HDR.To, lenAutoCli)
+			alwaysPrintf("%v server(%p) did not find destAddr (msg.HDR.To='%v') in "+
+				"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
+				" is true so spinning up new client... for a total of %v autoClients", s.name, s, msg.HDR.To, lenAutoCli)
 		}
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
 		panicOn(err1)
-		//vv("dest = '%v'", dest)
 
 		// note: simnet depends on auto_cli_recognition_prefix
 		// to properly report auto-clients vs lone-cli in the

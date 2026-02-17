@@ -1108,6 +1108,11 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 		s.fin(regop)
 		return
 	}
+	if srvnode.isCli {
+		reg.err = fmt.Errorf("bagh! cannot dial client-to-client, only client-to-server: reg.dialTo '%v' is a client", reg.dialTo)
+		s.fin(regop)
+		return
+	}
 
 	_, already := s.dns[reg.client.name]
 	if already {
@@ -1209,7 +1214,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 		s.fin(regop)
 
 	default:
-		panicf("ugh. no room in srvnode.tellServerNewConnCh channel: cap = %v", cap(srvnode.tellServerNewConnCh))
+		panicf("ugh. no room in srvnode.tellServerNewConnCh channel: cap = %v; len = %v' srvnode.name='%v'; srvnode=%p; if cap==0, is this actually a _client_ and not a server? srvnode='%v'", cap(srvnode.tellServerNewConnCh), len(srvnode.tellServerNewConnCh), srvnode.name, srvnode, srvnode)
 
 	case <-s.halt.ReqStop.Chan:
 		return
