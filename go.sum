@@ -40,14 +40,7 @@ github.com/glycerine/one_tree_rwmut v1.0.0 h1:S9/US5QeXZVrXc/0tSUD58NAxKQY9CaezD
 github.com/glycerine/one_tree_rwmut v1.0.0/go.mod h1:eKKXEG3WkBtQOka9ANdHuIlhqNCc45NcDjBFaG/FMmU=
 github.com/glycerine/parallelwalk v0.3.1 h1:wZNqvQfii3oxe8GNkRAbi55LxRIn5rN4ybtnS9mHg5M=
 github.com/glycerine/parallelwalk v0.3.1/go.mod h1:FLWmYJpTF7DeatAfHWT0wu1idKfNd1sfPX9V+S7j0L4=
-github.com/glycerine/porcupine v1.2.3-jea h1:/iQ9wMN8EJZoPhKb3VxlMaDakJeIcR5olVNlypRusG4=
-github.com/glycerine/porcupine v1.2.3-jea/go.mod h1:1vppLL4iLDWEqe3ETxmvjYLkS6fQo/ljqmGN7oBnm3k=
-github.com/glycerine/porcupine v1.2.4-jea h1:H89a6h+6guv43MtiIpnYaTGu+yN7XddQPGjtaPtqXCQ=
-github.com/glycerine/porcupine v1.2.4-jea/go.mod h1:1vppLL4iLDWEqe3ETxmvjYLkS6fQo/ljqmGN7oBnm3k=
-github.com/glycerine/porcupine v1.2.5-jea h1:5B4SPkCQ3ezs4IMIRPyZhesfXwi2nFuDsse2mHKbHwo=
-github.com/glycerine/porcupine v1.2.5-jea/go.mod h1:1vppLL4iLDWEqe3ETxmvjYLkS6fQo/ljqmGN7oBnm3k=
-github.com/glycerine/porcupine v1.2.6-jea h1:no9WSZx2xpt6HKnVS5qhH6ahIXqeb+3Kp3JDsS8tOb8=
-github.com/glycerine/porcupine v1.2.6-jea/go.mod h1:1vppLL4iLDWEqe3ETxmvjYLkS6fQo/ljqmGN7oBnm3k=
+github.com/glycerine/porcupine v1.2.7-jea h1:873RWQxYy98nulkuOPhU3PjVh0taPNQQ94PrHLCCG1o=
 github.com/glycerine/porcupine v1.2.7-jea/go.mod h1:1vppLL4iLDWEqe3ETxmvjYLkS6fQo/ljqmGN7oBnm3k=
 github.com/glycerine/rbtree v0.2.1 h1:9nD5PDojW8gu1slYBzzH7VND9gbSjB86tusW5YRKghc=
 github.com/glycerine/rbtree v0.2.1/go.mod h1:skpUtSrm1HHyLo+HayukOvAmXtE/F6tsVW0uCpaBGWE=

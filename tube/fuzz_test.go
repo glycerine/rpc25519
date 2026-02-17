@@ -142,7 +142,7 @@ type fuzzUser struct {
 	seed              uint64
 	name              string
 	userid            int
-	edition           int // avoid simnet freak out on reuse of server name
+	//edition           int // avoid simnet freak out on reuse of server name
 
 	shEvents *sharedEvents
 	rnd      func(nChoices int64) (r int64)
@@ -1177,7 +1177,39 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			prevCanc()
 		}()
 
-		s.newSession(startCtx, leaderName, leaderURL)
+		// get initial session and check that startCtx is still valid.
+		restart := func() (ok bool) {
+			select {
+			case <-startCtx.Done():
+				return false
+			case <-s.halt.ReqStop.Chan:
+				return false
+			default:
+			}
+
+			_, err := s.newSession(startCtx, leaderName, leaderURL)
+			if err == nil {
+				return true
+			}
+			if cerr := startCtx.Err(); cerr != nil {
+				alwaysPrintf("%v startCtx cancelled: returning", s.name)
+				return false
+			}
+			//time.Sleep(time.Second)
+
+			ctx5, canc5 := context.WithTimeout(startCtx, time.Second*5)
+			err2 := restartFullHelper(ctx5, s.name, s.cli, &s.sess, s.halt)
+			canc5()
+			if err2 != nil {
+				// this is bad. bailout needed.
+				return false
+			}
+			return true
+		}
+		if !restart() {
+			// startCtx was cancelled
+			return
+		}
 		for step := range steps {
 			prevCanc()
 			stepCtx, canc := context.WithTimeout(startCtx, time.Second*10)
@@ -1207,6 +1239,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 
 			if step == 0 || !swapped {
 				oldVal, redirect, err = s.Read(key)
+				_ = redirect
 				if err != nil {
 					errs := err.Error()
 					switch {
@@ -1217,36 +1250,54 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 						} else {
 							panicf("%v key not found on step %v!?!", s.name, step)
 						}
-					case strings.Contains(errs, "error shutdown"):
-						// nemesis probably shut down the node
-						vv("%v: try again on shutdown error", s.name)
-
-						// do we need to reconnect to try again?
-						continue
-					case strings.Contains(errs, "context deadline exceeded"):
-						// message loss due to nemesis likely
-						vv("%v: try again on timeout", s.name)
-
-						// do we need to reconnect to try again?
-						continue
-
-					case strings.Contains(errs, "error: I am not leader.") ||
-						strings.Contains(errs, "hmm. no leader known to me") ||
-						strings.Contains(errs, "Must call CreateNewSession first"):
-						// e.g. error: I am not leader. I ('node_0') think leader is 'node_2'
-						// use redirect
-						if redirect != nil {
-							vv("using redirect = '%#v'", redirect)
-							leaderName = redirect.LeaderName
-							leaderURL = redirect.LeaderURL
+					default:
+						// all other errors, just restart from scratch.
+						if !restart() {
+							return
 						}
-						time.Sleep(time.Second)
-						s.newSession(startCtx, leaderName, leaderURL)
 						continue
 					}
+				} // else err == nil
+			} // end if step == 0 || !swapped
+
+			/*
+						case strings.Contains(errs, "error shutdown"):
+							// nemesis probably shut down the node
+							vv("%v: try again on shutdown error", s.name)
+
+							// do we need to reconnect to try again?
+							continue
+						case strings.Contains(errs, "context deadline exceeded"):
+							// message loss due to nemesis likely
+							vv("%v: try again on timeout", s.name)
+
+							// do we need to reconnect to try again?
+							continue
+
+						case strings.Contains(errs, "error: I am not leader.") ||
+							strings.Contains(errs, "hmm. no leader known to me") ||
+							strings.Contains(errs, "Must call CreateNewSession first"):
+							// e.g. error: I am not leader. I ('node_0') think leader is 'node_2'
+							// use redirect
+							if redirect != nil {
+								vv("using redirect = '%#v'", redirect)
+								leaderName = redirect.LeaderName
+								leaderURL = redirect.LeaderURL
+							}
+							time.Sleep(time.Second)
+							_, err = s.newSession(startCtx, leaderName, leaderURL)
+							if err != nil {
+								if !restart() {
+									return
+								}
+							}
+							continue
+						}
+					}
+					panicOn(err) // hmm. no leader known to me (node 'client101_user3')
+
 				}
-				panicOn(err) // hmm. no leader known to me (node 'client101_user3')
-			}
+			*/
 
 			// draw unique values from domain, and only
 			// accept unique new write/cas values every time,
@@ -1266,43 +1317,49 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			swapped, cur, err = s.CAS(stepCtx, key, oldVal, writeMeNewVal)
 
 			if err != nil {
-				errs := err.Error()
-				if err == ErrNeedNewSession ||
-					strings.Contains(errs, "need new session") {
-
-					snap1 := s.clus.SimnetSnapshot(true)
-					if snap1.HealthSummary() == "SimnetSnapshot{all HEALTHY}" {
-						panic("snap0 shows healthy, why did we need a new session then?")
-					}
-					vv("prompted for new session, snap1 = '%v'", snap1) // .LongString()) // not seen.
-					vv("%v: about to call s.newSession to leaderName '%v'", s.name, leaderName)
-					sess := s.newSession(startCtx, leaderName, leaderURL)
-					if sess == nil {
-						alwaysPrintf("%v ugh, cannot get newSession with this client", s.name)
-						time.Sleep(time.Second)
-					}
-					vv("%v good, got new session", s.name)
-					continue
+				if !restart() {
+					return
 				}
-
-				switch {
-				case strings.Contains(errs, "error shutdown"):
-					// nemesis probably shut down the node
-					vv("%v: try again on shutdown error", s.name)
-
-					// do we need to reconnect to try again?
-					continue
-				case strings.Contains(errs, "context deadline exceeded"):
-					// message loss due to nemesis likely
-					vv("%v: try again on timeout", s.name)
-
-					// do we need to reconnect to try again?
-					continue
-				}
-				vv("shutting down on err (at step %v) '%v'; stepCtx.Err()='%v'; startCtx.Err()='%v'", step, err, stepCtx.Err(), startCtx.Err()) // stepCtx not cancelled. hmm... startCtx also not canceled!
-				return
+				continue
 			}
+			/*
+					errs := err.Error()
+					if err == ErrNeedNewSession ||
+						strings.Contains(errs, "need new session") {
 
+						snap1 := s.clus.SimnetSnapshot(true)
+						if snap1.HealthSummary() == "SimnetSnapshot{all HEALTHY}" {
+							panic("snap0 shows healthy, why did we need a new session then?")
+						}
+						vv("prompted for new session, snap1 = '%v'", snap1) // .LongString()) // not seen.
+						vv("%v: about to call s.newSession to leaderName '%v'", s.name, leaderName)
+						sess, err := s.newSession(startCtx, leaderName, leaderURL)
+						if sess == nil {
+							alwaysPrintf("%v ugh, cannot get newSession with this client", s.name)
+							time.Sleep(time.Second)
+						}
+						vv("%v good, got new session", s.name)
+						continue
+					}
+
+					switch {
+					case strings.Contains(errs, "error shutdown"):
+						// nemesis probably shut down the node
+						vv("%v: try again on shutdown error", s.name)
+
+						// do we need to reconnect to try again?
+						continue
+					case strings.Contains(errs, "context deadline exceeded"):
+						// message loss due to nemesis likely
+						vv("%v: try again on timeout", s.name)
+
+						// do we need to reconnect to try again?
+						continue
+					}
+					vv("shutting down on err (at step %v) '%v'; stepCtx.Err()='%v'; startCtx.Err()='%v'", step, err, stepCtx.Err(), startCtx.Err()) // stepCtx not cancelled. hmm... startCtx also not canceled!
+					return
+				}
+			*/
 			if len(cur) == 0 {
 				panicf("why is cur value empty after first CAS? oldVal='%v', writeMeNewVal='%v', swapped='%v', err='%v'", string(oldVal), string(writeMeNewVal), swapped, err)
 			}
@@ -1850,87 +1907,100 @@ func Test101_userFuzz(t *testing.T) {
 	}
 }
 
-func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string) *Session {
+func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string) (*Session, error) {
 
-	//retry:
+	// top ctx cancelled?
+	if cerr := ctx.Err(); cerr != nil {
+		return nil, cerr
+	}
+
 	ctx5, canc5 := context.WithTimeout(ctx, time.Second*5)
-	sess, redirect, err := s.cli.CreateNewSession(ctx5, leaderName, leaderURL)
+	sess, _, err := s.cli.CreateNewSession(ctx5, leaderName, leaderURL)
 	canc5()
-	if err != nil {
-		vv("%v try restartFullHelper after seeing CreateNewSession -> err = '%v'", s.name, err)
-		for {
-			ctx5, canc5 := context.WithTimeout(ctx, time.Second*5)
-			err2 := restartFullHelper(ctx5, s.name, s.cli, &s.sess, s.halt)
-			canc5()
-			if err2 == nil {
-				break
-			}
-			//panicOn(err2) // error: I am not leader
-			time.Sleep(time.Second) // try again.
-		}
-		if sess == nil {
-			return nil
-		}
-		// have sess and no error, hopefully good to go.
-		sess = s.sess
-		err = nil
-		/*
-			if false {
-				errs := err.Error()
-				if strings.Contains(errs, "context cancelled") ||
-					strings.Contains(errs, "context deadline exceeded") {
-					//strings.Contains(errs, "time-out waiting for call to complete") {
-
-					if redirect != nil {
-						leaderName = redirect.LeaderName
-						leaderURL = redirect.LeaderURL
-					}
-					alwaysPrintf("%v: err back from CreateNewSession, goto retry; err='%v'", s.name, errs) // stuck in infinite loop of these: fuzz_test.go:1772 [goID 11] 2000-01-01T00:01:45.308000001+00:00 user11: err back from CreateNewSession, goto retry; err='ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'error requesting CallPeerStartCircuit from remote: 'time-out waiting for call to complete'; netAddr='simnet://srv_node_0'; remoteAddr='simnet://srv_node_0''; '
-					goto retry
-				}
-			}
-		*/
+	if err == nil {
+		vv("%v got new sess", s.name) // , sess)
+		s.sess = sess
+		return sess, nil
 	}
-	if err != nil {
-		alwaysPrintf("%v, CreateNewSession err = '%v'", s.name, err)
-		errs := err.Error()
-		if strings.Contains(errs, "no leader known to me") ||
-			strings.Contains(errs, "I am not leader") {
+	return nil, err
+	/*
+	   	if err != nil {
+	   		// top ctx cancelled?
+	   		if cerr := ctx.Err(); cerr != nil {
+	   			return nil, cerr
+	   		}
+	   		vv("%v try restartFullHelper after seeing CreateNewSession -> err = '%v'", s.name, err)
+	   		for {
+	   			ctx5, canc5 := context.WithTimeout(ctx, time.Second*5)
+	   			err2 := restartFullHelper(ctx5, s.name, s.cli, &s.sess, s.halt)
+	   			canc5()
+	   			if err2 != nil {
+	   				return nil, err2
+	   			}
+	   			if err2 == nil && s.sess != nil {
+	   				err = nil
+	   				break
+	   			}
+	   			//panicOn(err2) // error: I am not leader
+	   			time.Sleep(time.Second) // try again.
+	   		}
+	   		if s.sess == nil {
+	   			panic("should have s.sess since err2 was nil")
+	   		}
+	   		// have sess and no error, hopefully good to go.
+	   		sess = s.sess
+	   		err = nil
+	   		return sess, nil
+	   	}
 
-			if redirect != nil {
-				leaderName = redirect.LeaderName
-				leaderURL = redirect.LeaderURL
-			}
-			//goto retry // insufficient. we infinite loop.
-			s.cli.Close()
-			time.Sleep(time.Second)
+	   	if err != nil {
+	   		alwaysPrintf("%v, CreateNewSession err = '%v'", s.name, err)
+	   		errs := err.Error()
+	   		if strings.Contains(errs, "no leader known to me") ||
+	   			strings.Contains(errs, "I am not leader") {
 
-			//snap0 := c.SimnetSnapshot(true)
-			//vv("could not find leader. snap0 = '%v'", snap0) // .LongString())
-			s.edition++
-			vv("could not find leader. new TubeNode edition: %v", s.edition)
-			return nil // get a new client, not just a new session
-		}
-		if strings.Contains(errs, "time-out waiting for call to complete") {
-			vv("error with leaderName '%v'", leaderName)
-			// e.g. ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'error requesting CallPeerStartCircuit from remote: 'time-out waiting for call to complete'; netAddr='simnet://srv_node_0'; remoteAddr='simnet://srv_node_0'';
-			return nil
-		}
-		panic(err) // cli.go:1955 [goID 108] 2000-01-01 00:00:25.336000002 +0000 UTC panic: ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'rpc25519 error: context cancelled';
+	   			if redirect != nil {
+	   				leaderName = redirect.LeaderName
+	   				leaderURL = redirect.LeaderURL
+	   			}
+	   			//goto retry // insufficient. we infinite loop.
+	   			s.cli.Close()
+	   			time.Sleep(time.Second)
 
-	}
-	panicOn(err)
-	if sess.ctx == nil {
-		panic("sess.ctx should be not nil")
-	}
-	// ctx5 is already canceled, must replace.
-	sess.ctx = ctx
-	if errC := sess.ctx.Err(); errC != nil {
-		panicf("sess.ctx.Err() should be not already be canceled!: errC='%v'", errC) // gotcha!
-	}
-	vv("%v got new sess", s.name) // , sess)
-	s.sess = sess
-	return sess
+	   			//snap0 := c.SimnetSnapshot(true)
+	   			//vv("could not find leader. snap0 = '%v'", snap0) // .LongString())
+	   			vv("could not find leader.") //  new TubeNode edition: %v", s.edition)
+	   			return nil, err              // get a new client, not just a new session
+	   		}
+	   		if strings.Contains(errs, "time-out waiting for call to complete") {
+	   			vv("error with leaderName '%v'", leaderName)
+	   			// e.g. ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'error requesting CallPeerStartCircuit from remote: 'time-out waiting for call to complete'; netAddr='simnet://srv_node_0'; remoteAddr='simnet://srv_node_0'';
+	   			return nil, err
+	   		}
+	   		panic(err) // cli.go:1955 [goID 108] 2000-01-01 00:00:25.336000002 +0000 UTC panic: ExternalGetCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL 'simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv' (netAddr='simnet://srv_node_0') (onlyPossibleAddr='') gave err = 'rpc25519 error: context cancelled';
+
+	   }
+	   panicOn(err)
+
+	   	if sess == nil {
+	   		return nil
+	   	}
+
+	   	if sess.ctx == nil {
+	   		panic("sess.ctx should be not nil")
+	   	}
+
+	   // ctx5 is already canceled, must replace.
+	   sess.ctx = ctx
+
+	   	if errC := sess.ctx.Err(); errC != nil {
+	   		panicf("sess.ctx.Err() should be not already be canceled!: errC='%v'", errC) // gotcha!
+	   	}
+
+	   vv("%v got new sess", s.name) // , sess)
+	   s.sess = sess
+	   return sess, nil
+	*/
 }
 
 func writeToDiskNonLinzFuzz(t *testing.T, user string, ops []porc.Operation) {
@@ -2450,7 +2520,16 @@ type intSet struct {
 	slc []int
 }
 
-// extracted and generalized from czar.go
+// restartFullHelper was extracted and
+// generalized from czar.go. What it does:
+//
+// a) close old session, if any in *pSess.
+// b) find the leader using HelperFindLeader(), repeatedly if need be.
+// c) create a new session with the leader.
+//
+// the only errors are when we are shutting down
+// from ctx or halt; if restartFullHelper
+// returns an error, it the test might be done.
 func restartFullHelper(ctx context.Context, name string, cli *TubeNode, pSess **Session, halt *idem.Halter) (err error) {
 
 fullRestart:
@@ -2458,10 +2537,10 @@ fullRestart:
 		select {
 		case <-halt.ReqStop.Chan:
 			vv("%v: halt requested (at restartFull top). exiting.", name)
-			return
+			return ErrShutDown
 		case <-ctx.Done():
 			vv("%v: ctx Done requested (at restartFull top). exiting.", name)
-			return
+			return ctx.Err()
 		default:
 		}
 
