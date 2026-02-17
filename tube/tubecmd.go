@@ -165,7 +165,7 @@ func (cfg *TubeConfig) RunTubeServiceMain(cmdCfg *ConfigTubeCmd) {
 		// dump log
 		fmt.Printf("\ncfg.InitialLeaderName = '%v'; cfg.MyName = '%v'\n", cfg.InitialLeaderName, cfg.MyName)
 		node.SetState(state)
-		err = node.DumpRaftWAL()
+		err = node.DumpRaftWAL(nil)
 		panicOn(err)
 
 		os.Exit(0)

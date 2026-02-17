@@ -214,7 +214,7 @@ func Test401_add_node(t *testing.T) {
 
 			// dump log to confirm what we have
 			//vv("node0 log:")
-			err = c.Nodes[0].DumpRaftWAL()
+			err = c.Nodes[0].DumpRaftWAL(nil)
 			panicOn(err)
 
 			look0 := c.Nodes[0].Inspect()
@@ -241,11 +241,11 @@ func Test401_add_node(t *testing.T) {
 			vv("tkt = '%v'", tkt)
 
 			vv("node5 log:")
-			err = node5.DumpRaftWAL()
+			err = node5.DumpRaftWAL(nil)
 			panicOn(err)
 
 			vv("node0 log:")
-			err = c.Nodes[0].DumpRaftWAL()
+			err = c.Nodes[0].DumpRaftWAL(nil)
 			panicOn(err)
 
 			//vv("stopping after add node to verify that much works.")

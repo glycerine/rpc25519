@@ -2,6 +2,8 @@ package tube
 
 import (
 	"fmt"
+	"io"
+	"os"
 )
 
 // memory only version of WAL. NOT SAFE. TESTING ONLY.
@@ -195,19 +197,23 @@ func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftL
 	return
 }
 
-func (s *raftWriteAheadLog) DumpRaftWAL_NODISK() error {
+func (s *raftWriteAheadLog) DumpRaftWAL_NODISK(w io.Writer) error {
 
-	fmt.Printf("contents of raft memwal of len %v:\n", len(s.raftLog))
+	if isNil(w) {
+		w = os.Stdout
+	}
+
+	fmt.Fprintf(w, "contents of raft memwal of len %v:\n", len(s.raftLog))
 	if len(s.raftLog) == 0 {
-		fmt.Printf("(empty memwal Raft log)\n")
+		fmt.Fprintf(w, "(empty memwal Raft log)\n")
 		return nil
 	}
 	for i, e := range s.raftLog {
 		// count from 1 to match the Raft log Index.
-		fmt.Printf("i=%03d  RaftLogEntry{Lead:%v, Term:%02d, Index:%02d, TicketID: %v, CurrentCommitIndex:%v, Ticket.Op='%v', tkt4=%v Ticket.Desc: %v}\n", i+1, e.LeaderName, e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TicketID[:4], e.Ticket.Desc)
+		fmt.Fprintf(w, "i=%03d  RaftLogEntry{Lead:%v, Term:%02d, Index:%02d, TicketID: %v, CurrentCommitIndex:%v, Ticket.Op='%v', tkt4=%v Ticket.Desc: %v}\n", i+1, e.LeaderName, e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TicketID[:4], e.Ticket.Desc)
 	}
 
-	fmt.Printf("\nlogIndex:\n%v\n", s.logIndex)
+	fmt.Fprintf(w, "\nlogIndex:\n%v\n", s.logIndex)
 
 	return nil
 }

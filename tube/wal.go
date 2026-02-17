@@ -74,10 +74,13 @@ func dirExists(name string) bool {
 }
 
 // DumpRaftWAL is used by tube -log to dump the log for diagnostics.
-func (s *TubeNode) DumpRaftWAL() error {
+func (s *TubeNode) DumpRaftWAL(w io.Writer) error {
 
 	if s.cfg.NoDisk {
-		return s.wal.DumpRaftWAL_NODISK()
+		return s.wal.DumpRaftWAL_NODISK(w)
+	}
+	if isNil(w) {
+		w = os.Stdout
 	}
 
 	logPath := s.cfg.DataDir + sep + "tube.wal.msgp"
@@ -86,32 +89,32 @@ func (s *TubeNode) DumpRaftWAL() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("contents of disk raft wal '%v':\n", logPath)
+	fmt.Fprintf(w, "contents of disk raft wal '%v':\n", logPath)
 	if len(wal.raftLog) == 0 {
-		fmt.Printf("(empty disk Raft log)\n")
+		fmt.Fprintf(w, "(empty disk Raft log)\n")
 
 		if s.state != nil && s.state.ShadowReplicas != nil {
-			fmt.Printf("s.state.ShadowReplicas = %v\n", s.state.ShadowReplicas.Short())
+			fmt.Fprintf(w, "s.state.ShadowReplicas = %v\n", s.state.ShadowReplicas.Short())
 		} else {
-			fmt.Printf("current s.state.ShadowReplicas = (not available)\n")
+			fmt.Fprintf(w, "current s.state.ShadowReplicas = (not available)\n")
 		}
 		if s.state != nil && s.state.MC != nil {
 
-			fmt.Printf("current s.state.MC = %v\ns.state.CurrentTerm: %v   s.state.CommitIndex: %v   ** len(wal.raftLog) == 0 => no way to know logIndex.BaseC/CompactTerm just from the (empty) log; state.CompactionDiscardedLastIndex=%v; state.CompactionDiscardedLastTerm = %v\n", s.state.MC.Short(), s.state.CurrentTerm, s.state.CommitIndex, s.state.CompactionDiscardedLast.Index, s.state.CompactionDiscardedLast.Term)
+			fmt.Fprintf(w, "current s.state.MC = %v\ns.state.CurrentTerm: %v   s.state.CommitIndex: %v   ** len(wal.raftLog) == 0 => no way to know logIndex.BaseC/CompactTerm just from the (empty) log; state.CompactionDiscardedLastIndex=%v; state.CompactionDiscardedLastTerm = %v\n", s.state.MC.Short(), s.state.CurrentTerm, s.state.CommitIndex, s.state.CompactionDiscardedLast.Index, s.state.CompactionDiscardedLast.Term)
 		} else {
-			fmt.Printf("current s.state.MC = (not available)\n")
+			fmt.Fprintf(w, "current s.state.MC = (not available)\n")
 		}
 		return nil
 	}
 	for i, e := range wal.raftLog {
 		// count from 1 to match the Raft log Index.
 
-		fmt.Printf("i=%03d %v {Lead:%v, Term:%02d, Index:%02d, Ticket: %v, CurrentCommitIndex:%v, Ticket.Op='%v', tkt4=%v Ticket.Desc: %v}\n", i+1, nice9(e.Tm.In(gtz)), e.LeaderName, e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TicketID[:4], e.Ticket.Desc)
+		fmt.Fprintf(w, "i=%03d %v {Lead:%v, Term:%02d, Index:%02d, Ticket: %v, CurrentCommitIndex:%v, Ticket.Op='%v', tkt4=%v Ticket.Desc: %v}\n", i+1, nice9(e.Tm.In(gtz)), e.LeaderName, e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TicketID[:4], e.Ticket.Desc)
 	}
-	fmt.Printf("\n")
-	fmt.Printf("current s.state.MC = %v\n", s.state.MC.Short())
-	fmt.Printf("s.state.ShadowReplicas = %v\n", s.state.ShadowReplicas.Short())
-	fmt.Printf("s.state.CurrentTerm: %v   s.state.CommitIndex: %v   [logIndex.BaseC: %v; CompactTerm: %v]\n", s.state.CurrentTerm, s.state.CommitIndex, wal.logIndex.BaseC, wal.logIndex.CompactTerm)
+	fmt.Fprintf(w, "\n")
+	fmt.Fprintf(w, "current s.state.MC = %v\n", s.state.MC.Short())
+	fmt.Fprintf(w, "s.state.ShadowReplicas = %v\n", s.state.ShadowReplicas.Short())
+	fmt.Fprintf(w, "s.state.CurrentTerm: %v   s.state.CommitIndex: %v   [logIndex.BaseC: %v; CompactTerm: %v]\n", s.state.CurrentTerm, s.state.CommitIndex, wal.logIndex.BaseC, wal.logIndex.CompactTerm)
 	return nil
 }
 

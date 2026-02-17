@@ -1076,7 +1076,13 @@ func (s *fuzzUser) linzCheck() {
 	//vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
 	linz := porc.CheckEvents(stringCasModel, evs)
 	if !linz {
-		//alwaysPrintf("not linz! wal:\n")
+		alwaysPrintf("not linz! wal:\n")
+		dump := "test101fuzz_test.wal.dump"
+		fd, err := os.Create(dump)
+		panicOn(err)
+		err = s.clus.Nodes[0].DumpRaftWAL(fd)
+		fd.Close()
+		panicOn(err)
 
 		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; evs='%v'", s.name, s.seed, eventSlice(evs))
 		writeToDiskNonLinzFuzzEvents(s.t, s.name, evs)
@@ -1225,7 +1231,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 							leaderName = redirect.LeaderName
 							leaderURL = redirect.LeaderURL
 						}
-						s.newSession(startCtx, redirect.LeaderName, redirect.LeaderURL)
+						s.newSession(startCtx, leaderName, leaderURL)
 						continue
 					}
 				}
@@ -1842,10 +1848,16 @@ func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string)
 	canc5()
 	if err != nil {
 		vv("%v try restartFullHelper after seeing CreateNewSession -> err = '%v'", s.name, err)
-		ctx5, canc5 := context.WithTimeout(ctx, time.Second*5)
-		err2 := restartFullHelper(ctx5, s.name, s.cli, &s.sess, s.halt)
-		canc5()
-		panicOn(err2) // error: I am not leader
+		for {
+			ctx5, canc5 := context.WithTimeout(ctx, time.Second*5)
+			err2 := restartFullHelper(ctx5, s.name, s.cli, &s.sess, s.halt)
+			canc5()
+			if err2 == nil {
+				break
+			}
+			//panicOn(err2) // error: I am not leader
+			time.Sleep(time.Second) // try again.
+		}
 		if sess == nil {
 			return nil
 		}
