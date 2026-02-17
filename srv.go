@@ -2330,7 +2330,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		cli.notifies = s.notifies
 
 		// have to Start() first to get the cli.conn setup.
-		err2 = cli.Start()
+		err2 = cli.StartWithCtx(ctx)
 		if err2 != nil {
 			//vv("cli.Start() got back err2='%v'", err2)
 			return false, nil, err2

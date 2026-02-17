@@ -1941,6 +1941,11 @@ func (c *Client) setDefaults(cfg *Config) {
 // That is, Start attemps to connect to config.ClientDialToHostPort.
 // The err will come back with any problems encountered.
 func (c *Client) Start() (err error) {
+	return c.StartWithCtx(context.Background())
+}
+
+func (c *Client) StartWithCtx(ctx context.Context) (err error) {
+
 	//vv("top Client.Start() c.cfg.ClientDialToHostPort='%v'; \n stack='%v'", c.cfg.ClientDialToHostPort, stack())
 	c.cfg.cliStartingDir, err = os.Getwd()
 	if err != nil {
@@ -1959,6 +1964,9 @@ func (c *Client) Start() (err error) {
 	case err = <-c.connected:
 	case <-c.halt.ReqStop.Chan:
 		err = ErrShutdown()
+	case <-ctx.Done():
+		c.Close()
+		err = ctx.Err()
 	}
 	return err
 }

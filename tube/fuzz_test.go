@@ -1718,7 +1718,7 @@ func (s *fuzzNemesis) makeTrouble() {
 }
 
 func Test101_userFuzz(t *testing.T) {
-	return
+	//return
 	runtime.GOMAXPROCS(1)
 
 	defer func() {
