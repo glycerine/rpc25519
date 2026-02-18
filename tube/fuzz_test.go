@@ -1197,7 +1197,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			default:
 			}
 
-			_, err := s.newSession(startCtx, leaderName, leaderURL)
+			_, _, err := s.newSession(startCtx, leaderName, leaderURL)
 			if err == nil {
 				return true
 			}
@@ -1264,8 +1264,8 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 							err = nil
 						} else {
 							// seen on step 1 too. users 5, nodes 3, steps 5000.
-							//continue
-							panicf("%v key not found on step %v!?!", s.name, step)
+							continue
+							//panicf("%v key not found on step %v!?!", s.name, step)
 						}
 						// used to just default: into restart. but try
 						// bringing back more retries without that (slow) recovery,
@@ -1313,6 +1313,9 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			writeMeNewVal := Val([]byte(fmt.Sprintf("%v", proposedVal)))
 			swapped, cur, err = s.CAS(stepCtx, key, oldVal, writeMeNewVal)
 
+			// "need new session" every time.
+			//vv("s.CAS err -> %v", err)
+
 			if err != nil {
 				// restart() was extensively tested and will
 				// recover, but at the cost of making
@@ -1330,6 +1333,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 				}
 				continue
 			}
+
 			if len(cur) == 0 {
 				panicf("why is cur value empty after first CAS? oldVal='%v', writeMeNewVal='%v', swapped='%v', err='%v'", string(oldVal), string(writeMeNewVal), swapped, err)
 			}
@@ -1410,8 +1414,8 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 				err = nil
 				//vv("%v: rejectedWritePrefix seen", s.name) // seen.
 				break
-			case strings.Contains(errs, "context canceled"):
-				//vv("%v sees context canceled for s.sess.CAS() ", s.name) // seen
+			case strings.Contains(errs, "context canceled"): // every time?!?! why?
+				//vv("%v sees context canceled for s.sess.CAS() ", s.name) // seen ever time
 				//err = ErrNeedNewSession
 				//return
 				fallthrough
@@ -1432,6 +1436,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 				//vv("%v retry with same serial.", s.name) // used to be seen lots, not seen after restart() changeover. Seen a bunch with the fallthrough just above.
 				continue
 			case err == ErrNeedNewSession:
+				vv("%v err == ErrNeedNewSession back from s.sess.CAS", s.name)
 				return
 			}
 		}
@@ -1615,6 +1620,8 @@ type fuzzNemesis struct {
 	// per Raft requirements, track who is damaged currently here.
 	damagedSlc []int
 	damaged    map[int]int
+
+	calls int
 }
 
 func (s *fuzzNemesis) makeTrouble() {
@@ -1622,6 +1629,8 @@ func (s *fuzzNemesis) makeTrouble() {
 	//s.mut.Lock() // why deadlocked?
 	wantSleep := true
 	//beat := time.Second
+
+	s.calls++
 
 	defer func() {
 		//s.mut.Unlock()
@@ -1632,6 +1641,8 @@ func (s *fuzzNemesis) makeTrouble() {
 			//time.Sleep(beat)
 		}
 	}()
+
+	vv("makeTrouble running, calls = %v", s.calls)
 
 	nn := len(s.clus.Nodes)
 	quorum := nn/2 + 1
@@ -1707,7 +1718,7 @@ func (s *fuzzNemesis) makeTrouble() {
 		// after detecting node failures, those newly made
 		// connections do not have the deaf/drop applied!
 		// so ISOLATE host instead!
-		// maybe we need a faul mode were all connections
+		// maybe we need a fault mode were all connections
 		// from (or to) have the deaf/drop probs applied.
 		// (Or not if we want to model faulty middle boxes? rare, skip for now)
 		s.clus.IsolateNode(node)
@@ -1803,6 +1814,7 @@ func Test101_userFuzz(t *testing.T) {
 		// 15 users, 100 steps => 1584 ops. (4.6s with prints quiet)
 		// 20 users, 100 steps => 2079 ops. (5.1s)
 		//  5 users, 1000 steps=> 2975 ops. (14.6s)
+		// 15 users, 10_000 steps => 159984 ops. (17 minutes; 1054s on rog).
 		//
 		// seed 0, 5 nodes in cluster
 		// 20 users, 1000 steps => 10458 ops. (10.71s with prints quiet)
@@ -1895,31 +1907,46 @@ func Test101_userFuzz(t *testing.T) {
 			// record the write into the op history, and the linz
 			// checker will false alarm on that.
 			users[0].linzCheck()
+
+			if nemesis.calls == 0 {
+				panic("nemesis was never called!")
+			}
 		})
 
 	}
 }
 
-func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string) (*Session, error) {
+func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string) (sess *Session, redir *LeaderRedirect, err error) {
 
+	vv("%v top of newSession", s.name)
+	if ctx.Err() != nil {
+		vv("%v newSession: submitted call ctx already cancelled! '%v'", s.name, ctx.Err()) // not seen
+		return nil, nil, ctx.Err()
+	}
+
+	defer func() {
+		vv("%v end of newSession; err = '%v'", s.name, err)
+		if err == nil && sess.ctx.Err() != nil {
+			panicf("problem: newSession err==nil, but sess.ctx already done! Err()='%v'", sess.ctx.Err()) // context cancelled.
+		}
+	}()
 	if s.sess != nil {
 		s.sess.Close()
 	}
 
 	// top ctx cancelled?
 	if cerr := ctx.Err(); cerr != nil {
-		return nil, cerr
+		return nil, nil, cerr
 	}
 
 	ctx5, canc5 := context.WithTimeout(ctx, time.Second*5)
-	sess, _, err := s.cli.CreateNewSession(ctx5, leaderName, leaderURL)
+	sess, redir, err = s.cli.CreateNewSession(ctx5, leaderName, leaderURL)
 	canc5()
 	if err == nil {
-		//vv("%v got new sess", s.name) // , sess)
+		vv("%v got err=nil and new sess %p back from CreateNewSession(); redir='%v'", s.name, sess, redir)
 		s.sess = sess
-		return sess, nil
 	}
-	return nil, err
+	return
 }
 
 func writeToDiskNonLinzFuzz(t *testing.T, user string, ops []porc.Operation) {

@@ -147,6 +147,12 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 		err = ErrNeedNewSession
 		return
 	}
+	if sess.ctx.Err() != nil {
+		vv("%v: TubeNode.CAS sees already cancelled sess.ctx, bailing early", s.name) // seen a ton
+		err = ErrNeedNewSession
+		return // firing _every_ time!
+	}
+	vv("%v past top two CAS session checks", s.name) // not seen.
 
 	if oldVersionCAS > 0 && oldLeaseEpochCAS > 0 {
 		return nil, fmt.Errorf("error in call to CAS: cannot have both oldVersionCAS and oldLeaseEpochCAS set.")
@@ -206,6 +212,7 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 	select {
 	case s.writeReqCh <- tkt:
 		// proceed to wait below for txt.done
+		vv("%v CAS submitted on writeReqCh", s.name) // not seen!
 	case <-ctx.Done():
 		vv("case <-ctx.Done() 1") // not seen.
 		err = ctx.Err()

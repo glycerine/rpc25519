@@ -15510,7 +15510,8 @@ func (c *TubeCluster) showClusterGrid(assertFullConnectedNodeName string, expect
 }
 
 type Session struct {
-	ctx context.Context
+	ctx  context.Context
+	canc context.CancelFunc
 
 	// initial request ====================
 	CliName            string `zid:"0"`
@@ -15634,6 +15635,8 @@ func (s *Session) Clone() *Session {
 
 func (s *Session) Close() error {
 	//vv("TODO have Session.Close send SESS_END? not sure we can reliably close from tup as the process is terminating.")
+
+	s.canc() // cancel the s.ctx
 	return nil
 }
 
@@ -15742,7 +15745,10 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderName, leaderURL s
 			// be ready for next use:
 			r.LastKnownIndex = r.SessionAssignedIndex
 			r.cli = s
-			r.ctx = ctx // because is different from the request
+			// wrong: will call context usually has timeout
+			// and thus will expire: do not do this:
+			// r.ctx = ctx
+			r.ctx, r.canc = context.WithCancel(context.Background())
 		} else {
 			// why do we see this:
 			// tube.go:15697 [goID 9] 2000-01-01T00:01:23.486000001+00:00 r is nil. err = ahem. no leader known to me (node 'client101_user2_8'). stashForLeader is false.
