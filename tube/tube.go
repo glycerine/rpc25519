@@ -2786,6 +2786,8 @@ type RaftLogEntry struct {
 	node      *TubeNode
 
 	testWrote bool
+
+	kvAfterApply string
 }
 
 func (s *RaftLogEntry) clone() (c *RaftLogEntry) {
@@ -10270,6 +10272,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		case CAS:
 			s.doCAS(tkt)
 			tkt.Applied = true
+			do.kvAfterApply = s.state.KVstore.String()
 
 		case MAKE_TABLE:
 			s.doMakeTable(tkt)

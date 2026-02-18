@@ -41,6 +41,17 @@ type KVStore struct {
 	Vals []*ArtTable `zid:"1"`
 }
 
+func (s *KVStore) String() (r string) {
+	for tableName, tab := range s.m {
+		iter := tab.Tree.Iter(nil, nil)
+		for iter.Next() {
+			lf := iter.Leaf()
+			r += fmt.Sprintf("table:'%v' key:'%v' value:'%v' vtype:'%v'\n", tableName, string(lf.Key), string(lf.Value), lf.Vtype)
+		}
+	}
+	return
+}
+
 // Merge merges r into s, overwriting any
 // conflicting prior keys in s with r's values,
 // which are cloned from r before being saved into s.
