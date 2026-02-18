@@ -1279,7 +1279,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 						continue
 					case strings.Contains(errs, "context deadline exceeded"):
 						// message loss due to nemesis likely
-						vv("%v: try again on timeout", s.name)
+						//vv("%v: try again on timeout", s.name)
 
 						// do we need to reconnect to try again?
 						continue
@@ -1546,13 +1546,13 @@ func (s *fuzzUser) Read(key string) (val Val, redir *LeaderRedirect, err error) 
 			// }
 			return
 		}
-		vv("read from node/sess='%v', got err = '%v'", s.sess.SessionID, err)
+		//vv("read from node/sess='%v', got err = '%v'", s.sess.SessionID, err)
 		if err == rpc.ErrShutdown2 || err.Error() == "error shutdown" {
 			return
 		}
 		errs := err.Error()
 		if strings.Contains(errs, "context deadline exceeded") {
-			vv("%v fuzzUser.Read returning on err: context deadline exceeded", s.name)
+			//vv("%v fuzzUser.Read returning on err: context deadline exceeded", s.name)
 			return
 		}
 
@@ -1804,7 +1804,7 @@ func Test101_userFuzz(t *testing.T) {
 		rng := newPRNG(seedBytes)
 		rnd := rng.pseudoRandNonNegInt64Range
 
-		// seed 0 numbers: 3 node cluster. GOMAXPROCS(1).
+		// seed 0 numbers: 3 node cluster. GOMAXPROCS(1). (without makeTrouble though!)
 		// 10 users,  5 steps =>  44 ops.
 		// 10 users, 10 steps =>  99 ops.
 		// 10 users, 20 steps => 209 ops.
@@ -1918,9 +1918,9 @@ func Test101_userFuzz(t *testing.T) {
 
 func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string) (sess *Session, redir *LeaderRedirect, err error) {
 
-	vv("%v top of newSession", s.name)
+	//vv("%v top of newSession", s.name)
 	if ctx.Err() != nil {
-		vv("%v newSession: submitted call ctx already cancelled! '%v'", s.name, ctx.Err()) // not seen
+		//vv("%v newSession: submitted call ctx already cancelled! '%v'", s.name, ctx.Err()) // not seen
 		return nil, nil, ctx.Err()
 	}
 
