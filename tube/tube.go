@@ -15745,10 +15745,7 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderName, leaderURL s
 			// be ready for next use:
 			r.LastKnownIndex = r.SessionAssignedIndex
 			r.cli = s
-			// wrong: will call context usually has timeout
-			// and thus will expire: do not do this:
-			// r.ctx = ctx
-			r.ctx, r.canc = context.WithCancel(context.Background())
+			r.ctx, r.canc = context.WithCancel(s.Ctx)
 		} else {
 			// why do we see this:
 			// tube.go:15697 [goID 9] 2000-01-01T00:01:23.486000001+00:00 r is nil. err = ahem. no leader known to me (node 'client101_user2_8'). stashForLeader is false.
