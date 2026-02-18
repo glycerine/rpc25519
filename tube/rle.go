@@ -80,7 +80,7 @@ func (s *TermsRLE) String() string {
 		//	runs += ", " + fmt.Sprintf("%#v", r) // r.String()
 		//}
 	}
-	return fmt.Sprintf("[BaseC: %v[CompactTerm: %v]|logical len %v; (%v:%v]TermsRLE{ Base: %v, Endi: %v, Runs:\n%v}", s.BaseC, s.CompactTerm, s.Endi-s.BaseC, s.BaseC, s.Endi, s.BaseC, s.Endi, runs)
+	return fmt.Sprintf("[BaseC: %v [CompactTerm: %v]|logical len %v; (%v:%v]TermsRLE{ Base: %v, Endi: %v, Runs:\n%v}", s.BaseC, s.CompactTerm, s.Endi-s.BaseC, s.BaseC, s.Endi, s.BaseC, s.Endi, runs)
 }
 func (s *TermRLE) String() (r string) {
 	if s == nil {
