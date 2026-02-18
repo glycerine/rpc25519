@@ -1738,6 +1738,8 @@ func Test101_userFuzz(t *testing.T) {
 	}()
 
 	// [0, 10) 48.4s runtime with 20 users, 100 steps, 3 nodes.
+	// seed 0, 7 nodes, 20 users, 1000 steps:
+	// 9.88s, 10458 ops passed linearizability checker.
 	begScenario := 0
 	maxScenario := 1
 	for scenario := begScenario; scenario < maxScenario; scenario++ {
@@ -1768,7 +1770,7 @@ func Test101_userFuzz(t *testing.T) {
 			// seed 0, 5 nodes in cluster
 			// 20 users, 1000 steps => 10458 ops. (10.71s with prints quiet)
 			// same, but ten seeds 0-9: green, 88 seconds.
-			steps := 100 // 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
+			steps := 1000 // 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
 			numNodes := 7
 			// numUsers of 20 ok at 200 steps, but 30 users is
 			// too much for porcupine at even just 30 steps.
