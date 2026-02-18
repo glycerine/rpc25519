@@ -147,7 +147,7 @@ func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, 
 		err = ErrNeedNewSession
 		return
 	}
-	if sess.ctx.Err() != nil {
+	if sess != nil && sess.ctx.Err() != nil {
 		panicf("%v: TubeNode.CAS sees already cancelled sess.ctx, bailing early", s.name) // seen a ton
 		err = ErrNeedNewSession
 		return // was firing _every_ time!
