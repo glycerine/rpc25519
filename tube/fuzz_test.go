@@ -1201,7 +1201,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 				return true
 			}
 			if cerr := startCtx.Err(); cerr != nil {
-				alwaysPrintf("%v startCtx cancelled: returning", s.name)
+				//alwaysPrintf("%v startCtx cancelled: returning", s.name)
 				return false
 			}
 			//time.Sleep(time.Second)
@@ -1752,32 +1752,32 @@ func Test101_userFuzz(t *testing.T) {
 		rng := newPRNG(seedBytes)
 		rnd := rng.pseudoRandNonNegInt64Range
 
-		//var ops []porc.Operation
+		// seed 0 numbers: 3 node cluster.
+		// 10 users,  5 steps =>  44 ops.
+		// 10 users, 10 steps =>  99 ops.
+		// 10 users, 20 steps => 209 ops.
+		// 10 users, 30 steps => 319 ops.
+		// 10 users, 40 steps => 429 ops.
+		// 10 users, 50 steps => 539 ops. (12.8s runtime)
+		// 15 users, 100 steps => 1584 ops. (4.6s with prints quiet)
+		// 20 users, 100 steps => 2079 ops. (5.1s)
+		//  5 users, 1000 steps=> 2975 ops. (14.6s)
+		//
+		// seed 0, 5 nodes in cluster
+		// 20 users, 1000 steps => 10458 ops. (10.71s with prints quiet)
+		// same, but ten seeds 0-9: green, 88 seconds.
+		steps := 1000 // 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
+		numNodes := 7
+		// numUsers of 20 ok at 200 steps, but 30 users is
+		// too much for porcupine at even just 30 steps.
+		numUsers := 20
+		//numUsers := 5 // green at 5 (10 steps)
+		//numUsers := 9 // 7=>258 events, 8=>310 events, 9=>329 events,10=>366
+		//numUsers := 15 // inf err loop at 15 (10 steps)
+
+		alwaysPrintf("top of seed/scenario = %v ; steps = %v ; numNodes = %v ; numUsers = %v", scenario, steps, numNodes, numUsers)
 
 		onlyBubbled(t, func(t *testing.T) {
-
-			// seed 0 numbers: 3 node cluster.
-			// 10 users,  5 steps =>  44 ops.
-			// 10 users, 10 steps =>  99 ops.
-			// 10 users, 20 steps => 209 ops.
-			// 10 users, 30 steps => 319 ops.
-			// 10 users, 40 steps => 429 ops.
-			// 10 users, 50 steps => 539 ops. (12.8s runtime)
-			// 15 users, 100 steps => 1584 ops. (4.6s with prints quiet)
-			// 20 users, 100 steps => 2079 ops. (5.1s)
-			//  5 users, 1000 steps=> 2975 ops. (14.6s)
-			//
-			// seed 0, 5 nodes in cluster
-			// 20 users, 1000 steps => 10458 ops. (10.71s with prints quiet)
-			// same, but ten seeds 0-9: green, 88 seconds.
-			steps := 1000 // 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
-			numNodes := 7
-			// numUsers of 20 ok at 200 steps, but 30 users is
-			// too much for porcupine at even just 30 steps.
-			numUsers := 20
-			//numUsers := 5 // green at 5 (10 steps)
-			//numUsers := 9 // 7=>258 events, 8=>310 events, 9=>329 events,10=>366
-			//numUsers := 15 // inf err loop at 15 (10 steps)
 
 			// 1% or less collision probability, to minimize
 			// rejection sampling and get unique write values quickly.

@@ -29,7 +29,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 			cfg.Node2Addr[node.name] = node.URL
 		}
 
-		vv("end of setupTestCluster")
+		//vv("end of setupTestCluster")
 	}()
 
 	if forceLeader >= 0 {
