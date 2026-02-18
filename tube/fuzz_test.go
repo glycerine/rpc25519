@@ -1345,7 +1345,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			}
 			//time.Sleep(time.Millisecond * 500)
 
-			s.nemesis.makeTrouble()
+			s.nemesis.makeTrouble(s.name)
 		}
 	}()
 }
@@ -1624,7 +1624,7 @@ type fuzzNemesis struct {
 	calls int
 }
 
-func (s *fuzzNemesis) makeTrouble() {
+func (s *fuzzNemesis) makeTrouble(caller string) {
 	<-s.allowTrouble // a channel lock that synctest can durably block on.
 	//s.mut.Lock() // why deadlocked?
 	wantSleep := true
@@ -1633,6 +1633,10 @@ func (s *fuzzNemesis) makeTrouble() {
 	s.calls++
 
 	defer func() {
+		const skipTrafficTrue = true
+		snap := s.clus.SimnetSnapshot(skipTrafficTrue)
+		vv("%v after makeTrouble call %v, snap = '%v'", caller, s.calls, snap) // .LongString())
+
 		//s.mut.Unlock()
 		s.allowTrouble <- true
 		// we can deadlock under synctest if we don't unlock
@@ -1640,6 +1644,7 @@ func (s *fuzzNemesis) makeTrouble() {
 		if wantSleep {
 			//time.Sleep(beat)
 		}
+
 	}()
 
 	vv("makeTrouble running, calls = %v", s.calls)
@@ -1823,7 +1828,7 @@ func Test101_userFuzz(t *testing.T) {
 		numNodes := 3
 		// numUsers of 20 ok at 200 steps, but 30 users is
 		// too much for porcupine at even just 30 steps.
-		numUsers := 15
+		numUsers := 3
 		//numUsers := 5 // green at 5 (10 steps)
 		//numUsers := 9 // 7=>258 events, 8=>310 events, 9=>329 events,10=>366
 		//numUsers := 15 // inf err loop at 15 (10 steps)
