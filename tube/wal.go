@@ -920,6 +920,11 @@ func (s *raftWriteAheadLog) isAppendLoggingHelper(keepIndex int64) bool {
 
 func (s *raftWriteAheadLog) maybeCompact(lastAppliedIndex int64, syncme *IndexTerm, node *TubeNode) (didCompact bool) {
 
+	vv("maybeCompact called! noLogCompaction = %v", s.noLogCompaction)
+	if s.noLogCompaction {
+		panic("should never call maybeCompact when noLogCompaction is true")
+	}
+
 	// defaults in case we bail early (important to keep stuff in sync!)
 	if syncme != nil {
 		syncme.Index = s.logIndex.BaseC

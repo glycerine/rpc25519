@@ -1146,27 +1146,30 @@ func (s *fuzzUser) events2obsThenCheck(evs []porc.Event) {
 	linz := porc.CheckOperations(stringCasModel, ops)
 	if !linz {
 
-		dump := "test101fuzz_test.wal.dump.red"
-		alwaysPrintf("not linz! wal dumped to '%v'\n", dump)
-		fd, err := os.Create(dump)
-		panicOn(err)
-		err = s.clus.Nodes[0].DumpRaftWAL(fd)
-		fd.Close()
-		panicOn(err)
+		for i := range s.clus.Nodes {
+			dump := fmt.Sprintf("test101fuzz_test.wal.dump.%v.red", i)
+			alwaysPrintf("not linz! wal dumped to '%v'\n", dump)
+			fd, err := os.Create(dump)
+			panicOn(err)
+			err = s.clus.Nodes[i].DumpRaftWAL(fd)
+			fd.Close()
+			panicOn(err)
+		}
 
 		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; ops='%v'", s.name, s.seed, opsSlice(ops)) // eventSlice(evs))
 		writeToDiskNonLinzFuzz(s.t, s.name, ops)
 		panicf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
 	}
 
-	dump := "test101fuzz_test.wal.dump.green"
-	alwaysPrintf("yes linz, and still wal dumped to '%v'\n", dump)
-	fd, err := os.Create(dump)
-	panicOn(err)
-	err = s.clus.Nodes[0].DumpRaftWAL(fd)
-	fd.Close()
-	panicOn(err)
-
+	for i := range s.clus.Nodes {
+		dump := fmt.Sprintf("test101fuzz_test.wal.dump.%v.green", i)
+		alwaysPrintf("yes linz, and still wal dumped to '%v'\n", dump)
+		fd, err := os.Create(dump)
+		panicOn(err)
+		err = s.clus.Nodes[i].DumpRaftWAL(fd)
+		fd.Close()
+		panicOn(err)
+	}
 	vv("user %v: len(ops)=%v passed linearizability checker.", s.name, len(ops))
 
 	// nothing much to see really.
@@ -1396,6 +1399,12 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 		//vv("%v just after sess.CAS, ctx5.Err()='%v', s.sess.ctx.Err()='%v'; while err='%v'", s.name, ctx5.Err(), s.sess.ctx.Err(), err) // ctx5.Err()==nil. while err='context canceled'; s.sess.ctx.Err()='context canceled';
 		canc5()
 
+		if tktW != nil {
+			if tktW.DupDetected {
+				vv("%v s.sess.CAS() got a DupDetected back! tkt.LogIndex='%v'; tkt.Term='%v'; tkt='%v'", s.name, tktW.LogIndex, tktW.Term, tktW) // not seen, red 101 non-linz.
+			}
+		}
+
 		switch err {
 		case ErrShutDown, rpc.ErrShutdown2,
 			ErrTimeOut, rpc.ErrTimeout:
@@ -1518,6 +1527,12 @@ func (s *fuzzUser) Read(key string) (val Val, redir *LeaderRedirect, err error) 
 	ctx5, canc5 := context.WithTimeout(bkg, 5*time.Second)
 	tkt, err = s.sess.Read(ctx5, fuzzTestTable, Key(key), waitForDur)
 	canc5()
+	if tkt != nil {
+		if tkt.DupDetected {
+			vv("%v s.sess.Read() got a DupDetected back! tkt.LogIndex='%v'; tkt.Term='%v'; tkt='%v'", s.name, tkt.LogIndex, tkt.Term, tkt) // not seen, 101 red non-linz.
+		}
+	}
+
 	if err != nil && ((err == ErrShutDown || err == rpc.ErrShutdown2) ||
 		strings.Contains(err.Error(), "shutdown")) {
 		return
@@ -1635,7 +1650,7 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 	defer func() {
 		const skipTrafficTrue = true
 		snap := s.clus.SimnetSnapshot(skipTrafficTrue)
-		vv("%v after makeTrouble call %v, snap = '%v'", caller, s.calls, snap) // .LongString())
+		vv("%v after makeTrouble call %v, snap = '%v'", caller, s.calls, snap.ShortString()) // .LongString())
 
 		//s.mut.Unlock()
 		s.allowTrouble <- true
