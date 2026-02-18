@@ -210,7 +210,11 @@ func (s *raftWriteAheadLog) DumpRaftWAL_NODISK(w io.Writer) error {
 	}
 	for i, e := range s.raftLog {
 		// count from 1 to match the Raft log Index.
-		fmt.Fprintf(w, "i=%03d %v {Lead:%v, Term:%02d, Index:%02d, TicketID: %v, CurrentCommitIndex:%v, Ticket.Op='%v', tkt4=%v Ticket.Desc: %v, kvAfterApply: %v}\n", i+1, nice9(e.Tm.In(gtz)), e.LeaderName, e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TicketID[:4], e.Ticket.Desc, e.kvAfterApply)
+		var x string
+		if e.kvAfterApply != "" {
+			x = ", kvAfterApply: " + e.kvAfterApply
+		}
+		fmt.Fprintf(w, "i=%03d %v {Lead:%v, Term:%02d, Index:%02d, TicketID: %v, CurrentCommitIndex:%v, Ticket.Op='%v', tkt4=%v Ticket.Desc: %v%v}\n", i+1, nice9(e.Tm.In(gtz)), e.LeaderName, e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TicketID[:4], e.Ticket.Desc, x)
 	}
 
 	fmt.Fprintf(w, "\nlogIndex:\n%v\n", s.logIndex)
