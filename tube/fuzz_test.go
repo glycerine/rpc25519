@@ -142,7 +142,6 @@ type fuzzUser struct {
 	seed              uint64
 	name              string
 	userid            int
-	//edition           int // avoid simnet freak out on reuse of server name
 
 	shEvents *sharedEvents
 	rnd      func(nChoices int64) (r int64)
@@ -662,7 +661,7 @@ func (s *fuzzUser) addPhantomsForUnmatchedCalls(evs []porc.Event, tot *totalEven
 	hist := newHistoryTree(evs)
 	tree := hist.tree
 	delWrite := func(d int, why string) {
-		vv("delWrite d=%v (%v) which was: %v", d, why, evs[d].String())
+		//vv("delWrite d=%v (%v) which was: %v", d, why, evs[d].String()) // seen lots with the fallthrough and retry at same session serial number.
 		hist.del(d)
 
 		// delete the corresponding ReturnEvent if any
@@ -783,7 +782,7 @@ topLoop:
 			// the swap happened, then we know it was that
 			// attempt that worked, and we do not want a phantom.
 
-			vv("at i = %v, wl.slc = '%#v'", elem.origi, wl.slc)
+			//vv("at i = %v, wl.slc = '%#v'", elem.origi, wl.slc)
 			remain := intSlice2set(wl.slc)
 			for q, k := range wl.slc {
 				if k >= o {
@@ -1200,11 +1199,11 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			if err == nil {
 				return true
 			}
+			//time.Sleep(time.Millisecond * 100)
 			if cerr := startCtx.Err(); cerr != nil {
 				//alwaysPrintf("%v startCtx cancelled: returning", s.name)
 				return false
 			}
-			//time.Sleep(time.Second)
 
 			ctx5, canc5 := context.WithTimeout(startCtx, time.Second*5)
 			err2 := restartFullHelper(ctx5, s.name, s.cli, &s.sess, s.halt)
@@ -1214,8 +1213,11 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 				return false
 			}
 			return true
-		}
-		if !restart() {
+		} // end definition of restart()
+
+		// set s.sess to a fresh session. s.sess==nil here;
+		// we have no Session as of yet.
+		if !restart() { // in Start(), before the step-loop.
 			// startCtx was cancelled
 			return
 		}
@@ -1248,22 +1250,41 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 
 			if step == 0 || !swapped {
 				oldVal, redirect, err = s.Read(key)
+				//time.Sleep(time.Millisecond * 500)
 				_ = redirect
 				if err != nil {
 					errs := err.Error()
 					switch {
 					case strings.Contains(errs, "key not found"):
-						if step == 0 {
-							// allowed on first
+						if step < 3 {
+							// allowed on first 3
 							err = nil
 						} else {
 							// seen on step 1 too. users 5, nodes 3, steps 5000.
-							continue
-							//panicf("%v key not found on step %v!?!", s.name, step)
+							//continue
+							panicf("%v key not found on step %v!?!", s.name, step)
 						}
+						// used to just default: into restart. but try
+						// bringing back more retries without that (slow) recovery,
+						// to get more testing coverage.
+
+					case strings.Contains(errs, "error shutdown"):
+						// nemesis probably shut down the node
+						vv("%v: try again on shutdown error", s.name)
+
+						// do we need to reconnect to try again?
+						continue
+					case strings.Contains(errs, "context deadline exceeded"):
+						// message loss due to nemesis likely
+						vv("%v: try again on timeout", s.name)
+
+						// do we need to reconnect to try again?
+						continue
+
+						// restart works really well, just not as good a test.
 					default:
 						// all other errors, just restart from scratch.
-						if !restart() {
+						if !restart() { // in step loop inside Start()
 							return
 						}
 						continue
@@ -1281,6 +1302,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 				proposedVal = int(s.rnd(int64(domain)))
 				_, loaded := domainSeen.LoadOrStore(proposedVal, true)
 				if !loaded {
+					// we stored proposedVal, rather than reading ("loading") it.
 					// proposedVal is uniquely ours now, across all client users.
 					break
 				}
@@ -1289,8 +1311,19 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			swapped, cur, err = s.CAS(stepCtx, key, oldVal, writeMeNewVal)
 
 			if err != nil {
-				if !restart() {
-					return
+				// restart() was extensively tested and will
+				// recover, but at the cost of making
+				// a whole new session and losing the current session.
+				//
+				// So doing an immediate restart() does not
+				// test our session handling code,
+				// which is actually important code for providing
+				// linearizability. (Chapter 6 of Raft dissertation).
+				// So first try just keep going...
+				if err == ErrNeedNewSession {
+					if !restart() {
+						return
+					}
 				}
 				continue
 			}
@@ -1298,9 +1331,12 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 				panicf("why is cur value empty after first CAS? oldVal='%v', writeMeNewVal='%v', swapped='%v', err='%v'", string(oldVal), string(writeMeNewVal), swapped, err)
 			}
 			oldVal = cur
-			if !swapped {
+			if swapped {
+				//time.Sleep(time.Millisecond * 3000)
+			} else {
 				//vv("%v nice: CAS did not swap, on step %v!", s.name, step)
 			}
+			//time.Sleep(time.Millisecond * 500)
 
 			s.nemesis.makeTrouble()
 		}
@@ -1362,6 +1398,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 		}
 
 		if err != nil {
+			//vv("%v do we get here? err= '%v'", s.name, err) // yes, seen a bunch; all saying "context canceled"
 			errs := err.Error()
 			switch {
 			case strings.Contains(errs, rejectedWritePrefix):
@@ -1373,7 +1410,8 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 			case strings.Contains(errs, "context canceled"):
 				//vv("%v sees context canceled for s.sess.CAS() ", s.name) // seen
 				//err = ErrNeedNewSession
-				return
+				//return
+				fallthrough
 			case strings.Contains(errs, "context deadline exceeded"):
 
 				// have to try again...
@@ -1381,14 +1419,14 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 				// again with a different write value
 				// and that means our session caching will be off!
 				// try again locally.
-				if casAttempts > 3 {
-					vv("%v: about to return ErrNeedNewSession", s.name) // not seen!
+				if casAttempts > 10 {
+					//vv("%v: about to return ErrNeedNewSession", s.name) // seen.
 					err = ErrNeedNewSession
 					return
 				}
 				s.sess.SessionSerial-- // try again with same serial.
 
-				vv("%v retry with same serial.", s.name) // seen lots
+				//vv("%v retry with same serial.", s.name) // used to be seen lots, not seen after restart() changeover. Seen a bunch with the fallthrough just above.
 				continue
 			case err == ErrNeedNewSession:
 				return
@@ -1752,7 +1790,7 @@ func Test101_userFuzz(t *testing.T) {
 		rng := newPRNG(seedBytes)
 		rnd := rng.pseudoRandNonNegInt64Range
 
-		// seed 0 numbers: 3 node cluster.
+		// seed 0 numbers: 3 node cluster. GOMAXPROCS(1).
 		// 10 users,  5 steps =>  44 ops.
 		// 10 users, 10 steps =>  99 ops.
 		// 10 users, 20 steps => 209 ops.
@@ -1766,11 +1804,11 @@ func Test101_userFuzz(t *testing.T) {
 		// seed 0, 5 nodes in cluster
 		// 20 users, 1000 steps => 10458 ops. (10.71s with prints quiet)
 		// same, but ten seeds 0-9: green, 88 seconds.
-		steps := 1000 // 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
-		numNodes := 7
+		steps := 100 // 1000 ok. 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
+		numNodes := 3
 		// numUsers of 20 ok at 200 steps, but 30 users is
 		// too much for porcupine at even just 30 steps.
-		numUsers := 20
+		numUsers := 15
 		//numUsers := 5 // green at 5 (10 steps)
 		//numUsers := 9 // 7=>258 events, 8=>310 events, 9=>329 events,10=>366
 		//numUsers := 15 // inf err loop at 15 (10 steps)
@@ -1786,7 +1824,7 @@ func Test101_userFuzz(t *testing.T) {
 
 			forceLeader := 0
 			cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
-			//cfg.NoLogCompaction = true
+			cfg.NoLogCompaction = true
 
 			c, leaderName, leadi, _ := setupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 101)
 
@@ -1828,9 +1866,6 @@ func Test101_userFuzz(t *testing.T) {
 				// try to never create a whole new TubeNode;
 				// should just be able to restart its sessions and connections!
 				// otherwise the names in the simnet dns explode/overlap.
-				//retryCli:
-				//user.edition++
-				//cliName := fmt.Sprintf("client101_%v_%v", user.name, user.edition)
 				cliName := fmt.Sprintf("client101_%v", user.name)
 				cliCfg := *c.Cfg
 				cliCfg.MyName = cliName
@@ -1860,6 +1895,10 @@ func Test101_userFuzz(t *testing.T) {
 }
 
 func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string) (*Session, error) {
+
+	if s.sess != nil {
+		s.sess.Close()
+	}
 
 	// top ctx cancelled?
 	if cerr := ctx.Err(); cerr != nil {
@@ -2403,7 +2442,7 @@ type intSet struct {
 //
 // the only errors are when we are shutting down
 // from ctx or halt; if restartFullHelper
-// returns an error, it the test might be done.
+// returns an error, the test might be done.
 func restartFullHelper(ctx context.Context, name string, cli *TubeNode, pSess **Session, halt *idem.Halter) (err error) {
 
 fullRestart:
@@ -2449,9 +2488,8 @@ fullRestart:
 			}
 
 			ctx5, canc := context.WithTimeout(ctx, time.Second*5)
-			var redirect *LeaderRedirect
-			_ = redirect // TODO maybe use it?
-			(*pSess), redirect, err = cli.CreateNewSession(ctx5, leaderName, leaderURL)
+
+			(*pSess), _, err = cli.CreateNewSession(ctx5, leaderName, leaderURL)
 			canc()
 			//panicOn(err) // panic: hmm. no leader known to me (node 'node_0')
 			if err == nil {

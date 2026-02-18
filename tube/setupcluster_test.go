@@ -190,7 +190,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 				if lag > lim {
 					panic(fmt.Sprintf("on leader node '%v': peer '%v' had lag(%v) > 2*node.maxElectionTimeoutDur()=%v; should never happen in a healthy cluster; info='%v'", node.name, info.PeerName, lag, lim, info))
 				} else {
-					vv("good: leader sees s.peer '%v' with lag='%v'", info.PeerName, lag)
+					//vv("good: leader sees s.peer '%v' with lag='%v'", info.PeerName, lag)
 				}
 			}
 		}
