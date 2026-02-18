@@ -1189,8 +1189,10 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 		restart := func() (ok bool) {
 			select {
 			case <-startCtx.Done():
+				vv("restart false: startCtx.Done has closed")
 				return false
 			case <-s.halt.ReqStop.Chan:
+				vv("restart false: s.halt.ReqStop.Chan closed")
 				return false
 			default:
 			}
@@ -1210,6 +1212,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			canc5()
 			if err2 != nil {
 				// this is bad. bailout needed.
+				vv("restart false: restartFullHelper err2 = '%v'", err2)
 				return false
 			}
 			return true
@@ -1225,7 +1228,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			prevCanc()
 			stepCtx, canc := context.WithTimeout(startCtx, time.Second*10)
 			prevCanc = canc
-			if false && step%10 == 0 {
+			if step%100 == 0 {
 				vv("%v: fuzzUser.Start on step %v", s.name, step)
 			}
 			select {
@@ -1841,8 +1844,11 @@ func Test101_userFuzz(t *testing.T) {
 			// unlock it
 			nemesis.allowTrouble <- true
 
-			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
-			defer cancel()
+			// if we limit to 100sec, then we can only get
+			// in around 500 steps (with 15 users, 3 node cluster).
+			//ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+			//defer cancel()
+			ctx := context.Background()
 
 			atomicLastEventID := &atomic.Int64{}
 			var users []*fuzzUser
