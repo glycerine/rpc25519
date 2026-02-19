@@ -1421,3 +1421,35 @@ func (s *raftWriteAheadLog) installedSnapshot(state *RaftState) {
 func (s *raftWriteAheadLog) getCompactBase() int64 {
 	return s.logIndex.BaseC
 }
+
+func firstDiffLogs(a, b *raftWriteAheadLog) (r string) {
+	na := len(a.raftLog)
+	nb := len(b.raftLog)
+	r = fmt.Sprintf("len(a.raftLog)=%v ; len(b.raftLog)=%v\n", na, nb)
+	if na == 0 || nb == 0 {
+		return
+	}
+	ib := 0
+	eb := b.raftLog[ib]
+	for ia, ea := range a.raftLog {
+		var haveDiff bool
+		if ea.Term != eb.Term || ea.Index != eb.Index {
+			haveDiff = true
+		}
+		if ea.Ticket.TicketID != eb.Ticket.TicketID {
+			haveDiff = true
+		}
+		if haveDiff {
+			r += fmt.Sprintf("first diff at ia=%v, ea = %v \n eb = %v \n", ia, ea, eb)
+			return
+		}
+		ib++
+		if ib < len(b.raftLog) {
+			eb = b.raftLog[ib]
+		} else {
+			r += fmt.Sprintf(" out of b.raftLog to compare at ib=%v", ib)
+			return
+		}
+	}
+	return
+}
