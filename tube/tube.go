@@ -17240,11 +17240,13 @@ func (s *TubeNode) resetToNoSnapshotInProgress() {
 }
 
 func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circuit, caller string) {
+	vv("%v top handleStateSnapshotEnclosed; frag.FragPart=%v", s.me(), frag.FragPart)
 
 	// reject snapshots from not-the-current-leader.
 	if frag.FromPeerID != s.leaderID ||
 		frag.FromPeerName != s.leaderName {
 		vv("%v dropping snapshot frag in handleStateSnapshotEnclosed because not from current leader: frag.FromPeerName='%v' but s.leaderName = '%v'", frag.FromPeerName, s.leaderName)
+		panic("why not from current leader?")
 		return
 	}
 
@@ -17310,7 +17312,7 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 		_, err := state2.UnmarshalMsg(s.snapInProgress)
 		panicOn(err)
 		s.applyNewStateSnapshot(state2, caller)
-		vv("applied %v part state snapshot", -part)
+		vv("applied multi-part (%v part) state snapshot", -part)
 		// and reset.
 		s.resetToNoSnapshotInProgress()
 		return
