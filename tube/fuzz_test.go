@@ -1826,7 +1826,7 @@ func Test101_userFuzz(t *testing.T) {
 		seedString := fmt.Sprintf("%v", scenario)
 		seed, seedBytes := parseSeedString(seedString)
 
-		runtime.ResetDsimSeed(seed)
+		//runtime.ResetDsimSeed(seed)
 
 		if int(seed) != scenario {
 			panicf("got %v, wanted same scenario number back %v", int(seed), scenario)
