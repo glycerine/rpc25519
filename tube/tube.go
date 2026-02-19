@@ -9397,6 +9397,13 @@ func (e *RaftLogEntry) String() string {
 `, e.Term, e.Index, e.Ticket.Key, ticketVal, e.Ticket.Op, e.committed, extra)
 }
 
+func (e *RaftLogEntry) OneLineString(i int) string {
+	if e == nil {
+		return fmt.Sprintf("i=%03d (nil RaftLogEntry)\n", i)
+	}
+	return fmt.Sprintf("i=%03d %v {Lead:%v, Term:%02d, Index:%02d, Ticket: %v, CurrentCommitIndex:%v, Ticket.Op='%v', tkt4=%v Ticket.Desc: %v}\n", i+1, nice9(e.Tm.In(gtz)), e.LeaderName, e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TicketID[:4], e.Ticket.Desc)
+}
+
 func (s *TubeNode) newRaftNodeInfo(peerID, peerName, peerServiceName, peerServiceNameVersion string) (info *RaftNodeInfo) {
 	info = &RaftNodeInfo{
 		PeerName:               peerName,
