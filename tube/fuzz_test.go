@@ -1434,6 +1434,11 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 				err = nil
 				//vv("%v: rejectedWritePrefix seen", s.name) // seen.
 				break
+
+			case strings.Contains(errs, "error: I am not leader"):
+				time.Sleep(time.Second)
+				return // TODO: can we keep session live across leader change.
+
 			case strings.Contains(errs, "context canceled"): // every time?!?! why?
 				//vv("%v sees context canceled for s.sess.CAS() ", s.name) // seen ever time
 				//err = ErrNeedNewSession
