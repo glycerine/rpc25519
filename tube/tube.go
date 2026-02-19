@@ -10272,7 +10272,6 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		case CAS:
 			s.doCAS(tkt)
 			tkt.Applied = true
-			do.kvAfterApply = s.state.KVstore.String()
 
 		case MAKE_TABLE:
 			s.doMakeTable(tkt)
@@ -10316,6 +10315,11 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 			panic(fmt.Sprintf("what to do with tkt.Op '%v'?", tkt.Op))
 		}
 		tkt.AsOfLogIndex = s.state.LastApplied
+
+		// debug fuzz_test 101, TODO remove b/c KVstore can get big.
+		if s.isTest() && s.cfg.testNum == 101 {
+			do.kvAfterApply = s.state.KVstore.String()
+		}
 
 		if tkt.SessionID != "" {
 			// =========================================
