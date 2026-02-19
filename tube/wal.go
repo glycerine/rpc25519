@@ -1422,6 +1422,7 @@ func (s *raftWriteAheadLog) getCompactBase() int64 {
 	return s.logIndex.BaseC
 }
 
+// utility for fuzz_test checkLinz/events2obsThenCheck() method.
 func firstDiffLogs(a, b *raftWriteAheadLog) (r string) {
 	na := len(a.raftLog)
 	nb := len(b.raftLog)

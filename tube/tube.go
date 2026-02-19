@@ -4401,7 +4401,8 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 			s.verifyPeersNeeded = cfg.ClusterSize - 1
 			s.verifyPeersNeededSeen = idem.NewIdemCloseChan()
 			s.verifyPeersSeen = rpc.NewMutexmap[string, time.Time]()
-			n2 := 100 + cfg.ClusterSize*cfg.ClusterSize*10 // *10 b/c full grid instead of half-upper-triangle does more e.g. 401_add_node membership_test. ugh. when 401 hits this now I think it indicates a real problem.
+			n2 := 100 + cfg.ClusterSize*cfg.ClusterSize*10 // *10 b/c full grid instead of half-upper-triangle does more e.g. 401_add_node membership_test. ugh. when 401 hits this now I think it indicates a real problem. ugh 2: fuzz_test 101 hits this with a 190 at scenario 142, 20 steps, 3 nodes, 3 users. try bump up from 190 to 290:
+			n2 += 100
 			s.verifyPeerReplicaOrNot = make(chan *cktPlus, n2)
 			// election_test stuff.
 			s.testBootstrapLogCh = make(chan *FirstRaftLogEntryBootstrap, 1)
