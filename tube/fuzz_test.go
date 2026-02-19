@@ -1349,7 +1349,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			}
 			//time.Sleep(time.Millisecond * 500)
 
-			vv("%v calling makeT", s.cli.me())
+			//vv("%v calling makeT", s.cli.me())
 			s.nemesis.makeTrouble(s.name)
 		}
 	}()
@@ -1650,9 +1650,10 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 	s.calls++
 
 	defer func() {
-		const skipTrafficTrue = true
-		snap := s.clus.SimnetSnapshot(skipTrafficTrue)
-		vv("%v after makeTrouble call %v, snap = '%v'", caller, s.calls, snap.ShortString()) // .LongString())
+		// diagnostic, if need be:
+		//const skipTrafficTrue = true
+		//snap := s.clus.SimnetSnapshot(skipTrafficTrue)
+		//vv("%v after makeTrouble call %v, snap = '%v'", caller, s.calls, snap.ShortString()) // .LongString())
 
 		//s.mut.Unlock()
 		s.allowTrouble <- true
@@ -1664,7 +1665,7 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 
 	}()
 
-	vv("makeTrouble running, calls = %v", s.calls)
+	//vv("makeTrouble running, calls = %v", s.calls)
 
 	nn := len(s.clus.Nodes)
 	quorum := nn/2 + 1
@@ -1937,6 +1938,7 @@ func Test101_userFuzz(t *testing.T) {
 			if nemesis.calls == 0 {
 				panic("nemesis was never called!")
 			}
+			vv("makeTrouble calls total = %v", nemesis.calls)
 		})
 
 	}

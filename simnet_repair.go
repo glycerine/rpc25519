@@ -195,7 +195,7 @@ func (s *Simnet) equilibrateReads(origin, target *simnode) {
 }
 
 func (s *Simnet) injectHostFault(faultop *mop) (err error) {
-	vv("top of injectHostFault; faultop = '%v'", faultop) // seen
+	//vv("top of injectHostFault; faultop = '%v'", faultop) // seen
 	var fault *hostFault = faultop.hostFault
 	defer func() {
 		if err != nil {
@@ -206,7 +206,7 @@ func (s *Simnet) injectHostFault(faultop *mop) (err error) {
 			}
 		}
 		s.fin(faultop)
-		vv("end of injectHostFault; faultop = '%v'", faultop) // seen
+		//vv("end of injectHostFault; faultop = '%v'", faultop) // seen
 	}()
 
 	origin, ok := s.dns[fault.hostName]

@@ -2136,7 +2136,7 @@ func (s *Simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 	var reQtimer []*mop
 	defer func() {
 		for _, timer := range reQtimer {
-			vv("defer dispatchTimer re-queuing undeliverable timer: %v", timer)
+			//vv("defer dispatchTimer re-queuing undeliverable timer: %v", timer)
 			simnode.timerQ.add(timer)
 		}
 	}()
@@ -3900,7 +3900,7 @@ func (s *Simnet) startMEQacceptor() {
 				s.add2meq(s.newCktFaultMop(cktFault), j)
 
 			case hostFault := <-s.injectHostFaultCh:
-				vv("j=%v injectHostFaultCh ->  hostFault='%v' with hostFault.proceed=%p", j, hostFault, hostFault.proceed)
+				//vv("j=%v injectHostFaultCh ->  hostFault='%v' with hostFault.proceed=%p", j, hostFault, hostFault.proceed)
 				//s.injectHostFault(hostFault)
 				s.add2meq(s.newHostFaultMop(hostFault), j)
 
