@@ -7645,7 +7645,7 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 func (s *TubeNode) haveStickyLeaderForAE(ae *AppendEntries) bool {
 	if s.role == LEADER {
 		if s.state.CurrentTerm > ae.LeaderTerm {
-			vv("%v sticky-leader true: myself am leader(term %v) drops AE on the floor; ignoring ae from '%v' (at ae.LeaderTerm=%v)", s.me(), s.state.CurrentTerm, ae.FromPeerName, ae.LeaderTerm)
+			vv("%v sticky-leader true: myself am leader(term %v) reject AE ; reject ae from '%v' (at ae.LeaderTerm=%v)", s.me(), s.state.CurrentTerm, ae.FromPeerName, ae.LeaderTerm)
 			return true
 		}
 	}
@@ -7653,10 +7653,9 @@ func (s *TubeNode) haveStickyLeaderForAE(ae *AppendEntries) bool {
 		ae.FromPeerID != s.leaderID {
 		denyAfterIfLeaderSeen := time.Now().Add(-s.minElectionTimeoutDur() - s.cfg.ClockDriftBound)
 		if s.lastLegitAppendEntries.After(denyAfterIfLeaderSeen) {
-			//if s.state.CurrentTerm > ae.LeaderTerm {
-			vv("%v sticky-leader true b/c saw leader '%v'; '%v' ago: drop AE.FromPeerName ('%v') pretend ae.LeaderName ('%v') with ae.LeaderTerm='%v': drop on floor", s.me(), s.leaderName, time.Since(s.lastLegitAppendEntries), ae.FromPeerName, ae.LeaderName, ae.LeaderTerm)
+
+			vv("%v sticky-leader true b/c saw leader '%v'; '%v' ago: drop AE.FromPeerName ('%v') pretend ae.LeaderName ('%v') with ae.LeaderTerm='%v': reject", s.me(), s.leaderName, time.Since(s.lastLegitAppendEntries), ae.FromPeerName, ae.LeaderName, ae.LeaderTerm)
 			return true
-			//}
 		}
 	}
 	return false
