@@ -9401,7 +9401,7 @@ func (e *RaftLogEntry) OneLineString(i int) string {
 	if e == nil {
 		return fmt.Sprintf("i=%03d (nil RaftLogEntry)\n", i)
 	}
-	return fmt.Sprintf("i=%03d %v {Lead:%v, Term:%02d, Index:%02d, Ticket: %v, CurrentCommitIndex:%v, Ticket.Op='%v', TSN:%v tkt.T0:%v tkt4=%v Ticket.FromName:%v Ticket.Desc: %v stage:%v}\n", i+1, nice9(e.Tm.In(gtz)), e.LeaderName, e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TSN, nice9(e.Ticket.T0), e.Ticket.FromName, e.Ticket.TicketID[:4], e.Ticket.Desc, e.Ticket.Stage)
+	return fmt.Sprintf("i=%03d %v {Lead:%v, Term:%02d, Index:%02d, Ticket: %v, CurrentCommitIndex:%v, Ticket.Op='%v', TSN:%v tkt.T0:%v Ticket.FromName:%v tkt4=%v Ticket.Desc: %v tkt.LeaderName(%v) tkt.Term(%v) tkt.LogIndex(%v) tkt.Stage:%v}\n", i+1, nice9(e.Tm.In(gtz)), e.LeaderName, e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TSN, nice9(e.Ticket.T0), e.Ticket.FromName, e.Ticket.TicketID[:4], e.Ticket.Desc, e.Ticket.LeaderName, e.Ticket.Term, e.Ticket.LogIndex, e.Ticket.Stage)
 }
 
 func (s *TubeNode) newRaftNodeInfo(peerID, peerName, peerServiceName, peerServiceNameVersion string) (info *RaftNodeInfo) {

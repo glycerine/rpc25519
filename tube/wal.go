@@ -1458,7 +1458,7 @@ func firstDiffLogs(a, b *raftWriteAheadLog) (r string) {
 			haveDiff = true
 		}
 		if haveDiff {
-			r += fmt.Sprintf("first diff at ia=%v, ea = %v \n eb = %v \n", ia, ea.OneLineString(ia), eb.OneLineString(ib))
+			r += fmt.Sprintf("\nfirst diff at ia=%v, ea = %v \n eb = %v \n", ia, ea.OneLineString(ia), eb.OneLineString(ib))
 			return
 		}
 		ib++
