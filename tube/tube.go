@@ -4483,7 +4483,7 @@ func (s *TubeNode) newRaftState() *RaftState {
 		PeerName:        s.name,
 		PeerServiceName: s.PeerServiceName,
 		ClusterID:       s.ClusterID,
-		KVstore:         newKVStore(0, 0),
+		KVstore:         newKVStore(),
 		SessTable:       make(map[string]*SessionTableEntry),
 
 		// try to prevent seg fault in 401
@@ -9185,7 +9185,7 @@ func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
 	s.noVotes = 0
 	if s.state.KVstore == nil {
 		// might not have had anything on disk.
-		s.state.KVstore = newKVStore(s.state.LastApplied, s.state.LastAppliedTerm)
+		s.state.KVstore = newKVStore()
 	}
 
 	// raft does not require CommitIndex to be on disk,
@@ -10354,8 +10354,6 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		}
 		tkt.AsOfLogIndex = applyIdx
 
-		s.state.KVstore.LastApplied = applyIdx
-		s.state.KVstore.LastAppliedTerm = do.Term
 		// debug fuzz_test 101, TODO remove b/c KVstore can get big.
 		if s.isTest() && s.cfg.testNum == 101 {
 			do.kvAfterApply = s.state.KVstore.String()
@@ -17495,18 +17493,7 @@ func (s *TubeNode) getStateSnapshot() (snapshot *RaftState) {
 	s.state.CompactionDiscardedLast.Index = s.state.LastApplied
 	s.state.CompactionDiscardedLast.Term = s.state.LastAppliedTerm
 
-	if s.state.LastApplied != s.state.KVstore.LastApplied {
-		panicf("s.state.LastApplied(%v) != s.state.KVstore.LastApplied(%v)", s.state.LastApplied, s.state.KVstore.LastApplied)
-	}
-	if s.state.LastAppliedTerm != s.state.KVstore.LastAppliedTerm {
-		panicf("s.state.LastAppliedTerm(%v) != s.state.KVstore.LastAppliedTerm(%v)", s.state.LastAppliedTerm, s.state.KVstore.LastAppliedTerm)
-	}
-
 	snapshot = s.state.clone()
-
-	if snapshot.KVstore.LastApplied != s.state.LastApplied {
-		alwaysPrintf("%v hmm... getStateSnapshot sees snapshot.KVstore.LastAppliedLogIndex(%v) != s.state.LastApplied(%v)", s.me(), snapshot.KVstore.LastApplied, s.state.LastApplied)
-	}
 
 	// restore afterwards, so we don't get confused about
 	// what we have locally (on leader here) compacted.
