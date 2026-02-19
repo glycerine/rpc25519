@@ -1349,6 +1349,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			}
 			//time.Sleep(time.Millisecond * 500)
 
+			// leaved commented out b/c racy to call me() externally.
 			//vv("%v calling makeT", s.cli.me())
 			s.nemesis.makeTrouble(s.name)
 		}
