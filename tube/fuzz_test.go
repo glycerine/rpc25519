@@ -1819,8 +1819,8 @@ func Test101_userFuzz(t *testing.T) {
 	// [0, 10) 48.4s runtime with 20 users, 100 steps, 3 nodes.
 	// seed 0, 7 nodes, 20 users, 1000 steps:
 	// 9.88s, 10458 ops passed linearizability checker.
-	begScenario := 0
-	maxScenario := 10
+	begScenario := 12
+	maxScenario := 100
 	for scenario := begScenario; scenario < maxScenario; scenario++ {
 
 		seedString := fmt.Sprintf("%v", scenario)

@@ -7644,15 +7644,19 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 
 func (s *TubeNode) haveStickyLeaderForAE(ae *AppendEntries) bool {
 	if s.role == LEADER {
-		vv("%v sticky-leader true: myself am leader drops AE on the floor; ignoring ae from '%v'", s.me(), ae.FromPeerName)
-		return true
+		if s.state.CurrentTerm > ae.LeaderTerm {
+			vv("%v sticky-leader true: myself am leader(term %v) drops AE on the floor; ignoring ae from '%v' (at ae.LeaderTerm=%v)", s.me(), s.state.CurrentTerm, ae.FromPeerName, ae.LeaderTerm)
+			return true
+		}
 	}
 	if s.leaderName != "" && s.leaderID != "" &&
 		ae.FromPeerID != s.leaderID {
 		denyAfterIfLeaderSeen := time.Now().Add(-s.minElectionTimeoutDur() - s.cfg.ClockDriftBound)
 		if s.lastLegitAppendEntries.After(denyAfterIfLeaderSeen) {
+			//if s.state.CurrentTerm > ae.LeaderTerm {
 			vv("%v sticky-leader true b/c saw leader '%v'; '%v' ago: drop AE.FromPeerName ('%v') pretend ae.LeaderName ('%v') with ae.LeaderTerm='%v': drop on floor", s.me(), s.leaderName, time.Since(s.lastLegitAppendEntries), ae.FromPeerName, ae.LeaderName, ae.LeaderTerm)
 			return true
+			//}
 		}
 	}
 	return false
@@ -7679,6 +7683,25 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	// hit us with an AE, converting us without even
 	// going through pre-vote!
 	if s.haveStickyLeaderForAE(ae) {
+		ack := &AppendEntriesAck{
+			ClusterID:             s.ClusterID,
+			FromPeerID:            s.PeerID,
+			FromPeerName:          s.name,
+			FromPeerServiceName:   s.PeerServiceName,
+			Rejected:              true,
+			AEID:                  ae.AEID,
+			Term:                  s.state.CurrentTerm,
+			MinElectionTimeoutDur: s.cachedMinElectionTimeoutDur,
+
+			// For LargestCommonRaftIndex, lets declare that
+			// -1 means unknown, by the convention I just invented.
+			// I added this optimization (LargestCommonRaftIndex)
+			// for Tube, so this should serve to establish expectations.
+			LargestCommonRaftIndex: -1,
+			PeerMC:                 s.state.MC,
+			FollowerHLC:            s.hlc.ReceiveMessageWithHLC(ae.LeaderHLC),
+		}
+		s.host.ackAE(ack, ae)
 		return // already logged.
 	}
 
