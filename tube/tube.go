@@ -17318,7 +17318,14 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 // called when <-s.ApplyNewStateSnapshotCh; and when
 // above handleStateSnapshotEnclosed.
 func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
-	//vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; ", s.me(), caller, s.state.CommitIndex, state2.CommitIndex) // not seen 065
+	vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; ", s.me(), caller, s.state.CommitIndex, state2.CommitIndex)
+
+	if true {
+		if state2.KVstore != nil {
+			vv("%v about to call installedSnapshot which will discard current wal \n (discard KVstore='%v') \n (in favor of state2.KVstore='%v'\n", s.me(), s.state.KVstore.String(), state2.KVstore.String())
+			s.DumpRaftWAL(nil)
+		}
+	}
 
 	// consider this real scenario where this next (commented) assert wedged us, killing the 2 followers after a leader was elected. I think we must allow older state + longer logs to overwrite new state2 snapshot but insufficient logs to surpass the leader's log.
 	//    ovh node_2
@@ -17411,11 +17418,6 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 		// why is this not already done? because we applie state2 field-by-field.
 		s.state.SessTable = state2.SessTable
 		s.updateSessTableByClientName(nil)
-	}
-
-	if true {
-		vv("%v about to call installedSnapshot which will discard current wal:", s.name)
-		s.DumpRaftWAL(nil)
 	}
 
 	s.saver.save(s.state)

@@ -1176,7 +1176,7 @@ func (s *fuzzUser) events2obsThenCheck(evs []porc.Event) {
 	writeToDiskOkOperations(s.t, s.name, ops) // not written yet.
 }
 
-func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leaderURL string, domain int, domainSeen *sync.Map) {
+func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leaderURL string, domain int, domainSeen *sync.Map, domainLast *atomic.Int64) {
 
 	go func() {
 		defer func() {
@@ -1313,6 +1313,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 					break
 				}
 			}
+			proposedVal = int(domainLast.Add(3)) // sequential instead, easier debugging. ugh. Add(1) masks the blast-from-the-past bug.
 			writeMeNewVal := Val([]byte(fmt.Sprintf("%v", proposedVal)))
 			swapped, cur, err = s.CAS(stepCtx, key, oldVal, writeMeNewVal)
 
@@ -1348,6 +1349,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			}
 			//time.Sleep(time.Millisecond * 500)
 
+			vv("%v calling makeT", s.cli.me())
 			s.nemesis.makeTrouble(s.name)
 		}
 	}()
@@ -1818,6 +1820,9 @@ func Test101_userFuzz(t *testing.T) {
 
 		seedString := fmt.Sprintf("%v", scenario)
 		seed, seedBytes := parseSeedString(seedString)
+
+		runtime.ResetDsimSeed(seed)
+
 		if int(seed) != scenario {
 			panicf("got %v, wanted same scenario number back %v", int(seed), scenario)
 		}
@@ -1856,6 +1861,7 @@ func Test101_userFuzz(t *testing.T) {
 			// rejection sampling and get unique write values quickly.
 			domain := steps * numUsers * 100
 			domainSeen := &sync.Map{}
+			domainLast := &atomic.Int64{}
 
 			forceLeader := 0
 			cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
@@ -1916,7 +1922,7 @@ func Test101_userFuzz(t *testing.T) {
 
 				//vv("userNum:%v -> cli.name = '%v'", userNum, cli.name)
 
-				user.Start(ctx, steps, leaderName, leaderURL, domain, domainSeen)
+				user.Start(ctx, steps, leaderName, leaderURL, domain, domainSeen, domainLast)
 			}
 
 			for _, user := range users {
@@ -1963,7 +1969,7 @@ func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string)
 	sess, redir, err = s.cli.CreateNewSession(ctx5, leaderName, leaderURL)
 	canc5()
 	if err == nil {
-		vv("%v got err=nil and new sess %p back from CreateNewSession(); redir='%v'", s.name, sess, redir)
+		vv("%v got err=nil and new sess %p back from CreateNewSession(); redir='%v'; called with leaderName='%v'", s.name, sess, redir, leaderName)
 		s.sess = sess
 	}
 	return
