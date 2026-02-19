@@ -17467,9 +17467,14 @@ func (s *TubeNode) getStateSnapshot() (snapshot *RaftState) {
 	// Can we ever compress more than LastApplied? no, that
 	// should be impossible!
 	s.state.CompactionDiscardedLast.Index = s.state.LastApplied
-	// seems like this might skew out of sync.
-	//s.state.CompactionDiscardedLast.Term = s.state.CurrentTerm
 	s.state.CompactionDiscardedLast.Term = s.state.LastAppliedTerm
+
+	if s.state.LastApplied != s.state.KVstore.LastApplied {
+		panicf("s.state.LastApplied(%v) != s.state.KVstore.LastApplied(%v)", s.state.LastApplied, s.state.KVstore.LastApplied)
+	}
+	if s.state.LastAppliedTerm != s.state.KVstore.LastAppliedTerm {
+		panicf("s.state.LastAppliedTerm(%v) != s.state.KVstore.LastAppliedTerm(%v)", s.state.LastAppliedTerm, s.state.KVstore.LastAppliedTerm)
+	}
 
 	snapshot = s.state.clone()
 
