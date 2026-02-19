@@ -1433,11 +1433,28 @@ func firstDiffLogs(a, b *raftWriteAheadLog) (r string) {
 	ib := 0
 	eb := b.raftLog[ib]
 	for ia, ea := range a.raftLog {
+
+		if ea.Index == 1 && ea.Ticket.Op == MEMBERSHIP_BOOTSTRAP {
+			ib++
+			if ib < len(b.raftLog) {
+				eb = b.raftLog[ib]
+			} else {
+				r += fmt.Sprintf(" out of b.raftLog to compare at ib=%v", ib)
+				return
+			}
+			continue // skip 1 with MEMBERSHIP_BOOTSTRAP
+		}
 		var haveDiff bool
-		if ea.Term != eb.Term || ea.Index != eb.Index {
+		if ea.Term != eb.Term {
+			r += fmt.Sprintf("  ea.Term(%v) != eb.Term(%v)\n", ea.Term, eb.Term)
+			haveDiff = true
+		}
+		if ea.Index != eb.Index {
+			r += fmt.Sprintf("  ea.Index(%v) != eb.Index(%v)\n", ea.Index, eb.Index)
 			haveDiff = true
 		}
 		if ea.Ticket.TicketID != eb.Ticket.TicketID {
+			r += fmt.Sprintf("  ea.TicketID(%v) != eb.TicketID(%v)\n", ea.Ticket.TicketID, eb.Ticket.TicketID)
 			haveDiff = true
 		}
 		if haveDiff {
