@@ -1069,7 +1069,7 @@ func (s *fuzzUser) linzCheck() {
 	//err := s.clus.Nodes[0].DumpRaftWAL()
 	//panicOn(err)
 
-	s.events2obsThenCheck(evs)
+	s.events2obsThenCheck(evs, totalStats)
 	return
 	/*
 	   //vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
@@ -1096,7 +1096,7 @@ func (s *fuzzUser) linzCheck() {
 	*/
 }
 
-func (s *fuzzUser) events2obsThenCheck(evs []porc.Event) {
+func (s *fuzzUser) events2obsThenCheck(evs []porc.Event, totalStats *totalEventStats) {
 
 	// we assume phantom insertion and dup/unmatched return deletion
 	// has already been done by now.
@@ -1128,8 +1128,10 @@ func (s *fuzzUser) events2obsThenCheck(evs []porc.Event) {
 			if !ok {
 				// meh. skip it.
 				continue
-				alwaysPrintf(" evs='%v'", eventSlice(evs))
-				panicf("i=%v; call('%v') without return. should have just been deleted?", i, e)
+				//alwaysPrintf(" evs='%v'", eventSlice(evs))
+				alwaysPrintf("i=%v; call('%v') call without return. should have just been deleted?", i, e.String())
+				panic("left danging call???")
+				continue
 			}
 			ret := evs[r]
 			op := porc.Operation{
@@ -1157,6 +1159,7 @@ func (s *fuzzUser) events2obsThenCheck(evs []porc.Event) {
 		}
 
 		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; ops='%v'", s.name, s.seed, opsSlice(ops)) // eventSlice(evs))
+		alwaysPrintf("and the raw events before we inserted phantoms and assembled into ops: '%v'", totalStats.eventStats.String())
 		writeToDiskNonLinzFuzz(s.t, s.name, ops)
 		panicf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
 	}
