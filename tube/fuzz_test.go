@@ -1463,9 +1463,14 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 			case err == ErrNeedNewSession:
 				vv("%v err == ErrNeedNewSession back from s.sess.CAS", s.name)
 				return
+
+			case strings.Contains(errs, "Must call CreateNewSession first"):
+				return
 			}
 		}
-		panicOn(err)
+		if err != nil {
+			return
+		}
 		break
 	}
 

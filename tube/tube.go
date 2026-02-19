@@ -6298,7 +6298,38 @@ func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64, logHLC HLC) *R
 	return entry
 }
 
+// very similar to tellClientsImNotLeader()
 func (s *TubeNode) clearBatchToSubmit() {
+	for _, tkt := range batch {
+		tkt.Stage += ":clearBatchToSubmit_"
+
+		frag := s.newFrag()
+		frag.FragOp = TellClientSteppedDown
+		frag.FragSubject = "TellClientSteppedDown"
+		bts, err := tkt.MarshalMsg(nil)
+		panicOn(err)
+		frag.Payload = bts
+
+		frag.SetUserArg("leaderID", s.leaderID)
+		frag.SetUserArg("leaderName", s.leaderName)
+		frag.SetUserArg("leaderURL", s.leaderURL)
+
+		// in tellClientsImNotLeader, so definitely cktall not cktReplica.
+		cktP, ok := s.cktall[tkt.FromID]
+		if !ok {
+			//vv("%v don't know how to contact '%v' to fwd tkt in respondToClientTicketApplied. Assuming they died.", s.me(), tkt.FromID)
+			tkt.Stage += "_ckt_not_ok_for_tkt_FromID"
+			continue
+		}
+		ckt := cktP.ckt
+		tkt.Stage += "_SendOneWay"
+
+		err = s.SendOneWay(ckt, frag, -1, 0)
+		_ = err // don't panic on halting.
+		if err != nil {
+			alwaysPrintf("%v non nil error '%v' on clearBatchToSubmit: TellClientSteppedDown to '%v'", s.me(), err, ckt.RemotePeerID)
+		}
+	}
 	s.batchToSubmit = nil
 	s.batchSubmitTimeCh = nil
 	s.batchInProgress = false
