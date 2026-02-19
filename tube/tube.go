@@ -7642,6 +7642,22 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 	}
 }
 
+func (s *TubeNode) haveStickyLeaderForAE(ae *AppendEntries) bool {
+	if s.role == LEADER {
+		vv("%v sticky-leader true: myself am leader drops AE on the floor", s.me())
+		return true
+	}
+	if s.leaderName != "" && s.leaderID != "" &&
+		ae.FromPeerID != s.leaderID {
+		denyAfterIfLeaderSeen := time.Now().Add(-s.minElectionTimeoutDur() - s.cfg.ClockDriftBound)
+		if s.lastLegitAppendEntries.After(denyAfterIfLeaderSeen) {
+			vv("%v sticky-leader true b/c saw leader '%v'; '%v' ago: drop AE from pretend leader '%v' on the floor", s.me(), s.leaderName, time.Since(s.lastLegitAppendEntries), ae.FromPeerName)
+			return true
+		}
+	}
+	return false
+}
+
 // AppendEntries has:
 // Term
 // PrevLogIndex // index of log entry immediately preceeding new ones
@@ -7657,6 +7673,14 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 // in its log, it ignores those entries in the new request."
 // So we must be idempotent.
 func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (numOverwrote, numTruncated, numAppended int64) {
+
+	// we must implement sticky leader, or else a recently
+	// partitioned and deposed leader can unpartition and
+	// hit us with an AE, converting us without even
+	// going through pre-vote!
+	if s.haveStickyLeaderForAE(ae) {
+		return // already logged.
+	}
 
 	var ack *AppendEntriesAck
 	// the first Extends call reponses, so we can assert
@@ -12241,7 +12265,7 @@ func (s *TubeNode) haveStickyLeader(reqVote *RequestVote) (recentLeader bool, de
 		return
 	}
 
-	if s.leaderID != "" {
+	if s.leaderID != "" { // huh? TODO: should this not be == "" ?
 		return // no leader at all
 	}
 

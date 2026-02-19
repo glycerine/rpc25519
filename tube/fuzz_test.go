@@ -1159,7 +1159,7 @@ func (s *fuzzUser) events2obsThenCheck(evs []porc.Event, totalStats *totalEventS
 		}
 
 		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; ops='%v'", s.name, s.seed, opsSlice(ops)) // eventSlice(evs))
-		alwaysPrintf("and the raw events before we inserted phantoms and assembled into ops: '%v'", totalStats.eventStats.String())
+		alwaysPrintf("and the raw events before we inserted phantoms and assembled into ops: '%v'", eventSlice(evs))               // totalStats.eventStats.String())
 		writeToDiskNonLinzFuzz(s.t, s.name, ops)
 		panicf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
 	}
