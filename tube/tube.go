@@ -17220,6 +17220,13 @@ func (s *TubeNode) resetToNoSnapshotInProgress() {
 
 func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circuit, caller string) {
 
+	// reject snapshots from not-the-current-leader.
+	if frag.FromPeerID != s.leaderID ||
+		frag.FromPeerName != s.leaderName {
+		vv("%v dropping snapshot frag in handleStateSnapshotEnclosed because not from current leader: frag.FromPeerName='%v' but s.leaderName = '%v'", frag.FromPeerName, s.leaderName)
+		return
+	}
+
 	part := frag.FragPart
 
 	// if part != 0, snapshot was too big for
@@ -17313,7 +17320,7 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	//vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; ", s.me(), caller, s.state.CommitIndex, state2.CommitIndex) // not seen 065
 
-	// consider this real scenario where this next (commented) assert wedged us, killing the 2 followers after a leader was elected. I think we must allow older state + longer logs to overwrite nestate snapshot but insufficient logs to surpass the leader's log.
+	// consider this real scenario where this next (commented) assert wedged us, killing the 2 followers after a leader was elected. I think we must allow older state + longer logs to overwrite new state2 snapshot but insufficient logs to surpass the leader's log.
 	//    ovh node_2
 	//                CommitIndex: 39173,
 	//       CommitIndexEntryTerm: 5,
@@ -17338,9 +17345,15 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	//	panic(fmt.Sprintf("%v we should never be rolling back CommitIndex with state snapshots! state2.CommitIndex(%v) < s.state.CommitIndex(%v)", s.name, state2.CommitIndex, s.state.CommitIndex))
 	// same kind of reasoning for this:
 	//}
-	//if state2.CurrentTerm < s.state.CurrentTerm {
-	//	panic(fmt.Sprintf("%v we should never be rolling back Terms with state snapshots! state2.CurrentTerm(%v) < s.state.CurrentTerm(%v)", s.name, state2.CurrentTerm, s.state.CurrentTerm))
-	//}
+
+	// we really don't want a stray snapshot from an old
+	// leader updating us by mistake, so enforce that
+	// we are receiving the snapshot only after we have
+	// also received and thus accepted the leader and its term.
+	if state2.CurrentTerm != s.state.CurrentTerm {
+		alwaysPrintf("%v we should never be rolling back Terms with state snapshots! state2.CurrentTerm(%v) != s.state.CurrentTerm(%v)", s.name, state2.CurrentTerm, s.state.CurrentTerm)
+		return
+	}
 
 	s.state.CurrentTerm = state2.CurrentTerm
 
@@ -17400,11 +17413,16 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 		s.updateSessTableByClientName(nil)
 	}
 
+	if true {
+		vv("%v about to call installedSnapshot which will discard current wal:", s.name)
+		s.DumpRaftWAL(nil)
+	}
+
 	s.saver.save(s.state)
 	s.wal.installedSnapshot(s.state)
 	s.assertCompactOK()
 
-	//vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli)
+	vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v ; wal.llt=%v; kv='%v'", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli, s.wal.llt, s.state.KVstore.String())
 }
 
 // properly set CompactionDiscardedLastIndex/Term
