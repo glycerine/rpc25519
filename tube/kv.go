@@ -45,6 +45,9 @@ type KVStore struct {
 }
 
 func (s *KVStore) String() (r string) {
+	if s == nil {
+		return "<nil>"
+	}
 	for tableName, tab := range s.m {
 		iter := tab.Tree.Iter(nil, nil)
 		for iter.Next() {

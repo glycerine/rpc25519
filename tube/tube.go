@@ -17447,7 +17447,7 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	s.wal.installedSnapshot(s.state)
 	s.assertCompactOK()
 
-	//vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v ; wal.llt=%v; kv='%v'", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli, s.wal.llt, s.state.KVstore.String())
+	vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v ; wal.llt=%v; kv='%v'", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli, s.wal.llt, s.state.KVstore.String())
 }
 
 // properly set CompactionDiscardedLastIndex/Term
