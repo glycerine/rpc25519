@@ -6599,7 +6599,9 @@ func (s *TubeNode) beginElection() {
 	// (with pre-voting) continually
 	// incrementing our term would be bad.
 	if s.role == FOLLOWER {
+		vv("%v beginElection, %v about to increment CurrentTerm from %v -> %v", s.me(), s.name, s.state.CurrentTerm, s.state.CurrentTerm+1)
 		s.state.CurrentTerm++
+		// ? do we want here: s.state.MC.ConfigTerm = s.state.CurrentTerm
 	}
 	s.role = CANDIDATE
 	s.state.VotedFor = s.PeerID
@@ -7168,8 +7170,8 @@ func (s *TubeNode) becomeLeader() {
 				// gets to here.
 
 				if s.weAreMemberOfCurrentMC() && s.clusterSize() == 1 {
-					// we are the only possible leader.
-					s.state.CurrentTerm++
+					vv("%v we are the only possible leader. but why incr CurrentTerm ?? is beginElection skipped? probably.", s.me())
+					s.state.CurrentTerm++ // why? begin election will have incremented.
 					s.state.MC.ConfigTerm = s.state.CurrentTerm
 				} else {
 					// not sure about other cases.
@@ -9717,7 +9719,7 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 
 	// Verify this is ours
 	if ack.SuppliedLeader == "" {
-		panic(fmt.Sprintf("ack has no SuppliedLeader! ack='%v'", ack.String()))
+		panic(fmt.Sprintf("%v ack has no SuppliedLeader! ack='%v'", s.me(), ack.String()))
 	}
 	if ack.SuppliedLeader != s.PeerID {
 		// still update, above
