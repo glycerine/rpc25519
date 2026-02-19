@@ -5767,8 +5767,8 @@ func (s *TubeNode) NewTicket(
 		waitForValid: waitForDur,
 		ctx:          ctx,
 	}
-	//if tkt.TSN == 12 {
-	//panic("where?")
+	//if tkt.TSN == 1 {
+	//	panic("where?")
 	//}
 	return
 }
@@ -10173,6 +10173,10 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		tkt := do.Ticket
 		tkt.Committed = true
 
+		if tkt.LogIndex != s.state.LastApplied+1 {
+			panicf("tkt.LogIndex = %v but (s.state.LastApplied + 1) == %v; expected agreement. tkt='%v'", tkt.LogIndex, s.state.LastApplied+1, tkt)
+		}
+
 		// THIS IS THE APPLY.
 
 		// This is where we apply the command to the
@@ -11853,7 +11857,7 @@ func (s *TubeNode) doReadKey(tkt *Ticket) {
 		return
 	}
 	var leaf *art.Leaf
-	leaf, tkt.Err = s.state.KVStoreReadLeaf(tkt.Table, tkt.Key)
+	leaf, tkt.Err = s.state.KVStoreReadLeaf(tkt, tkt.Table, tkt.Key)
 	if leaf == nil {
 		if tkt.Err == nil {
 			panicf("assert: tkt.Err must be set if no tkt.Err")
@@ -11880,7 +11884,7 @@ func (s *TubeNode) doReadKeyRange(tkt *Ticket) {
 		return
 	}
 	tkt.KeyValRangeScan, tkt.Err =
-		s.state.kvstoreRangeScan(tkt.Table, tkt.Key, tkt.KeyEndx, tkt.ScanDescend)
+		s.state.kvstoreRangeScan(tkt, tkt.Table, tkt.Key, tkt.KeyEndx, tkt.ScanDescend)
 }
 
 func (s *TubeNode) doReadPrefixRange(tkt *Ticket) {
@@ -11889,7 +11893,7 @@ func (s *TubeNode) doReadPrefixRange(tkt *Ticket) {
 		return
 	}
 	tkt.KeyValRangeScan, tkt.Err =
-		s.state.kvstorePrefixScan(tkt.Table, tkt.Key, tkt.ScanDescend)
+		s.state.kvstorePrefixScan(tkt, tkt.Table, tkt.Key, tkt.ScanDescend)
 }
 
 func (s *TubeNode) setConfigDefaultsIfZero() {
@@ -15352,6 +15356,7 @@ func (s *TubeNode) testSetupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntr
 
 	tkt.MC = boot.NewConfig.Clone()
 	tkt.MC.RaftLogIndex = 1
+	tkt.LogIndex = tkt.MC.RaftLogIndex
 
 	logHLC, now := s.hlc.CreateAndNow()
 

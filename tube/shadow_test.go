@@ -140,7 +140,7 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 			vv("good: saw N=%v writes also to shadow", N)
 
 			look := c.Nodes[2].Inspect()
-			val, _, err := look.State.KVStoreRead("", "a")
+			val, _, err := look.State.KVStoreRead(&Ticket{}, "", "a")
 			panicOn(err)
 
 			if !bytes.Equal(v, val) {

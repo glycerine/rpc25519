@@ -591,6 +591,8 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 		tkt.LeaseEpochT0 = leaf.LeaseEpochT0
 
 		table.Tree.InsertLeaf(leaf)
+		st.KVstore.LastAppliedLogIndex = tkt.LogIndex
+
 		//vv("%v wrote key '%v' (no prior key; leasor='%v' until '%v'); KVstore now len=%v; leaf.LeaseEpochT0='%v'", st.name, tktKey, leaf.Leasor, leaf.LeaseUntilTm, st.KVstore.Len(), nice(leaf.LeaseEpochT0))
 		return true
 	}
@@ -756,7 +758,7 @@ func (s *TubeNode) writeFailedSetCurrentVal(tkt *Ticket, leaf *art.Leaf) {
 	tkt.LeaseAutoDel = leaf.AutoDelete
 }
 
-func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend bool) (results *art.Tree, err error) {
+func (s *RaftState) kvstoreRangeScan(tkt *Ticket, tktTable, tktKey, tktKeyEndx Key, descend bool) (results *art.Tree, err error) {
 	table, ok := s.KVstore.m[tktTable]
 	if !ok {
 		return nil, ErrKeyNotFound
@@ -779,6 +781,8 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 
 				deadzone.Tree.InsertLeaf(lf)
 				table.Tree.Remove(art.Key(key))
+				s.KVstore.LastAppliedLogIndex = tkt.LogIndex
+
 				//vv("Descend did auto-delete of table '%v'/key '%v'", tktTable, tktKey)
 				continue
 			}
@@ -800,6 +804,8 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 
 				deadzone.Tree.InsertLeaf(lf)
 				table.Tree.Remove(art.Key(key))
+				s.KVstore.LastAppliedLogIndex = tkt.LogIndex
+
 				continue
 			}
 			//vv("Ascend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
@@ -823,7 +829,7 @@ func (s *RaftState) ensureDeadzone() (deadzone *ArtTable) {
 	return deadzone
 }
 
-func (s *RaftState) KVStoreRead(tktTable, tktKey Key) ([]byte, string, error) {
+func (s *RaftState) KVStoreRead(tkt *Ticket, tktTable, tktKey Key) ([]byte, string, error) {
 	table, ok := s.KVstore.m[tktTable]
 	if !ok {
 		return nil, "", ErrKeyNotFound
@@ -838,6 +844,8 @@ func (s *RaftState) KVStoreRead(tktTable, tktKey Key) ([]byte, string, error) {
 			deadzone := s.ensureDeadzone()
 			deadzone.Tree.InsertLeaf(lf)
 			table.Tree.Remove(art.Key(tktKey))
+			s.KVstore.LastAppliedLogIndex = tkt.LogIndex
+
 			return nil, "", ErrKeyNotFound
 		}
 
@@ -846,7 +854,7 @@ func (s *RaftState) KVStoreRead(tktTable, tktKey Key) ([]byte, string, error) {
 	return nil, "", ErrKeyNotFound
 }
 
-func (s *RaftState) KVStoreReadLeaf(tktTable, tktKey Key) (*art.Leaf, error) {
+func (s *RaftState) KVStoreReadLeaf(tkt *Ticket, tktTable, tktKey Key) (*art.Leaf, error) {
 	table, ok := s.KVstore.m[tktTable]
 	if !ok {
 		return nil, ErrKeyNotFound
@@ -861,6 +869,8 @@ func (s *RaftState) KVStoreReadLeaf(tktTable, tktKey Key) (*art.Leaf, error) {
 			deadzone := s.ensureDeadzone()
 			deadzone.Tree.InsertLeaf(lf)
 			table.Tree.Remove(art.Key(tktKey))
+			s.KVstore.LastAppliedLogIndex = tkt.LogIndex
+
 			return nil, ErrKeyNotFound
 		}
 		return lf, nil
@@ -904,7 +914,7 @@ func (s *TubeNode) doDeleteKey(tkt *Ticket) {
 			// is key leased? cannot delete until lease is up,
 			// unless the requestor is also the Leasor.
 			var leaf *art.Leaf
-			leaf, tkt.Err = s.state.KVStoreReadLeaf(tkt.Table, tkt.Key)
+			leaf, tkt.Err = s.state.KVStoreReadLeaf(tkt, tkt.Table, tkt.Key)
 			if leaf != nil {
 				if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
 					// no current leasor, just put the delete through.
@@ -927,6 +937,8 @@ func (s *TubeNode) doDeleteKey(tkt *Ticket) {
 
 			if doDelete {
 				table.Tree.Remove(art.Key(tkt.Key))
+				s.state.KVstore.LastAppliedLogIndex = tkt.LogIndex
+
 				const purgeEmptyTables = false // purge empty tables immediately?
 				if purgeEmptyTables {
 					if table.Tree.Size() == 0 {
@@ -1126,6 +1138,8 @@ func (s *TubeNode) doShowKeys(tkt *Ticket) {
 
 			deadzone.Tree.InsertLeaf(lf)
 			table.Tree.Remove(art.Key(k))
+			s.state.KVstore.LastAppliedLogIndex = tkt.LogIndex
+
 			continue
 		}
 
@@ -1334,7 +1348,7 @@ func (s *TubeNode) ReadPrefixRange(ctx context.Context, table, prefix Key, desce
 	}
 }
 
-func (s *RaftState) kvstorePrefixScan(tktTable, tktPrefix Key, descend bool) (results *art.Tree, err error) {
+func (s *RaftState) kvstorePrefixScan(tkt *Ticket, tktTable, tktPrefix Key, descend bool) (results *art.Tree, err error) {
 	table, ok := s.KVstore.m[tktTable]
 	if !ok {
 		return nil, ErrKeyNotFound
@@ -1359,6 +1373,8 @@ func (s *RaftState) kvstorePrefixScan(tktTable, tktPrefix Key, descend bool) (re
 
 				deadzone.Tree.InsertLeaf(lf)
 				table.Tree.Remove(art.Key(key))
+				s.KVstore.LastAppliedLogIndex = tkt.LogIndex
+
 				continue
 			}
 			//vv("Descend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
@@ -1377,6 +1393,8 @@ func (s *RaftState) kvstorePrefixScan(tktTable, tktPrefix Key, descend bool) (re
 
 				deadzone.Tree.InsertLeaf(lf)
 				table.Tree.Remove(art.Key(key))
+				s.KVstore.LastAppliedLogIndex = tkt.LogIndex
+
 				continue
 			}
 			//vv("Ascend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))

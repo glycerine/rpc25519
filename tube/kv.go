@@ -39,6 +39,8 @@ type KVStore struct {
 
 	Keys []Key       `zid:"0"`
 	Vals []*ArtTable `zid:"1"`
+
+	LastAppliedLogIndex int64 `zid:"2"`
 }
 
 func (s *KVStore) String() (r string) {
