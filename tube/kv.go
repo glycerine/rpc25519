@@ -40,7 +40,8 @@ type KVStore struct {
 	Keys []Key       `zid:"0"`
 	Vals []*ArtTable `zid:"1"`
 
-	LastAppliedLogIndex int64 `zid:"2"`
+	LastApplied     int64 `zid:"2"`
+	LastAppliedTerm int64 `zid:"3"`
 }
 
 func (s *KVStore) String() (r string) {
@@ -101,9 +102,11 @@ func (s *KVStore) PostLoadHook() {
 	s.Vals = nil
 }
 
-func newKVStore() (r *KVStore) {
+func newKVStore(lastApplied, lastAppliedTerm int64) (r *KVStore) {
 	r = &KVStore{
-		m: make(map[Key]*ArtTable),
+		m:               make(map[Key]*ArtTable),
+		LastApplied:     lastApplied,
+		LastAppliedTerm: lastAppliedTerm,
 	}
 	return
 }
@@ -111,6 +114,9 @@ func newKVStore() (r *KVStore) {
 func (s *KVStore) clone() (r *KVStore) {
 	r = &KVStore{
 		m: make(map[Key]*ArtTable),
+
+		LastApplied:     s.LastApplied,
+		LastAppliedTerm: s.LastAppliedTerm,
 	}
 	for k, v := range s.m {
 		r.m[k] = v.clone()

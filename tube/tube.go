@@ -4483,7 +4483,7 @@ func (s *TubeNode) newRaftState() *RaftState {
 		PeerName:        s.name,
 		PeerServiceName: s.PeerServiceName,
 		ClusterID:       s.ClusterID,
-		KVstore:         newKVStore(),
+		KVstore:         newKVStore(0, 0),
 		SessTable:       make(map[string]*SessionTableEntry),
 
 		// try to prevent seg fault in 401
@@ -9161,7 +9161,7 @@ func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
 	s.noVotes = 0
 	if s.state.KVstore == nil {
 		// might not have had anything on disk.
-		s.state.KVstore = newKVStore()
+		s.state.KVstore = newKVStore(s.state.LastApplied, s.state.LastAppliedTerm)
 	}
 
 	// raft does not require CommitIndex to be on disk,
@@ -10129,10 +10129,20 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 			s.ifLostTicketTellClient(calledOnLeader)
 		}
 	}()
-	for ; s.state.LastApplied < s.state.CommitIndex; s.state.LastApplied++ {
 
-		if s.state.LastApplied >= n {
-			panic("shouldn't be possible for CommitIndex to be >= n")
+	// problem with this is that we exit before we apply all the
+	// way up to the CommitIndex, so we are slower that we could be.
+	// Use applyIdx instead (below).
+	// for ; s.state.LastApplied < s.state.CommitIndex; s.state.LastApplied++ {
+
+	applyIdx := s.state.LastApplied + 1
+	for ; applyIdx <= s.state.CommitIndex; applyIdx++ {
+
+		// conceptually early, but ready for return
+		s.state.LastApplied = applyIdx
+
+		if s.state.LastApplied > n {
+			panic("shouldn't be possible for CommitIndex to be > n")
 			// (this is also a bounds assertion on LastApplied)
 		}
 		// If we are already compacted away, then for
@@ -10142,10 +10152,10 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		// might lack an entry, so avoid an error from
 		// the wal about "index too small" by checking
 		// against our compaction state:
-		if s.state.LastApplied+1 <= s.state.CompactionDiscardedLast.Index {
+		if applyIdx <= s.state.CompactionDiscardedLast.Index {
 			continue // already committed, applied, and compacted away.
 		}
-		do, err := s.wal.GetEntry(s.state.LastApplied + 1)
+		do, err := s.wal.GetEntry(applyIdx)
 		if err != nil {
 			panic(err)
 			break // TODO: not sure if this is correct... but prob do not want to panic(err) just above...
@@ -10173,8 +10183,8 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		tkt := do.Ticket
 		tkt.Committed = true
 
-		if tkt.LogIndex != s.state.LastApplied+1 {
-			panicf("tkt.LogIndex = %v but (s.state.LastApplied + 1) == %v; expected agreement. tkt='%v'", tkt.LogIndex, s.state.LastApplied+1, tkt)
+		if tkt.LogIndex != applyIdx {
+			panicf("tkt.LogIndex = %v but (applyIdx) == %v; expected agreement. tkt='%v'", tkt.LogIndex, applyIdx, tkt)
 		}
 
 		// THIS IS THE APPLY.
@@ -10232,7 +10242,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 					if !s.initialNoop0HasCommitted {
 						s.initialNoop0HasCommitted = true
 						//s.readIndexOptim = s.state.CommitIndex // ?
-						s.readIndexOptim = s.state.LastApplied
+						s.readIndexOptim = s.state.LastApplied - 1
 
 						// tell tests about it, next func below.
 						s.otherNoop0applyActions(tkt0)
@@ -10318,7 +10328,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		default:
 			panic(fmt.Sprintf("what to do with tkt.Op '%v'?", tkt.Op))
 		}
-		tkt.AsOfLogIndex = s.state.LastApplied
+		tkt.AsOfLogIndex = applyIdx
 
 		// debug fuzz_test 101, TODO remove b/c KVstore can get big.
 		if s.isTest() && s.cfg.testNum == 101 {
@@ -17458,6 +17468,10 @@ func (s *TubeNode) getStateSnapshot() (snapshot *RaftState) {
 	s.state.CompactionDiscardedLast.Term = s.state.LastAppliedTerm
 
 	snapshot = s.state.clone()
+
+	if snapshot.KVstore.LastApplied != s.state.LastApplied {
+		alwaysPrintf("%v hmm... getStateSnapshot sees snapshot.KVstore.LastAppliedLogIndex(%v) != s.state.LastApplied(%v)", s.me(), snapshot.KVstore.LastApplied, s.state.LastApplied)
+	}
 
 	// restore afterwards, so we don't get confused about
 	// what we have locally (on leader here) compacted.

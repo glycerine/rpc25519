@@ -379,7 +379,7 @@ func (z *KVStore) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields8zgensym_4984ea5d1b909aec_9 = 3
+	const maxFields8zgensym_4984ea5d1b909aec_9 = 4
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields8zgensym_4984ea5d1b909aec_9 uint32
@@ -561,9 +561,15 @@ doneWithStruct8zgensym_4984ea5d1b909aec_9:
 
 				}
 			}
-		case "LastAppliedLogIndex_zid02_i64":
+		case "LastApplied_zid02_i64":
 			found8zgensym_4984ea5d1b909aec_9[2] = true
-			z.LastAppliedLogIndex, err = dc.ReadInt64()
+			z.LastApplied, err = dc.ReadInt64()
+			if err != nil {
+				return
+			}
+		case "LastAppliedTerm_zid03_i64":
+			found8zgensym_4984ea5d1b909aec_9[3] = true
+			z.LastAppliedTerm, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
@@ -590,9 +596,9 @@ doneWithStruct8zgensym_4984ea5d1b909aec_9:
 }
 
 // fields of KVStore
-var decodeMsgFieldOrder8zgensym_4984ea5d1b909aec_9 = []string{"Keys_zid00_slc", "Vals_zid01_slc", "LastAppliedLogIndex_zid02_i64"}
+var decodeMsgFieldOrder8zgensym_4984ea5d1b909aec_9 = []string{"Keys_zid00_slc", "Vals_zid01_slc", "LastApplied_zid02_i64", "LastAppliedTerm_zid03_i64"}
 
-var decodeMsgFieldSkip8zgensym_4984ea5d1b909aec_9 = []bool{false, false, false}
+var decodeMsgFieldSkip8zgensym_4984ea5d1b909aec_9 = []bool{false, false, false, false}
 
 // fields of ArtTable
 var decodeMsgFieldOrder12zgensym_4984ea5d1b909aec_13 = []string{"Tree_zid00_ptr"}
@@ -602,9 +608,9 @@ var decodeMsgFieldSkip12zgensym_4984ea5d1b909aec_13 = []bool{false}
 // fieldsNotEmpty supports omitempty tags
 func (z *KVStore) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 3
+		return 4
 	}
-	var fieldsInUse uint32 = 3
+	var fieldsInUse uint32 = 4
 	isempty[0] = (len(z.Keys) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -613,8 +619,12 @@ func (z *KVStore) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[1] {
 		fieldsInUse--
 	}
-	isempty[2] = (z.LastAppliedLogIndex == 0) // number, omitempty
+	isempty[2] = (z.LastApplied == 0) // number, omitempty
 	if isempty[2] {
+		fieldsInUse--
+	}
+	isempty[3] = (z.LastAppliedTerm == 0) // number, omitempty
+	if isempty[3] {
 		fieldsInUse--
 	}
 
@@ -628,7 +638,7 @@ func (z *KVStore) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_4984ea5d1b909aec_14 [3]bool
+	var empty_zgensym_4984ea5d1b909aec_14 [4]bool
 	fieldsInUse_zgensym_4984ea5d1b909aec_15 := z.fieldsNotEmpty(empty_zgensym_4984ea5d1b909aec_14[:])
 
 	// map header
@@ -731,12 +741,24 @@ func (z *KVStore) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_4984ea5d1b909aec_14[2] {
-		// write "LastAppliedLogIndex_zid02_i64"
-		err = en.Append(0xbd, 0x4c, 0x61, 0x73, 0x74, 0x41, 0x70, 0x70, 0x6c, 0x69, 0x65, 0x64, 0x4c, 0x6f, 0x67, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
+		// write "LastApplied_zid02_i64"
+		err = en.Append(0xb5, 0x4c, 0x61, 0x73, 0x74, 0x41, 0x70, 0x70, 0x6c, 0x69, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
-		err = en.WriteInt64(z.LastAppliedLogIndex)
+		err = en.WriteInt64(z.LastApplied)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_4984ea5d1b909aec_14[3] {
+		// write "LastAppliedTerm_zid03_i64"
+		err = en.Append(0xb9, 0x4c, 0x61, 0x73, 0x74, 0x41, 0x70, 0x70, 0x6c, 0x69, 0x65, 0x64, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x69, 0x36, 0x34)
+		if err != nil {
+			return err
+		}
+		err = en.WriteInt64(z.LastAppliedTerm)
 		if err != nil {
 			return
 		}
@@ -754,7 +776,7 @@ func (z *KVStore) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [3]bool
+	var empty [4]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -809,9 +831,15 @@ func (z *KVStore) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[2] {
-		// string "LastAppliedLogIndex_zid02_i64"
-		o = append(o, 0xbd, 0x4c, 0x61, 0x73, 0x74, 0x41, 0x70, 0x70, 0x6c, 0x69, 0x65, 0x64, 0x4c, 0x6f, 0x67, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
-		o = msgp.AppendInt64(o, z.LastAppliedLogIndex)
+		// string "LastApplied_zid02_i64"
+		o = append(o, 0xb5, 0x4c, 0x61, 0x73, 0x74, 0x41, 0x70, 0x70, 0x6c, 0x69, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.LastApplied)
+	}
+
+	if !empty[3] {
+		// string "LastAppliedTerm_zid03_i64"
+		o = append(o, 0xb9, 0x4c, 0x61, 0x73, 0x74, 0x41, 0x70, 0x70, 0x6c, 0x69, 0x65, 0x64, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.LastAppliedTerm)
 	}
 
 	return
@@ -832,7 +860,7 @@ func (z *KVStore) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []
 
 	var field []byte
 	_ = field
-	const maxFields18zgensym_4984ea5d1b909aec_19 = 3
+	const maxFields18zgensym_4984ea5d1b909aec_19 = 4
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields18zgensym_4984ea5d1b909aec_19 uint32
@@ -1030,9 +1058,16 @@ doneWithStruct18zgensym_4984ea5d1b909aec_19:
 					}
 				}
 			}
-		case "LastAppliedLogIndex_zid02_i64":
+		case "LastApplied_zid02_i64":
 			found18zgensym_4984ea5d1b909aec_19[2] = true
-			z.LastAppliedLogIndex, bts, err = nbs.ReadInt64Bytes(bts)
+			z.LastApplied, bts, err = nbs.ReadInt64Bytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "LastAppliedTerm_zid03_i64":
+			found18zgensym_4984ea5d1b909aec_19[3] = true
+			z.LastAppliedTerm, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
@@ -1060,9 +1095,9 @@ doneWithStruct18zgensym_4984ea5d1b909aec_19:
 }
 
 // fields of KVStore
-var unmarshalMsgFieldOrder18zgensym_4984ea5d1b909aec_19 = []string{"Keys_zid00_slc", "Vals_zid01_slc", "LastAppliedLogIndex_zid02_i64"}
+var unmarshalMsgFieldOrder18zgensym_4984ea5d1b909aec_19 = []string{"Keys_zid00_slc", "Vals_zid01_slc", "LastApplied_zid02_i64", "LastAppliedTerm_zid03_i64"}
 
-var unmarshalMsgFieldSkip18zgensym_4984ea5d1b909aec_19 = []bool{false, false, false}
+var unmarshalMsgFieldSkip18zgensym_4984ea5d1b909aec_19 = []bool{false, false, false, false}
 
 // fields of ArtTable
 var unmarshalMsgFieldOrder22zgensym_4984ea5d1b909aec_23 = []string{"Tree_zid00_ptr"}
@@ -1088,14 +1123,15 @@ func (z *KVStore) Msgsize() (s int) {
 			}
 		}
 	}
-	s += 30 + msgp.Int64Size
+	s += 22 + msgp.Int64Size + 26 + msgp.Int64Size
 	return
 }
 func (z *KVStore) Gstring() (r string) {
 	r = "&KVStore{\n"
-	r += fmt.Sprintf("               Keys: %v,\n", z.Keys)
-	r += fmt.Sprintf("               Vals: %v,\n", z.Vals)
-	r += fmt.Sprintf("LastAppliedLogIndex: %v,\n", z.LastAppliedLogIndex)
+	r += fmt.Sprintf("           Keys: %v,\n", z.Keys)
+	r += fmt.Sprintf("           Vals: %v,\n", z.Vals)
+	r += fmt.Sprintf("    LastApplied: %v,\n", z.LastApplied)
+	r += fmt.Sprintf("LastAppliedTerm: %v,\n", z.LastAppliedTerm)
 	r += "}\n"
 	return
 }

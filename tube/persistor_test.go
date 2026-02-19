@@ -28,7 +28,7 @@ func Test301_raftStatePersistorSaveLoad(t *testing.T) {
 			CurrentTerm: i,
 			Serial:      int64(i + 1),
 			ClusterID:   cluID,
-			KVstore:     newKVStore(),
+			KVstore:     newKVStore(0, 0),
 		}
 		versions = append(versions, state)
 
