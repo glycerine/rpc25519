@@ -1301,7 +1301,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			}
 			if !s.leaderServedLocalRead(tkt, false) {
 				//vv("%v false back from leaderServedLocalRead", s.me())
-				tkt.Stage += ":readReqCh_leaderServedLocalRead_false_calling_replicateTicket"
+				tkt.Stage += fmt.Sprintf(":readReqCh_leaderServedLocalRead_false_calling_replicateTicket[term: %v]", s.state.CurrentTerm)
 				s.replicateTicket(tkt)
 			} else {
 				//vv("%v true back from leaderServedLocalRead", s.me())
@@ -3062,8 +3062,10 @@ type TubeNode struct {
 	// the same as the deadline that batchSubmitTimeCh is armed for.
 	batchSubmitTm   time.Time
 	batchInProgress bool
-	batchToSubmit   []*Ticket
-	batchByteSize   int
+
+	// important to clear this out if we step down to follower!
+	batchToSubmit []*Ticket
+	batchByteSize int
 
 	// update in handle AE when leader
 	// changes, try to detect flapping
@@ -6043,7 +6045,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	if s.role != LEADER {
 		panic("replicateTicket is only for leader")
 	}
-	tkt.Stage += ":replicateTicket"
+	tkt.Stage += fmt.Sprintf(":replicateTicket[term %v]", s.state.CurrentTerm)
 
 	doneEarly, needSave := s.leaderDoneEarlyOnSessionStuff(tkt)
 	defer func() {
@@ -6133,6 +6135,8 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	}
 
 	entry := s.prepOne(tkt, now, idx, logHLC)
+
+	tkt.Stage += fmt.Sprintf(":after_prepOne_1st_in_replicateTicket[CurrentTerm: %v; entry.Term: %v; tkt.Term: %v; tkt.LogIndex: %v]", s.state.CurrentTerm, entry.Term, tkt.Term, tkt.LogIndex)
 
 	// index of log entry immediately preceeding new ones
 	var prevLogIndex int64
@@ -6294,14 +6298,18 @@ func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64, logHLC HLC) *R
 	return entry
 }
 
-func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
-
-	//vv("%v top of replicateBatch with %v in batch", s.me(), len(s.batchToSubmit))
-	batch := s.batchToSubmit
+func (s *TubeNode) clearBatchToSubmit() {
 	s.batchToSubmit = nil
 	s.batchSubmitTimeCh = nil
 	s.batchInProgress = false
 	s.batchByteSize = 0
+}
+
+func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
+
+	//vv("%v top of replicateBatch with %v in batch", s.me(), len(s.batchToSubmit))
+	batch := s.batchToSubmit
+	s.clearBatchToSubmit()
 	if len(batch) == 0 {
 		return
 	}
@@ -6339,6 +6347,8 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 
 		entry := s.prepOne(tkt, now, idx, logHLC)
 
+		tkt.Stage += fmt.Sprintf(":after_prepOne_2nd_replicateBatch[CurrentTerm: %v; entry.Term: %v; tkt.Term: %v; tkt.LogIndex: %v]", s.state.CurrentTerm, entry.Term, tkt.Term, tkt.LogIndex)
+
 		if tkt.Op == MEMBERSHIP_SET_UPDATE ||
 			tkt.Op == MEMBERSHIP_BOOTSTRAP {
 
@@ -6368,7 +6378,7 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 	if clusterSz > 1 {
 		for _, tkt := range batch {
 			s.WaitingAtLeader.set(tkt.TicketID, tkt)
-			tkt.Stage += ":_batch_normal_replication_added_to_WaitingAtLeader"
+			tkt.Stage += fmt.Sprintf(":_batch_normal_replication_added_to_WaitingAtLeader[tkt.Term: %v, tkt.LogIndex: %v]", tkt.Term, tkt.LogIndex)
 		}
 	} else {
 		//vv("%v is singleton cluster in replicateTicket; no AppendEntries replication to wait for", s.me())
@@ -6408,6 +6418,9 @@ func (s *TubeNode) becomeFollower(term int64, mc *MemberConfig, save bool) {
 	//vv("%v becomeFollower. new term = %v. was: %v; stack=\n%v", s.me(), term, s.state.CurrentTerm, stack())
 	if s.role == LEADER {
 		s.lastLeaderActiveStepDown = time.Now()
+		// important to avoid re-submitting/replicating previous
+		// part of a batch that previous leader never got to.
+		s.clearBatchToSubmit()
 	}
 	if term < s.state.CurrentTerm {
 		// we cannot allow follower to stay follower
@@ -16887,7 +16900,7 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 			tkt.Stage += ":RedirectTicketToLeaderMsg_leaderServedLocalRead_true"
 			return
 		} else {
-			tkt.Stage += ":RedirectTicketToLeaderMsg_leaderServedLocalRead_false_calling_replicateTicket"
+			tkt.Stage += fmt.Sprintf(":RedirectTicketToLeaderMsg_leaderServedLocalRead_false_calling_replicateTicket[on me('%v)/lead:'%v', term:'%v']", s.name, s.leaderName, s.state.CurrentTerm)
 			// fallthrough to replicateTicket
 		}
 
