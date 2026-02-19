@@ -10138,7 +10138,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 	applyIdx := s.state.LastApplied + 1
 	for ; applyIdx <= s.state.CommitIndex; applyIdx++ {
 
-		// conceptually early, but ready for return
+		// might be conceptually early, but ready for return
 		s.state.LastApplied = applyIdx
 
 		if s.state.LastApplied > n {
@@ -10330,6 +10330,8 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		}
 		tkt.AsOfLogIndex = applyIdx
 
+		s.state.KVstore.LastApplied = applyIdx
+		s.state.KVstore.LastAppliedTerm = do.Term
 		// debug fuzz_test 101, TODO remove b/c KVstore can get big.
 		if s.isTest() && s.cfg.testNum == 101 {
 			do.kvAfterApply = s.state.KVstore.String()
@@ -17392,13 +17394,15 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	// history, so we need to allow this in general. we already
 	// caught the earlier bug with this heuristic, maybe, and it
 	// is not a current concern.
-	//	if state2.KVstore != nil {
+	//if state2.KVstore != nil {
 	//		// try to catch where our state is getting blown away in prod local/ test
 	//		if len(s.state.KVstore.m) > 0 && len(state2.KVstore.m) == 0 {
 	//			panic(fmt.Sprintf("arg! why are we blowing away our KVstore in a snapshot application from caller '%v'\n new state2='%v'\n\nexisting state='%v'\n", caller, state2, s.state))
 	//		}
-	//		s.state.KVstore = state2.KVstore
-	//	}
+	//}
+	// we do have to apply state2.KVstore though!
+	s.state.KVstore = state2.KVstore
+
 	if state2.MC != nil {
 		s.state.MC = state2.MC
 	}
