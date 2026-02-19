@@ -6300,7 +6300,7 @@ func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64, logHLC HLC) *R
 
 // very similar to tellClientsImNotLeader()
 func (s *TubeNode) clearBatchToSubmit() {
-	for _, tkt := range batch {
+	for _, tkt := range s.batchToSubmit {
 		tkt.Stage += ":clearBatchToSubmit_"
 
 		frag := s.newFrag()
