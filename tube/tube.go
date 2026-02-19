@@ -4873,7 +4873,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	}
 	if s.role == LEADER {
 		//vv("%v we are leader, returning false from redirectToLeader()", s.name)
-		tkt.Stage += ":redirectToLeader(false,role_is_leader)"
+		tkt.Stage += fmt.Sprintf(":redirectToLeader(false,role_is_leader[name:%v term:%v])", s.name, s.state.CurrentTerm)
 		return
 	}
 	//if s.leaderID == s.PeerID {
@@ -7110,7 +7110,7 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 }
 
 func (s *TubeNode) becomeLeader() {
-	vv("%v becomeLeader top", s.me())
+	vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm())
 	//defer func() {
 	//	vv("%v end of becomeLeader", s.me())
 	//}()
