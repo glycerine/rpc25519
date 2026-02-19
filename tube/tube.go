@@ -5945,10 +5945,10 @@ func (s *TubeNode) resubmitStalledTickets(justMC bool) {
 		if tkt.LogIndex == 0 {
 			//vv("%v doing resub for: '%v'", s.me(), tkt)
 			resub = append(resub, tkt)
-			tkt.Stage += ":resubmitStalledTickets_resub_LogIndex_0"
+			tkt.Stage += fmt.Sprintf(":resubmitStalledTickets_resub_LogIndex_0[justMC=%v; cur leader('%v') term('%v')]", justMC, s.leaderName, s.state.CurrentTerm)
 		} else {
 			//vv("%v resub skipped for: '%v'", s.me(), tkt)
-			tkt.Stage += ":resubmitStalledTickets_resub_skipped"
+			tkt.Stage += fmt.Sprintf(":resubmitStalledTickets_resub_skipped[justMC=%v; cur leader('%v') term('%v') lli:%v llt:%v]", justMC, s.leaderName, s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm())
 		}
 	}
 	//sort.Sort(ticketsInSerialOrder(resub))
@@ -7110,7 +7110,7 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 }
 
 func (s *TubeNode) becomeLeader() {
-	vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm())
+	vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
 	//defer func() {
 	//	vv("%v end of becomeLeader", s.me())
 	//}()
@@ -10317,7 +10317,8 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 						// or after force abandoning an MC change...anyway
 						// we saw in practice getting wedged if this is
 						// the only place resubmit happens. So also
-						// check periodically on another timer.
+						// check periodically on another timer (now in connectToMC(),
+						// on <-s.electionTimeoutCh).
 						defer s.resubmitStalledTickets(false) // first (was only) place called
 					}
 				}
@@ -10772,7 +10773,8 @@ func (s *TubeNode) tellClientsImNotLeader() {
 	}
 	//vv("%v wait to clear WaitingAtLeader until we have ack from clients.", s.me())
 	// TODO: delete when we do get acks?
-	//s.WaitingAtLeader = make(map[string]*Ticket)
+	// Update: no acks presently! just delete now.
+	s.WaitingAtLeader = newImap()
 }
 
 func (s *TubeNode) logIndexInBounds(idx int64) bool {
