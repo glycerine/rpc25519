@@ -262,7 +262,7 @@ func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, upcall b
 	}
 
 	callFrom := fmt.Sprintf("%v %v", fileLine(3), note)
-	vv("end of setVers(v='%v') s.members is now '%v'). callFrom='%v'", v, s.members, callFrom)
+	//vv("end of setVers(v='%v') s.members is now '%v'). callFrom='%v'", v, s.members, callFrom)
 
 	s.doUpcall(nil, callFrom)
 	return nil
