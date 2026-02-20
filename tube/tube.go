@@ -12897,7 +12897,11 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName st
 		actualLeaderURL = redirect.LeaderURL
 		actualLeaderName = redirect.LeaderName
 		// save another network roundtrip, since we already have it.
-		return
+
+		// unfortunately this next early return
+		// also truncates off our tubels
+		// output to just the first of the contacted node, ugh.
+		//return
 	}
 
 	//actualLeaderName = ckt.RemotePeerName
