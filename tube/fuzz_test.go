@@ -1826,6 +1826,8 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 func Test101_userFuzz(t *testing.T) {
 	//return
 	runtime.GOMAXPROCS(1)
+	showBinaryVersion("tube.test")
+	fmt.Println("Go version:", runtime.Version())
 
 	defer func() {
 		vv("test 101 wrapping up.")
@@ -1834,8 +1836,8 @@ func Test101_userFuzz(t *testing.T) {
 	// [0, 10) 48.4s runtime with 20 users, 100 steps, 3 nodes.
 	// seed 0, 7 nodes, 20 users, 1000 steps:
 	// 9.88s, 10458 ops passed linearizability checker.
-	begScenario := 0
-	endxScenario := 10
+	begScenario := 20_000
+	endxScenario := 20_200
 	//endxScenario := 10_000
 	//endxScenario := 20_000
 	alwaysPrintf("begScenario = %v; endxScenario = %v", begScenario, endxScenario)

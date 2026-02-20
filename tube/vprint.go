@@ -299,3 +299,27 @@ func getBinaryVersion() string {
 	}
 	return fmt.Sprintf("%v@%v built with %v", info.Main.Path, info.Main.Version, info.GoVersion)
 }
+
+func showBinaryVersion(program string) {
+	// nb always going to have +dirty
+	// in the version unless we bother
+	// to get
+	// git status --porcelain -unormal
+	// to give an empty response.
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		fmt.Println("warning: build information not available.")
+		return
+	}
+
+	//fmt.Printf("tube module path: %v\n", info.Main.Path)
+	fmt.Printf("%v version: %v\n", program, info.Main.Version)
+
+	// fmt.Println("---")
+	// // You can also iterate through all dependencies.
+	// fmt.Println("Dependencies:")
+	// for _, dep := range info.Deps {
+	// 	fmt.Printf("- %s: %s\n", dep.Path, dep.Version)
+	// }
+}
