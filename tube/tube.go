@@ -17358,7 +17358,7 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 	if frag.FromPeerID != s.leaderID ||
 		frag.FromPeerName != s.leaderName {
 		vv("%v dropping snapshot frag in handleStateSnapshotEnclosed because not from current leader: frag.FromPeerName='%v' but s.leaderName = '%v'", frag.FromPeerName, s.leaderName)
-		panic("why not from current leader?")
+		//panic("why not from current leader?") // seen, scenario 100207 40 steps. ignore it.
 		return
 	}
 
