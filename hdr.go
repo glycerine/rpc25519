@@ -17,7 +17,7 @@ import (
 	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/loquet"
 	blakehash "github.com/glycerine/rpc25519/hash"
-	mathrand2 "math/rand/v2"
+	//mathrand2 "math/rand/v2"
 )
 
 var _ = cristalbase64.URLEncoding
@@ -164,46 +164,28 @@ func issueSerial() (cur int64) {
 
 var myPID = int64(os.Getpid())
 
-var chacha8randMut sync.Mutex
+var globalRandMutex sync.Mutex
 
-// repeats bytes frequently, do not use:
-// var chacha8rand *mathrand2.ChaCha8
-// instead use:
+// global RNG for NewCallID(), TODO replace with per simnet.PRNG
 var blake3rand *blakehash.Blake3
 
 func init() {
 	if faketime {
-		chacha8randMut.Lock()
-		//chacha8rand = newZeroSeededChaCha8()
+		globalRandMutex.Lock()
 		blake3rand = blakehash.NewBlake3()
-		chacha8randMut.Unlock()
-		//println("hdr init() seeded chacha8rand to 0")
-		println("hdr init(): seeded blake3rand to 0")
+		globalRandMutex.Unlock()
+		//println("hdr init(): seeded blake3rand to 0")
 	} else {
-		chacha8randMut.Lock()
-		//chacha8rand = newCryrandSeededChaCha8()
+		globalRandMutex.Lock()
 
 		var seed2 [32]byte
 		_, err := cryrand.Read(seed2[:])
 		panicOn(err)
 		blake3rand = blakehash.NewBlake3WithKey(seed2)
 
-		chacha8randMut.Unlock()
-		//println("hdr init() seeded chacha8rand to cry rand")
-		println("hdr init() seeded blake3rand to cry rand")
+		globalRandMutex.Unlock()
+		//println("hdr init() seeded blake3rand to cry rand")
 	}
-}
-
-func newZeroSeededChaCha8() *mathrand2.ChaCha8 {
-	var seed [32]byte
-	return mathrand2.NewChaCha8(seed)
-}
-
-func newCryrandSeededChaCha8() *mathrand2.ChaCha8 {
-	var seed [32]byte
-	_, err := cryrand.Read(seed[:])
-	panicOn(err)
-	return mathrand2.NewChaCha8(seed)
 }
 
 func cryRandBytesBase64(numBytes int) string {
@@ -486,25 +468,15 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 	return
 }
 
-//var Smap = &sync.Map{}
-
 func NewCallID(name string) (cid string) {
 	if faketime {
 		var pseudo [21]byte // not cryptographically random.
-		chacha8randMut.Lock()
-		//chacha8rand2.Read(pseudo[:])
+		globalRandMutex.Lock()
+
 		blake3rand.ReadXOF(pseudo[:])
-		chacha8randMut.Unlock()
+		globalRandMutex.Unlock()
 		cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
 
-		// detects the problem with chacha8 returning same
-		// sequence of bytes without reinit.
-		// where, loaded := Smap.LoadOrStore(cid, stack())
-		// _ = where
-		// if loaded {
-		// 	vv("same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where, stack())
-		// 	panic("why same cid?")
-		// }
 	} else {
 		// incredibly, we saw a collision CallID
 		// using the not crypto random with 200 real processes,

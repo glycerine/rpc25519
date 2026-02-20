@@ -1,6 +1,7 @@
 package hash
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -95,6 +96,7 @@ func (b *Blake3) Hash32(by []byte) string {
 func (b *Blake3) ReadXOF(p []byte) (n int, err error) {
 	b.mut.Lock()
 	defer b.mut.Unlock()
+
 	r := b.hasher.XOF()
 
 	nr := int64(len(p))
@@ -106,6 +108,13 @@ func (b *Blake3) ReadXOF(p []byte) (n int, err error) {
 		panic("short read???")
 	}
 	return
+}
+
+func (b *Blake3) Uint64() uint64 {
+	var buf [8]byte
+	slc := buf[:]
+	b.ReadXOF(slc)
+	return binary.LittleEndian.Uint64(slc)
 }
 
 // Blake3OfBytes is goroutine safe and lock free, since

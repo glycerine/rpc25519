@@ -2248,7 +2248,7 @@ const auto_cli_recognition_prefix = "auto-cli-from-"
 func (s *Server) fromToAutoCliName(from, dest string) string {
 	if faketime && s.cfg.UseSimNet {
 		//simn := s.cfg.GetSimnet()
-		// NewCallID uses chacha8rand which gets
+		// NewCallID uses blake3rand which gets
 		// re-seeded on each new scenario... use as a
 		// deterministic stand-in for now;
 		// since we don't have an interface into the simnet to ask

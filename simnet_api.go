@@ -10,6 +10,8 @@ import (
 	//"io"
 	"path/filepath"
 	"time"
+
+	blakehash "github.com/glycerine/rpc25519/hash"
 )
 
 //=========================================
@@ -109,8 +111,9 @@ type scenario struct {
 	seed [32]byte
 
 	// rng for meq batch dispatch
-	chacha *mathrand2.ChaCha8
-	rng    *mathrand2.Rand
+	blake3rand *blakehash.Blake3
+
+	rng *mathrand2.Rand
 
 	// we enforce ending in 00_000 ns for all tick
 	tick   time.Duration
@@ -136,17 +139,17 @@ func NewScenario(tick, minHop, maxHop time.Duration, intSeed int) *scenario {
 
 	seed := intSeedToBytes(intSeed)
 	s := &scenario{
-		num:     intSeed,
-		seed:    seed,
-		chacha:  mathrand2.NewChaCha8(seed),
-		tick:    enforceTickDur(tick),
-		minHop:  minHop,
-		maxHop:  maxHop,
-		reqtm:   time.Now(),
-		proceed: make(chan time.Duration, 1),
-		who:     goID(),
+		num:        intSeed,
+		seed:       seed,
+		blake3rand: blakehash.NewBlake3WithKey(seed),
+		tick:       enforceTickDur(tick),
+		minHop:     minHop,
+		maxHop:     maxHop,
+		reqtm:      time.Now(),
+		proceed:    make(chan time.Duration, 1),
+		who:        goID(),
 	}
-	s.rng = mathrand2.New(s.chacha)
+	s.rng = mathrand2.New(s.blake3rand)
 	return s
 }
 
@@ -179,7 +182,7 @@ func (s *scenario) rngHop() (hop time.Duration) {
 	//vv("rngHop called!")
 
 	// get un-biased uniform pseudo random number in [0, vary)
-	r := chachaRandNonNegInt64Range(s.chacha, int64(vary))
+	r := blake3RandNonNegInt64Range(s.blake3rand, int64(vary))
 
 	r += int64(s.minHop)
 	hop = time.Duration(r)

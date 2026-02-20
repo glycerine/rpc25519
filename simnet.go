@@ -3082,6 +3082,7 @@ func (s *Simnet) finishScenario() {
 	// at the end
 	s.scenario = nil
 }
+
 func (s *Simnet) initScenario(op *mop) {
 	scenario := op.scen
 	s.scenario = scenario
@@ -3089,11 +3090,9 @@ func (s *Simnet) initScenario(op *mop) {
 
 	// do any init work...
 	// in hdr.go, CallID() uses this.
-	chacha8randMut.Lock()
-	//chacha8rand2 = mathrand2.NewChaCha8(scenario.seed)
+	globalRandMutex.Lock()
 	blake3rand = blakehash.NewBlake3WithKey(scenario.seed)
-	chacha8randMut.Unlock()
-	//vv("initScenario: seeded chacha8rand to %v ", scenario.num)
+	globalRandMutex.Unlock()
 	vv("initScenario: seeded blake3rand to %v ", scenario.num)
 
 	s.fin(op)

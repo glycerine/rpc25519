@@ -2393,7 +2393,7 @@ func (a *Fragment) Compare(b *Fragment) int {
 	}
 
 	// really that should have sufficed,
-	// if the chacha8+blake3 CallID are
+	// if the blake3 CallID are
 	// in use, as they should be.
 	// For more than good measure,
 	// and because we want to use

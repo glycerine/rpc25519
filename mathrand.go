@@ -7,23 +7,54 @@ import (
 	"sync"
 
 	cristalbase64 "github.com/cristalhq/base64"
-	mathrand2 "math/rand/v2"
+	blakehash "github.com/glycerine/rpc25519/hash"
+	//mathrand2 "math/rand/v2"
 )
 
-// PRNG is a pseudo random number generator. It
-// uses the ChaCha8 algorithm with a 32 byte seed.
+// PRNG is a pseudo random number generator.
+// It uses a 32 byte seed.
 // It is goroutine safe.
 type PRNG struct {
-	mut  sync.Mutex
-	seed [32]byte
-	cha8 *mathrand2.ChaCha8
+	mut        sync.Mutex
+	seed       [32]byte
+	blake3rand *blakehash.Blake3
 }
 
 func NewPRNG(seed [32]byte) *PRNG {
 	return &PRNG{
-		seed: seed,
-		cha8: mathrand2.NewChaCha8(seed),
+		seed:       seed,
+		blake3rand: blakehash.NewBlake3WithKey(seed),
 	}
+}
+
+func (rng *PRNG) Read(p []byte) (n int, err error) {
+	rng.mut.Lock()
+	defer rng.mut.Unlock()
+
+	return rng.blake3rand.ReadXOF(p)
+}
+
+// Uint64 satisfies the mathrand2.Source interface
+func (rng *PRNG) Uint64() uint64 {
+	b := make([]byte, 8)
+	rng.Read(b)
+	return binary.LittleEndian.Uint64(b)
+}
+
+func (rng *PRNG) NewCallID(name string) (cid string) {
+	rng.mut.Lock()
+	defer rng.mut.Unlock()
+
+	var pseudo [21]byte // not cryptographically random.
+
+	rng.blake3rand.ReadXOF(pseudo[:])
+
+	cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
+
+	if name != "" { // traditional CallID won't have.
+		AliasRegister(cid, cid+" ("+name+")")
+	}
+	return
 }
 
 func (rng *PRNG) Rand15B() string {
@@ -31,7 +62,7 @@ func (rng *PRNG) Rand15B() string {
 	defer rng.mut.Unlock()
 
 	var by [15]byte // 16 and 17 get == signs. yuck.
-	rng.cha8.Read(by[:])
+	rng.Read(by[:])
 	return cristalbase64.URLEncoding.EncodeToString(by[:])
 }
 
@@ -41,7 +72,7 @@ func (rng *PRNG) PseudoRandNonNegInt64() (r int64) {
 	defer rng.mut.Unlock()
 
 	b := make([]byte, 8)
-	rng.cha8.Read(b)
+	rng.Read(b)
 	r = int64(binary.LittleEndian.Uint64(b))
 	if r < 0 {
 		if r == math.MinInt64 {
@@ -73,7 +104,7 @@ func (rng *PRNG) PseudoRandInt64() (r int64) {
 	defer rng.mut.Unlock()
 
 	b := make([]byte, 8)
-	rng.cha8.Read(b)
+	rng.Read(b)
 	r = int64(binary.LittleEndian.Uint64(b))
 	return r
 }
@@ -81,7 +112,7 @@ func (rng *PRNG) PseudoRandInt64() (r int64) {
 func (rng *PRNG) PseudoRandBool() (b bool) {
 	rng.mut.Lock()
 	by := make([]byte, 1)
-	rng.cha8.Read(by)
+	rng.Read(by)
 	b = (by[0]%2 == 0)
 	rng.mut.Unlock()
 	return
@@ -104,11 +135,11 @@ func (rng *PRNG) PseudoRandNonNegInt64Range(nChoices int64) (r int64) {
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
 
-	r = chachaRandNonNegInt64Range(rng.cha8, nChoices)
+	r = blake3RandNonNegInt64Range(rng.blake3rand, nChoices)
 	return
 }
 
-func chachaRandNonNegInt64Range(cha8 *mathrand2.ChaCha8, nChoices int64) (r int64) {
+func blake3RandNonNegInt64Range(blake3rand *blakehash.Blake3, nChoices int64) (r int64) {
 	if nChoices <= 1 {
 		panic(fmt.Sprintf("nChoices must be in [2, MaxInt64]; we see %v", nChoices))
 	}
@@ -117,7 +148,7 @@ func chachaRandNonNegInt64Range(cha8 *mathrand2.ChaCha8, nChoices int64) (r int6
 	if nChoices == math.MaxInt64 {
 		//inlined rng.pseudoRandNonNegInt64():
 
-		cha8.Read(b)
+		blake3rand.ReadXOF(b)
 		r = int64(binary.LittleEndian.Uint64(b))
 		if r < 0 {
 			if r == math.MinInt64 {
@@ -137,7 +168,7 @@ func chachaRandNonNegInt64Range(cha8 *mathrand2.ChaCha8, nChoices int64) (r int6
 	// INVAR: redrawAbove % nChoices == (nChoices - 1).
 
 	for {
-		cha8.Read(b)
+		blake3rand.ReadXOF(b)
 		r = int64(binary.LittleEndian.Uint64(b))
 		if r < 0 {
 			// there is 1 more negative integer than
@@ -224,7 +255,8 @@ func (rng *PRNG) PseudoRandInt64RangePosOrNeg(largestPositiveChoice int64) (r in
 
 	b := make([]byte, 8)
 	for {
-		rng.cha8.Read(b)
+		rng.blake3rand.ReadXOF(b)
+
 		r = int64(binary.LittleEndian.Uint64(b))
 		if r < -largestPositiveChoice {
 			// reject: too large in magnitude, try again.
