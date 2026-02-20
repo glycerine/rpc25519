@@ -32,6 +32,7 @@ func Test000_election_timeout_dur(t *testing.T) {
 		PeerServiceName: TUBE_REPLICA,
 		MinElectionDur:  T,
 		HeartbeatDur:    T / 10,
+		prng:            newPRNG([32]byte{}),
 	}
 	var min time.Duration = time.Hour
 	var max time.Duration

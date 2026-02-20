@@ -1902,7 +1902,7 @@ func Test101_userFuzz(t *testing.T) {
 
 		onlyBubbled(t, func(t *testing.T) {
 
-			rpc.Smap = &sync.Map{}
+			//rpc.Smap = &sync.Map{}
 
 			// 1% or less collision probability, to minimize
 			// rejection sampling and get unique write values quickly.

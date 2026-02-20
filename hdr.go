@@ -166,20 +166,22 @@ var myPID = int64(os.Getpid())
 
 var chacha8randMut sync.Mutex
 
-var chacha8rand *mathrand2.ChaCha8
+// repeats bytes frequently, do not use:
+// var chacha8rand *mathrand2.ChaCha8
+// instead use:
 var blake3rand *blakehash.Blake3
 
 func init() {
 	if faketime {
 		chacha8randMut.Lock()
-		chacha8rand = newZeroSeededChaCha8()
+		//chacha8rand = newZeroSeededChaCha8()
 		blake3rand = blakehash.NewBlake3()
 		chacha8randMut.Unlock()
 		//println("hdr init() seeded chacha8rand to 0")
 		println("hdr init(): seeded blake3rand to 0")
 	} else {
 		chacha8randMut.Lock()
-		chacha8rand = newCryrandSeededChaCha8()
+		//chacha8rand = newCryrandSeededChaCha8()
 
 		var seed2 [32]byte
 		_, err := cryrand.Read(seed2[:])
@@ -484,7 +486,7 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 	return
 }
 
-var Smap = &sync.Map{}
+//var Smap = &sync.Map{}
 
 func NewCallID(name string) (cid string) {
 	if faketime {
@@ -495,12 +497,14 @@ func NewCallID(name string) (cid string) {
 		chacha8randMut.Unlock()
 		cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
 
-		where, loaded := Smap.LoadOrStore(cid, stack())
-		_ = where
-		if loaded {
-			vv("same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where, stack())
-			panic("why same cid?")
-		}
+		// detects the problem with chacha8 returning same
+		// sequence of bytes without reinit.
+		// where, loaded := Smap.LoadOrStore(cid, stack())
+		// _ = where
+		// if loaded {
+		// 	vv("same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where, stack())
+		// 	panic("why same cid?")
+		// }
 	} else {
 		// incredibly, we saw a collision CallID
 		// using the not crypto random with 200 real processes,
