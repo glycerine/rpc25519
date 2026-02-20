@@ -38,7 +38,7 @@ require (
 	golang.org/x/time v0.14.0
 )
 
-//replace github.com/glycerine/idem => /Users/jaten/go/src/github.com/glycerine/idem
+replace github.com/glycerine/idem => /Users/jaten/go/src/github.com/glycerine/idem
 //replace github.com/glycerine/porcupine => /Users/jaten/go/src/github.com/glycerine/porcupine
 
 require (

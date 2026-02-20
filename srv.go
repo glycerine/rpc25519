@@ -2722,12 +2722,18 @@ func (s *Server) Close() error {
 		return nil
 	}
 
+	s.pair2remote.Update(func(m map[*rwPair]string) {
+		for pair := range m {
+			pair.halt.RequestStop()
+		}
+	})
+
 	// ask any sub components (peer pump loops) to stop;
 	// give them all up to 500 msec.
 	//vv("%v about to s.halt.StopTreeAndWaitTilDone()", s.name)
 	if s.halt != nil {
 
-		//vv("%v: about to stop-tree and wait: %v", s.name, s.halt.RootString())
+		vv("%v: about to stop-tree and wait: %v", s.name, s.halt.RootString())
 
 		// 0 dur okay now that cli.go:591 g.pair.halt.Done.Close() happens.
 		s.halt.StopTreeAndWaitTilDone(0, nil, nil)
@@ -2768,11 +2774,6 @@ func (s *Server) Close() error {
 	for _, cli := range s.autoClients {
 		cli.Close()
 	}
-	s.pair2remote.Update(func(m map[*rwPair]string) {
-		for pair := range m {
-			pair.halt.RequestStop()
-		}
-	})
 	s.mut.Unlock()
 	<-s.halt.Done.Chan // 101_gosimnet_basics blocked here on shutdown without the StopTreeAndWaitTilDone() above.
 

@@ -9029,15 +9029,22 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 	peer := frag.FromPeerID
 	if ckt != nil {
 		if peer != ckt.RemotePeerID {
-			if frag.FragSubject == "RedirectTicketToLeader" {
-				tmpTkt := &Ticket{}
-				_, err := tmpTkt.UnmarshalMsg(frag.Payload)
-				panicOn(err)
-				vv("about to panic on frag.FromPeerID(%v) != ckt.RemotePeerID(%v); on a 'RedirectTicketToLeader' here is the original Ticket: '%v'", frag.FromPeerID, ckt.RemotePeerID, tmpTkt)
 
+			// this looked like a simple re-direct; a client tried to
+			// start a new session, the frag was forwarded to the leader
+			// instead of a follower. Let's try not freaking out.
+
+			if false {
+				if frag.FragSubject == "RedirectTicketToLeader" {
+					tmpTkt := &Ticket{}
+					_, err := tmpTkt.UnmarshalMsg(frag.Payload)
+					panicOn(err)
+					vv("about to panic on frag.FromPeerID(%v) != ckt.RemotePeerID(%v); on a 'RedirectTicketToLeader' here is the original Ticket: '%v'", frag.FromPeerID, ckt.RemotePeerID, tmpTkt)
+
+				}
+				vv("%v: %v sanity check failed, frag should be from ckt. frag.FromPeerID='%v' but ckt.RemotePeerID='%v'; \n frag='%v'\n ckt = '%v'", s.me(), nice(time.Now()), peer, ckt.RemotePeerID, frag, ckt) // just saw again.
+				panic("fix this mis-directed packet!")
 			}
-			vv("%v: %v sanity check failed, frag should be from ckt. frag.FromPeerID='%v' but ckt.RemotePeerID='%v'; \n frag='%v'\n ckt = '%v'", s.me(), nice(time.Now()), peer, ckt.RemotePeerID, frag, ckt) // just saw again.
-			panic("fix this mis-directed packet!")
 		}
 	}
 
