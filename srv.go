@@ -2733,7 +2733,7 @@ func (s *Server) Close() error {
 	//vv("%v about to s.halt.StopTreeAndWaitTilDone()", s.name)
 	if s.halt != nil {
 
-		vv("%v: about to stop-tree and wait: %v", s.name, s.halt.RootString())
+		//vv("%v: about to stop-tree and wait: %v", s.name, s.halt.RootString())
 
 		// 0 dur okay now that cli.go:591 g.pair.halt.Done.Close() happens.
 		s.halt.StopTreeAndWaitTilDone(0, nil, nil)

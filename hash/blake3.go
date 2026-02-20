@@ -2,7 +2,7 @@ package hash
 
 import (
 	"fmt"
-	//"io"
+	"io"
 	"os"
 	"sync"
 
@@ -14,14 +14,21 @@ const fRFC3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
 
 // Blake3 provides Hash32 which is goroutine safe.
 type Blake3 struct {
-	mut    sync.Mutex
-	hasher *blake3.Hasher // not used if Locked; see below.
+	mut        sync.Mutex
+	hasher     *blake3.Hasher // not used if Locked; see below.
+	readOffset int64
 }
 
 // NewBlake3 creates a new Blake3.
 func NewBlake3() *Blake3 {
 	return &Blake3{
 		hasher: blake3.New(64, nil),
+	}
+}
+
+func NewBlake3WithKey(key [32]byte) *Blake3 {
+	return &Blake3{
+		hasher: blake3.New(64, key[:]),
 	}
 }
 
@@ -82,6 +89,23 @@ func (b *Blake3) LockedDigest512(by []byte) (digest []byte) {
 func (b *Blake3) Hash32(by []byte) string {
 	sum := b.LockedDigest264(by)
 	return "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:])
+}
+
+// read psuedo random bytes from b.hasher.XOF().
+func (b *Blake3) ReadXOF(p []byte) (n int, err error) {
+	b.mut.Lock()
+	defer b.mut.Unlock()
+	r := b.hasher.XOF()
+
+	nr := int64(len(p))
+	r.Seek(b.readOffset, io.SeekStart)
+	b.readOffset += nr
+
+	n, err = r.Read(p)
+	if n != len(p) {
+		panic("short read???")
+	}
+	return
 }
 
 // Blake3OfBytes is goroutine safe and lock free, since

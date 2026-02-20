@@ -16,6 +16,7 @@ import (
 	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/loquet"
+	blakehash "github.com/glycerine/rpc25519/hash"
 	mathrand2 "math/rand/v2"
 )
 
@@ -166,12 +167,28 @@ var myPID = int64(os.Getpid())
 var chacha8randMut sync.Mutex
 
 var chacha8rand *mathrand2.ChaCha8
+var blake3rand *blakehash.Blake3
 
 func init() {
 	if faketime {
+		chacha8randMut.Lock()
 		chacha8rand = newZeroSeededChaCha8()
+		blake3rand = blakehash.NewBlake3()
+		chacha8randMut.Unlock()
+		//println("hdr init() seeded chacha8rand to 0")
+		println("hdr init(): seeded blake3rand to 0")
 	} else {
+		chacha8randMut.Lock()
 		chacha8rand = newCryrandSeededChaCha8()
+
+		var seed2 [32]byte
+		_, err := cryrand.Read(seed2[:])
+		panicOn(err)
+		blake3rand = blakehash.NewBlake3WithKey(seed2)
+
+		chacha8randMut.Unlock()
+		//println("hdr init() seeded chacha8rand to cry rand")
+		println("hdr init() seeded blake3rand to cry rand")
 	}
 }
 
@@ -467,19 +484,22 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 	return
 }
 
-var smap = &sync.Map{}
+var Smap = &sync.Map{}
 
 func NewCallID(name string) (cid string) {
 	if faketime {
 		var pseudo [21]byte // not cryptographically random.
 		chacha8randMut.Lock()
-		chacha8rand.Read(pseudo[:])
+		//chacha8rand2.Read(pseudo[:])
+		blake3rand.ReadXOF(pseudo[:])
 		chacha8randMut.Unlock()
 		cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
 
-		where, loaded := smap.LoadOrStore(cid, stack())
+		where, loaded := Smap.LoadOrStore(cid, stack())
+		_ = where
 		if loaded {
 			vv("same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where, stack())
+			panic("why same cid?")
 		}
 	} else {
 		// incredibly, we saw a collision CallID

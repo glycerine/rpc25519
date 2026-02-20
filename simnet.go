@@ -18,7 +18,8 @@ import (
 	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
-	mathrand2 "math/rand/v2"
+	blakehash "github.com/glycerine/rpc25519/hash"
+	//mathrand2 "math/rand/v2"
 	//rb "github.com/glycerine/rbtree"
 )
 
@@ -3089,8 +3090,11 @@ func (s *Simnet) initScenario(op *mop) {
 	// do any init work...
 	// in hdr.go, CallID() uses this.
 	chacha8randMut.Lock()
-	chacha8rand = mathrand2.NewChaCha8(scenario.seed)
+	//chacha8rand2 = mathrand2.NewChaCha8(scenario.seed)
+	blake3rand = blakehash.NewBlake3WithKey(scenario.seed)
 	chacha8randMut.Unlock()
+	//vv("initScenario: seeded chacha8rand to %v ", scenario.num)
+	vv("initScenario: seeded blake3rand to %v ", scenario.num)
 
 	s.fin(op)
 }
