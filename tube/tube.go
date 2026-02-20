@@ -7869,7 +7869,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	if maxPossibleCI > prevci {
 		// make 707 green with the new assert that CommitIndex has
 		// been updated (in the defer at top).
-		//vv("%v in handleAppendEntries: updating s.state.CommitIndex from %v -> %v (as min(ae.LeaderCommitIndex(%v), lli(%v))", s.name, s.state.CommitIndex, maxPossibleCI, ae.LeaderCommitIndex, lli)
+		vv("%v in handleAppendEntries: updating s.state.CommitIndex from %v -> %v (as min(ae.LeaderCommitIndex(%v), lli(%v)); and s.state.CommitIndexEntryTerm(%v) -> maxPossibleCIterm(%v)\n details:\n ae.LeaderCommitIndex = %v \n ae.LeaderCommitIndexEntryTerm = %v \n lli = %v; llt = %v \n ae.LeaderName='%v'; cur s.leaderName='%v'", s.me(), s.state.CommitIndex, maxPossibleCI, ae.LeaderCommitIndex, lli, s.state.CommitIndexEntryTerm, maxPossibleCIterm, ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm, lli, llt, ae.LeaderName, s.leaderName)
 		s.state.CommitIndex = maxPossibleCI
 		s.state.CommitIndexEntryTerm = maxPossibleCIterm
 		s.updateMCindex(maxPossibleCI, maxPossibleCIterm)
