@@ -1073,9 +1073,14 @@ fullRestart:
 					if czarTkt.Vtype != ReliableMembershipListType {
 						panicf("expected nil errCzarAttempt ticket to have czarTkt.Vtype == ReliableMembershipListType; got '%v'", czarTkt.Vtype)
 					}
+
 					if len(czarTkt.Val) != len(bts2) ||
 						bytes.Compare(czarTkt.Val, bts2) != 0 {
+
 						panicf("expected nil errCzarAttempt ticket to have czarTkt.Val)(len %v) == bts2(len %v)': why did we not get back what we wrote if errCzarAttempt was nil???", len(czarTkt.Val), len(bts2))
+					}
+					if len(czarTkt.CurValOnFailedWrite) != 0 {
+						panicf("expected nil errCzarAttempt ticket to have czarTkt.CurValOnFailedWrite)(len %v) to have len 0: why was errCzarAttempt was nil???", len(czarTkt.CurValOnFailedWrite))
 					}
 
 					// can we note old dead leasor czar for reporting
@@ -1144,7 +1149,8 @@ fullRestart:
 					}
 
 					nonCzarMembers := &ReliableMembershipList{}
-					_, err = nonCzarMembers.UnmarshalMsg(czarTkt.Val)
+					//_, err = nonCzarMembers.UnmarshalMsg(czarTkt.Val)
+					_, err = nonCzarMembers.UnmarshalMsg(czarTkt.CurValOnFailedWrite)
 					panicOn(err)
 
 					if nonCzarMembers.CzarName == name && !czarTkt.LeaseUntilTm.IsZero() {

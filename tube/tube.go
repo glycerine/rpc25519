@@ -4269,6 +4269,8 @@ func (t *Ticket) clone() *Ticket {
 	cp.OldVal = append(Val([]byte{}), t.OldVal...)
 	cp.PrevLeaseVal = append(Val([]byte{}), t.PrevLeaseVal...)
 	cp.CASRejectedBecauseCurVal = append(Val([]byte{}), t.CASRejectedBecauseCurVal...)
+	cp.CurValOnFailedWrite = append(Val([]byte{}), t.CurValOnFailedWrite...)
+
 	// cp.Done?
 	return &cp
 }
@@ -5208,10 +5210,11 @@ type Ticket struct {
 	// the HLC when NewTicket was called locally.
 	CreateHLC HLC `zid:"2"`
 
-	Key    Key `zid:"3"`
-	Val    Val `zid:"4"` // Read/Write. For CAS: new value.
-	Table  Key `zid:"5"` // like a database table, a namespace.
-	OldVal Val `zid:"6"` // For CAS: (input) old value (tested for).
+	Key                 Key `zid:"3"`
+	Val                 Val `zid:"4"` // Read/Write. For CAS: new value.
+	Table               Key `zid:"5"` // like a database table, a namespace.
+	OldVal              Val `zid:"6"` // For CAS: (input) old value (tested for).
+	CurValOnFailedWrite Val `zid:"81"`
 
 	CASwapped                bool   `zid:"7"`
 	CASRejectedBecauseCurVal Val    `zid:"8"`
@@ -5528,7 +5531,10 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.NewSessReply = tkt.NewSessReq
 		prior.DupDetected = tkt.DupDetected
 
-		prior.Val = tkt.Val // critical to get read value back
+		prior.Val = tkt.Val // critical to get read value back; CurValOnFailedWrite now
+		prior.OldVal = tkt.OldVal
+		prior.CurValOnFailedWrite = tkt.CurValOnFailedWrite
+
 		prior.PrevLeaseVal = tkt.PrevLeaseVal
 		prior.PrevLeaseVtype = tkt.PrevLeaseVtype
 
@@ -5663,6 +5669,10 @@ finishTicketCalled: %v,
                Val: "%v",
              Vtype: "%v",
                Err: %v,%v
+CASRejectedBecauseCurVal: %v
+             OldVal: %v
+          CASwapped: %v
+CurValOnFailedWrite: %v
    --------  Leasing  ---------
     LeaseRequestDur: %v
              Leasor: "%v"
@@ -5707,6 +5717,10 @@ DoneClosedOnPeerID: "%v",
 		showExternalCluster(t.Val),
 		t.Vtype,
 		t.Err,
+		string(t.CASRejectedBecauseCurVal),
+		string(t.OldVal),
+		t.CASwapped,
+		string(t.CurValOnFailedWrite),
 		extra,
 		t.LeaseRequestDur,
 		t.Leasor,
@@ -10900,8 +10914,12 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 		// otherwise client code cannot read what we got!
 		// On leasing error the Val has the lease holder
 		// which is useful for simulating elections.
+		// update: use CurValOnFailedWrite now; to leave .Val write once.
 		question.Val = answer.Val
 	}
+	question.OldVal = answer.OldVal
+	question.CurValOnFailedWrite = answer.CurValOnFailedWrite
+
 	question.PrevLeaseVal = answer.PrevLeaseVal
 	question.PrevLeaseVtype = answer.PrevLeaseVtype
 
@@ -11671,6 +11689,8 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 				// READ and SHOW_KEYS: (and WRITE)
 				tkt.Val = priorTkt.Val
 				tkt.Vtype = priorTkt.Vtype
+				tkt.OldVal = priorTkt.OldVal
+				tkt.CurValOnFailedWrite = priorTkt.CurValOnFailedWrite
 				tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
 				tkt.Leasor = priorTkt.Leasor
 				tkt.LeasorPeerID = priorTkt.LeasorPeerID
@@ -16190,6 +16210,9 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (doneEarly, needSa
 
 		// READ and SHOW_KEYS, CAS and WRITE:
 		tkt.Val = priorTkt.Val
+		tkt.OldVal = priorTkt.OldVal
+		tkt.CurValOnFailedWrite = priorTkt.CurValOnFailedWrite
+
 		tkt.Vtype = priorTkt.Vtype
 		tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
 		tkt.Leasor = priorTkt.Leasor

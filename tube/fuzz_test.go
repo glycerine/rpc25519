@@ -1506,7 +1506,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 	}
 	if !swapped {
 		if out.valueCur == out.newString {
-			alwaysPrintf("swapped succeeded (we know since attempted swap values are unique! why did tktW report not CASwapped??? tktW='%v'")
+			alwaysPrintf("swapped succeeded (we know since attempted swap values are unique! why did tktW report not CASwapped??? tktW='%v'", tktW)
 			// help the linz checker. we should not stumble
 			// because the CAS worked and we see the results now.
 			out.swapped = true
