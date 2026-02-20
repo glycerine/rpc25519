@@ -1851,6 +1851,8 @@ func Test101_userFuzz(t *testing.T) {
 		vv("test 101 wrapping up.")
 	}()
 
+	// 20 steps, 3 nodes, 3 users. 10_000 scenarios => 5757s (1h36m)
+
 	// [0, 10) 48.4s runtime with 20 users, 100 steps, 3 nodes.
 	// seed 0, 7 nodes, 20 users, 1000 steps:
 	// 9.88s, 10458 ops passed linearizability checker.
