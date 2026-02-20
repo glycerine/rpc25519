@@ -4,26 +4,39 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	mathrand2 "math/rand/v2"
 	"sync"
+
+	cristalbase64 "github.com/cristalhq/base64"
+	mathrand2 "math/rand/v2"
 )
 
-// pseudo random number generator
-type prng struct {
+// PRNG is a pseudo random number generator. It
+// uses the ChaCha8 algorithm with a 32 byte seed.
+// It is goroutine safe.
+type PRNG struct {
 	mut  sync.Mutex
 	seed [32]byte
 	cha8 *mathrand2.ChaCha8
 }
 
-func newPRNG(seed [32]byte) *prng {
-	return &prng{
+func NewPRNG(seed [32]byte) *PRNG {
+	return &PRNG{
 		seed: seed,
 		cha8: mathrand2.NewChaCha8(seed),
 	}
 }
 
+func (rng *PRNG) Rand15B() string {
+	rng.mut.Lock()
+	defer rng.mut.Unlock()
+
+	var by [15]byte // 16 and 17 get == signs. yuck.
+	rng.cha8.Read(by[:])
+	return cristalbase64.URLEncoding.EncodeToString(by[:])
+}
+
 // returns r >= 0
-func (rng *prng) pseudoRandNonNegInt64() (r int64) {
+func (rng *PRNG) PseudoRandNonNegInt64() (r int64) {
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
 
@@ -40,12 +53,12 @@ func (rng *prng) pseudoRandNonNegInt64() (r int64) {
 }
 
 // returns r > 0
-func (rng *prng) pseudoRandPositiveInt64() (r int64) {
+func (rng *PRNG) PseudoRandPositiveInt64() (r int64) {
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
 
 	for {
-		r = rng.pseudoRandNonNegInt64()
+		r = rng.PseudoRandNonNegInt64()
 		if r != math.MaxInt64 {
 			break
 		}
@@ -55,7 +68,7 @@ func (rng *prng) pseudoRandPositiveInt64() (r int64) {
 }
 
 // returns r in the full negative and positive range of int64
-func (rng *prng) pseudoRandInt64() (r int64) {
+func (rng *PRNG) PseudoRandInt64() (r int64) {
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
 
@@ -65,7 +78,7 @@ func (rng *prng) pseudoRandInt64() (r int64) {
 	return r
 }
 
-func (rng *prng) pseudoRandBool() (b bool) {
+func (rng *PRNG) PseudoRandBool() (b bool) {
 	rng.mut.Lock()
 	by := make([]byte, 1)
 	rng.cha8.Read(by)
@@ -87,7 +100,7 @@ func (rng *prng) pseudoRandBool() (b bool) {
 // (2^k)-1 where 2^k is the next highest power
 // of 2 the occurs > nChoices. This gives
 // an un-biased random number.
-func (rng *prng) pseudoRandNonNegInt64Range(nChoices int64) (r int64) {
+func (rng *PRNG) PseudoRandNonNegInt64Range(nChoices int64) (r int64) {
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
 
@@ -174,19 +187,19 @@ func chachaRandNonNegInt64Range(cha8 *mathrand2.ChaCha8, nChoices int64) (r int6
 // Returning 0 is always a posibility, and
 // there are always an odd number of
 // possible returned r values.
-func (rng *prng) pseudoRandInt64RangePosOrNeg(largestPositiveChoice int64) (r int64) {
+func (rng *PRNG) PseudoRandInt64RangePosOrNeg(largestPositiveChoice int64) (r int64) {
 	if largestPositiveChoice < 1 {
 		panic(fmt.Sprintf("error in prng.pseudoRandInt64RangePosOrNeg(): largestPositiveChoice must be in [1, MaxInt64]; we see %v", largestPositiveChoice))
 	}
 
 	if largestPositiveChoice == math.MaxInt64 {
-		r = rng.pseudoRandInt64()
+		r = rng.PseudoRandInt64()
 		for r == math.MinInt64 {
 			// too big in absolute value, try again.
 			// should happen only once in 2^64 so
 			// the odds this loop goes more
 			// than once are 1/2^128, very small.
-			r = rng.pseudoRandInt64()
+			r = rng.PseudoRandInt64()
 		}
 		return
 	}
@@ -201,7 +214,7 @@ func (rng *prng) pseudoRandInt64RangePosOrNeg(largestPositiveChoice int64) (r in
 	// our nChoices = 5, or 1 + (2 << 1) == 1 + 4 == 5.
 	//   and return -2 + r
 	if largestPositiveChoice < (math.MaxInt64 >> 1) {
-		r = rng.pseudoRandNonNegInt64Range(1 + (largestPositiveChoice << 1))
+		r = rng.PseudoRandNonNegInt64Range(1 + (largestPositiveChoice << 1))
 		return -largestPositiveChoice + r
 	}
 	// INVAR: largestPositiveChoice in [math.MaxInt64/2, math.MaxInt64]

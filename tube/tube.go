@@ -671,6 +671,12 @@ type TubeConfig struct {
 	testNum     int
 
 	deadOnStartCount int // test 024 need 2 nodes, only have 1 started.
+
+	// psuedo random number generator, seeded
+	// from the current scenario seed.
+	// implmentation in tube/mathrand.go
+	prng *prng
+
 	// end TubeConfig
 }
 
@@ -2600,6 +2606,8 @@ func (cfg *TubeConfig) Init(quiet, isTest bool) {
 	cfg.isTest = isTest
 
 	if faketime {
+		cfg.prng = newPRNG([32]byte{})
+
 		if !isTest {
 			panic("faketime only makes sense when testing, never in prod")
 		}
@@ -6577,8 +6585,12 @@ func (s *TubeNode) electionTimeoutDur() time.Duration {
 	// avoid the biased sampling of straight modulo here:
 	// see https://stackoverflow.com/questions/10984974/why-do-people-say-there-is-modulo-bias-when-using-a-random-number-generator
 	// https://research.kudelskisecurity.com/2020/07/28/the-definitive-guide-to-modulo-bias-and-how-to-avoid-it/
-	frac := float64(cryptoRandNonNegInt64Range(1e8)) / 1e8 // unbiased
-
+	var frac float64
+	if faketime {
+		frac = float64(s.cfg.prng.pseudoRandNonNegInt64Range(1e8)) / 1e8
+	} else {
+		frac = float64(cryptoRandNonNegInt64Range(1e8)) / 1e8 // unbiased
+	}
 	spread := float64(max(1, s.clusterSize()-2)) // automatically widen when more nodes
 	r := time.Duration(float64(T) * spread * frac)
 	dur := T + r // somewhere in [T, 2T] uniformly.
@@ -9025,7 +9037,7 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 
 			}
 			vv("%v: %v sanity check failed, frag should be from ckt. frag.FromPeerID='%v' but ckt.RemotePeerID='%v'; \n frag='%v'\n ckt = '%v'", s.me(), nice(time.Now()), peer, ckt.RemotePeerID, frag, ckt) // just saw again.
-			panic("fit this mis-directed packet!")
+			panic("fix this mis-directed packet!")
 		}
 	}
 

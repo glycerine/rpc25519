@@ -2199,8 +2199,8 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh *LoopComm, haltCh cha
 			// notice that because we are looking at the
 			// remote name, it is reversed... althought actually
 			// we should check both b/c we don't care either way.
-			autocliName1 := fromToAutoCliName(localhost, destServerBaseName)
-			autocliName2 := fromToAutoCliName(destServerBaseName, localhost)
+			autocliName1 := s.fromToAutoCliName(localhost, destServerBaseName)
+			autocliName2 := s.fromToAutoCliName(destServerBaseName, localhost)
 			synth1 := localNetAddr.Network() + "://" + autocliName1
 			synth2 := localNetAddr.Network() + "://" + autocliName2
 			pair, ok = s.remote2pair.Get(synth1)
@@ -2245,7 +2245,17 @@ type oneWaySender interface {
 // associted with server peers.
 const auto_cli_recognition_prefix = "auto-cli-from-"
 
-func fromToAutoCliName(from, dest string) string {
+func (s *Server) fromToAutoCliName(from, dest string) string {
+	if faketime && s.cfg.UseSimNet {
+		//simn := s.cfg.GetSimnet()
+		// NewCallID uses chacha8rand which gets
+		// re-seeded on each new scenario... use as a
+		// deterministic stand-in for now;
+		// since we don't have an interface into the simnet to ask
+		// its main goroutine for a simple psuedo random number without alot of
+		// channel work.
+		return auto_cli_recognition_prefix + from + "-to-" + dest + "___" + NewCallID("")
+	}
 	return auto_cli_recognition_prefix + from + "-to-" + dest + "___" + cryRand15B()
 }
 
@@ -2289,7 +2299,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		// to properly report auto-clients vs lone-cli in the
 		// reporting/diagnostics calls. Hence leave this prefix in place.
 		//cliName := auto_cli_recognition_prefix + s.name + "-to-" + dest
-		cliName := fromToAutoCliName(s.name, dest)
+		cliName := s.fromToAutoCliName(s.name, dest)
 		ccfg := *s.cfg
 		ccfg.ClientDialToHostPort = dest
 		ccfg.BaseServerName = s.name
