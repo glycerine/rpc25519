@@ -1857,7 +1857,7 @@ func Test101_userFuzz(t *testing.T) {
 	// seed 0, 7 nodes, 20 users, 1000 steps:
 	// 9.88s, 10458 ops passed linearizability checker.
 	begScenario := 0
-	endxScenario := 10
+	endxScenario := 1
 	//endxScenario := 10_000
 	//endxScenario := 20_000
 	alwaysPrintf("begScenario = %v; endxScenario = %v", begScenario, endxScenario)

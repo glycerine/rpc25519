@@ -467,6 +467,8 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 	return
 }
 
+var smap = &sync.Map{}
+
 func NewCallID(name string) (cid string) {
 	if faketime {
 		var pseudo [21]byte // not cryptographically random.
@@ -474,6 +476,11 @@ func NewCallID(name string) (cid string) {
 		chacha8rand.Read(pseudo[:])
 		chacha8randMut.Unlock()
 		cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
+
+		where, loaded := smap.LoadOrStore(cid, stack())
+		if loaded {
+			vv("same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where, stack())
+		}
 	} else {
 		// incredibly, we saw a collision CallID
 		// using the not crypto random with 200 real processes,
