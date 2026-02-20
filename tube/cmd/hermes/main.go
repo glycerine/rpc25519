@@ -56,7 +56,7 @@ func main() {
 	hnode.OperatingLeaseRenewCh = mem.OperatingLeaseRenewCh
 	err = hnode.Init()
 	panicOn(err)
-	select {}
+	//select {}
 
 	for {
 		select {

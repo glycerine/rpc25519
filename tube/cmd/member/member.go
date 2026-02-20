@@ -33,6 +33,10 @@ func main() {
 		select {
 		case reply := <-mem.UpcallMembershipChangeCh:
 			vv("%v member sees membership upcall: '%v'", name, reply)
+		case untilTm := <-mem.OperatingLeaseRenewCh:
+			_ = untilTm
+			// have to service this, has a finite buffered channel.
+			//vv("%v member sees operLeaseUntilTm: '%v'", name, nice(untilTm))
 		}
 	}
 }
