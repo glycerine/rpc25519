@@ -7731,33 +7731,35 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	// going through pre-vote? not sure after we fixed
 	// the residual from previous leader with clearBatchToSubmit().
 	// comment out for now?
-	if s.haveStickyLeaderForAE(ae) {
-		if true {
-			ack := &AppendEntriesAck{
-				ClusterID:             s.ClusterID,
-				FromPeerID:            s.PeerID,
-				FromPeerName:          s.name,
-				FromPeerServiceName:   s.PeerServiceName,
-				Rejected:              true,
-				AEID:                  ae.AEID,
-				Term:                  s.state.CurrentTerm,
-				MinElectionTimeoutDur: s.cachedMinElectionTimeoutDur,
+	if false {
+		if s.haveStickyLeaderForAE(ae) {
+			if true {
+				ack := &AppendEntriesAck{
+					ClusterID:             s.ClusterID,
+					FromPeerID:            s.PeerID,
+					FromPeerName:          s.name,
+					FromPeerServiceName:   s.PeerServiceName,
+					Rejected:              true,
+					AEID:                  ae.AEID,
+					Term:                  s.state.CurrentTerm,
+					MinElectionTimeoutDur: s.cachedMinElectionTimeoutDur,
 
-				// For LargestCommonRaftIndex, lets declare that
-				// -1 means unknown, by the convention I just invented.
-				// I added this optimization (LargestCommonRaftIndex)
-				// for Tube, so this should serve to establish expectations.
-				LargestCommonRaftIndex: -1,
-				PeerMC:                 s.state.MC,
-				FollowerHLC:            s.hlc.ReceiveMessageWithHLC(ae.LeaderHLC),
+					// For LargestCommonRaftIndex, lets declare that
+					// -1 means unknown, by the convention I just invented.
+					// I added this optimization (LargestCommonRaftIndex)
+					// for Tube, so this should serve to establish expectations.
+					LargestCommonRaftIndex: -1,
+					PeerMC:                 s.state.MC,
+					FollowerHLC:            s.hlc.ReceiveMessageWithHLC(ae.LeaderHLC),
 
-				// note: leaves out SuppliedLeader, helps to see when handle ack
-				// does not convert to follower: tube.go:9774
-				// "ack has no SuppliedLeader" panic in handleAppendEntriesAck()
+					// note: leaves out SuppliedLeader, helps to see when handle ack
+					// does not convert to follower: tube.go:9774
+					// "ack has no SuppliedLeader" panic in handleAppendEntriesAck()
+				}
+				s.host.ackAE(ack, ae)
 			}
-			s.host.ackAE(ack, ae)
+			return // already logged.
 		}
-		return // already logged.
 	}
 
 	var ack *AppendEntriesAck
