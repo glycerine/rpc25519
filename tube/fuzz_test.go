@@ -1183,7 +1183,7 @@ func (s *fuzzUser) events2obsThenCheck(evs []porc.Event, totalStats *totalEventS
 	vv("user %v: len(ops)=%v passed linearizability checker.", s.name, len(ops))
 
 	// nothing much to see really.
-	writeToDiskOkOperations(s.t, s.name, ops) // not written yet.
+	//writeToDiskOkOperations(s.t, s.name, ops)
 }
 
 func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leaderURL string, domain int, domainSeen *sync.Map, domainLast *atomic.Int64) {

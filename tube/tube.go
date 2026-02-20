@@ -8332,7 +8332,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			// is committed, but did this _before_ we overwrote the
 			// old uncommitted log entry... overwrite entries should
 			// be allowed to replace previous term uncommitted entries.
-			// The *real* problem is that we are adjusting CommitIndex
+			// The *real* problem is that we are (update _were_) adjusting CommitIndex
 			// before we have done overwriteEntries, so the
 			// "current" curCommitIndex we pass them is...outdated.
 			// should we just pass prevci? we tried that, it seems
@@ -8345,7 +8345,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			// if keepCount < s.state.CommitIndex {
 			// now:
 			if keepCount < prevci {
-				panic(fmt.Sprintf("%v log violation: keepCount(%v) < prevci(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, prevci)) // log violation: keepCount(23) < prevci(24): overwriteEntries would kill a committed entry; scenario 10957
+				panic(fmt.Sprintf("%v log violation: keepCount(%v) < prevci(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, prevci)) // log violation: keepCount(23) < prevci(24): overwriteEntries would kill a committed entry; scenario 10957. log violation: keepCount(14) < prevci(17); scenario 37 with 40 steps.
 			}
 		}
 
