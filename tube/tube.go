@@ -5561,6 +5561,11 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		prior.LeaderLocalReadGoodUntil = tkt.LeaderLocalReadGoodUntil
 		prior.LeaderLocalReadAtTm = tkt.LeaderLocalReadAtTm
 		prior.LeaderLocalReadHLC = tkt.LeaderLocalReadHLC
+		prior.ClientLocalSubmitTm = tkt.ClientLocalSubmitTm
+
+		// CAS
+		prior.CASwapped = tkt.CASwapped
+		prior.CASRejectedBecauseCurVal = tkt.CASRejectedBecauseCurVal
 
 		prior.Stage += ":FinishTicket_prior_Val_written"
 		if prior.Done != nil {
@@ -10927,6 +10932,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.LeaderLocalReadGoodUntil = answer.LeaderLocalReadGoodUntil
 	question.LeaderLocalReadAtTm = answer.LeaderLocalReadAtTm
 	question.LeaderLocalReadHLC = answer.LeaderLocalReadHLC
+	question.ClientLocalSubmitTm = answer.ClientLocalSubmitTm
 
 	question.Stage += ":answerToQuestionTicket_append_answer" + answer.Stage
 }
@@ -11679,6 +11685,10 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 
 				tkt.PrevLeaseVal = priorTkt.PrevLeaseVal
 				tkt.PrevLeaseVtype = priorTkt.PrevLeaseVtype
+
+				// CAS
+				tkt.CASwapped = priorTkt.CASwapped
+				tkt.CASRejectedBecauseCurVal = priorTkt.CASRejectedBecauseCurVal
 
 				// READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
 				tkt.KeyValRangeScan = priorTkt.KeyValRangeScan

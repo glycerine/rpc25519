@@ -1439,8 +1439,8 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 				time.Sleep(time.Second)
 				return // TODO: can we keep session live across leader change.
 
-			case strings.Contains(errs, "context canceled"): // every time?!?! why?
-				//vv("%v sees context canceled for s.sess.CAS() ", s.name) // seen ever time
+			case strings.Contains(errs, "context canceled"):
+				//vv("%v sees context canceled for s.sess.CAS() ", s.name)
 				//err = ErrNeedNewSession
 				//return
 				fallthrough
@@ -2207,8 +2207,9 @@ type casInput struct {
 }
 
 type casOutput struct {
-	id       int
-	op       stringRegisterOp
+	id int
+	op stringRegisterOp
+
 	swapped  bool   // used for CAS
 	notFound bool   // used for read
 	valueCur string // for read/when cas rejects
