@@ -6299,35 +6299,37 @@ func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64, logHLC HLC) *R
 }
 
 // very similar to tellClientsImNotLeader()
-func (s *TubeNode) clearBatchToSubmit() {
-	for _, tkt := range s.batchToSubmit {
-		tkt.Stage += ":clearBatchToSubmit_"
+func (s *TubeNode) clearBatchToSubmit(tellClients bool) {
+	if tellClients {
+		for _, tkt := range s.batchToSubmit {
+			tkt.Stage += ":clearBatchToSubmit_"
 
-		frag := s.newFrag()
-		frag.FragOp = TellClientSteppedDown
-		frag.FragSubject = "TellClientSteppedDown"
-		bts, err := tkt.MarshalMsg(nil)
-		panicOn(err)
-		frag.Payload = bts
+			frag := s.newFrag()
+			frag.FragOp = TellClientSteppedDown
+			frag.FragSubject = "TellClientSteppedDown"
+			bts, err := tkt.MarshalMsg(nil)
+			panicOn(err)
+			frag.Payload = bts
 
-		frag.SetUserArg("leaderID", s.leaderID)
-		frag.SetUserArg("leaderName", s.leaderName)
-		frag.SetUserArg("leaderURL", s.leaderURL)
+			frag.SetUserArg("leaderID", s.leaderID)
+			frag.SetUserArg("leaderName", s.leaderName)
+			frag.SetUserArg("leaderURL", s.leaderURL)
 
-		// in tellClientsImNotLeader, so definitely cktall not cktReplica.
-		cktP, ok := s.cktall[tkt.FromID]
-		if !ok {
-			//vv("%v don't know how to contact '%v' to fwd tkt in respondToClientTicketApplied. Assuming they died.", s.me(), tkt.FromID)
-			tkt.Stage += "_ckt_not_ok_for_tkt_FromID"
-			continue
-		}
-		ckt := cktP.ckt
-		tkt.Stage += "_SendOneWay"
+			// in tellClientsImNotLeader, so definitely cktall not cktReplica.
+			cktP, ok := s.cktall[tkt.FromID]
+			if !ok {
+				//vv("%v don't know how to contact '%v' to fwd tkt in respondToClientTicketApplied. Assuming they died.", s.me(), tkt.FromID)
+				tkt.Stage += "_ckt_not_ok_for_tkt_FromID"
+				continue
+			}
+			ckt := cktP.ckt
+			tkt.Stage += "_SendOneWay"
 
-		err = s.SendOneWay(ckt, frag, -1, 0)
-		_ = err // don't panic on halting.
-		if err != nil {
-			alwaysPrintf("%v non nil error '%v' on clearBatchToSubmit: TellClientSteppedDown to '%v'", s.me(), err, ckt.RemotePeerID)
+			err = s.SendOneWay(ckt, frag, -1, 0)
+			_ = err // don't panic on halting.
+			if err != nil {
+				alwaysPrintf("%v non nil error '%v' on clearBatchToSubmit: TellClientSteppedDown to '%v'", s.me(), err, ckt.RemotePeerID)
+			}
 		}
 	}
 	s.batchToSubmit = nil
@@ -6340,7 +6342,7 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 
 	//vv("%v top of replicateBatch with %v in batch", s.me(), len(s.batchToSubmit))
 	batch := s.batchToSubmit
-	s.clearBatchToSubmit()
+	s.clearBatchToSubmit(false)
 	if len(batch) == 0 {
 		return
 	}
@@ -6448,11 +6450,12 @@ const SKIP_SAVE = false
 func (s *TubeNode) becomeFollower(term int64, mc *MemberConfig, save bool) {
 	//vv("%v becomeFollower. new term = %v. was: %v; stack=\n%v", s.me(), term, s.state.CurrentTerm, stack())
 	if s.role == LEADER {
+		// call clearBatchToSubmit() below after
+		// we update the leader meta data to not convey
+		// the wrong leader info to waiting clients.
 		s.lastLeaderActiveStepDown = time.Now()
-		// important to avoid re-submitting/replicating previous
-		// part of a batch that previous leader never got to.
-		s.clearBatchToSubmit()
 	}
+
 	if term < s.state.CurrentTerm {
 		// we cannot allow follower to stay follower
 		// even at current term, because we clear our votes below!
@@ -6519,6 +6522,16 @@ func (s *TubeNode) becomeFollower(term int64, mc *MemberConfig, save bool) {
 	s.resetElectionTimeout("becomeFollower")
 	// stale out any in-progress pre-vote that is racing.
 	s.resetPreVoteState(false, true) // in becomeFollower().
+
+	// important to avoid auto-re-submitting/replicating previous
+	// part of a batch that previous leader never got to,
+	// because it will then create log divergence which
+	// went undetected for quite a while because the term
+	// number was updated to the current term but really
+	// the ticket was submitted under the previous term
+	// just held watiting in s.batchToSubmit.
+	tellClientsToResubmit := (oldRole == LEADER)
+	s.clearBatchToSubmit(tellClientsToResubmit)
 
 	// must persist our CurrentTerm to disk.
 	if save {

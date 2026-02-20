@@ -1499,6 +1499,10 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 
 		oldString: oldValStr,
 		newString: newValStr,
+
+		LogIndex: tktW.LogIndex,
+		LogTerm:  tktW.Term,
+		Leader:   tktW.LeaderName,
 	}
 	resultEvent := porc.Event{
 		Ts:       time.Now().UnixNano(),
@@ -1630,6 +1634,9 @@ func (s *fuzzUser) Read(key string) (val Val, redir *LeaderRedirect, err error) 
 			op:       STRING_REGISTER_GET,
 			id:       eventID,
 			valueCur: string(val),
+			LogIndex: tkt.LogIndex,
+			LogTerm:  tkt.Term,
+			Leader:   tkt.LeaderName,
 		},
 	}
 
@@ -2166,181 +2173,6 @@ func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]b
 	return
 }
 
-/* do not uncomment Test099, since it uses a custom
-derivative of Go called Pont that implements the runtime.ResetDsimSeed(),
-and this is not available in regular Go. Extend or copy Test101 instead.
-func Test099_fuzz_testing_linz(t *testing.T) {
-
-	return
-	// need to implement API like tup to restart/timeout sessions
-	// and retry as a client api. See tube/cmd/tup/tup.go
-
-	runtime.GOMAXPROCS(1)
-
-	// automatically available after 1.25
-	// GOEXPERIMENT=synctest
-	//
-	// GODEBUG=asyncpreemptoff=1
-	// how can we turn off sysmon at runtime?
-	//
-	// set with runtime.ResetDsimSeed(seed) below
-	// GO_DSIM_SEED = 1
-
-	defer func() {
-		vv("test 099 wrapping up.")
-	}()
-
-	maxScenario := 1
-	for scenario := 0; scenario < maxScenario; scenario++ {
-
-		seedString := fmt.Sprintf("%v", scenario)
-
-		seed, seedBytes := parseSeedString(seedString)
-		if int(seed) != scenario {
-			panicf("got %v, wanted same scenario number back %v", int(seed), scenario)
-		}
-
-		// if we were starting a new live Go process from
-		// scratch we would want to do this:
-		//os.Setenv("GO_DSIM_SEED", seedString)
-		// but...
-		// since we are not staring a new process,
-		// we still try to control the
-		// runtime's initialization with the seed; i.e.
-		// we are already running here!
-		runtime.ResetDsimSeed(seed)
-
-		rng := newPRNG(seedBytes)
-		rnd := rng.pseudoRandNonNegInt64Range
-
-		var ops []porc.Operation
-
-		onlyBubbled(t, func(t *testing.T) {
-
-			steps := 20
-			_ = steps
-			numNodes := 3
-
-			forceLeader := 0
-			c, leader, leadi, maxterm := setupTestCluster(t, numNodes, forceLeader, 99)
-			_, _, _ = leader, leadi, maxterm
-			defer c.Close()
-
-			user := &fuzzUser{
-				rnd:  rnd,
-				clus: c,
-			}
-			sess, err := c.Nodes[0].CreateNewSession(bkg, c.Nodes[0].URL)
-			panicOn(err)
-			user.sess = sess
-
-			nemesis := &fuzzNemesis{
-				rng:     rng,
-				rnd:     rnd,
-				clus:    c,
-				damaged: make(map[int]int),
-			}
-			_ = user
-			_ = nemesis
-
-			key := "key10"
-
-			jnode := int(rnd(int64(numNodes)))
-			user.Read(key, jnode)
-
-			writeMe := 10
-			user.Write(key, writeMe)
-
-			nemesis.makeTrouble()
-
-			jnode2 := int(rnd(int64(numNodes)))
-			user.Read(key, jnode2)
-
-			ops = user.evs
-		})
-
-		linz := porc.CheckOperations(registerModel, ops)
-		if !linz {
-			writeToDiskNonLinz(t, ops)
-			t.Fatalf("error: expected operations to be linearizable! seed='%v'; ops='%v'", seed, opsSlice(ops))
-		}
-
-		vv("len(ops)=%v passed linearizability checker.", len(ops))
-	}
-}
-*/
-
-/*
-// GOEXPERIMENT=synctest GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 go test -v -run 299 -count=1
-
-	func Test299_ResetDsimSeed(t *testing.T) {
-		//return
-
-		// tried turning off garbage collection -- we still get non-determinism under
-		// GODEBUG=asyncpreemptoff=1 GO_DSIM_SEED=1 GOEXPERIMENT=synctest go test -v -run 299_ResetDsim -trace=trace.out
-		// GODEBUG=asyncpreemptoff=1,gctrace=1 GO_DSIM_SEED=1 GOEXPERIMENT=synctest go test -v -run 299_ResetDsim -trace=trace.out
-		//
-		//debug.SetMemoryLimit(math.MaxInt64)
-		//debug.SetGCPercent(-1)
-		//vv("turned off garbage collection. now.")
-
-		onlyBubbled(t, func(t *testing.T) {
-			// try to provoke races
-			vv("begin 299")
-
-			//trace.Start()
-			//defer trace.Stop()
-
-			runtime.ResetDsimSeed(1)
-
-			N := uint64(100)
-
-			ma := make(map[int]int)
-			for k := range 10 {
-				ma[k] = k
-			}
-			sam := make([][]int, 3)
-
-			for i := range 3 {
-				runtime.ResetDsimSeed(uint64(i))
-				for k := range ma {
-					sam[i] = append(sam[i], k)
-				}
-				vv("sam[%v] = '%#v'", i, sam[i])
-			}
-
-			ctx, task := trace.NewTask(bkg, "i_loop")
-			defer task.End()
-
-			for i := uint64(0); i < N; i++ {
-
-				for j := range 10 { // _000 {
-					seed := j % 3
-
-					trace.Log(ctx, "i_j_iter", fmt.Sprintf("have i=%v; j=%v", i, j))
-
-					trace.WithRegion(ctx, "one_map_iter", func() {
-
-						runtime.ResetDsimSeed(uint64(seed))
-
-						ii := 0
-						for k := range ma {
-							if k != sam[seed][ii] {
-								// get timestamp since synctest controls clock.
-								vv("disagree on seed=%v;  i = %v; ii=%v; k=%v but.. sam[i] = %v (at j=%v); runtime.JeaCounter() = %v", seed, i, ii, k, sam[seed][ii], j, runtime.JeaRandCallCounter())
-
-								panicf("disagree on seed=%v;  i = %v; ii=%v; k=%v but sam[i] = %v (at j=%v)", seed, i, ii, k, sam[seed][ii], j)
-							}
-							ii++
-						}
-					})
-
-				}
-			}
-		})
-	}
-*/
-
 // string register with CAS (compare and swap)
 
 type stringRegisterOp int
@@ -2386,6 +2218,10 @@ type casOutput struct {
 
 	phantom bool
 	sessSN  int64
+
+	LogIndex int64
+	LogTerm  int64
+	Leader   string
 }
 
 func (o *casOutput) String() string {
@@ -2498,16 +2334,16 @@ var stringCasModel = porc.Model{
 			} else {
 				r = fmt.Sprintf("'%v'", out.valueCur)
 			}
-			return fmt.Sprintf("get() -> %v", r)
+			return fmt.Sprintf("get() -> %v [logIdx:%v term:%v leader:%v eventID:%v]", r, out.LogIndex, out.LogTerm, out.Leader, out.id)
 		case STRING_REGISTER_PUT:
-			return fmt.Sprintf("put('%v')", inp.newString)
+			return fmt.Sprintf("put('%v') [logIdx:%v term:%v leader:%v eventID:%v]", inp.newString, out.LogIndex, out.LogTerm, out.Leader, out.id)
 
 		case STRING_REGISTER_CAS:
 
 			if out.swapped {
-				return fmt.Sprintf("CAS(ok: '%v' ->'%v')", inp.oldString, inp.newString)
+				return fmt.Sprintf("CAS(ok: '%v' ->'%v')[logIdx:%v term:%v leader:%v eventID:%v]", inp.oldString, inp.newString, out.LogIndex, out.LogTerm, out.Leader, out.id)
 			}
-			return fmt.Sprintf("CAS(rejected:old '%v' != cur '%v')", inp.oldString, out.valueCur)
+			return fmt.Sprintf("CAS(rejected:old '%v' != cur '%v')[logIdx:%v term:%v leader:%v eventID:%v]", inp.oldString, out.valueCur, out.LogIndex, out.LogTerm, out.Leader, out.id)
 		}
 		panic(fmt.Sprintf("invalid inp.op! '%v'", int(inp.op)))
 		return "<invalid>" // unreachable
