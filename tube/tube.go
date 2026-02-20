@@ -7689,26 +7689,6 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 	}
 }
 
-func (s *TubeNode) haveStickyLeaderForAE(ae *AppendEntries) bool {
-	if s.role == LEADER {
-		if s.state.CurrentTerm > ae.LeaderTerm {
-			vv("%v sticky-leader true: myself am leader(term %v) reject AE ; reject ae from '%v' (at ae.LeaderTerm=%v)", s.me(), s.state.CurrentTerm, ae.FromPeerName, ae.LeaderTerm)
-			return true
-		}
-	}
-	if s.leaderName != "" && s.leaderID != "" &&
-		ae.FromPeerID != s.leaderID {
-		denyAfterIfLeaderSeen := time.Now().Add(-s.minElectionTimeoutDur() - s.cfg.ClockDriftBound)
-		if s.lastLegitAppendEntries.After(denyAfterIfLeaderSeen) {
-			if s.state.CurrentTerm > ae.LeaderTerm {
-				vv("%v sticky-leader true b/c saw leader '%v'; '%v' ago: drop AE.FromPeerName ('%v') pretend ae.LeaderName ('%v') with ae.LeaderTerm='%v': reject", s.me(), s.leaderName, time.Since(s.lastLegitAppendEntries), ae.FromPeerName, ae.LeaderName, ae.LeaderTerm)
-			}
-			return true
-		}
-	}
-	return false
-}
-
 // AppendEntries has:
 // Term
 // PrevLogIndex // index of log entry immediately preceeding new ones
@@ -7724,43 +7704,6 @@ func (s *TubeNode) haveStickyLeaderForAE(ae *AppendEntries) bool {
 // in its log, it ignores those entries in the new request."
 // So we must be idempotent.
 func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (numOverwrote, numTruncated, numAppended int64) {
-
-	// must we implement sticky leader, or else a recently
-	// partitioned and deposed leader can unpartition and
-	// hit us with an AE, converting us without even
-	// going through pre-vote? not sure after we fixed
-	// the residual from previous leader with clearBatchToSubmit().
-	// comment out for now?
-	if false {
-		if s.haveStickyLeaderForAE(ae) {
-			if true {
-				ack := &AppendEntriesAck{
-					ClusterID:             s.ClusterID,
-					FromPeerID:            s.PeerID,
-					FromPeerName:          s.name,
-					FromPeerServiceName:   s.PeerServiceName,
-					Rejected:              true,
-					AEID:                  ae.AEID,
-					Term:                  s.state.CurrentTerm,
-					MinElectionTimeoutDur: s.cachedMinElectionTimeoutDur,
-
-					// For LargestCommonRaftIndex, lets declare that
-					// -1 means unknown, by the convention I just invented.
-					// I added this optimization (LargestCommonRaftIndex)
-					// for Tube, so this should serve to establish expectations.
-					LargestCommonRaftIndex: -1,
-					PeerMC:                 s.state.MC,
-					FollowerHLC:            s.hlc.ReceiveMessageWithHLC(ae.LeaderHLC),
-
-					// note: leaves out SuppliedLeader, helps to see when handle ack
-					// does not convert to follower: tube.go:9774
-					// "ack has no SuppliedLeader" panic in handleAppendEntriesAck()
-				}
-				s.host.ackAE(ack, ae)
-			}
-			return // already logged.
-		}
-	}
 
 	var ack *AppendEntriesAck
 	// the first Extends call reponses, so we can assert
