@@ -17446,7 +17446,7 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 // called when <-s.ApplyNewStateSnapshotCh; and when
 // above handleStateSnapshotEnclosed.
 func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
-	vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; state2.KVstore='%v'\n(state2.LastApplied='%v' state2.LastAppliedTerm='%v')\n( state.LastApplied='%v'  state.LastAppliedTerm='%v')", s.me(), caller, s.state.CommitIndex, state2.CommitIndex, state2.KVstore.String(), state2.LastApplied, state2.LastAppliedTerm, s.state.LastApplied, s.state.LastAppliedTerm)
+	//vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; state2.KVstore='%v'\n(state2.LastApplied='%v' state2.LastAppliedTerm='%v')\n( state.LastApplied='%v'  state.LastAppliedTerm='%v')", s.me(), caller, s.state.CommitIndex, state2.CommitIndex, state2.KVstore.String(), state2.LastApplied, state2.LastAppliedTerm, s.state.LastApplied, s.state.LastAppliedTerm)
 
 	if false {
 		if state2.KVstore != nil {
@@ -17554,7 +17554,7 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	s.wal.installedSnapshot(s.state)
 	s.assertCompactOK()
 
-	vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v ; wal.llt=%v; kv='%v'", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli, s.wal.llt, s.state.KVstore.String())
+	//vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v ; wal.llt=%v; kv='%v'", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli, s.wal.llt, s.state.KVstore.String())
 }
 
 // properly set CompactionDiscardedLastIndex/Term
