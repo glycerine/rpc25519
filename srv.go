@@ -2385,7 +2385,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		}
 		select { // hung here 1 minute on tube/fuzz_test scenario 3934
 		case cli.garbageCollectThisRwPairCh <- gcMe:
-		case <-cli.halt.ReqStop:
+		case <-cli.halt.ReqStop.Chan:
 			// cli send loop is gone, garbageCollectThisRwPairCh will
 			// never be serviced.
 			return
