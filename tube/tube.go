@@ -10952,6 +10952,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 	question.LeaderLocalReadAtTm = answer.LeaderLocalReadAtTm
 	question.LeaderLocalReadHLC = answer.LeaderLocalReadHLC
 	question.ClientLocalSubmitTm = answer.ClientLocalSubmitTm
+	question.LeaderName = answer.LeaderName
 
 	question.Stage += ":answerToQuestionTicket_append_answer" + answer.Stage
 }
@@ -11717,6 +11718,8 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 				tkt.DupDetected = true
 				tkt.LogIndex = priorTkt.LogIndex
 				tkt.Term = priorTkt.Term
+				tkt.LeaderName = s.name // priorTkt.LeaderName
+
 				// is above already: tkt.AsOfLogIndex = priorTkt.AsOfLogIndex
 
 				//vv("%v: in leaderServedLocalRead() dedup: returning previous read", s.me())
@@ -16254,6 +16257,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (doneEarly, needSa
 		tkt.Term = priorTkt.Term
 		tkt.AsOfLogIndex = priorTkt.AsOfLogIndex
 		tkt.HighestSerialSeenFromClient = ste.HighestSerialSeenFromClient
+		tkt.LeaderName = s.name // priorTkt.LeaderName
 
 		s.respondToClientTicketApplied(tkt)
 		doneEarly = true
