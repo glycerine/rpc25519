@@ -1169,14 +1169,16 @@ func (s *fuzzUser) events2obsThenCheck(evs []porc.Event, totalStats *totalEventS
 		panicf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
 	}
 
-	for i := range s.clus.Nodes {
-		dump := fmt.Sprintf("test101fuzz_test.wal.dump.%v.green", i)
-		alwaysPrintf("yes linz, and still wal dumped to '%v'\n", dump)
-		fd, err := os.Create(dump)
-		panicOn(err)
-		err = s.clus.Nodes[i].DumpRaftWAL(fd)
-		fd.Close()
-		panicOn(err)
+	if false {
+		for i := range s.clus.Nodes {
+			dump := fmt.Sprintf("test101fuzz_test.wal.dump.%v.green", i)
+			alwaysPrintf("yes linz, and still wal dumped to '%v'\n", dump)
+			fd, err := os.Create(dump)
+			panicOn(err)
+			err = s.clus.Nodes[i].DumpRaftWAL(fd)
+			fd.Close()
+			panicOn(err)
+		}
 	}
 	vv("user %v: len(ops)=%v passed linearizability checker.", s.name, len(ops))
 
@@ -1885,7 +1887,7 @@ func Test101_userFuzz(t *testing.T) {
 		// seed 0, 5 nodes in cluster
 		// 20 users, 1000 steps => 10458 ops. (10.71s with prints quiet)
 		// same, but ten seeds 0-9: green, 88 seconds.
-		steps := 20 // 1000 ok. 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
+		steps := 30 // 1000 ok. 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
 		numNodes := 3
 		// numUsers of 20 ok at 200 steps, but 30 users is
 		// too much for porcupine at even just 30 steps.
