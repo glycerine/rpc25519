@@ -1392,7 +1392,8 @@ type peerAPI struct {
 
 	// where is mut used: StartLocalPeer holds it...
 	// all while doing its thing. Hence need fragMut separately.
-	mut sync.Mutex
+	//mut sync.Mutex
+	chanmut chan bool
 
 	// lock over the recycled frag to prevent data race.
 	fragMut      sync.Mutex
@@ -1431,6 +1432,7 @@ type peerAPI struct {
 func newPeerAPI(u UniversalCliSrv, isCli, isSim bool, baseServerName, baseServerAddr string) (a *peerAPI) {
 	hostname, _ := os.Hostname()
 	a = &peerAPI{
+		chanmut:             make(chan bool, 1),
 		u:                   u,
 		localServiceNameMap: NewMutexmap[string, *knownLocalPeer](),
 		isCli:               isCli,
@@ -1440,7 +1442,7 @@ func newPeerAPI(u UniversalCliSrv, isCli, isSim bool, baseServerName, baseServer
 		hostname:            hostname,
 		pid:                 fmt.Sprintf("%v", os.Getpid()),
 	}
-
+	a.chanmut <- true // unlock it
 	switch x := u.(type) {
 	case *Server:
 		if isCli {
@@ -1547,9 +1549,21 @@ func (p *peerAPI) StartLocalPeer(
 
 ) (lpb *LocalPeer, err error) {
 
-	p.mut.Lock()
-	defer p.mut.Unlock()
-
+	//p.mut.Lock()
+	//defer p.mut.Unlock()
+	hhalt := p.u.GetHostHalter()
+	select {
+	case <-p.chanmut: // lock
+	case <-ctx.Done():
+		err = ctx.Err()
+		return
+	case <-hhalt.ReqStop.Chan:
+		err = ErrShutdown()
+		return
+	}
+	defer func() {
+		p.chanmut <- true // unlock
+	}()
 	return p.unlockedStartLocalPeer(ctx, peerServiceName, peerServiceNameVersion, requestedCircuit, false, nil, "", peerName, onOriginLocalSide, preferExtant)
 }
 
@@ -1839,11 +1853,23 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	// before calling into lpb.provideRemoteOnNewCircuitCh
 	// where after lpb.NewCircuitCh <- ckt: the
 	// case ckt.Reads <- asFrag: might be blocked away on the pump.
-	s.mut.Lock() // wait 2 sec stacks show a wait here vs :1366 StartLocalPeer top
+	//s.mut.Lock() // wait 2 sec stacks show a wait here vs :1366 StartLocalPeer top
+	hhalt := s.u.GetHostHalter()
+	select {
+	case <-s.chanmut: // lock
+	case <-ctx.Done():
+		err0 = ctx.Err()
+		return
+	case <-hhalt.ReqStop.Chan:
+		err0 = ErrShutdown()
+		return
+	}
+
 	var skipUnlock bool
 	defer func() {
 		if !skipUnlock {
-			s.mut.Unlock()
+			//s.mut.Unlock()
+			s.chanmut <- true
 		}
 	}()
 
@@ -2050,14 +2076,14 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	// unlock s.mut before doing
 	// so potentially long blocking <-ckt and read <- frag stuff;
 	// in an attempt to avoid the 2 sec pump apparent deadlock.
-	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID, onRemote2ndSide, preferExtant, &s.mut, &skipUnlock)
+	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID, onRemote2ndSide, preferExtant, s.chanmut, &skipUnlock)
 }
 
 // called just above :1833 in bootstrapCircuit() which holds lpb.mut;
 // and :1459 unlockedStartLocalPeer() which is called
 // from two places :1369 (StartLocalPeer, which holds mut at top),
 // :1778 (bootstrapCircuit, which as in the first case, holds mut).
-func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh *LoopComm, isUpdatedPeerID bool, isRemoteSide onRemoteSideVal, preferExtant bool, callerMut *sync.Mutex, callerSkipUnlock *bool) error {
+func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh *LoopComm, isUpdatedPeerID bool, isRemoteSide onRemoteSideVal, preferExtant bool, callerMut chan bool, callerSkipUnlock *bool) error {
 	rpb := &RemotePeer{
 		LocalPeer: lpb,
 		PeerID:    msg.HDR.FromPeerID,
@@ -2115,7 +2141,8 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 	// does not need a second step to call IncommingCircuit!
 	if callerSkipUnlock != nil && callerMut != nil {
 		*callerSkipUnlock = true
-		(*callerMut).Unlock()
+		//(*callerMut).Unlock()
+		callerMut <- true
 	}
 	select {
 	case sendCh.cktServedAdd <- ckt:
