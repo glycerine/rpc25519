@@ -31,7 +31,8 @@ import (
 	"github.com/glycerine/rpc25519/selfcert"
 	"github.com/quic-go/quic-go"
 	"golang.org/x/crypto/hkdf"
-	"golang.org/x/time/rate"
+	//"golang.org/x/time/rate"
+	"github.com/glycerine/rate"
 )
 
 var _ = cryrand.Read
@@ -460,7 +461,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 
 		// Apply rate limit, if configured.
 		if c.rateLimiter != nil {
-			if err := c.rateLimiter.Wait(ctx); err != nil {
+			if err := c.rateLimiter.Wait(c.halt.ReqStop.Chan, ctx); err != nil {
 				// ctx has been cancelled (or over deadline).
 				return
 			}

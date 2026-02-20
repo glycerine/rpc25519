@@ -28,7 +28,9 @@ import (
 	"github.com/glycerine/rpc25519/selfcert"
 	"github.com/quic-go/quic-go"
 	"golang.org/x/net/netutil" // for LimitListener
-	"golang.org/x/time/rate"   // for rate.Limiter
+
+	//"golang.org/x/time/rate"   // for rate.Limiter
+	"github.com/glycerine/rate"
 )
 
 var _ = os.MkdirAll
@@ -720,7 +722,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		// Apply rate limit, if configured.
 		if s.rateLimiter != nil {
-			if err := s.rateLimiter.Wait(ctx); err != nil {
+			if err := s.rateLimiter.Wait(s.halt.ReqStop.Chan, ctx); err != nil {
 				// ctx has been cancelled (or over deadline).
 				return
 			}

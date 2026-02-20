@@ -19,6 +19,7 @@ require (
 	github.com/glycerine/loquet v0.0.19
 	github.com/glycerine/parallelwalk v0.3.1
 	github.com/glycerine/porcupine v1.2.8-jea
+	github.com/glycerine/rate v0.0.1
 	github.com/glycerine/rbtree v0.2.1
 	github.com/glycerine/restic-chunker-mod v0.5.0
 	github.com/glycerine/zygomys/v9 v9.1.2
