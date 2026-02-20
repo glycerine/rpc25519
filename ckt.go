@@ -684,6 +684,10 @@ func (ckt *Circuit) SendOneWay(frag *Fragment, errWriteDur time.Duration, keepFr
 // the same fragment to many destinations.
 func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Duration, keepFragIfPositive int) (madeNewAutoCli bool, err error) {
 
+	if frag.Serial == 34 {
+		vv("SendOneWay sending frag.Serial 34; stack = %v; frag='%v'; ckt='%v'; LocalPeer='%v'", stack(), frag, ckt, s)
+	}
+
 	// regular quick check if shutdown is requested.
 	select {
 	case <-s.Halt.ReqStop.Chan:
@@ -706,13 +710,15 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 	frag.CircuitID = ckt.CircuitID
 
 	frag.FromPeerID = ckt.LocalPeerID
-	if frag.FromPeerName == "" {
-		frag.FromPeerName = ckt.LocalPeerName
-	}
+	//if frag.FromPeerName == "" {
+	//if ckt.LocalPeerName != "" {
+	frag.FromPeerName = ckt.LocalPeerName
+	//}
 	frag.ToPeerID = ckt.RemotePeerID
-	if frag.ToPeerName == "" {
-		frag.ToPeerName = ckt.RemotePeerName
-	}
+	//if frag.ToPeerName == "" {
+	//if ckt.RemotePeerName != "" {
+	frag.ToPeerName = ckt.RemotePeerName
+	//}
 	if frag.ToPeerServiceName == "" {
 		frag.ToPeerServiceName = ckt.RemoteServiceName
 	}

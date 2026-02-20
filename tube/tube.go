@@ -1587,6 +1587,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				return err
 			}
 			if ckt2 != nil && !sentOnNewCkt {
+
 				err := s.handleNewCircuit(ckt2, done0, arrivingNetworkFrag, cktHasError, cktHasDied)
 				if err != nil {
 					return err
@@ -2122,7 +2123,7 @@ func (s *TubeNode) handleNewCircuit(
 	if ckt.RemotePeerName == "" {
 		panic(fmt.Sprintf("cannot have ckt.RemotePeerName empty: ckt='%v'", ckt))
 	}
-	//vv("%v top handleNewCircuit ckt from '%v'", s.name, ckt.RemotePeerName)
+	//vv("%v top handleNewCircuit ckt from '%v' (RemotePeerID='%v')", s.name, ckt.RemotePeerName, ckt.RemotePeerID)
 
 	// below we work hard to distinguish
 	// replicas (that participate as Raft nodes)
@@ -8586,6 +8587,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 func (s *TubeNode) ackAE(ack *AppendEntriesAck, ae *AppendEntries) {
 	ackFrag := s.newFrag()
+	vv("%v ackAE replying to ae.FromPeerName = '%v; ae.FromPeerID='%v'", s.me(), ae.FromPeerName, ae.FromPeerID)
 	bts, err := ack.MarshalMsg(nil)
 	panicOn(err)
 	ackFrag.Payload = bts
@@ -8599,6 +8601,13 @@ func (s *TubeNode) ackAE(ack *AppendEntriesAck, ae *AppendEntries) {
 		return
 	}
 	ckt := cktP.ckt
+	if ckt.RemotePeerID != ae.FromPeerID {
+		panicf("ckt.RemotePeerID(%v) != ae.FromPeerID(%v) ; ckt = '%v'; ackFrag='%v'", ckt.RemotePeerID, ae.FromPeerID, ckt, ackFrag)
+	}
+	if ckt.LocalPeerID != s.PeerID {
+		panicf("ckt.LocalPeerID(%v) != s.PeerID(%v) ; ckt = '%v'; ackFrag='%v'", ckt.LocalPeerID, s.PeerID, ckt, ackFrag)
+	}
+
 	err = s.SendOneWay(ckt, ackFrag, -1, 0)
 	_ = err // don't panic on halting.
 	if err != nil {
@@ -9032,9 +9041,9 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 
 			// this looked like a simple re-direct; a client tried to
 			// start a new session, the frag was forwarded to the leader
-			// instead of a follower. Let's try not freaking out.
+			// instead of a follower. But... let's make sure!
 
-			if false {
+			if true {
 				if frag.FragSubject == "RedirectTicketToLeader" {
 					tmpTkt := &Ticket{}
 					_, err := tmpTkt.UnmarshalMsg(frag.Payload)
@@ -9043,7 +9052,7 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 
 				}
 				vv("%v: %v sanity check failed, frag should be from ckt. frag.FromPeerID='%v' but ckt.RemotePeerID='%v'; \n frag='%v'\n ckt = '%v'", s.me(), nice(time.Now()), peer, ckt.RemotePeerID, frag, ckt) // just saw again.
-				panic("fix this mis-directed packet!")
+				panic("fix this mis-directed fragment!")
 			}
 		}
 	}
@@ -15888,7 +15897,7 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderName, leaderURL s
 		return
 	}
 
-	select { // tup linz hung here. tup hung here on simple startup. in CreateNewSession.
+	select { // tup linz hung here. tup hung here on simple startup. in CreateNewSession. fuzz 101 seed 0 hung here; 40 steps/3 nodes/3 users.
 	case <-tkt.Done.Chan: // waits for completion
 		err = tkt.Err
 		r = tkt.NewSessReply

@@ -154,9 +154,10 @@ var lastSerialPrivate int64
 
 func issueSerial() (cur int64) {
 	cur = atomic.AddInt64(&lastSerialPrivate, 1)
-	//if cur == 11 {
-	//	vv("here is serial 11 stack \n'%v'", stack())
-	//}
+	if cur == 34 {
+		vv("here is serial 34 stack \n'%v'", stack())
+		//panic("where Serial 34 miss-directed frag?")
+	}
 	return
 }
 
