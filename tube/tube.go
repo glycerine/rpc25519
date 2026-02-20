@@ -8345,6 +8345,9 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			// if keepCount < s.state.CommitIndex {
 			// now:
 			if keepCount < prevci {
+				vv("%v about to panic on log violation, here is our WAL for reference", s.me())
+				s.DumpRaftWAL(nil)
+				vv("%v and now here is the log violation panic:", s.name)
 				panic(fmt.Sprintf("%v log violation: keepCount(%v) < prevci(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, prevci)) // log violation: keepCount(23) < prevci(24): overwriteEntries would kill a committed entry; scenario 10957. log violation: keepCount(14) < prevci(17); scenario 37 with 40 steps.
 			}
 		}
