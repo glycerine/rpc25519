@@ -1987,6 +1987,7 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 	}
 
 	p.halt = idem.NewHalterNamed(fmt.Sprintf("Server.rwPair(%p)", p))
+	s.halt.AddChild(p.halt)
 	p.keepAliveMsg.HDR.Typ = CallKeepAlive
 	p.keepAliveMsg.HDR.Subject = p.epochV.EpochTieBreaker
 
@@ -2757,6 +2758,11 @@ func (s *Server) Close() error {
 	for _, cli := range s.autoClients {
 		cli.Close()
 	}
+	s.pair2remote.Update(func(m map[*rwPair]string) {
+		for pair := range m {
+			pair.halt.RequestStop()
+		}
+	})
 	s.mut.Unlock()
 	<-s.halt.Done.Chan // 101_gosimnet_basics blocked here on shutdown without the StopTreeAndWaitTilDone() above.
 
