@@ -139,7 +139,7 @@ type sharedEvents struct {
 type fuzzUser struct {
 	atomicLastEventID *atomic.Int64
 	t                 *testing.T
-	seed              uint64
+	seed              int
 	name              string
 	userid            int
 
@@ -1861,11 +1861,11 @@ func Test101_userFuzz(t *testing.T) {
 
 		seedString := fmt.Sprintf("%v", scenario)
 		seed, seedBytes := parseSeedString(seedString)
-
+		intSeed := int(seed)
 		//runtime.ResetDsimSeed(seed)
 
-		if int(seed) != scenario {
-			panicf("got %v, wanted same scenario number back %v", int(seed), scenario)
+		if intSeed != scenario {
+			panicf("got %v, wanted same scenario number back %v", intSeed, scenario)
 		}
 		rng := newPRNG(seedBytes)
 		rnd := rng.pseudoRandNonNegInt64Range
@@ -1913,6 +1913,14 @@ func Test101_userFuzz(t *testing.T) {
 			leaderURL := c.Nodes[leadi].URL
 			defer c.Close()
 
+			//const skipTrafficTrue = true
+			//snap := s.clus.SimnetSnapshot(skipTrafficTrue)
+			sim := c.Nodes[0].cfg.RpcCfg.GetSimnet()
+			if sim == nil {
+				panic("why could not get simnet?")
+			}
+			sim.SimpleNewScenario(intSeed)
+
 			nemesis := &fuzzNemesis{
 				rng:          rng,
 				rnd:          rnd,
@@ -1937,7 +1945,7 @@ func Test101_userFuzz(t *testing.T) {
 					atomicLastEventID: atomicLastEventID,
 					shEvents:          shEvents,
 					t:                 t,
-					seed:              seed,
+					seed:              intSeed,
 					name:              fmt.Sprintf("user%v", userNum),
 					userid:            userNum,
 					numNodes:          numNodes,

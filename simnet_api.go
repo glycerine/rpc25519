@@ -129,11 +129,14 @@ type scenario struct {
 // within the bounds of minHop and maxHop
 // scenario.tick controls:
 // _ duration of time between network events
-func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
+func NewScenario(tick, minHop, maxHop time.Duration, intSeed int) *scenario {
 	if minHop < 100_000 {
 		panic(fmt.Sprintf("minHop(%v) < 100_000 will cause collisions and non-determinism because userMaskTime reserves this part of the timestamp for goro ID", minHop))
 	}
+
+	seed := intSeedToBytes(intSeed)
 	s := &scenario{
+		num:     intSeed,
 		seed:    seed,
 		chacha:  mathrand2.NewChaCha8(seed),
 		tick:    enforceTickDur(tick),
@@ -202,11 +205,11 @@ func (s *scenario) rngTieBreaker() int {
 	}
 }
 
-func NewScenarioBaseline(tick time.Duration, seed [32]byte) *scenario {
+func NewScenarioBaseline(tick time.Duration, intSeed int) *scenario {
 	minHop := time.Millisecond * 10
 	maxHop := minHop
 
-	return NewScenario(tick, minHop, maxHop, seed)
+	return NewScenario(tick, minHop, maxHop, intSeed)
 }
 
 // Faultstate is one of HEALTHY, FAULTY,
@@ -1528,4 +1531,56 @@ func diffpos(as, bs string) (pos int, difftext string) {
 	}
 	//vv("i = %v; for as='%v'; bs='%v'", i, as, bs)
 	return i + 1, string(bsRunes[i:])
+}
+
+// only sets up to the first 8 bytes.
+func intSeedToBytes(seed int) (b [32]byte) {
+	n := uint64(seed)
+	// little endian fill
+	for i := range 8 {
+		b[i] = byte(n >> (i * 8))
+	}
+	return
+}
+
+func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]byte) {
+
+	var n, n2 uint64
+	for _, ch := range []byte(simseed) {
+		switch {
+		case ch == '#' || ch == '/':
+			break // comments terminate
+		case ch < '0' || ch > '9':
+			continue
+		}
+		//vv("ch='%v'; n = %v", ch, n)
+		ch -= '0'
+		n2 = n*10 + uint64(ch)
+		if n2 > n {
+			n = n2
+		} else {
+			break // no overflow
+		}
+	}
+	simulationModeSeed = n
+	for i := range 8 {
+		// little endian fill
+		//vv("from %v, fill at i = %v with %v", n, i, byte(n>>(i*8)))
+		seedBytes[i] = byte(n >> (i * 8))
+	}
+	//println("simulationModeSeed=", simulationModeSeed)
+	return
+}
+
+func (s *Simnet) SimpleNewScenario(intSeed int) (err error) {
+	vv("top SimpleNewScenario() intSeed = %v", intSeed)
+
+	scen := NewScenarioBaseline(time.Millisecond, intSeed)
+	select {
+	case s.newScenarioCh <- scen:
+	case <-s.halt.ReqStop.Chan:
+		err = ErrShutdown()
+		return
+	}
+	return
 }

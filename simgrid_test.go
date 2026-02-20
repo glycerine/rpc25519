@@ -957,7 +957,7 @@ func Test711_simnet_online_determinism_check(t *testing.T) {
 	// detect non-determinism were it present/were it
 	// to be introduced accidentally in the future.
 
-	loadtest := func(parenthalt, childhalt *idem.Halter, simnetName string, meetpoint *determMeetpoint, nNodes, wantSendPerPeer int, sendEvery time.Duration, seed [32]byte, wantSchedulerToRecoverSeen *idem.IdemCloseChan) {
+	loadtest := func(parenthalt, childhalt *idem.Halter, simnetName string, meetpoint *determMeetpoint, nNodes, wantSendPerPeer int, sendEvery time.Duration, intSeed int, wantSchedulerToRecoverSeen *idem.IdemCloseChan) {
 
 		var snet *Simnet
 		defer func() {
@@ -989,7 +989,7 @@ func Test711_simnet_online_determinism_check(t *testing.T) {
 
 			cfg.wantSchedulerToRecover = "divergence detected"
 			cfg.wantSchedulerToRecoverSeen = wantSchedulerToRecoverSeen
-			cfg.SimnetScenarioSeed0 = seed
+			cfg.SimnetScenarioIntSeed = intSeed
 			cfg.simnetName = simnetName
 			cfg.skipExecutionHistory = true
 			cfg.meetpoint710 = meetpoint
@@ -1083,9 +1083,8 @@ func Test711_simnet_online_determinism_check(t *testing.T) {
 	meetpoint := newDetermCheckMeetpoint(syncEveryI)
 
 	halt := idem.NewHalter()
-	var seedA [32]byte
-	var seedB [32]byte
-	seedB[0] = 1 // different seed, should get almost immediate panic!
+	var seedA int
+	var seedB int = 1 // different seed, should get almost immediate panic!
 	func() {
 		defer func() {
 			if false {

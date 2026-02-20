@@ -1256,7 +1256,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	// var seed [32]byte
 	// scen := NewScenario(tick, minHop, maxHop, seed)
 
-	scen := NewScenarioBaseline(tick, cfg.SimnetScenarioSeed0)
+	scen := NewScenarioBaseline(tick, cfg.SimnetScenarioIntSeed)
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
@@ -2980,7 +2980,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64, beginPrand uint64) (npop 
 				s.initScenario(op)
 
 				restartNewScenario = true
-				return
+				//do not return, else we will drop import ops.
 
 			case FAULT_CKT:
 				s.injectCircuitFault(op, true)

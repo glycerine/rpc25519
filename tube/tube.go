@@ -7860,7 +7860,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 	maxPossibleCI := lli
 	maxPossibleCIterm := llt
-	// take the minimum of what we have and the ae.
+	// take the minimum of what we have and the ae, because
+	// we want CommitIndex to not go longer than our log entries.
 	if lli2 < lli {
 		maxPossibleCI = lli2
 		maxPossibleCIterm = llt2
@@ -8344,7 +8345,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			// if keepCount < s.state.CommitIndex {
 			// now:
 			if keepCount < prevci {
-				panic(fmt.Sprintf("%v log violation: keepCount(%v) < prevci(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, prevci))
+				panic(fmt.Sprintf("%v log violation: keepCount(%v) < prevci(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, prevci)) // log violation: keepCount(23) < prevci(24): overwriteEntries would kill a committed entry; scenario 10957
 			}
 		}
 

@@ -166,7 +166,7 @@ func Test604_rng_hops(t *testing.T) {
 	// and the tie breaker should return -1 or 1
 
 	var tick, minHop, maxHop time.Duration
-	var seed [32]byte
+	var seed int
 
 	minHop = time.Second
 	maxHop = time.Second

@@ -1019,10 +1019,11 @@ type Config struct {
 	// We do not store full history in memory,
 	// so we can check very long executions.
 	// So no x (execution history arrays) are allocated.
-	skipExecutionHistory       bool                // true under 710
-	meetpoint710               *determMeetpoint    // not nil under 710
-	simnetName                 string              // "A" or "B" in simgrid_test 710.
-	SimnetScenarioSeed0        [32]byte            // simgrid_test 711
+	skipExecutionHistory bool             // true under 710
+	meetpoint710         *determMeetpoint // not nil under 710
+	simnetName           string           // "A" or "B" in simgrid_test 710.
+	//SimnetScenarioSeed0        [32]byte            // simgrid_test 711
+	SimnetScenarioIntSeed      int                 // simgrid_test 711
 	wantSchedulerToRecover     string              // simgrid_test 711
 	wantSchedulerToRecoverSeen *idem.IdemCloseChan // simgrid_test 711
 
@@ -3358,15 +3359,23 @@ func (cli *Client) garbageCollectThisRwPairOnShutdown(s *Server, key string, p *
 
 }
 
+/*
 func (c *Config) SetScenarioSeed(seed uint64) {
 	var b [32]byte
-	b[0] = byte(seed >> 56)
-	b[1] = byte(seed >> 48)
-	b[2] = byte(seed >> 40)
-	b[3] = byte(seed >> 32)
-	b[4] = byte(seed >> 24)
-	b[5] = byte(seed >> 16)
-	b[6] = byte(seed >> 8)
-	b[7] = byte(seed)
+	// big endian
+	// b[0] = byte(seed >> 56)
+	// b[1] = byte(seed >> 48)
+	// b[2] = byte(seed >> 40)
+	// b[3] = byte(seed >> 32)
+	// b[4] = byte(seed >> 24)
+	// b[5] = byte(seed >> 16)
+	// b[6] = byte(seed >> 8)
+	// b[7] = byte(seed)
+
+	// little endian
+	for i := range 8 {
+		b[i] = byte(seed >> (i * 8))
+	}
 	c.SimnetScenarioSeed0 = b
 }
+*/
