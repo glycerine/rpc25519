@@ -7802,7 +7802,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			if aeLastLogIndex > lli {
 				// Test052_partition_leader_away_and_rejoin and 055,057 still
 				// asserts here even with the NeedSnapshotGap check.
-				if !ack.NeedSnapshotGap && extends && ack.ConflictTerm1stIndex <= 0 {
+				if !ack.Rejected && !ack.NeedSnapshotGap && extends && ack.ConflictTerm1stIndex <= 0 {
 					panic(fmt.Sprintf("%v why did we not apply the aeLastLogIndex(%v) > our now lli(%v) ???\n ae='%v'\n ack='%v'\n extends=%v, largestCommonRaftIndex=%v, needSnapshot=%v", s.me(), aeLastLogIndex, lli, ae, ack, extends, largestCommonRaftIndex, needSnapshot)) // extends=true, largestCommonRaftIndex=2, needSnapshot=false; 	             RejectReason: "ae.PrevLogIndex(1) not compatible. conflictTerm=-1, conflictTerm1stIndex=-1; largestCommonRaftIndex=2; alsoGap=false (true if ae.PrevLogIndex(1) > largestCommonRaftIndex(2))",
 					// before adding ack.ConflictTerm1stIndex <= 0 : term mismatched so cannot apply what we got? why not overwriting??
 					// RejectReason: "ae.PrevLogIndex(20547) not compatible. conflictTerm=10, conflictTerm1stIndex=20548; largestCommonRaftIndex=20549; alsoGap=false (true if ae.PrevLogIndex(20547) > largestCommonRaftIndex(20549))",
