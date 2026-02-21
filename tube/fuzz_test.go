@@ -1241,7 +1241,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			prevCanc()
 			stepCtx, canc := context.WithTimeout(startCtx, time.Second*10)
 			prevCanc = canc
-			if step%100 == 0 {
+			if step > 0 && step%100 == 0 {
 				vv("%v: fuzzUser.Start on step %v", s.name, step)
 			}
 			select {
@@ -1798,9 +1798,9 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 		probDrop := 1.0
 		probDeaf := 1.0
 		if s.rnd(2) == 1 {
-			vv("about to s.clus.Nodes[node].DropSends(probDrop)")
+			//vv("about to s.clus.Nodes[node].DropSends(probDrop)")
 			s.clus.Nodes[node].DropSends(probDrop)
-			vv("back from s.clus.Nodes[node].DropSends(probDrop)")
+			//vv("back from s.clus.Nodes[node].DropSends(probDrop)")
 		} else {
 			s.clus.Nodes[node].DeafToReads(probDeaf)
 		}
@@ -1856,8 +1856,8 @@ func Test101_userFuzz(t *testing.T) {
 	// [0, 10) 48.4s runtime with 20 users, 100 steps, 3 nodes.
 	// seed 0, 7 nodes, 20 users, 1000 steps:
 	// 9.88s, 10458 ops passed linearizability checker.
-	begScenario := 100770
-	endxScenario := 100771
+	begScenario := 0
+	endxScenario := 1
 	//endxScenario := 10_000
 	//endxScenario := 20_000
 	alwaysPrintf("begScenario = %v; endxScenario = %v", begScenario, endxScenario)
@@ -2017,7 +2017,7 @@ func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string)
 	}
 
 	defer func() {
-		vv("%v end of newSession; err = '%v'", s.name, err)
+		//vv("%v end of newSession; err = '%v'", s.name, err)
 		if err == nil && sess.ctx.Err() != nil {
 			panicf("problem: newSession err==nil, but sess.ctx already done! Err()='%v'", sess.ctx.Err()) // context cancelled.
 		}
@@ -2035,7 +2035,7 @@ func (s *fuzzUser) newSession(ctx context.Context, leaderName, leaderURL string)
 	sess, redir, err = s.cli.CreateNewSession(ctx5, leaderName, leaderURL)
 	canc5()
 	if err == nil {
-		vv("%v got err=nil and new sess %p back from CreateNewSession(); redir='%v'; called with leaderName='%v'", s.name, sess, redir, leaderName)
+		//vv("%v got err=nil and new sess %p back from CreateNewSession(); redir='%v'; called with leaderName='%v'", s.name, sess, redir, leaderName)
 		s.sess = sess
 	}
 	return
