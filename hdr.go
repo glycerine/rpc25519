@@ -166,7 +166,7 @@ var myPID = int64(os.Getpid())
 
 var globalPRNG *PRNG
 
-//var Smap = &sync.Map{}
+var Smap = &sync.Map{}
 
 // global RNG for NewCallID(), TODO replace with per simnet.PRNG
 //var blake3rand *blakehash.Blake3
@@ -174,13 +174,13 @@ var globalPRNG *PRNG
 func init() {
 	if faketime {
 		globalPRNG = NewPRNG([32]byte{})
-		//println("hdr init(): seeded blake3rand to 0")
+		println("hdr init(): seeded globalPRNG to 0")
 	} else {
 		var seed2 [32]byte
 		_, err := cryrand.Read(seed2[:])
 		panicOn(err)
 		globalPRNG = NewPRNG(seed2)
-		//println("hdr init() seeded blake3rand to cry rand")
+		println("hdr init() seeded globalPRNG to cry rand")
 	}
 }
 
@@ -448,7 +448,7 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 	t0 := time.Now()
 	serial := issueSerial()
 
-	callID := NewCallID(serviceName)
+	callID := globalPRNG.NewCallID(serviceName)
 
 	m = &HDR{
 		Created:       t0,
@@ -466,16 +466,14 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 
 func NewCallID(name string) (cid string) {
 	if faketime {
-		var pseudo [21]byte // not cryptographically random.
-		globalPRNG.Read(pseudo[:])
-		cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
+		cid = globalPRNG.NewCallID(name)
 
-		// where, loaded := Smap.LoadOrStore(cid, stack())
-		// _ = where
-		// if loaded {
-		// 	vv("same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where, stack())
-		// 	panic("why same cid?")
-		// }
+		where, loaded := Smap.LoadOrStore(cid, stack())
+		_ = where
+		if loaded {
+			vv("same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where, stack())
+			panic("why same cid?")
+		}
 
 	} else {
 		// incredibly, we saw a collision CallID

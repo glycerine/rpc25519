@@ -40,6 +40,10 @@ func (rng *PRNG) Reseed(seed [32]byte) {
 
 	rng.seed = seed
 	rng.blake3rand = blakehash.NewBlake3WithKey(seed)
+
+	Smap = &sync.Map{}
+
+	vv("PRNG.Reseed() with seed = '%#v'", seed)
 }
 
 // Uint64 satisfies the mathrand2.Source interface
