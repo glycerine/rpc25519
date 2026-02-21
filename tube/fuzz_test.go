@@ -1521,9 +1521,6 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 		Kind:     porc.ReturnEvent,
 		Id:       int(eventID),
 		Value:    out,
-		// no timestamp, because, from the porcupine docs:
-		// "returns are only relatively ordered and do not
-		// have absolute timestamps"
 	}
 
 	s.shEvents.mut.Lock()
