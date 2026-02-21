@@ -697,7 +697,9 @@ func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 	s.xsn2descDebug.Store(sn, desc)
 
 	if sn >= maxX {
-		panicf("out of sn, must increase maxX! sn=%v; maxX = %v", sn, maxX)
+		alwaysPrintf("warning: auto change over to s.cfg.skipExecutionHistory=true because sn(%v) is at maxX(%v)", sn, maxX)
+		s.cfg.skipExecutionHistory = true
+		//panicf("out of sn, must increase maxX! sn=%v; maxX = %v", sn, maxX)
 	}
 
 	return
@@ -705,7 +707,7 @@ func (s *Simnet) simnetNextMopSn(desc string) (sn int64) {
 
 // maxX says how big to allocate our x tracking arrays
 // for the execution history of the network.
-const maxX = 10_000_000 // 100K too small for 707/709 test. 1M too small fuzz_test 101
+const maxX = 1_000_000 // 100K too small for 707/709 test. 1M too small fuzz_test 101; fuzz_test 101 scenario 9087 exceeds 10M. bah we cannot store past 1M.
 
 func (s *Simnet) preallocateX() {
 	limit := maxX
