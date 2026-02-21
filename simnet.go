@@ -427,28 +427,7 @@ func (s *Simnet) release(op *mop, addme int) {
 		}
 		return
 	}
-	// case
-	// CLOSE_SIMNODE,
-	// SNAPSHOT,
-	// TIMER_DISCARD,
-	// READ,
-	// SEND,
-	// ALTER_HOST,
-	// ALTER_NODE,
-	// CLIENT_REG,
-	// SERVER_REG,
-	// FAULT_CKT,
-	// FAULT_HOST,
-	// REPAIR_CKT,
-	// REPAIR_HOST,
-	// SCENARIO,
-	// BATCH:
 	panic("not reachable anymore, right?")
-	close(op.proceed)
-	//if op.sn == 153 {
-	//vv("op.sn released (sn=%v): '%v'", op.sn, op) // not seen!
-	//}
-	// panic(fmt.Sprintf("mop kind '%v' needs release() policy", int(s.kind)))
 }
 
 func (s *mop) clone() (c *mop) {
