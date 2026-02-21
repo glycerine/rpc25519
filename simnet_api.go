@@ -1593,3 +1593,64 @@ func (s *Simnet) SimpleNewScenario(int64seed int64) (err error) {
 	}
 	return
 }
+
+type requestSimnetNewCallID struct {
+
+	// request
+	sn      int64
+	proceed chan time.Duration
+	reqtm   time.Time
+	err     error
+	who     int
+	where   string
+
+	// response
+	callID string
+}
+
+func (s *Simnet) GetNewCallID() (cid string) {
+
+	//vv("top getNewCallID()")
+	r := &requestSimnetNewCallID{
+		sn:      s.simnetNextMopSn("&requestSimnetNewCallID"),
+		proceed: make(chan time.Duration, 1),
+		reqtm:   time.Now(),
+		who:     goID(),
+		where:   fileLine(2),
+	}
+
+	select {
+	case s.simnetNewCallIDCh <- r:
+	case <-s.halt.ReqStop.Chan:
+		//vv("i=%v <-s.halt.ReqStop.Chan", i)
+	}
+	select {
+	case pause := <-r.proceed:
+		cid = r.callID
+
+		if s.halt.ReqStop.IsClosed() {
+			return
+		}
+		if pause > 0 {
+			select {
+			case <-time.After(pause):
+			case <-s.halt.ReqStop.Chan:
+				return
+			}
+		}
+	case <-s.halt.ReqStop.Chan:
+		//vv("i=%v <-s.halt.ReqStop.Chan", i)
+	}
+	return
+}
+func (s *Simnet) newCallIdMop(req *requestSimnetNewCallID) *mop {
+	return &mop{
+		newCallIDReq: req,
+		sn:           s.simnetNextMopSn("newCallID"),
+		kind:         NEW_CALLID,
+		proceed:      req.proceed,
+		reqtm:        req.reqtm,
+		who:          req.who,
+		where:        req.where,
+	}
+}

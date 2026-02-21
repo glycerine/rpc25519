@@ -66,7 +66,7 @@ func (rng *PRNG) Uint64() uint64 {
 	return binary.LittleEndian.Uint64(b)
 }
 
-func (rng *PRNG) NewCallID(name string) (cid string) {
+func (rng *PRNG) NewCallID() (cid string) {
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
 
@@ -75,10 +75,6 @@ func (rng *PRNG) NewCallID(name string) (cid string) {
 	rng.blake3rand.ReadXOF(pseudo[:])
 
 	cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
-
-	if name != "" { // traditional CallID won't have.
-		AliasRegister(cid, cid+" ("+name+")")
-	}
 	return
 }
 

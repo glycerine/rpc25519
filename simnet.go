@@ -164,6 +164,7 @@ type mop struct {
 	batch        *SimnetBatch
 	closeSimnode *closeSimnode
 	newGoroReq   *newGoroRequest
+	newCallIDReq *requestSimnetNewCallID
 
 	pseudorandom uint64
 }
@@ -192,7 +193,7 @@ func (op *mop) bestName() string {
 func (op *mop) whence() string {
 	switch op.kind {
 	case NEW_GORO:
-		return op.where
+	case NEW_CALLID:
 	case SCENARIO:
 	case CLIENT_REG:
 	case SERVER_REG:
@@ -265,6 +266,8 @@ func (s *mop) priority() int64 {
 		return 1600
 	case SNAPSHOT:
 		return 1700
+	case NEW_CALLID:
+		return 1800
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs priority", int(s.kind)))
 }
@@ -321,6 +324,8 @@ func (s *mop) tm() time.Time {
 	case ALTER_NODE:
 		return s.reqtm
 	case CLOSE_SIMNODE:
+		return s.reqtm
+	case NEW_CALLID:
 		return s.reqtm
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs tm", int(s.kind)))
@@ -878,7 +883,8 @@ type Simnet struct {
 	allnodes map[*simnode]bool
 	orphans  map[*simnode]bool // cli without baseserver
 
-	simnetNewGoroCh chan *newGoroRequest
+	simnetNewGoroCh   chan *newGoroRequest
+	simnetNewCallIDCh chan *requestSimnetNewCallID
 
 	cliRegisterCh chan *clientRegistration
 	srvRegisterCh chan *serverRegistration
@@ -1270,23 +1276,24 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 		//xsn2descDebug: make(map[int64]string),
 		mintick: time.Duration(minTickNanos),
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
-		xb3hashFin:      blake3.New(64, nil),
-		xb3hashDis:      blake3.New(64, nil),
-		meq:             newMasterEventQueue("scheduler"),
-		curSliceQ:       newOneTimeSliceQ("scheduler"),
-		cfg:             cfg,
-		srv:             srv,
-		cliRegisterCh:   make(chan *clientRegistration),
-		srvRegisterCh:   make(chan *serverRegistration),
-		alterSimnodeCh:  make(chan *simnodeAlteration),
-		alterHostCh:     make(chan *simnodeAlteration),
-		submitBatchCh:   make(chan *mop),
-		msgSendCh:       make(chan *mop),
-		msgReadCh:       make(chan *mop),
-		addTimer:        make(chan *mop),
-		discardTimerCh:  make(chan *mop),
-		newScenarioCh:   make(chan *scenario),
-		simnetNewGoroCh: make(chan *newGoroRequest),
+		xb3hashFin:        blake3.New(64, nil),
+		xb3hashDis:        blake3.New(64, nil),
+		meq:               newMasterEventQueue("scheduler"),
+		curSliceQ:         newOneTimeSliceQ("scheduler"),
+		cfg:               cfg,
+		srv:               srv,
+		cliRegisterCh:     make(chan *clientRegistration),
+		srvRegisterCh:     make(chan *serverRegistration),
+		alterSimnodeCh:    make(chan *simnodeAlteration),
+		alterHostCh:       make(chan *simnodeAlteration),
+		submitBatchCh:     make(chan *mop),
+		msgSendCh:         make(chan *mop),
+		msgReadCh:         make(chan *mop),
+		addTimer:          make(chan *mop),
+		discardTimerCh:    make(chan *mop),
+		newScenarioCh:     make(chan *scenario),
+		simnetNewGoroCh:   make(chan *newGoroRequest),
+		simnetNewCallIDCh: make(chan *requestSimnetNewCallID),
 
 		injectCircuitFaultCh: make(chan *circuitFault),
 		injectHostFaultCh:    make(chan *hostFault),
@@ -1337,6 +1344,12 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	//vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
 	s.Start()
 
+	/* want this for really reproducible tests, but synctest shutdown deadlock atm.
+	prev := atomicGlobalSimnetPointer.Swap(s)
+		if prev != nil {
+			alwaysPrintf("warning: taking over atomicGlobalSimnetPointer from old simnet %p; calls to NewCallID() will come to me now.", prev)
+		}
+	*/
 	return s
 }
 
@@ -1421,6 +1434,10 @@ const (
 
 	// report a snapshot of the entire network/state.
 	SNAPSHOT mopkind = 17
+
+	// generate a random CallID string, uniquely identifying
+	// the call or node or peer.
+	NEW_CALLID mopkind = 18
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
@@ -2934,6 +2951,9 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64, beginPrand uint64) (npop 
 			//vv("in distributeMEQ, curSliceQ has op = '%v'\n  ->  xdis = '%v'", op, xdis)
 
 			switch op.kind {
+			case NEW_CALLID:
+				s.handleNewCallID(op, now, i)
+
 			case NEW_GORO:
 				s.handleNewGoro(op, now, i)
 
@@ -3091,10 +3111,17 @@ func (s *Simnet) initScenario(op *mop) {
 
 	// do any init work...
 
+	// this, for instance, is already done during NewScenario,
+	// the assignment to s.scenario = scenario
+	// just put the new rng in place.
+	//scenario.blake3rand = blakehash.NewBlake3WithKey(scenario.seed)
+	//scenario.rng = mathrand2.New(scenario.blake3rand)
+
+	//vv("initScenario: int64Seed=%v, re-seeded scenario.blake3rand to %#v", scenario.int64seed, scenario.seed)
+
 	// in hdr.go, NewCallID() uses GlobalPRNG.
 	//globalPRNG.Reseed(scenario.seed)
-
-	vv("initScenario: re-seeded globalPRNG to %#v", scenario.seed)
+	//vv("initScenario: re-seeded globalPRNG to %#v", scenario.seed)
 
 	s.fin(op)
 }
@@ -3825,11 +3852,24 @@ func (s *Simnet) Close() {
 	if s == nil || s.halt == nil {
 		return
 	}
+	atomicGlobalSimnetPointer.CompareAndSwap(s, nil)
 	s.halt.ReqStop.Close()
 }
 
 func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
 	//vv("top handleNewGoro: '%v'", op.newGoroReq.name)
+	s.fin(op)
+}
+
+func (s *Simnet) handleNewCallID(op *mop, now time.Time, i int64) {
+	var r *requestSimnetNewCallID = op.newCallIDReq
+
+	var pseudo [21]byte
+	s.scenario.blake3rand.ReadXOF(pseudo[:])
+	r.callID = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
+
+	//vv("handleNewCallID: '%v' created r.callID = '%v'", r.where, r.callID)
+
 	s.fin(op)
 }
 
@@ -3850,6 +3890,9 @@ func (s *Simnet) startMEQacceptor() {
 		for ; ; j++ {
 			//vv("meq acceptor goro about to select at j = %v", j)
 			select {
+			case cidReq := <-s.simnetNewCallIDCh:
+				s.add2meq(s.newCallIdMop(cidReq), j)
+
 			case newGoroReq := <-s.simnetNewGoroCh:
 				s.add2meq(s.newGoroMop(newGoroReq), j)
 

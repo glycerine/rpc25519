@@ -529,9 +529,6 @@ func TestRleExtendsPredicateOnLogs(t *testing.T) {
 		}
 
 		for i, tt := range tests {
-			//if tt.name != "both empty" {
-			//continue // TODO remove
-			//}
 			t.Run(tt.name, func(t *testing.T) {
 				tt.lead.BaseC = base
 				tt.foll.BaseC = base

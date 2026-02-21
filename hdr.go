@@ -24,6 +24,8 @@ var _ = cristalbase64.URLEncoding
 
 //go:generate greenpack
 
+var atomicGlobalSimnetPointer atomic.Pointer[Simnet]
+
 type CallType int
 
 const (
@@ -474,8 +476,13 @@ func NewCallID(name string) (cid string) {
 	// a new &rpc.Config{} whose configBaseID
 	// is a NewCallID() cid.
 	if faketime {
-		cid = globalPRNG.NewCallID(name)
-		//vv("cid = %v", cid)
+		snet := atomicGlobalSimnetPointer.Load()
+		if snet == nil {
+			cid = globalPRNG.NewCallID()
+			//vv("globalPRNG gave cid = %v", cid)
+		} else {
+			cid = snet.GetNewCallID()
+		}
 	} else {
 		// truly randomized CallIDs.
 		cid = NewCryRandCallID()

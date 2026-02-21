@@ -2147,8 +2147,10 @@ func (s *TubeNode) handleNewCircuit(
 	cktP, rejected := s.addToCktall(ckt)
 	_ = rejected
 	if rejected {
-		alwaysPrintf("ouch 555555555 ckt rejected from cktall: '%v'", ckt.RemotePeerName)
-		panic("when ckt rejected?")
+		alwaysPrintf("%v ouch 555555555 ckt rejected from cktall: '%v'", s.me(), ckt.RemotePeerName)
+		// was redundant circuit.
+		//panic("when ckt rejected?")
+		return nil
 	}
 
 	// NB: myPeer.PeerID == ckt.LocalPeerID
@@ -10462,10 +10464,9 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		}
 		tkt.AsOfLogIndex = applyIdx
 
-		// debug fuzz_test 101, TODO remove b/c KVstore can get big.
-		if s.isTest() && s.cfg.testNum == 101 {
-			do.kvAfterApply = s.state.KVstore.String()
-		}
+		//if s.isTest() && s.cfg.testNum == 101 {
+		//	do.kvAfterApply = s.state.KVstore.String()
+		//}
 
 		if tkt.SessionID != "" {
 			// =========================================
