@@ -166,6 +166,8 @@ var myPID = int64(os.Getpid())
 
 var globalPRNG *PRNG
 
+//var Smap = &sync.Map{}
+
 // global RNG for NewCallID(), TODO replace with per simnet.PRNG
 //var blake3rand *blakehash.Blake3
 
@@ -467,6 +469,13 @@ func NewCallID(name string) (cid string) {
 		var pseudo [21]byte // not cryptographically random.
 		globalPRNG.Read(pseudo[:])
 		cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
+
+		// where, loaded := Smap.LoadOrStore(cid, stack())
+		// _ = where
+		// if loaded {
+		// 	vv("same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where, stack())
+		// 	panic("why same cid?")
+		// }
 
 	} else {
 		// incredibly, we saw a collision CallID

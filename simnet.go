@@ -3091,8 +3091,10 @@ func (s *Simnet) initScenario(op *mop) {
 	// do any init work...
 
 	// in hdr.go, CallID() uses this.
-	globalPRNG.Reseed(scenario.seed)
-	vv("initScenario: re-seeded globalPRNG to %v ", scenario.intSeed)
+	//globalPRNG.Reseed(scenario.seed) // no! never reset it!
+	//Smap = &sync.Map{}
+
+	//vv("initScenario: re-seeded globalPRNG to %v ", scenario.intSeed)
 
 	s.fin(op)
 }
