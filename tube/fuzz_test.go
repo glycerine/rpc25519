@@ -1376,11 +1376,16 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 	newValStr := string(newVal)
 	casAttempts := 0
 	var tktW *Ticket
+	// if we don't know which worked, on retry, we
+	// still have to submit the earliest for the linz,
+	// or we will get spurious linz checker alarms.
+	// so on any value of casAttempts, keep this earliest.
+	earliestBeginNano := time.Now().UnixNano()
 	for {
 		eventID = int(s.atomicLastEventID.Add(1))
 		casAttempts++
 		callEvent := porc.Event{
-			Ts:       time.Now().UnixNano(),
+			Ts:       earliestBeginNano, // not time.Now().UnixNano(),
 			ClientId: s.userid,
 			//Input:    &casInput{op: STRING_REGISTER_CAS, oldString: string(oldVal), newString: string(newVal)},
 			Kind: porc.CallEvent,
