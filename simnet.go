@@ -3092,7 +3092,7 @@ func (s *Simnet) initScenario(op *mop) {
 
 	// in hdr.go, CallID() uses this.
 	globalPRNG.Reseed(scenario.seed)
-	vv("initScenario: re-seeded globalPRNG to %v ", scenario.num)
+	vv("initScenario: re-seeded globalPRNG to %v ", scenario.intSeed)
 
 	s.fin(op)
 }
@@ -3375,7 +3375,7 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 
 	req.Asof = now
 	req.Loopi = loopi
-	req.ScenarioNum = s.scenario.num
+	req.ScenarioNum = s.scenario.intSeed
 	req.ScenarioSeed = s.scenario.seed
 	req.ScenarioTick = s.scenario.tick
 	req.ScenarioMinHop = s.scenario.minHop

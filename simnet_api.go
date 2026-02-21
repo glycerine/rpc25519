@@ -107,8 +107,8 @@ func (s *Simnet) NewGoro(name string) {
 // timeout settings under network partition and
 // flakiness (partial failure). Stubbed for now.
 type scenario struct {
-	num  int
-	seed [32]byte
+	intSeed int
+	seed    [32]byte
 
 	// rng for meq batch dispatch
 	blake3rand *blakehash.Blake3
@@ -139,7 +139,7 @@ func NewScenario(tick, minHop, maxHop time.Duration, intSeed int) *scenario {
 
 	seed := intSeedToBytes(intSeed)
 	s := &scenario{
-		num:        intSeed,
+		intSeed:    intSeed,
 		seed:       seed,
 		blake3rand: blakehash.NewBlake3WithKey(seed),
 		tick:       enforceTickDur(tick),
