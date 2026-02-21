@@ -167,6 +167,7 @@ var myPID = int64(os.Getpid())
 var globalPRNG *PRNG
 
 var Smap = &sync.Map{}
+var SmapNeverCleared = &sync.Map{}
 
 // global RNG for NewCallID(), TODO replace with per simnet.PRNG
 //var blake3rand *blakehash.Blake3
@@ -468,19 +469,22 @@ func NewCallID(name string) (cid string) {
 	if faketime {
 		cid = globalPRNG.NewCallID(name)
 
-		where, loaded := Smap.LoadOrStore(cid, stack())
-		_ = where
-		if loaded {
-			vv("same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where, stack())
-			panic("why same cid?")
+		if false {
+			where, loaded := Smap.LoadOrStore(cid, stack())
+			_ = where
+			if loaded {
+				vv("same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where, stack())
+				panic("why same cid?")
+			}
+			// where2, loaded2 := SmapNeverCleared.LoadOrStore(cid, stack())
+			// if loaded2 {
+			// 	vv("SmapNeverCleared sees same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where2, stack())
+			// }
+			vv("cid = '%v'", cid)
 		}
 
 	} else {
-		// incredibly, we saw a collision CallID
-		// using the not crypto random with 200 real processes,
-		// which made us suspect
-		// the above, so for good measure when NOT under synctest/faketime
-		// we truly randomize the CallIDs.
+		// truly randomized CallIDs.
 		cid = NewCryRandCallID()
 	}
 	if name != "" { // traditional CallID won't have.

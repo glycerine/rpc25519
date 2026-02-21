@@ -661,6 +661,8 @@ type TubeConfig struct {
 	RpcCfg     *rpc.Config `msg:"-"`
 	initCalled bool        // verify everyone is using cfg.Init() now.
 
+	InitialSimnetScenario int64 `zid:"22"`
+
 	// for tests, of leader election, using LeaderElectedCh
 	// for example. All test special behavior should
 	// centralize through this one testCluster as much as possible.
@@ -2623,6 +2625,7 @@ func (cfg *TubeConfig) Init(quiet, isTest bool) {
 		rpcCfg.TCPonly_no_TLS = cfg.TCPonly_no_TLS
 		rpcCfg.UseSimNet = cfg.UseSimNet
 		rpcCfg.SimnetGOMAXPROCS = 1
+		rpcCfg.InitialSimnetScenario = cfg.InitialSimnetScenario
 
 		rpcCfg.ServerAddr = "127.0.0.1:0"
 		rpcCfg.ServerAutoCreateClientsToDialOtherServers = true

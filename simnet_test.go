@@ -166,11 +166,11 @@ func Test604_rng_hops(t *testing.T) {
 	// and the tie breaker should return -1 or 1
 
 	var tick, minHop, maxHop time.Duration
-	var seed int
+	var int64seed int64
 
 	minHop = time.Second
 	maxHop = time.Second
-	s := NewScenario(tick, minHop, maxHop, seed)
+	s := NewScenario(tick, minHop, maxHop, int64seed)
 
 	var yes, no float64
 	N := float64(100_000)
@@ -201,7 +201,7 @@ func Test604_rng_hops(t *testing.T) {
 
 	minHop = time.Second
 	maxHop = 2 * time.Second
-	s = NewScenario(tick, minHop, maxHop, seed)
+	s = NewScenario(tick, minHop, maxHop, int64seed)
 
 	for range 1000 {
 		hop := s.rngHop()

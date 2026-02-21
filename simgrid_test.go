@@ -989,7 +989,7 @@ func Test711_simnet_online_determinism_check(t *testing.T) {
 
 			cfg.wantSchedulerToRecover = "divergence detected"
 			cfg.wantSchedulerToRecoverSeen = wantSchedulerToRecoverSeen
-			cfg.SimnetScenarioIntSeed = intSeed
+			cfg.InitialSimnetScenario = int64(intSeed)
 			cfg.simnetName = simnetName
 			cfg.skipExecutionHistory = true
 			cfg.meetpoint710 = meetpoint

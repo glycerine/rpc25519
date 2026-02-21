@@ -107,8 +107,8 @@ func (s *Simnet) NewGoro(name string) {
 // timeout settings under network partition and
 // flakiness (partial failure). Stubbed for now.
 type scenario struct {
-	intSeed int
-	seed    [32]byte
+	int64Seed int64
+	seed      [32]byte
 
 	// rng for meq batch dispatch
 	blake3rand *blakehash.Blake3
@@ -132,14 +132,14 @@ type scenario struct {
 // within the bounds of minHop and maxHop
 // scenario.tick controls:
 // _ duration of time between network events
-func NewScenario(tick, minHop, maxHop time.Duration, intSeed int) *scenario {
+func NewScenario(tick, minHop, maxHop time.Duration, int64Seed int64) *scenario {
 	if minHop < 100_000 {
 		panic(fmt.Sprintf("minHop(%v) < 100_000 will cause collisions and non-determinism because userMaskTime reserves this part of the timestamp for goro ID", minHop))
 	}
 
-	seed := intSeedToBytes(intSeed)
+	seed := intSeedToBytes(int64Seed)
 	s := &scenario{
-		intSeed:    intSeed,
+		int64Seed:  int64Seed,
 		seed:       seed,
 		blake3rand: blakehash.NewBlake3WithKey(seed),
 		tick:       enforceTickDur(tick),
@@ -208,11 +208,11 @@ func (s *scenario) rngTieBreaker() int {
 	}
 }
 
-func NewScenarioBaseline(tick time.Duration, intSeed int) *scenario {
+func NewScenarioBaseline(tick time.Duration, int64Seed int64) *scenario {
 	minHop := time.Millisecond * 10
 	maxHop := minHop
 
-	return NewScenario(tick, minHop, maxHop, intSeed)
+	return NewScenario(tick, minHop, maxHop, int64Seed)
 }
 
 // Faultstate is one of HEALTHY, FAULTY,
@@ -1095,7 +1095,7 @@ type SimnetSnapshot struct {
 	XprevHasherSn    int64
 	XfinPrevHasherSn []int64
 
-	ScenarioNum    int
+	ScenarioNum    int64
 	ScenarioSeed   [32]byte
 	ScenarioTick   time.Duration
 	ScenarioMinHop time.Duration
@@ -1537,8 +1537,8 @@ func diffpos(as, bs string) (pos int, difftext string) {
 }
 
 // only sets up to the first 8 bytes.
-func intSeedToBytes(seed int) (b [32]byte) {
-	n := uint64(seed)
+func intSeedToBytes(int64seed int64) (b [32]byte) {
+	n := uint64(int64seed)
 	// little endian fill
 	for i := range 8 {
 		b[i] = byte(n >> (i * 8))
@@ -1575,10 +1575,10 @@ func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]b
 	return
 }
 
-func (s *Simnet) SimpleNewScenario(intSeed int) (err error) {
-	vv("top SimpleNewScenario() intSeed = %v", intSeed)
+func (s *Simnet) SimpleNewScenario(int64seed int64) (err error) {
+	vv("top SimpleNewScenario() intSeed = %v", int64seed)
 
-	scen := NewScenarioBaseline(time.Millisecond, intSeed)
+	scen := NewScenarioBaseline(time.Millisecond, int64seed)
 	select {
 	case s.newScenarioCh <- scen:
 	case <-s.halt.ReqStop.Chan:

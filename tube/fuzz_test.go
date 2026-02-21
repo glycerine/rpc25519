@@ -139,7 +139,7 @@ type sharedEvents struct {
 type fuzzUser struct {
 	atomicLastEventID *atomic.Int64
 	t                 *testing.T
-	seed              int
+	seed              int64
 	name              string
 	userid            int
 
@@ -1864,12 +1864,12 @@ func Test101_userFuzz(t *testing.T) {
 	for scenario := begScenario; scenario < endxScenario; scenario++ {
 
 		seedString := fmt.Sprintf("%v", scenario)
-		seed, seedBytes := parseSeedString(seedString)
-		intSeed := int(seed)
+		uint64seed, seedBytes := parseSeedString(seedString)
+		int64seed := int64(uint64seed)
 		//runtime.ResetDsimSeed(seed)
 
-		if intSeed != scenario {
-			panicf("got %v, wanted same scenario number back %v", intSeed, scenario)
+		if int64seed != int64(scenario) {
+			panicf("got %v, wanted same scenario number back %v", int64seed, scenario)
 		}
 		rng := newPRNG(seedBytes)
 		rnd := rng.pseudoRandNonNegInt64Range
@@ -1902,7 +1902,7 @@ func Test101_userFuzz(t *testing.T) {
 
 		onlyBubbled(t, func(t *testing.T) {
 
-			rpc.Smap = &sync.Map{}
+			//rpc.Smap = &sync.Map{}
 
 			// 1% or less collision probability, to minimize
 			// rejection sampling and get unique write values quickly.
@@ -1913,6 +1913,12 @@ func Test101_userFuzz(t *testing.T) {
 			forceLeader := 0
 			cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
 			cfg.NoLogCompaction = true
+			// using sim.SimpleNewScenario(intSeed) will
+			// be too late, since alot of setup (the raft cluster) with the
+			// default seed will have already been done, making
+			// reproducibility harder. So we set the seed from
+			// the creation of the simnet.
+			cfg.InitialSimnetScenario = int64seed
 
 			c, leaderName, leadi, _ := setupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 101)
 
@@ -1925,7 +1931,6 @@ func Test101_userFuzz(t *testing.T) {
 			if sim == nil {
 				panic("why could not get simnet?")
 			}
-			sim.SimpleNewScenario(intSeed)
 
 			c.Cfg.prng = rng
 			for i := range c.Nodes {
@@ -1956,7 +1961,7 @@ func Test101_userFuzz(t *testing.T) {
 					atomicLastEventID: atomicLastEventID,
 					shEvents:          shEvents,
 					t:                 t,
-					seed:              intSeed,
+					seed:              int64seed,
 					name:              fmt.Sprintf("user%v", userNum),
 					userid:            userNum,
 					numNodes:          numNodes,

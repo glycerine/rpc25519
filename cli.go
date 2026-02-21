@@ -1024,7 +1024,7 @@ type Config struct {
 	meetpoint710         *determMeetpoint // not nil under 710
 	simnetName           string           // "A" or "B" in simgrid_test 710.
 	//SimnetScenarioSeed0        [32]byte            // simgrid_test 711
-	SimnetScenarioIntSeed      int                 // simgrid_test 711
+	InitialSimnetScenario      int64               // simgrid_test 711
 	wantSchedulerToRecover     string              // simgrid_test 711
 	wantSchedulerToRecoverSeen *idem.IdemCloseChan // simgrid_test 711
 

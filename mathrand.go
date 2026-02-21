@@ -43,7 +43,7 @@ func (rng *PRNG) Reseed(seed [32]byte) {
 
 	Smap = &sync.Map{}
 
-	vv("PRNG.Reseed() with seed = '%#v'", seed)
+	//vv("PRNG.Reseed() with seed = '%#v'; stack=\n '%v'", seed, stack())
 }
 
 // Uint64 satisfies the mathrand2.Source interface

@@ -1169,10 +1169,6 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 			// try to prevent any new auto-cli from magically
 			// working around our model of a faulty network card
 			// at the server.
-			// Technically there could be a series of faults
-			// applied, so TODO turn this into a slice of faults
-			// and apply them all. We just want to get one
-			// of them preserved at first, for now.
 			// note: basesrv may not be needed here, but worth checking.
 			for _, node := range []*simnode{srvnode, basesrv} {
 				for _, fault := range node.allNewCircuitsInjectFault {
@@ -1258,7 +1254,10 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	// var seed [32]byte
 	// scen := NewScenario(tick, minHop, maxHop, seed)
 
-	scen := NewScenarioBaseline(tick, cfg.SimnetScenarioIntSeed)
+	scen := NewScenarioBaseline(tick, cfg.InitialSimnetScenario)
+
+	// in hdr.go, CallID() uses globalPRNG.
+	globalPRNG.Reseed(scen.seed)
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
@@ -3090,10 +3089,10 @@ func (s *Simnet) initScenario(op *mop) {
 
 	// do any init work...
 
-	// in hdr.go, CallID() uses this.
+	// in hdr.go, CallID() uses globalPRNG.
 	globalPRNG.Reseed(scenario.seed)
 
-	//vv("initScenario: re-seeded globalPRNG to %v ", scenario.intSeed)
+	vv("initScenario: re-seeded globalPRNG to %v ", scenario.int64Seed)
 
 	s.fin(op)
 }
@@ -3376,7 +3375,7 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 
 	req.Asof = now
 	req.Loopi = loopi
-	req.ScenarioNum = s.scenario.intSeed
+	req.ScenarioNum = s.scenario.int64Seed
 	req.ScenarioSeed = s.scenario.seed
 	req.ScenarioTick = s.scenario.tick
 	req.ScenarioMinHop = s.scenario.minHop
