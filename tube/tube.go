@@ -7758,6 +7758,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	// on them in our defer.
 	var extends, needSnapshot bool
 	var largestCommonRaftIndex int64
+	var largestCommonRaftIndexTerm int64
 
 	s.hlc.ReceiveMessageWithHLC(ae.LeaderHLC)
 
@@ -7781,10 +7782,10 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	// return 2 (upToDate) below, and thus follower checks like P1
 	// could have lagged.
 	defer func(aeCommitIndex int64) {
-		lli := s.wal.LastLogIndex()
-		shouldHaveCI := min(aeCommitIndex, lli)
+		//lli := s.wal.LastLogIndex()
+		shouldHaveCI := min(aeCommitIndex, largestCommonRaftIndex)
 		if s.state.CommitIndex < shouldHaveCI {
-			panic(fmt.Sprintf("%v why was not s.state.CommitIndex(%v) updated to be (%v)shouldHaveCI = min(aeCommitIndex(%v), lli(%v))???", s.me(), s.state.CommitIndex, shouldHaveCI, aeCommitIndex, lli))
+			panic(fmt.Sprintf("%v why was not s.state.CommitIndex(%v) updated to be (%v)shouldHaveCI = min(aeCommitIndex(%v), largestCommonRaftIndex(%v))???", s.me(), s.state.CommitIndex, shouldHaveCI, aeCommitIndex, largestCommonRaftIndex))
 		}
 	}(ae.LeaderCommitIndex)
 
@@ -7869,16 +7870,27 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		return
 	}
 
+	followerLog := s.wal.getTermsRLE()
+	leaderLog := ae.LogTermsRLE
+	extends, largestCommonRaftIndex, needSnapshot = leaderLog.Extends(followerLog)
+	if largestCommonRaftIndexTerm > 0 {
+		largestCommonRaftIndexTerm = followerLog.getTermForIndex(largestCommonRaftIndex)
+	}
+
 	stateSaveNeeded := false
 	prevci := s.state.CommitIndex
-	lli, llt := s.wal.LastLogIndexAndTerm()
+	//lli, llt := s.wal.LastLogIndexAndTerm()
 	lli2, llt2 := ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm
 
-	maxPossibleCI := lli
-	maxPossibleCIterm := llt
+	maxPossibleCI := largestCommonRaftIndex         // not lli
+	maxPossibleCIterm := largestCommonRaftIndexTerm // not llt
 	// take the minimum of what we have and the ae, because
 	// we want CommitIndex to not go longer than our log entries.
-	if lli2 < lli {
+
+	// Problem is: we can raise the commit index too high,
+	// because the tail terms might disagree on existing wal.
+	// So we need to limit maxPossibleCI to largestCommonRaftIndex too.
+	if lli2 < maxPossibleCI {
 		maxPossibleCI = lli2
 		maxPossibleCIterm = llt2
 	}
@@ -7886,6 +7898,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		// make 707 green with the new assert that CommitIndex has
 		// been updated (in the defer at top).
 		//vv("%v in handleAppendEntries: updating s.state.CommitIndex from %v -> %v (as min(ae.LeaderCommitIndex(%v), lli(%v)); and s.state.CommitIndexEntryTerm(%v) -> maxPossibleCIterm(%v)\n details:\n ae.LeaderCommitIndex = %v \n ae.LeaderCommitIndexEntryTerm = %v \n lli = %v; llt = %v \n ae.LeaderName='%v'; cur s.leaderName='%v'", s.me(), s.state.CommitIndex, maxPossibleCI, ae.LeaderCommitIndex, lli, s.state.CommitIndexEntryTerm, maxPossibleCIterm, ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm, lli, llt, ae.LeaderName, s.leaderName)
+
 		s.state.CommitIndex = maxPossibleCI
 		s.state.CommitIndexEntryTerm = maxPossibleCIterm
 		s.updateMCindex(maxPossibleCI, maxPossibleCIterm)
@@ -7956,12 +7969,6 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	localFirstIndex, localFirstTerm, localLastIndex,
 		localLastTerm := s.host.getRaftLogSummary()
 
-	// don't be fooled by the name follower here;
-	// we might be the leader, but we use the
-	// name that the follower logic below needs to avoid
-	// having to call getTermsRLE and clone it twice.
-	followerLog := s.wal.getTermsRLE()
-
 	// be ready to reject half-dozen ways...
 	ack = &AppendEntriesAck{
 		ClusterID:           s.ClusterID,
@@ -7978,7 +7985,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		// -1 means unknown, by the convention I just invented.
 		// I added this optimization (LargestCommonRaftIndex)
 		// for Tube, so this should serve to establish expectations.
-		LargestCommonRaftIndex: -1,
+		LargestCommonRaftIndex: largestCommonRaftIndex,
 
 		PeerLogTermsRLE:     followerLog,
 		PeerLogCompactIndex: s.wal.logIndex.BaseC,
@@ -8119,9 +8126,9 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		}
 	}
 
-	leaderLog := ae.LogTermsRLE
-
-	extends, largestCommonRaftIndex, needSnapshot = leaderLog.Extends(followerLog)
+	// move up because we need it to compute CommitIndex properly.
+	//leaderLog := ae.LogTermsRLE
+	//extends, largestCommonRaftIndex, needSnapshot = leaderLog.Extends(followerLog)
 	var firstEntry string
 	_ = firstEntry
 	if nes > 0 {
@@ -8474,7 +8481,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		// If the AE got applied above, and extended the log,
 		// then it is already reflected in the log now.
 
-		//lli := int64(len(s.wal.RaftLog))
+		// Same should apply to truncation, right?
+
 		lli, llt := s.wal.LastLogIndexAndTerm()
 
 		if !chatty802 {
@@ -8499,7 +8507,6 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			s.state.CommitIndex = lli2
 			s.state.CommitIndexEntryTerm = llt2
 		}
-
 	}
 	sawUpdate := prevci != s.state.CommitIndex
 	_ = sawUpdate

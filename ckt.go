@@ -684,9 +684,9 @@ func (ckt *Circuit) SendOneWay(frag *Fragment, errWriteDur time.Duration, keepFr
 // the same fragment to many destinations.
 func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Duration, keepFragIfPositive int) (madeNewAutoCli bool, err error) {
 
-	if frag.Serial == 34 {
-		vv("SendOneWay sending frag.Serial 34; stack = %v; frag='%v'; ckt='%v'; LocalPeer='%v'", stack(), frag, ckt, s)
-	}
+	//if frag.Serial == 34 {
+	//	vv("SendOneWay sending frag.Serial 34; stack = %v; frag='%v'; ckt='%v'; LocalPeer='%v'", stack(), frag, ckt, s)
+	//}
 
 	// regular quick check if shutdown is requested.
 	select {

@@ -41,8 +41,6 @@ func (rng *PRNG) Reseed(seed [32]byte) {
 	rng.seed = seed
 	rng.blake3rand = blakehash.NewBlake3WithKey(seed)
 
-	Smap = &sync.Map{}
-
 	//vv("PRNG.Reseed() with seed = '%#v'; stack=\n '%v'", seed, stack())
 }
 

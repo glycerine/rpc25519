@@ -164,24 +164,25 @@ func issueSerial() (cur int64) {
 
 var myPID = int64(os.Getpid())
 
+// global pseudo random number generator used by NewCallID()
+// and reset by simnet at top or on new scenario. Be careful
+// though, re-using the same seed will result in the
+// same CallID being returned, which can cause message
+// mis-routing. Prefer to start the simnet fresh with
+// a given Config.InitialSimnetScenario, rather than
+// reset (via SimpleNewScenario), to prevent such issues.
 var globalPRNG *PRNG
-
-var Smap = &sync.Map{}
-var SmapNeverCleared = &sync.Map{}
-
-// global RNG for NewCallID(), TODO replace with per simnet.PRNG
-//var blake3rand *blakehash.Blake3
 
 func init() {
 	if faketime {
 		globalPRNG = NewPRNG([32]byte{})
-		println("hdr init(): seeded globalPRNG to 0")
+		//println("hdr init(): seeded globalPRNG to 0")
 	} else {
 		var seed2 [32]byte
 		_, err := cryrand.Read(seed2[:])
 		panicOn(err)
 		globalPRNG = NewPRNG(seed2)
-		println("hdr init() seeded globalPRNG to cry rand")
+		//println("hdr init() seeded globalPRNG to cry rand")
 	}
 }
 
@@ -468,21 +469,6 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 func NewCallID(name string) (cid string) {
 	if faketime {
 		cid = globalPRNG.NewCallID(name)
-
-		if false {
-			where, loaded := Smap.LoadOrStore(cid, stack())
-			_ = where
-			if loaded {
-				vv("same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where, stack())
-				panic("why same cid?")
-			}
-			// where2, loaded2 := SmapNeverCleared.LoadOrStore(cid, stack())
-			// if loaded2 {
-			// 	vv("SmapNeverCleared sees same cid '%v' previously generated at '%v'; \n\n currently: '%v'", cid, where2, stack())
-			// }
-			vv("cid = '%v'", cid)
-		}
-
 	} else {
 		// truly randomized CallIDs.
 		cid = NewCryRandCallID()
