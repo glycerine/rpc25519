@@ -34,6 +34,14 @@ func (rng *PRNG) Read(p []byte) (n int, err error) {
 	return rng.blake3rand.ReadXOF(p)
 }
 
+func (rng *PRNG) Reseed(seed [32]byte) {
+	rng.mut.Lock()
+	defer rng.mut.Unlock()
+
+	rng.seed = seed
+	rng.blake3rand = blakehash.NewBlake3WithKey(seed)
+}
+
 // Uint64 satisfies the mathrand2.Source interface
 func (rng *PRNG) Uint64() uint64 {
 	b := make([]byte, 8)

@@ -18,7 +18,7 @@ import (
 	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
-	blakehash "github.com/glycerine/rpc25519/hash"
+	//blakehash "github.com/glycerine/rpc25519/hash"
 	//mathrand2 "math/rand/v2"
 	//rb "github.com/glycerine/rbtree"
 )
@@ -3089,11 +3089,10 @@ func (s *Simnet) initScenario(op *mop) {
 	s.zeroOutGoroSimSeqno()
 
 	// do any init work...
+
 	// in hdr.go, CallID() uses this.
-	globalRandMutex.Lock()
-	blake3rand = blakehash.NewBlake3WithKey(scenario.seed)
-	globalRandMutex.Unlock()
-	vv("initScenario: seeded blake3rand to %v ", scenario.num)
+	globalPRNG.Reseed(scenario.seed)
+	vv("initScenario: re-seeded globalPRNG to %v ", scenario.num)
 
 	s.fin(op)
 }

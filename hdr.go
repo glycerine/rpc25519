@@ -16,7 +16,7 @@ import (
 	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/loquet"
-	blakehash "github.com/glycerine/rpc25519/hash"
+	//blakehash "github.com/glycerine/rpc25519/hash"
 	//mathrand2 "math/rand/v2"
 )
 
@@ -155,35 +155,29 @@ var lastSerialPrivate int64
 
 func issueSerial() (cur int64) {
 	cur = atomic.AddInt64(&lastSerialPrivate, 1)
-	if cur == 34 {
-		vv("here is serial 34 stack \n'%v'", stack())
-		//panic("where Serial 34 miss-directed frag?")
-	}
+	//if cur == 34 {
+	//	vv("here is serial 34 stack \n'%v'", stack())
+	//	//panic("where Serial 34 miss-directed frag?")
+	//}
 	return
 }
 
 var myPID = int64(os.Getpid())
 
-var globalRandMutex sync.Mutex
+var globalPRNG *PRNG
 
 // global RNG for NewCallID(), TODO replace with per simnet.PRNG
-var blake3rand *blakehash.Blake3
+//var blake3rand *blakehash.Blake3
 
 func init() {
 	if faketime {
-		globalRandMutex.Lock()
-		blake3rand = blakehash.NewBlake3()
-		globalRandMutex.Unlock()
+		globalPRNG = NewPRNG([32]byte{})
 		//println("hdr init(): seeded blake3rand to 0")
 	} else {
-		globalRandMutex.Lock()
-
 		var seed2 [32]byte
 		_, err := cryrand.Read(seed2[:])
 		panicOn(err)
-		blake3rand = blakehash.NewBlake3WithKey(seed2)
-
-		globalRandMutex.Unlock()
+		globalPRNG = NewPRNG(seed2)
 		//println("hdr init() seeded blake3rand to cry rand")
 	}
 }
@@ -471,10 +465,7 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 func NewCallID(name string) (cid string) {
 	if faketime {
 		var pseudo [21]byte // not cryptographically random.
-		globalRandMutex.Lock()
-
-		blake3rand.ReadXOF(pseudo[:])
-		globalRandMutex.Unlock()
+		globalPRNG.Read(pseudo[:])
 		cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
 
 	} else {
