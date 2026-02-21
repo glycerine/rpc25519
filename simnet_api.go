@@ -1540,7 +1540,13 @@ func diffpos(as, bs string) (pos int, difftext string) {
 func intSeedToBytes(int64seed int64) (b [32]byte) {
 	n := uint64(int64seed)
 	// little endian fill
-	for i := range 8 {
+	for i := range 32 {
+		if i > 7 {
+			// avoid collisions with non-simnet globalPRNG seeds by
+			// having our high bits all set on.
+			b[i] = 255
+			continue
+		}
 		b[i] = byte(n >> (i * 8))
 	}
 	return

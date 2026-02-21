@@ -1257,7 +1257,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	scen := NewScenarioBaseline(tick, cfg.InitialSimnetScenario)
 
 	// in hdr.go, CallID() uses globalPRNG.
-	globalPRNG.Reseed(scen.seed)
+	//globalPRNG.ReseedIfNotAlready(scen.seed)
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
@@ -3089,10 +3089,10 @@ func (s *Simnet) initScenario(op *mop) {
 
 	// do any init work...
 
-	// in hdr.go, CallID() uses globalPRNG.
-	globalPRNG.Reseed(scenario.seed)
+	// in hdr.go, NewCallID() uses GlobalPRNG.
+	//globalPRNG.Reseed(scenario.seed)
 
-	vv("initScenario: re-seeded globalPRNG to %v ", scenario.int64Seed)
+	vv("initScenario: re-seeded globalPRNG to %#v", scenario.seed)
 
 	s.fin(op)
 }

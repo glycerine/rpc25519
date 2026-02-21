@@ -677,6 +677,9 @@ type TubeConfig struct {
 	// psuedo random number generator, seeded
 	// from the current scenario seed.
 	// implmentation in tube/mathrand.go
+	// used in election timeout randomization currently.
+	// TODO: relate the seed used in TubeConfig.Init()
+	// to the simnet scenario seed.
 	prng *prng
 
 	// end TubeConfig

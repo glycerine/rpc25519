@@ -175,7 +175,8 @@ var globalPRNG *PRNG
 
 func init() {
 	if faketime {
-		globalPRNG = NewPRNG([32]byte{})
+		var seed [32]byte
+		globalPRNG = NewPRNG(seed)
 		//println("hdr init(): seeded globalPRNG to 0")
 	} else {
 		var seed2 [32]byte
@@ -450,7 +451,8 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 	t0 := time.Now()
 	serial := issueSerial()
 
-	callID := globalPRNG.NewCallID(serviceName)
+	//callID := globalPRNG.NewCallID(serviceName)
+	callID := NewCallID(serviceName)
 
 	m = &HDR{
 		Created:       t0,
@@ -467,8 +469,13 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 }
 
 func NewCallID(name string) (cid string) {
+	// Our first call is from an init() func in
+	// zygo to cli.go:1378 rpc25519.NewConfig() to get
+	// a new &rpc.Config{} whose configBaseID
+	// is a NewCallID() cid.
 	if faketime {
 		cid = globalPRNG.NewCallID(name)
+		//vv("cid = %v", cid)
 	} else {
 		// truly randomized CallIDs.
 		cid = NewCryRandCallID()

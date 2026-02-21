@@ -2643,7 +2643,7 @@ func (s *Server) RegisterUploadReaderFunc(name string, callmeUploadReader Upload
 // Start has the Server begin receiving and processing RPC calls.
 // The Config.ServerAddr tells us what host:port to bind and listen on.
 func (s *Server) Start() (serverAddr net.Addr, err error) {
-	//vv("Server.Start() called")
+	vv("Server.Start() called. name='%v' serverBaseID='%v'", s.name, s.cfg.serverBaseID)
 	if s.cfg == nil {
 		// we do this in NewServer now, but leave this here
 		// in case we revert/realize why we didn't eagerly instantiate

@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -34,6 +35,20 @@ func (rng *PRNG) Read(p []byte) (n int, err error) {
 	return rng.blake3rand.ReadXOF(p)
 }
 
+func (rng *PRNG) ReseedIfNotAlready(seed [32]byte) {
+	rng.mut.Lock()
+	defer rng.mut.Unlock()
+
+	if 0 == bytes.Compare(seed[:], rng.seed[:]) {
+		return
+	}
+
+	rng.seed = seed
+	rng.blake3rand = blakehash.NewBlake3WithKey(seed)
+
+	vv("PRNG.ReseedIfNotAlready() with seed = '%#v'; stack=\n '%v'", seed, stack())
+}
+
 func (rng *PRNG) Reseed(seed [32]byte) {
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
@@ -41,7 +56,7 @@ func (rng *PRNG) Reseed(seed [32]byte) {
 	rng.seed = seed
 	rng.blake3rand = blakehash.NewBlake3WithKey(seed)
 
-	//vv("PRNG.Reseed() with seed = '%#v'; stack=\n '%v'", seed, stack())
+	vv("PRNG.Reseed() with seed = '%#v'; stack=\n '%v'", seed, stack())
 }
 
 // Uint64 satisfies the mathrand2.Source interface
@@ -55,7 +70,7 @@ func (rng *PRNG) NewCallID(name string) (cid string) {
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
 
-	var pseudo [21]byte // not cryptographically random.
+	var pseudo [21]byte
 
 	rng.blake3rand.ReadXOF(pseudo[:])
 

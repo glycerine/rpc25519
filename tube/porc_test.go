@@ -144,7 +144,7 @@ func Test016_tube_parallel_linz(t *testing.T) {
 				t.Fatalf("error: expected operations to be linearizable! ops='%v'", opsSlice(ops))
 			}
 
-			vv("jnode=%v, i=%v passed linearizability checker.", jnode, i)
+			//vv("jnode=%v, i=%v passed linearizability checker.", jnode, i)
 			//}
 			//vv("016test done with read j = %v", j)
 
