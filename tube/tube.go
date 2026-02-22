@@ -2326,7 +2326,7 @@ func (s *TubeNode) handleNewCircuit(
 				if elap > time.Minute {
 					// does usefully collect those few circuits to now dead (e.g. member) clients
 					// that are leftover and did not get cleaned up for whatever reason.
-					alwaysPrintf("%v: closing ckt with no activity after %v; to client: '%v'", s.name, elap, ckt.RpbTo.NetAddr)
+					//alwaysPrintf("%v: closing ckt with no activity after %v; to client: '%v'", s.name, elap, ckt.RpbTo.NetAddr)
 					return
 				}
 				gcClientCh = time.After(time.Second * 10)
@@ -5014,7 +5014,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// transitions. So use s.cktall, not s.cktReplica here.
 	cktP, ok := s.cktall[s.leaderID]
 	if !ok {
-		alwaysPrintf("%v don't know how to contact '%v' (because not in cktall its s.leaderID='%v') to redirect to leader; for tkt '%v'. Assuming they died. quickWhoWeKnow='%v'", s.me(), s.leaderName, s.leaderID, tkt.Short(), s.quickWhoWeKnow())
+		//alwaysPrintf("%v don't know how to contact '%v' (because not in cktall its s.leaderID='%v') to redirect to leader; for tkt '%v'. Assuming they died. quickWhoWeKnow='%v'", s.me(), s.leaderName, s.leaderID, tkt.Short(), s.quickWhoWeKnow())
 
 		// return true so that we do not assume we are
 		// the leader, even if we cannot contact one.

@@ -1225,7 +1225,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			canc5()
 			if err2 != nil {
 				// this is bad. bailout needed.
-				vv("restart false: restartFullHelper err2 = '%v'", err2)
+				//vv("restart false: restartFullHelper err2 = '%v'", err2)
 				return false
 			}
 			return true
@@ -1468,7 +1468,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 				//vv("%v retry with same serial.", s.name) // used to be seen lots, not seen after restart() changeover. Seen a bunch with the fallthrough just above.
 				continue
 			case err == ErrNeedNewSession:
-				vv("%v err == ErrNeedNewSession back from s.sess.CAS", s.name)
+				//vv("%v err == ErrNeedNewSession back from s.sess.CAS", s.name)
 				return
 
 			case strings.Contains(errs, "Must call CreateNewSession first"):
@@ -2453,7 +2453,7 @@ func restartFullHelper(ctx context.Context, name string, cli *TubeNode, pSess **
 			err = cli.CloseSession(ctx2, (*pSess))
 			canc()
 			if err != nil {
-				vv("%v: closing prior session err='%v'", name, err)
+				//vv("%v: closing prior session err='%v'", name, err)
 			}
 		}
 
