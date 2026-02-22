@@ -1539,9 +1539,9 @@ func diffpos(as, bs string) (pos int, difftext string) {
 // only sets up to the first 8 bytes.
 func intSeedToBytes(int64seed int64) (b [32]byte) {
 	n := uint64(int64seed)
-	// little endian fill
+	// big endian fill
 	for i := range 8 {
-		b[i] = byte(n >> (i * 8))
+		b[i] = byte(n >> ((7 - i) * 8))
 	}
 	return
 }
