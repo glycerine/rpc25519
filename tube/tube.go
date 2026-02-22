@@ -1516,7 +1516,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 							_ = been
 							wantPongStepDown = !quorumPongOK || newestQuorumPongTm.Before(redline)
 							if wantPongStepDown {
-								alwaysPrintf("%v wantPongStepDown=true; since redline its been=%v (step down if positive); newestQuorumPongTm = '%v'; quorumPongOK = %v; redline=%v; stepDown = %v; durSinceReliable=%v", s.me(), been, newestQuorumPongTm, quorumPongOK, nice(redline), wantPongStepDown, durSinceReliable)
+								//alwaysPrintf("%v wantPongStepDown=true; since redline its been=%v (step down if positive); newestQuorumPongTm = '%v'; quorumPongOK = %v; redline=%v; stepDown = %v; durSinceReliable=%v", s.me(), been, newestQuorumPongTm, quorumPongOK, nice(redline), wantPongStepDown, durSinceReliable)
 							}
 						}
 					}
@@ -17400,7 +17400,7 @@ func (s *TubeNode) resetToNoSnapshotInProgress() {
 }
 
 func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circuit, caller string) {
-	vv("%v top handleStateSnapshotEnclosed; frag.FragPart=%v", s.me(), frag.FragPart)
+	//vv("%v top handleStateSnapshotEnclosed; frag.FragPart=%v", s.me(), frag.FragPart)
 
 	// reject snapshots from not-the-current-leader.
 	if frag.FromPeerID != s.leaderID ||

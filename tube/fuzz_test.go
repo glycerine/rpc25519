@@ -1180,7 +1180,7 @@ func (s *fuzzUser) events2obsThenCheck(evs []porc.Event, totalStats *totalEventS
 			panicOn(err)
 		}
 	}
-	vv("user %v: len(ops)=%v passed linearizability checker.", s.name, len(ops))
+	//vv("user %v: len(ops)=%v passed linearizability checker.", s.name, len(ops))
 
 	// nothing much to see really.
 	//writeToDiskOkOperations(s.t, s.name, ops)

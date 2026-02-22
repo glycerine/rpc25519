@@ -153,7 +153,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 	}
 
 	c.waitForLeaderNoop(t0)
-	vv("good: noop committed, cluster size %v is up", numNodes)
+	//vv("good: noop committed, cluster size %v is up", numNodes)
 
 	// assert that each node actually has cktReplica and cktAllByName
 	// filled in correctly.
@@ -170,7 +170,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 			//vv("insp on node '%v' = %v'", node.name, insp)
 			panic(fmt.Sprintf("node '%v' has %v CktReplicaByName, not %v as required: %v", node.name, n, nNode, insp.CktReplicaByName))
 		} else {
-			vv("setupTestCluster good: node '%v' has expected CktReplicaByName count of %v: %v", node.name, n, insp.CktReplicaByName)
+			//vv("setupTestCluster good: node '%v' has expected CktReplicaByName count of %v: %v", node.name, n, insp.CktReplicaByName)
 		}
 		if insp.Role == LEADER {
 			if len(insp.Peers) != nNode {

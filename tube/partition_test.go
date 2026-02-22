@@ -283,8 +283,10 @@ func (c *TubeCluster) waitForLeaderNoop(t0 time.Time) {
 	allowedNoop := cfg.MinElectionDur * 5 // time allowed to get no-op committed
 	select {
 	case noop0leader := <-c.LeaderNoop0committedCh:
+		_ = noop0leader
 		elap := time.Since(t0)
-		vv("good: leader first noop0 was committed after %v by %v", elap, noop0leader)
+		_ = elap
+		//vv("good: leader first noop0 was committed after %v by %v", elap, noop0leader)
 		//NO! racey! vv("noop0 ticket = %v", noop0tkt)
 	case <-time.After(allowedNoop):
 		elap := time.Since(t0)
