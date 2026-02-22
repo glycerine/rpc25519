@@ -3963,3 +3963,22 @@ func (s *Simnet) startMEQacceptor() {
 		}
 	}()
 }
+
+// PrepareForSimnet will re-seed our globalPRNG
+// if int64seed is > 0. Otherwise we are a no-op,
+// and altered will come back false. Since is
+// to avoid repeated output from the PRNG, since
+// it was initialized with zero at init() time.
+//
+// This helps tube fuzz_test to get more deterministic
+// NewCallID() responses from hdr.go.
+func PrepareForSimnet(int64seed int64) (altered bool) {
+	if int64seed == 0 {
+		return false
+	}
+
+	seed := intSeedToBytes(int64seed)
+
+	//return globalPRNG.ReseedIfNotAlready(seed)
+	return globalPRNG.Reseed(seed)
+}

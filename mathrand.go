@@ -35,28 +35,36 @@ func (rng *PRNG) Read(p []byte) (n int, err error) {
 	return rng.blake3rand.ReadXOF(p)
 }
 
-func (rng *PRNG) ReseedIfNotAlready(seed [32]byte) {
+func (rng *PRNG) ReseedIfNotAlready(seed [32]byte) (altered bool) {
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
 
 	if 0 == bytes.Compare(seed[:], rng.seed[:]) {
-		return
+		return false
 	}
 
 	rng.seed = seed
 	rng.blake3rand = blakehash.NewBlake3WithKey(seed)
 
-	vv("PRNG.ReseedIfNotAlready() with seed = '%#v'; stack=\n '%v'", seed, stack())
+	//vv("PRNG.ReseedIfNotAlready() with seed = '%#v'; stack=\n '%v'", seed, stack())
+	return true
 }
 
-func (rng *PRNG) Reseed(seed [32]byte) {
+func (rng *PRNG) Reseed(seed [32]byte) (altered bool) {
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
+
+	// assert that seed is strictly monotone increasing,
+	// to catch/avoid duplication of output problems early.
+	if bytes.Compare(seed[:], rng.seed[:]) <= 0 {
+		panicf("PRNG.Reseed must be at higher than existing seed '%#v'", rng.seed)
+	}
 
 	rng.seed = seed
 	rng.blake3rand = blakehash.NewBlake3WithKey(seed)
 
-	vv("PRNG.Reseed() with seed = '%#v'; stack=\n '%v'", seed, stack())
+	//vv("PRNG.Reseed() with seed = '%#v'; stack=\n '%v'", seed, stack())
+	return true
 }
 
 // Uint64 satisfies the mathrand2.Source interface

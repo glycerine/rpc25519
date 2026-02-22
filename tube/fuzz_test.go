@@ -1722,7 +1722,7 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 			return
 		}
 	} else {
-		vv("isHeal true")
+		//vv("isHeal true")
 	}
 
 	var r fuzzFault
@@ -1811,14 +1811,14 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 
 		if s.rnd(2) == 1 {
 			probDrop := s.rng.float64prob()
-			vv("probDrop send = %v on node = %v", probDrop, node)
+			//vv("probDrop send = %v on node = %v", probDrop, node)
 			s.clus.Nodes[node].DropSends(probDrop)
-			vv("back from DropSends setting probDrop send = %v on node = %v", probDrop, node)
+			//vv("back from DropSends setting probDrop send = %v on node = %v", probDrop, node)
 			wantSleep = false
 			return
 		}
 		probDeaf := s.rng.float64prob()
-		vv("probDeaf to read = %v on node = %v", probDeaf, node)
+		//vv("probDeaf to read = %v on node = %v", probDeaf, node)
 		s.clus.Nodes[node].DeafToReads(probDeaf)
 
 	case fuzz_ADD_CLIENT:
@@ -1839,7 +1839,7 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 		s.clus.AllHealthyAndPowerOn(deliverDroppedSends)
 	}
 	if implemented {
-		vv("makeTrouble at node = %v; r = %v; implemented = %v", node, r, implemented)
+		//vv("makeTrouble at node = %v; r = %v; implemented = %v", node, r, implemented)
 	}
 }
 
@@ -1858,8 +1858,8 @@ func Test101_userFuzz(t *testing.T) {
 	// [0, 10) 48.4s runtime with 20 users, 100 steps, 3 nodes.
 	// seed 0, 7 nodes, 20 users, 1000 steps:
 	// 9.88s, 10458 ops passed linearizability checker.
-	begScenario := 103280  // 2700
-	endxScenario := 103281 // 200 // 2701 // 103280
+	begScenario := 0
+	endxScenario := 10
 
 	//endxScenario := 10_000
 	//endxScenario := 20_000
@@ -1905,6 +1905,9 @@ func Test101_userFuzz(t *testing.T) {
 
 		onlyBubbled(t, func(t *testing.T) {
 
+			// get a determinstic seed into rpc.globalPRNG
+			// so that early NewCallID() calls are deterministic too.
+			rpc.PrepareForSimnet(int64seed)
 			//rpc.Smap = &sync.Map{}
 
 			// 1% or less collision probability, to minimize
@@ -2005,7 +2008,7 @@ func Test101_userFuzz(t *testing.T) {
 			if nemesis.calls == 0 {
 				panic("nemesis was never called!")
 			}
-			vv("makeTrouble calls total = %v", nemesis.calls)
+			//vv("makeTrouble calls total = %v", nemesis.calls)
 		})
 
 	}
