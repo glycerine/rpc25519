@@ -1858,8 +1858,8 @@ func Test101_userFuzz(t *testing.T) {
 	// [0, 10) 48.4s runtime with 20 users, 100 steps, 3 nodes.
 	// seed 0, 7 nodes, 20 users, 1000 steps:
 	// 9.88s, 10458 ops passed linearizability checker.
-	begScenario := 15441
-	endxScenario := 15442
+	begScenario := 0
+	endxScenario := 10
 
 	//endxScenario := 10_000
 	//endxScenario := 20_000
@@ -2422,6 +2422,8 @@ type intSet struct {
 	slc []int
 }
 
+var ErrNoLeaderKnown = fmt.Errorf("error: no leader known")
+
 // restartFullHelper was extracted and
 // generalized from czar.go. What it does:
 //
@@ -2434,7 +2436,7 @@ type intSet struct {
 // returns an error, the test might be done.
 func restartFullHelper(ctx context.Context, name string, cli *TubeNode, pSess **Session, halt *idem.Halter) (err error) {
 
-fullRestart:
+	//fullRestart:
 	for {
 		select {
 		case <-halt.ReqStop.Chan:
@@ -2466,7 +2468,8 @@ fullRestart:
 			if !reallyLeader {
 				vv("%v: arg. we see not really leader? why?", name)
 				cli.closeAutoClientSockets()
-				continue fullRestart
+				// infinite loop... continue fullRestart
+				return ErrNoLeaderKnown
 			}
 			// should have updated our notion of leader, else on leader change we can be stuck
 			// see peerListReplyHandler() tube.go:13234
