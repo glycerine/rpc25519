@@ -1875,23 +1875,13 @@ func Test101_userFuzz(t *testing.T) {
 		vv("test 101 wrapping up.")
 	}()
 
-	// 20 steps, 3 nodes, 3 users. 10_000 scenarios => 5757s (1h36m)
+	//begScenario := 0
+	//endxScenario := 1
 
-	// [0, 10) 48.4s runtime with 20 users, 100 steps, 3 nodes.
-	// seed 0, 7 nodes, 20 users, 1000 steps:
-	// 9.88s, 10458 ops passed linearizability checker.
+	begScenario := 158973 // stuck pump/dumps messages.
+	endxScenario := 158974
 
-	begScenario := 0
-	endxScenario := 1
-
-	//begScenario := 164252 // tube.go:4689 [goID 832] 2000-01-01T00:00:52.227000002+00:00 warning: how is this possible? s.role==LEADER but s.name='node_1' while s.leaderName='node_0'... becomeLeader() would have set this...
-	//endxScenario := 164253
-
-	//begScenario := 158973 // stuck pump/dumps messages.
-	//endxScenario := 158974
 	numScen := endxScenario - begScenario
-	//endxScenario := 10_000
-	//endxScenario := 20_000
 
 	var curClus *TubeCluster
 	defer func() {
@@ -1922,21 +1912,6 @@ func Test101_userFuzz(t *testing.T) {
 		rng := newPRNG(seedBytes)
 		rnd := rng.pseudoRandNonNegInt64Range
 
-		// seed 0 numbers: 3 node cluster. GOMAXPROCS(1). (without makeTrouble though!)
-		// 10 users,  5 steps =>  44 ops.
-		// 10 users, 10 steps =>  99 ops.
-		// 10 users, 20 steps => 209 ops.
-		// 10 users, 30 steps => 319 ops.
-		// 10 users, 40 steps => 429 ops.
-		// 10 users, 50 steps => 539 ops. (12.8s runtime)
-		// 15 users, 100 steps => 1584 ops. (4.6s with prints quiet)
-		// 20 users, 100 steps => 2079 ops. (5.1s)
-		//  5 users, 1000 steps=> 2975 ops. (14.6s)
-		// 15 users, 10_000 steps => 159984 ops. (17 minutes; 1054s on rog).
-		//
-		// seed 0, 5 nodes in cluster
-		// 20 users, 1000 steps => 10458 ops. (10.71s with prints quiet)
-		// same, but ten seeds 0-9: green, 88 seconds.
 		steps := 40 // 1000 ok. 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
 		numNodes := 3
 		// numUsers of 20 ok at 200 steps, but 30 users is
