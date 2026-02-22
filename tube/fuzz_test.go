@@ -1482,7 +1482,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 	}
 
 	if tktW.DupDetected {
-		vv("%v tkt.DupDetected true!", s.name)
+		//vv("%v tkt.DupDetected true!", s.name)
 	}
 
 	if tktW.CASwapped {
