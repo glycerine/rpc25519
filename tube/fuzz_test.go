@@ -1880,8 +1880,15 @@ func Test101_userFuzz(t *testing.T) {
 	// [0, 10) 48.4s runtime with 20 users, 100 steps, 3 nodes.
 	// seed 0, 7 nodes, 20 users, 1000 steps:
 	// 9.88s, 10458 ops passed linearizability checker.
-	begScenario := 158973
-	endxScenario := 158974
+
+	begScenario := 0
+	endxScenario := 1
+
+	//begScenario := 164252 // tube.go:4689 [goID 832] 2000-01-01T00:00:52.227000002+00:00 warning: how is this possible? s.role==LEADER but s.name='node_1' while s.leaderName='node_0'... becomeLeader() would have set this...
+	//endxScenario := 164253
+
+	//begScenario := 158973 // stuck pump/dumps messages.
+	//endxScenario := 158974
 	numScen := endxScenario - begScenario
 	//endxScenario := 10_000
 	//endxScenario := 20_000

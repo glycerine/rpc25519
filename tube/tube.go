@@ -1204,6 +1204,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				panic("setLeaderCktChan is only for clients, not replica!")
 			}
 			//vv("%v <-s.setLeaderCktChan so setting s.leaderID='%v' and s.leaderName='%v'", s.name, s.leaderID, s.leaderName)
+			// ugh. empty s.leaderID and s.leaderName seen, scenario 164252 fuzz_test 101
 			s.leaderID = ckt.RemotePeerID
 			s.leaderName = ckt.RemotePeerName
 			s.leaderURL = ckt.RemoteServerURL("")
@@ -4686,6 +4687,9 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	// don't report someone else as leader if we are.
 	if s.role == LEADER {
 		if s.leaderName != s.name {
+			// can happen because: we got an updated leader name
+			// from someone but have not realized we should step
+			// down yet... maybe from TellClientSteppedDown ?
 			alwaysPrintf("warning: how is this possible? s.role==LEADER but s.name='%v' while s.leaderName='%v'... becomeLeader() would have set this... ", s.name, s.leaderName)
 
 			// what becomeLeader does:
@@ -6492,7 +6496,7 @@ const SAVE_STATE = true
 const SKIP_SAVE = false
 
 func (s *TubeNode) becomeFollower(term int64, mc *MemberConfig, save bool) {
-	//vv("%v becomeFollower. new term = %v. was: %v; stack=\n%v", s.me(), term, s.state.CurrentTerm, stack())
+	vv("%v becomeFollower. new term = %v. was: %v", s.me(), term, s.state.CurrentTerm)
 	if s.role == LEADER {
 		// call clearBatchToSubmit() below after
 		// we update the leader meta data to not convey
@@ -7215,7 +7219,7 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 }
 
 func (s *TubeNode) becomeLeader() {
-	//vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
+	vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
 	//defer func() {
 	//	vv("%v end of becomeLeader", s.me())
 	//}()
@@ -7929,20 +7933,29 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		}
 	}
 
-	if ae.LeaderName != s.leaderName {
-		// try to detect flapping between 2
-		// different leaders under split brain.
-		s.currentLeaderFirstObservedTm = time.Now()
-	}
-	if ae.LeaderName != s.leaderName ||
-		ae.LeaderID != s.leaderID ||
-		ae.LeaderURL != s.leaderURL {
+	// without this guard the leader itself
+	// can get a mistaken s.leaderName(!)
+	if ae.LeaderTerm > s.state.CurrentTerm {
 
-		s.leaderName = ae.LeaderName
-		s.leaderID = ae.LeaderID
-		s.leaderURL = ae.LeaderURL
-		s.leaderTerm = ae.LeaderTerm
-		s.leaderWasUpdated()
+		if ae.LeaderName != s.leaderName {
+			// try to detect flapping between 2
+			// different leaders under split brain.
+			s.currentLeaderFirstObservedTm = time.Now()
+		}
+		if ae.LeaderName != s.leaderName ||
+			ae.LeaderID != s.leaderID ||
+			ae.LeaderURL != s.leaderURL {
+
+			// this will set the wrong thing if I am
+			// leader and not stepping down!
+			s.leaderName = ae.LeaderName
+			//vv("%v set s.leaderName = '%v' from ae.LeaderName for term %v ; CurrentTerm= %v", s.name, s.leaderName, ae.LeaderTerm, s.state.CurrentTerm)
+
+			s.leaderID = ae.LeaderID
+			s.leaderURL = ae.LeaderURL
+			s.leaderTerm = ae.LeaderTerm
+			s.leaderWasUpdated()
+		}
 	}
 
 	// earlier but may be redundant with  :6443
@@ -8081,13 +8094,6 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		s.host.becomeFollower(ae.LeaderTerm, ae.MC, SAVE_STATE)
 		// below set s.leader
 
-		// since this is the _not_ "the current leader", we
-		// do not reset our election timeout here.
-		// "If election timeout elapses without receiving
-		// AppendEntries RPC **from current leader** or granting
-		// vote to candidate: convert to candidate."
-		// me: but this is also ambiguous since they ARE
-		// the leader now...
 	} else {
 		// INVAR: ae.LeaderTerm == s.state.CurrentTerm, since
 		// we already returned above when ae.LeaderTerm < s.state.CurrentTerm.
@@ -8101,14 +8107,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			//	//vv("%v handleAE: step down to follower, so nil out s.leaderSendsHeartbeatsCh", s.name)
 			//}
 			s.leaderSendsHeartbeatsCh = nil
-			// below set s.leader
 		}
-		// in response to this legit packet from current leader.
-		// I moved this below because even with a higher term,
-		// only a leader sends AE, so we recognized the new leader
-		// and must reset election timeout either way.
-		//s.resetPreVoteState(false, true) // in handleAppendEntries()
-		//s.host.resetElectionTimeout("handleAppendEntries from current leader")
 	}
 	s.resetPreVoteState(false, true) // in handleAppendEntries()
 	s.host.resetElectionTimeout("handleAppendEntries >= term seen.")
