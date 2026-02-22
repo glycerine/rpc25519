@@ -1858,11 +1858,27 @@ func Test101_userFuzz(t *testing.T) {
 	// [0, 10) 48.4s runtime with 20 users, 100 steps, 3 nodes.
 	// seed 0, 7 nodes, 20 users, 1000 steps:
 	// 9.88s, 10458 ops passed linearizability checker.
-	begScenario := 0
-	endxScenario := 10
+	begScenario := 15441
+	endxScenario := 15442
 
 	//endxScenario := 10_000
 	//endxScenario := 20_000
+
+	var curClus *TubeCluster
+	defer func() {
+		r := recover()
+		if r != nil {
+			err, ok := r.(error)
+			if ok && strings.Contains(err.Error(), "deadlock: main bubble goroutine has exited but blocked goroutines remain") {
+				vv("augmenting panic with dump of halter tree; try and detect where hung...")
+				for i, node := range curClus.Nodes {
+					fmt.Printf("++++++++ curClus.Node[%v].Halt.RootString():\n %v \n\n\n", i, node.Halt.RootString())
+				}
+				panic(r)
+			}
+		}
+	}()
+
 	alwaysPrintf("begScenario = %v; endxScenario = %v", begScenario, endxScenario)
 	for scenario := begScenario; scenario < endxScenario; scenario++ {
 
@@ -1927,6 +1943,8 @@ func Test101_userFuzz(t *testing.T) {
 			cfg.InitialSimnetScenario = int64seed
 
 			c, leaderName, leadi, _ := setupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 101)
+
+			curClus = c
 
 			leaderURL := c.Nodes[leadi].URL
 			defer c.Close()
