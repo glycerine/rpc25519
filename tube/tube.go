@@ -1616,7 +1616,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			err = s.SendOneWay(itkt.ckt, itkt.reqFrag, -1, 0)
 			_ = err // don't panic on halting.
 			if err != nil {
-				alwaysPrintf("%v non nil error '%v' on s.requestRemoteInspectCh -> SendOneWay to '%v'", s.me(), err, itkt.ckt.RemotePeerID)
+				//alwaysPrintf("%v non nil error '%v' on s.requestRemoteInspectCh -> SendOneWay to '%v'", s.me(), err, itkt.ckt.RemotePeerID)
+				//example: non nil error 'rpc25519 error: context cancelled: Circuit.' on s.requestRemoteInspectCh -> SendOneWay to 'wC5O55-FGjwF59iHxzH5XbA3VNMq'
+
 				//return rpc.ErrHaltRequested
 				continue
 			}
@@ -16465,7 +16467,7 @@ func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur 
 	anew, err = ckt.SendOneWay(frag, errWriteDur, keepFragIfPositive)
 	_ = anew
 	if err != nil {
-		alwaysPrintf("%v SendOneWay: non nil error on '%v': '%v'; ckt.RemotePeerName='%v'; is ckt.Context live: %v; caller(0) = '%v'; caller(1) = '%v'; fileLine(2)='%v'; fileLine(3)='%v'", s.me(), frag.FragSubject, err, ckt.RemotePeerName, ctxLive(ckt.Context), caller(0), caller(1), fileLine(2), fileLine(3))
+		//alwaysPrintf("%v SendOneWay: non nil error on '%v': '%v'; ckt.RemotePeerName='%v'; is ckt.Context live: %v; caller(0) = '%v'; caller(1) = '%v'; fileLine(2)='%v'; fileLine(3)='%v'", s.me(), frag.FragSubject, err, ckt.RemotePeerName, ctxLive(ckt.Context), caller(0), caller(1), fileLine(2), fileLine(3))
 		if s.wasConnRefused(err, ckt) {
 			return
 		}

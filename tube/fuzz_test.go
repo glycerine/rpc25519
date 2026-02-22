@@ -2489,7 +2489,7 @@ func restartFullHelper(ctx context.Context, name string, cli *TubeNode, pSess **
 			//vv("%v: helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", name, leaderURL, reallyLeader, err)
 			panicOn(err)
 			if !reallyLeader {
-				vv("%v: arg. we see not really leader? why?", name)
+				//vv("%v: arg. we see not really leader? why?", name)
 				cli.closeAutoClientSockets()
 				// it worked for a long time to do continue fullRestart,
 				// but then we hit an infinite loop with it. grr.
@@ -2511,10 +2511,10 @@ func restartFullHelper(ctx context.Context, name string, cli *TubeNode, pSess **
 			canc()
 			//panicOn(err) // panic: hmm. no leader known to me (node 'node_0')
 			if err == nil {
-				vv("%v: got sess = '%v'", name, *pSess)
+				//vv("%v: got sess = '%v'", name, *pSess)
 				return nil
 			}
-			alwaysPrintf("%v: got err from CreateNewSession, sleep 1 sec and try again: '%v'", name, err)
+			//alwaysPrintf("%v: got err from CreateNewSession, sleep 1 sec and try again: '%v'", name, err) // 'context deadline exceeded'
 			time.Sleep(time.Second)
 		}
 	} // end for ever
