@@ -1179,7 +1179,7 @@ func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, w
 		}
 	} else {
 		if ctx.Err() != nil {
-			vv("%v: Session.CAS sees already cancelled ctx, bailing early", s.cli.name) // not seen.
+			//vv("%v: Session.CAS sees already cancelled ctx, bailing early", s.cli.name) // not seen.
 			err = ErrNeedNewSession
 			return
 		}

@@ -6703,7 +6703,7 @@ func (s *TubeNode) beginElection() {
 	// (with pre-voting) continually
 	// incrementing our term would be bad.
 	if s.role == FOLLOWER {
-		vv("%v beginElection, %v about to increment CurrentTerm from %v -> %v", s.me(), s.name, s.state.CurrentTerm, s.state.CurrentTerm+1)
+		//vv("%v beginElection, %v about to increment CurrentTerm from %v -> %v", s.me(), s.name, s.state.CurrentTerm, s.state.CurrentTerm+1)
 		s.state.CurrentTerm++
 		// ? do we want here: s.state.MC.ConfigTerm = s.state.CurrentTerm
 	}
@@ -7213,7 +7213,7 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 }
 
 func (s *TubeNode) becomeLeader() {
-	vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
+	//vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
 	//defer func() {
 	//	vv("%v end of becomeLeader", s.me())
 	//}()
@@ -17483,7 +17483,7 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 		_, err := state2.UnmarshalMsg(frag.Payload)
 		panicOn(err)
 		s.applyNewStateSnapshot(state2, caller)
-		vv("applied single part state snapshot")
+		//vv("applied single part state snapshot")
 		s.resetToNoSnapshotInProgress()
 		return
 	}
