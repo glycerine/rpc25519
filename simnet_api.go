@@ -1542,7 +1542,7 @@ func intSeedToBytes(int64seed int64) (b [32]byte) {
 	// not-sure-what-endian fill, but it works with monotone increase check.
 	for i := range 8 {
 		// this fill order is needed so that the
-		// check in Reseed for monotone increasing
+		// check in ReseedMonotone for monotone increasing
 		// succeeds.
 		b[i] = byte(n >> ((7 - i) * 8))
 	}

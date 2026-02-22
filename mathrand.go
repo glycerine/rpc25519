@@ -54,16 +54,30 @@ func (rng *PRNG) Reseed(seed [32]byte) (altered bool) {
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
 
+	rng.seed = seed
+	rng.blake3rand = blakehash.NewBlake3WithKey(seed)
+
+	//vv("PRNG.Reseed() with seed = '%#v'; stack=\n '%v'", seed, stack())
+	return true
+}
+
+// ReseedMonotone helps insure that the seed is never repeated,
+// by checking that seed is greater than the previous seed,
+// using bytes.Compare.
+func (rng *PRNG) ReseedMonotone(seed [32]byte) (altered bool) {
+	rng.mut.Lock()
+	defer rng.mut.Unlock()
+
 	// assert that seed is strictly monotone increasing,
 	// to catch/avoid duplication of output problems early.
 	if bytes.Compare(seed[:], rng.seed[:]) <= 0 {
-		panicf("PRNG.Reseed must be at higher than existing seed '%#v' \n new attempted <= seed = '%#v'", rng.seed, seed)
+		panicf("PRNG.ReseedMonotone must be at higher than existing seed '%#v' \n new attempted <= seed = '%#v'", rng.seed, seed)
 	}
 
 	rng.seed = seed
 	rng.blake3rand = blakehash.NewBlake3WithKey(seed)
 
-	//vv("PRNG.Reseed() with seed = '%#v'; stack=\n '%v'", seed, stack())
+	//vv("PRNG.ReseedMonotone() with seed = '%#v'; stack=\n '%v'", seed, stack())
 	return true
 }
 

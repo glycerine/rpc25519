@@ -1911,8 +1911,7 @@ func Test101_userFuzz(t *testing.T) {
 
 				// get a determinstic seed into rpc.globalPRNG
 				// so that early NewCallID() calls are deterministic too.
-				rpc.PrepareForSimnet(int64seed)
-				//rpc.Smap = &sync.Map{}
+				rpc.PrepareForSimnet(int64seed, try > 0)
 
 				// 1% or less collision probability, to minimize
 				// rejection sampling and get unique write values quickly.

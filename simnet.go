@@ -1244,7 +1244,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	scen := NewScenarioBaseline(tick, cfg.InitialSimnetScenario)
 
 	// in hdr.go, CallID() uses globalPRNG.
-	//globalPRNG.ReseedIfNotAlready(scen.seed)
+	//globalPRNG.ReseedMonotone(scen.seed)
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
@@ -3099,7 +3099,7 @@ func (s *Simnet) initScenario(op *mop) {
 	//vv("initScenario: int64Seed=%v, re-seeded scenario.blake3rand to %#v", scenario.int64seed, scenario.seed)
 
 	// in hdr.go, NewCallID() uses GlobalPRNG.
-	//globalPRNG.Reseed(scenario.seed)
+	//globalPRNG.ReseedMonotone(scenario.seed)
 	//vv("initScenario: re-seeded globalPRNG to %#v", scenario.seed)
 
 	s.fin(op)
@@ -3972,13 +3972,15 @@ func (s *Simnet) startMEQacceptor() {
 //
 // This helps tube fuzz_test to get more deterministic
 // NewCallID() responses from hdr.go.
-func PrepareForSimnet(int64seed int64) (altered bool) {
+func PrepareForSimnet(int64seed int64, allowRepeat bool) (altered bool) {
 	if int64seed == 0 {
 		return false
 	}
 
 	seed := intSeedToBytes(int64seed)
 
-	//return globalPRNG.ReseedIfNotAlready(seed)
-	return globalPRNG.Reseed(seed)
+	if allowRepeat {
+		return globalPRNG.Reseed(seed)
+	}
+	return globalPRNG.ReseedMonotone(seed)
 }
