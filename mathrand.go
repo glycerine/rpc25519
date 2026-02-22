@@ -57,7 +57,7 @@ func (rng *PRNG) Reseed(seed [32]byte) (altered bool) {
 	// assert that seed is strictly monotone increasing,
 	// to catch/avoid duplication of output problems early.
 	if bytes.Compare(seed[:], rng.seed[:]) <= 0 {
-		panicf("PRNG.Reseed must be at higher than existing seed '%#v'", rng.seed)
+		panicf("PRNG.Reseed must be at higher than existing seed '%#v' \n new attempted <= seed = '%#v'", rng.seed, seed)
 	}
 
 	rng.seed = seed
