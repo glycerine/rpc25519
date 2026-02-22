@@ -772,11 +772,11 @@ func (s *TubeNode) Start(
 			}
 		}
 		for _, cktP := range s.cktall {
+			cktP.Close()         // shutdown watchdog on ckt before ckt itself.
 			if cktP.ckt != nil { // could be pending
 				cktP.ckt.Close(nil)
 				//vv("%v ckt closed: '%v'", s.name, cktP.ckt)
 			}
-			cktP.Close()
 		}
 
 		s.Halt.ReqStop.Close()
