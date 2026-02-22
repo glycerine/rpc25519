@@ -1513,9 +1513,31 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 	}
 	if !swapped {
 		if out.valueCur == out.newString {
-			alwaysPrintf("swapped succeeded (we know since attempted swap values are unique! why did tktW report not CASwapped??? tktW='%v'", tktW)
+			//alwaysPrintf("swapped succeeded (we know since attempted swap values are unique! why did tktW report not CASwapped??? tktW='%v'", tktW)
+
+			// well, we just missed the earlier swap. this
+			// one did indeed fail. for example:
+			// tktW='Ticket{
+			//    --------  Ticket basics  ---------
+			// finishTicketCalled: true,
+			//           TicketID: lbGXRVIGdxZbz1DWLTkWoAAr3uMq,
+			//                TSN: 454389,
+			//               Desc: cas(table(table101), key(key10) write newval '237'; if oldval('231') present (since T0: 3.969s),
+			//                 T0: 2000-01-01T00:01:20.243000001+00:00,
+			//                 Op: CAS,
+			//                Key: "key10",
+			//                Val: "237",
+			//              Vtype: "string",
+			// Err: rejected write CAS on tkt.OldVal != current leaf.Val,
+			// CASRejectedBecauseCurVal: 237
+			//              OldVal: 231
+			//           CASwapped: false
+			// CurValOnFailedWrite: 237
+
 			// help the linz checker. we should not stumble
 			// because the CAS worked and we see the results now.
+			// i.e. the return event we never saw, but avoid
+			// causing porcupine to stumble without cause (avoid false alarm).
 			out.swapped = true
 		}
 	}
