@@ -9,7 +9,7 @@ import (
 	rpc "github.com/glycerine/rpc25519"
 )
 
-const dieOnConnectionRefused = false // false? TODO does lex priority interacts?? is there some combo of lex priority dieOnConnectionRefused and gcParked that is stable and keeps minimally sufficient circuits up?
+const dieOnConnectionRefused = false
 
 // called by handleAppendEntries/Ack, tallyVote,
 // tallyPreVote, and addToCktall() when a
@@ -198,6 +198,11 @@ func (c *cktPlus) startWatchdog() {
 			tick.Stop()
 			c.perCktWatchdogHalt.RequestStop()
 			c.perCktWatchdogHalt.MarkDone()
+
+			// cktPlus.Close() also does this, but synctest
+			// shutdown deadlock is complaining so try to be
+			// more aggressive about it.
+			c.node.Halt.RemoveChild(c.perCktWatchdogHalt)
 		}()
 
 		var pack *packReconnect
@@ -339,6 +344,8 @@ func (c *cktPlus) startWatchdog() {
 
 			case <-s.Halt.ReqStop.Chan:
 				//alwaysPrintf("%v shutting down watchdog(%p) because <-s.Halt.ReqStop.Chan", s.name, c)
+				return
+			case <-s.MyPeer.Halt.ReqStop.Chan:
 				return
 			}
 		}

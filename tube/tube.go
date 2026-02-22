@@ -771,12 +771,13 @@ func (s *TubeNode) Start(
 				//vv("good: simnet.AlterHost(s.srvname, rpc.SHUTDOWN)")
 			}
 		}
-		// for _, cktP := range s.cktall {
-		// 	if cktP.ckt != nil { // could be pending
-		// 		cktP.ckt.Close(nil)
-		// 		//vv("%v ckt closed: '%v'", s.name, cktP.ckt)
-		// 	}
-		// }
+		for _, cktP := range s.cktall {
+			if cktP.ckt != nil { // could be pending
+				cktP.ckt.Close(nil)
+				//vv("%v ckt closed: '%v'", s.name, cktP.ckt)
+			}
+			cktP.Close()
+		}
 
 		s.Halt.ReqStop.Close()
 		s.Halt.Done.Close()
@@ -16810,7 +16811,7 @@ func (s *TubeNode) newCktPlus(peerName, peerServiceName string) *cktPlus {
 		requestReconnectPulse: make(chan bool),
 	}
 	c.perCktWatchdogHalt = idem.NewHalterNamed(fmt.Sprintf("perCktWatchdogHalt_%v_sn_%v", peerName, c.sn))
-	// mem leak unless we RemoveChild too! see tube.go:15884 in cktPlus.Close()
+	// mem leak unless we RemoveChild too! see tube.go:16824 in cktPlus.Close()
 	s.Halt.AddChild(c.perCktWatchdogHalt)
 	return c
 }
@@ -16820,7 +16821,7 @@ func (c *cktPlus) Close() {
 	//vv("%v cktPlus.Close called by stack=\n\n%v\n", c.node.me(), stack())
 	c.perCktWatchdogHalt.RequestStop()
 
-	// try to avoid leaking cktPlus -- counter-part to tube.go:15875 in newCktPlus().
+	// try to avoid leaking cktPlus -- counter-part to tube.go:16813 in newCktPlus().
 	c.node.Halt.RemoveChild(c.perCktWatchdogHalt)
 
 	c.latestCancFuncMut.Lock()
