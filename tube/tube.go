@@ -1529,7 +1529,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					// Otherwise clients could be stuck
 					// talking to us, a non-leader, which could
 					// delay their getting a reply by alot.
-					alwaysPrintf("%v wantPongStepDown=true", s.me()) // I am leader (since %v; for %v) but I did not get pong quorum in window=%v, quor=%v; \n newestQuorumPongTm='%v' (%v ago);\n newestQuorumPong='%#v'; redline='%v' since redline = %v", s.me(), nice9(s.leaderElectedTm), now.Sub(s.leaderElectedTm), window, quor, nice9(newestQuorumPongTm), time.Since(newestQuorumPongTm), newestQuorumPong, nice9(redline), now.Sub(redline))
+					//alwaysPrintf("%v wantPongStepDown=true", s.me()) // I am leader (since %v; for %v) but I did not get pong quorum in window=%v, quor=%v; \n newestQuorumPongTm='%v' (%v ago);\n newestQuorumPong='%#v'; redline='%v' since redline = %v", s.me(), nice9(s.leaderElectedTm), now.Sub(s.leaderElectedTm), window, quor, nice9(newestQuorumPongTm), time.Since(newestQuorumPongTm), newestQuorumPong, nice9(redline), now.Sub(redline))
 
 					s.leaderName = ""
 					s.leaderID = ""
