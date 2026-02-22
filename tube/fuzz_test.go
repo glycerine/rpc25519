@@ -1882,7 +1882,7 @@ func Test101_userFuzz(t *testing.T) {
 	// 9.88s, 10458 ops passed linearizability checker.
 	begScenario := 158973
 	endxScenario := 158974
-
+	numScen := endxScenario - begScenario
 	//endxScenario := 10_000
 	//endxScenario := 20_000
 
@@ -1939,8 +1939,9 @@ func Test101_userFuzz(t *testing.T) {
 		//numUsers := 9 // 7=>258 events, 8=>310 events, 9=>329 events,10=>366
 		//numUsers := 15 // inf err loop at 15 (10 steps)
 
-		alwaysPrintf("top of seed/scenario = %v ; steps = %v ; numNodes = %v ; numUsers = %v", scenario, steps, numNodes, numUsers)
-
+		if numScen <= 100 || scenario%10 == 0 {
+			alwaysPrintf("top of seed/scenario = %v ; steps = %v ; numNodes = %v ; numUsers = %v", scenario, steps, numNodes, numUsers)
+		}
 		onlyBubbled(t, func(t *testing.T) {
 
 			// get a determinstic seed into rpc.globalPRNG
