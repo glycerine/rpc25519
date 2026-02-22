@@ -1033,7 +1033,7 @@ func keyBetween(a, b *big.Rat) *big.Rat {
 	return sum.Quo(sum, big.NewRat(2, 1))
 }
 
-func (s *fuzzUser) linzCheck() {
+func (s *fuzzUser) linzCheck() error {
 	// Analysis
 	// Expecting some events
 	s.shEvents.mut.Lock()
@@ -1069,34 +1069,10 @@ func (s *fuzzUser) linzCheck() {
 	//err := s.clus.Nodes[0].DumpRaftWAL()
 	//panicOn(err)
 
-	s.events2obsThenCheck(evs, totalStats)
-	return
-	/*
-	   //vv("linzCheck: about to porc.CheckEvents on %v evs", len(evs))
-	   linz := porc.CheckEvents(stringCasModel, evs)
-
-	   	if !linz {
-	   		alwaysPrintf("not linz! wal:\n")
-	   		dump := "test101fuzz_test.wal.dump"
-	   		fd, err := os.Create(dump)
-	   		panicOn(err)
-	   		err = s.clus.Nodes[0].DumpRaftWAL(fd)
-	   		fd.Close()
-	   		panicOn(err)
-
-	   		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; evs='%v'", s.name, s.seed, eventSlice(evs))
-	   		writeToDiskNonLinzFuzzEvents(s.t, s.name, evs)
-	   		panicf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
-	   	}
-
-	   vv("user %v: len(evs)=%v passed linearizability checker.", s.name, len(evs))
-
-	   // nothing much to see really.
-	   writeToDiskOkEvents(s.t, s.name, evs)
-	*/
+	return s.events2obsThenCheck(evs, totalStats)
 }
 
-func (s *fuzzUser) events2obsThenCheck(evs []porc.Event, totalStats *totalEventStats) {
+func (s *fuzzUser) events2obsThenCheck(evs []porc.Event, totalStats *totalEventStats) error {
 
 	// we assume phantom insertion and dup/unmatched return deletion
 	// has already been done by now.
@@ -1166,7 +1142,7 @@ func (s *fuzzUser) events2obsThenCheck(evs []porc.Event, totalStats *totalEventS
 		alwaysPrintf("error: user %v: expected operations to be linearizable! seed='%v'; ops='%v'", s.name, s.seed, opsSlice(ops)) // eventSlice(evs))
 		alwaysPrintf("and the raw events before we inserted phantoms and assembled into ops: '%v'", eventSlice(evs))               // totalStats.eventStats.String())
 		writeToDiskNonLinzFuzz(s.t, s.name, ops)
-		panicf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
+		return fmt.Errorf("error: user %v: expected operations to be linearizable! seed='%v'", s.name, s.seed)
 	}
 
 	if false {
@@ -1184,6 +1160,7 @@ func (s *fuzzUser) events2obsThenCheck(evs []porc.Event, totalStats *totalEventS
 
 	// nothing much to see really.
 	//writeToDiskOkOperations(s.t, s.name, ops)
+	return nil
 }
 
 func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leaderURL string, domain int, domainSeen *sync.Map, domainLast *atomic.Int64) {
@@ -1924,116 +1901,132 @@ func Test101_userFuzz(t *testing.T) {
 		if numScen <= 100 || scenario%10 == 0 {
 			alwaysPrintf("top of seed/scenario = %v ; steps = %v ; numNodes = %v ; numUsers = %v", scenario, steps, numNodes, numUsers)
 		}
-		onlyBubbled(t, func(t *testing.T) {
 
-			// get a determinstic seed into rpc.globalPRNG
-			// so that early NewCallID() calls are deterministic too.
-			rpc.PrepareForSimnet(int64seed)
-			//rpc.Smap = &sync.Map{}
+		// only if we get non-linz twice on same, do we panic;
+		// there is occassional false alarm at end due to ?
+		var tryOk bool
+		var tryErr error
+		for try := 0; try < 2; try++ {
+			onlyBubbled(t, func(t *testing.T) {
 
-			// 1% or less collision probability, to minimize
-			// rejection sampling and get unique write values quickly.
-			domain := steps * numUsers * 100
-			domainSeen := &sync.Map{}
-			domainLast := &atomic.Int64{}
+				// get a determinstic seed into rpc.globalPRNG
+				// so that early NewCallID() calls are deterministic too.
+				rpc.PrepareForSimnet(int64seed)
+				//rpc.Smap = &sync.Map{}
 
-			forceLeader := 0
-			cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
-			//cfg.NoLogCompaction = true
-			// using sim.SimpleNewScenario(intSeed) will
-			// be too late, since alot of setup (the raft cluster) with the
-			// default seed will have already been done, making
-			// reproducibility harder. So we set the seed from
-			// the creation of the simnet.
-			cfg.InitialSimnetScenario = int64seed
+				// 1% or less collision probability, to minimize
+				// rejection sampling and get unique write values quickly.
+				domain := steps * numUsers * 100
+				domainSeen := &sync.Map{}
+				domainLast := &atomic.Int64{}
 
-			c, leaderName, leadi, _ := setupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 101)
+				forceLeader := 0
+				cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
+				//cfg.NoLogCompaction = true
+				// using sim.SimpleNewScenario(intSeed) will
+				// be too late, since alot of setup (the raft cluster) with the
+				// default seed will have already been done, making
+				// reproducibility harder. So we set the seed from
+				// the creation of the simnet.
+				cfg.InitialSimnetScenario = int64seed
 
-			curClus = c
+				c, leaderName, leadi, _ := setupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 101)
 
-			leaderURL := c.Nodes[leadi].URL
-			defer c.Close()
+				curClus = c
 
-			//const skipTrafficTrue = true
-			//snap := s.clus.SimnetSnapshot(skipTrafficTrue)
-			sim := c.Nodes[0].cfg.RpcCfg.GetSimnet()
-			if sim == nil {
-				panic("why could not get simnet?")
-			}
+				leaderURL := c.Nodes[leadi].URL
+				defer c.Close()
 
-			c.Cfg.prng = rng
-			for i := range c.Nodes {
-				c.Nodes[i].cfg.prng = rng
-			}
-
-			nemesis := &fuzzNemesis{
-				rng:          rng,
-				rnd:          rnd,
-				clus:         c,
-				damaged:      make(map[int]int),
-				allowTrouble: make(chan bool, 1),
-			}
-			// unlock it
-			nemesis.allowTrouble <- true
-
-			// if we limit to 100sec, then we can only get
-			// in around 500 steps (with 15 users, 3 node cluster).
-			//ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
-			//defer cancel()
-			ctx := context.Background()
-
-			atomicLastEventID := &atomic.Int64{}
-			var users []*fuzzUser
-			shEvents := &sharedEvents{}
-			for userNum := 0; userNum < numUsers; userNum++ {
-				user := &fuzzUser{
-					atomicLastEventID: atomicLastEventID,
-					shEvents:          shEvents,
-					t:                 t,
-					seed:              int64seed,
-					name:              fmt.Sprintf("user%v", userNum),
-					userid:            userNum,
-					numNodes:          numNodes,
-					rnd:               rnd,
-					clus:              c,
-					halt:              idem.NewHalterNamed("fuzzUser"),
-					nemesis:           nemesis,
+				//const skipTrafficTrue = true
+				//snap := s.clus.SimnetSnapshot(skipTrafficTrue)
+				sim := c.Nodes[0].cfg.RpcCfg.GetSimnet()
+				if sim == nil {
+					panic("why could not get simnet?")
 				}
-				users = append(users, user)
 
-				// try to never create a whole new TubeNode;
-				// should just be able to restart its sessions and connections!
-				// otherwise the names in the simnet dns explode/overlap.
-				cliName := fmt.Sprintf("client101_%v", user.name)
-				cliCfg := *c.Cfg
-				cliCfg.MyName = cliName
-				cliCfg.PeerServiceName = TUBE_CLIENT
-				cli := NewTubeNode(cliName, &cliCfg)
-				user.cli = cli
-				err := cli.InitAndStart()
-				panicOn(err)
-				defer cli.Close()
+				c.Cfg.prng = rng
+				for i := range c.Nodes {
+					c.Nodes[i].cfg.prng = rng
+				}
 
-				//vv("userNum:%v -> cli.name = '%v'", userNum, cli.name)
+				nemesis := &fuzzNemesis{
+					rng:          rng,
+					rnd:          rnd,
+					clus:         c,
+					damaged:      make(map[int]int),
+					allowTrouble: make(chan bool, 1),
+				}
+				// unlock it
+				nemesis.allowTrouble <- true
 
-				user.Start(ctx, steps, leaderName, leaderURL, domain, domainSeen, domainLast)
+				// if we limit to 100sec, then we can only get
+				// in around 500 steps (with 15 users, 3 node cluster).
+				//ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+				//defer cancel()
+				ctx := context.Background()
+
+				atomicLastEventID := &atomic.Int64{}
+				var users []*fuzzUser
+				shEvents := &sharedEvents{}
+				for userNum := 0; userNum < numUsers; userNum++ {
+					user := &fuzzUser{
+						atomicLastEventID: atomicLastEventID,
+						shEvents:          shEvents,
+						t:                 t,
+						seed:              int64seed,
+						name:              fmt.Sprintf("user%v", userNum),
+						userid:            userNum,
+						numNodes:          numNodes,
+						rnd:               rnd,
+						clus:              c,
+						halt:              idem.NewHalterNamed("fuzzUser"),
+						nemesis:           nemesis,
+					}
+					users = append(users, user)
+
+					// try to never create a whole new TubeNode;
+					// should just be able to restart its sessions and connections!
+					// otherwise the names in the simnet dns explode/overlap.
+					cliName := fmt.Sprintf("client101_%v", user.name)
+					cliCfg := *c.Cfg
+					cliCfg.MyName = cliName
+					cliCfg.PeerServiceName = TUBE_CLIENT
+					cli := NewTubeNode(cliName, &cliCfg)
+					user.cli = cli
+					err := cli.InitAndStart()
+					panicOn(err)
+					defer cli.Close()
+
+					//vv("userNum:%v -> cli.name = '%v'", userNum, cli.name)
+
+					user.Start(ctx, steps, leaderName, leaderURL, domain, domainSeen, domainLast)
+				}
+
+				for _, user := range users {
+					<-user.halt.Done.Chan
+				}
+				// the history is shared, wait until all are done or else
+				// we can read back a value before we get a chance to
+				// record the write into the op history, and the linz
+				// checker will false alarm on that.
+				tryErr = users[0].linzCheck()
+				if tryErr == nil {
+					tryOk = true
+				}
+
+				if nemesis.calls == 0 {
+					panic("nemesis was never called!")
+				}
+				//vv("makeTrouble calls total = %v", nemesis.calls)
+
+			}) // end onlyBubbled
+			if tryOk {
+				break
 			}
-
-			for _, user := range users {
-				<-user.halt.Done.Chan
-			}
-			// the history is shared, wait until all are done or else
-			// we can read back a value before we get a chance to
-			// record the write into the op history, and the linz
-			// checker will false alarm on that.
-			users[0].linzCheck()
-
-			if nemesis.calls == 0 {
-				panic("nemesis was never called!")
-			}
-			//vv("makeTrouble calls total = %v", nemesis.calls)
-		})
-
+		} // end for try twice
+		if !tryOk {
+			panicf("problem on scenario %v twice we got non-linz: '%v'", scenario, tryErr)
+		}
 	}
 }
 
