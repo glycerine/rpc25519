@@ -5691,12 +5691,12 @@ finishTicketCalled: %v,
                Key: "%v",
                Val: "%v",
              Vtype: "%v",
-               Err: %v,%v
+               Err: %v,
 CASRejectedBecauseCurVal: %v
              OldVal: %v
           CASwapped: %v
 CurValOnFailedWrite: %v
-   --------  Leasing  ---------
+%v   --------  Leasing  ---------
     LeaseRequestDur: %v
              Leasor: "%v"
        LeaseUntilTm: %v
