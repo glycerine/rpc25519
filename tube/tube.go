@@ -781,6 +781,10 @@ func (s *TubeNode) Start(
 
 		s.Halt.ReqStop.Close()
 		s.Halt.Done.Close()
+
+		// try hard to let cluster shutdown asap, to avoid synctest
+		// shutdown deadlocks.
+		s.Halt.RemoveFromParent()
 		//vv("%v: (%v) (p=%p)end of TubeNode.Start() inside defer, about to return/finish; recover='%v'", s.name, myPeer.ServiceName(), s, r)
 
 		if r != nil {
