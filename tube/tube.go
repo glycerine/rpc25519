@@ -6496,7 +6496,7 @@ const SAVE_STATE = true
 const SKIP_SAVE = false
 
 func (s *TubeNode) becomeFollower(term int64, mc *MemberConfig, save bool) {
-	vv("%v becomeFollower. new term = %v. was: %v", s.me(), term, s.state.CurrentTerm)
+	//vv("%v becomeFollower. new term = %v. was: %v", s.me(), term, s.state.CurrentTerm)
 	if s.role == LEADER {
 		// call clearBatchToSubmit() below after
 		// we update the leader meta data to not convey
@@ -7219,7 +7219,7 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 }
 
 func (s *TubeNode) becomeLeader() {
-	vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
+	//vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
 	//defer func() {
 	//	vv("%v end of becomeLeader", s.me())
 	//}()
