@@ -1419,7 +1419,7 @@ func (s *fuzzUser) CAS(ctxCAS context.Context, key string, oldVal, newVal Val) (
 
 		if tktW != nil {
 			if tktW.DupDetected {
-				vv("%v s.sess.CAS() got a DupDetected back! tkt.LogIndex='%v'; tkt.Term='%v'; tkt='%v'", s.name, tktW.LogIndex, tktW.Term, tktW) // not seen, red 101 non-linz.
+				//vv("%v s.sess.CAS() got a DupDetected back! tkt.LogIndex='%v'; tkt.Term='%v'; tkt='%v'", s.name, tktW.LogIndex, tktW.Term, tktW) // seen. scenario 162702
 			}
 		}
 
