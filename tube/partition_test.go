@@ -239,7 +239,8 @@ elected:
 			//vv("cluster c.LeaderElectedCh fired. leader=%v; node number=%v'", leader, w)
 
 			elap := time.Since(t0)
-			alwaysPrintf("good: clusterSize = %v; node w=%v (%v) won election in %v", numNodes, w, leader, elap.Truncate(time.Millisecond))
+			_ = elap
+			//alwaysPrintf("good: clusterSize = %v; node w=%v (%v) won election in %v", numNodes, w, leader, elap.Truncate(time.Millisecond))
 
 			// give them time to depose other candidates with
 			// their first round of heartbeats.

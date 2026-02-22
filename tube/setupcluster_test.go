@@ -44,7 +44,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 	c = NewCluster(t.Name(), cfg)
 
 	if forceLeader >= 0 {
-		vv("setupTestCluster('%v'): asking node %v to become candidate", t.Name(), forceLeader)
+		//vv("setupTestCluster('%v'): asking node %v to become candidate", t.Name(), forceLeader)
 		c.NoInitialLeaderTimeout = true
 
 		//if !singleDesignatedLeader {
@@ -73,7 +73,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 		// test from Start() rather than needing loop going:
 		// inject an actual log. Sets MC from boot.NewConfig.Clone()
 		c.Nodes[forceLeader].testSetupFirstRaftLogEntryBootstrapLog(boot)
-		vv("back from testSetupFirstRaftLogEntryBootstrapLog(boot); c.Nodes[forceLeader].state.CurrentTerm = %v", c.Nodes[forceLeader].state.CurrentTerm)
+		//vv("back from testSetupFirstRaftLogEntryBootstrapLog(boot); c.Nodes[forceLeader].state.CurrentTerm = %v", c.Nodes[forceLeader].state.CurrentTerm)
 
 		// for the rest, make an empty membership config (MC)
 		// and get it into their state and log so we
@@ -127,7 +127,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 	if numNodes > 1 {
 		c.waitForConnectedGrid() // this is maybe the slowest part
 	}
-	vv("%v grid established in %v, %v nodes, after %v", t.Name(), time.Since(g0), numNodes, time.Since(t0))
+	//vv("%v grid established in %v, %v nodes, after %v", t.Name(), time.Since(g0), numNodes, time.Since(t0))
 
 	if false {
 		if c.Cfg.UseSimNet {
@@ -144,12 +144,12 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 
 	// let the first noop get committed so we know the cluster is "up".
 	leader, leadi, maxterm = c.waitForLeader(t0)
-	vv("waitForLeader saw maxterm = %v when numnodes = %v; leadi='%v'; leader='%v'", maxterm, numNodes, leadi, leader)
+	//vv("waitForLeader saw maxterm = %v when numnodes = %v; leadi='%v'; leader='%v'", maxterm, numNodes, leadi, leader)
 
 	if forceLeader >= 0 && leadi != forceLeader {
 		panic(fmt.Sprintf("arg. asked for leader %v, but got %v", forceLeader, leadi))
 	} else {
-		vv("good: forceLeader=%v and leadi=%v", forceLeader, leadi)
+		//vv("good: forceLeader=%v and leadi=%v", forceLeader, leadi)
 	}
 
 	c.waitForLeaderNoop(t0)
