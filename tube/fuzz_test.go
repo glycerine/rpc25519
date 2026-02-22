@@ -2468,7 +2468,9 @@ func restartFullHelper(ctx context.Context, name string, cli *TubeNode, pSess **
 			if !reallyLeader {
 				vv("%v: arg. we see not really leader? why?", name)
 				cli.closeAutoClientSockets()
-				// infinite loop... continue fullRestart
+				// it worked for a long time to do continue fullRestart,
+				// but then we hit an infinite loop with it. grr.
+				// try returning an error and let the call restart too.
 				return ErrNoLeaderKnown
 			}
 			// should have updated our notion of leader, else on leader change we can be stuck
