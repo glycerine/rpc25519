@@ -2155,7 +2155,7 @@ func Test199_dsim_seed_string_parsing(t *testing.T) {
 	}
 	//vv("on 1: seedBytes = '%#v'", seedBytes)
 	for i, by := range seedBytes {
-		if i == 0 {
+		if i == 7 {
 			if by != 1 {
 				panicf("expected seedBytes of 1 at i = %v, got '%v'", i, by)
 			}
@@ -2203,12 +2203,22 @@ func parseSeedString(simseed string) (simulationModeSeed uint64, seedBytes [32]b
 		}
 	}
 	simulationModeSeed = n
-	for i := range 8 {
-		// little endian fill
-		//vv("from %v, fill at i = %v with %v", n, i, byte(n>>(i*8)))
-		seedBytes[i] = byte(n >> (i * 8))
-	}
+
+	seedBytes = intSeedToBytes(int64(n))
 	//println("simulationModeSeed from GO_DSIM_SEED=", simulationModeSeed)
+	return
+}
+
+// only sets up to the first 8 bytes.
+func intSeedToBytes(int64seed int64) (b [32]byte) {
+	n := uint64(int64seed)
+	// not-sure-what-endian fill, but it works with monotone increase check.
+	for i := range 8 {
+		// this fill order is needed so that the
+		// check in Reseed for monotone increasing
+		// succeeds.
+		b[i] = byte(n >> ((7 - i) * 8))
+	}
 	return
 }
 

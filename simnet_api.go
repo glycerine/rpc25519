@@ -1539,7 +1539,7 @@ func diffpos(as, bs string) (pos int, difftext string) {
 // only sets up to the first 8 bytes.
 func intSeedToBytes(int64seed int64) (b [32]byte) {
 	n := uint64(int64seed)
-	// not-sure-what-endian fill, but it works
+	// not-sure-what-endian fill, but it works with monotone increase check.
 	for i := range 8 {
 		// this fill order is needed so that the
 		// check in Reseed for monotone increasing
@@ -1553,7 +1553,6 @@ func intSeedToBytes(int64seed int64) (b [32]byte) {
 // of the bits are set to 1.
 func intSeedToBytesHighOnes(int64seed int64) (b [32]byte) {
 	n := uint64(int64seed)
-	// little endian fill
 	for i := range 32 {
 		if i > 7 {
 			// avoid collisions with non-simnet globalPRNG seeds by
@@ -1561,7 +1560,7 @@ func intSeedToBytesHighOnes(int64seed int64) (b [32]byte) {
 			b[i] = 255
 			continue
 		}
-		b[i] = byte(n >> (i * 8))
+		b[i] = byte(n >> ((7 - i) * 8))
 	}
 	return
 }

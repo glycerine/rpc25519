@@ -2614,6 +2614,7 @@ func (cfg *TubeConfig) Init(quiet, isTest bool) {
 	cfg.isTest = isTest
 
 	if faketime {
+
 		cfg.prng = newPRNG([32]byte{})
 
 		if !isTest {
