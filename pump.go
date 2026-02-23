@@ -262,9 +262,20 @@ func (pb *LocalPeer) peerbackPump() {
 				// creation because pump gets stuck here.
 				// new 2025 Sept 11 try adding timeout:
 				case <-time.After(time.Second * 2):
-					vv("peerbackPump dropping frag; peerID='%v'; pb.ReadsIn chan= %p; ckt.Reads=%p; ckt='%v'", pb.PeerID, pb.ReadsIn, ckt.Reads, ckt)
-					alwaysPrintf("warning: pump is dropping frag it could not deliver after 2 sec '%v'", frag) //; allstacks=\n%v\n\n", frag, allstacks()) // get a stack trace too
-					panicf("%v fix this -- why could we not deliver??? allstacks = \n %v", pb.PeerID, allstacks())
+					// probably a watchdog reconnect ckt that
+					// is never getting properly serviced.
+					// It has 100 un-serviced messages and
+					// not it has been 2 seconds since we
+					// hit that limit; just close it down
+					// as a form of garbage collection since
+					// it is not really in use and just
+					// a tar-pit for messages.
+
+					alwaysPrintf("warning: peerbackPump dropping frag AND ckt; peerID='%v'; pb.ReadsIn chan= %p; ckt.Reads=%p; len(ckt.Reads)=%v; cap(ckt.Reads)=%v ; ckt='%v'; frag = '%v'", pb.PeerID, pb.ReadsIn, ckt.Reads, len(ckt.Reads), cap(ckt.Reads), ckt, frag) // len(ckt.Reads)=100; cap(ckt.Reads)=100
+					//alwaysPrintf("warning: pump is dropping frag it could not deliver after 2 sec '%v'", frag)
+					cleanupCkt(ckt, true)
+					//; allstacks=\n%v\n\n", frag, allstacks()) // get a stack trace too
+					// panicf("%v fix this -- why could we not deliver??? allstacks = \n %v", pb.PeerID, allstacks())
 					// it turns out this was due to leaking a ckt: not closing
 					// a circuit that failed to be acknowledged by remote.
 

@@ -1138,6 +1138,10 @@ func (lpb *LocalPeer) newCircuit(
 		ckt.CircuitID = NewCallID(circuitName)
 	}
 
+	//if ckt.CircuitSN == 199 || ckt.CircuitSN == 188 {
+	//vv("CircuitSN: %v, made at stack \n %v \n", ckt.CircuitSN, stack())
+	//}
+
 	//AliasRegister(ckt.CircuitID, ckt.CircuitID+" ("+circuitName+")")
 
 	//lpb.Halt.AddChild(ckt.Halt) // no worries: pump will do this.

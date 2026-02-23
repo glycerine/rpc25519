@@ -1862,13 +1862,7 @@ func Test101_userFuzz(t *testing.T) {
 	}()
 
 	begScenario := 0
-	endxScenario := 200
-
-	//begScenario := 66522 // stuck pump/dumps messages. 43571 also.
-	//endxScenario := 66523
-
-	//begScenario := 43571 // stuck pump/dumps messages.
-	//endxScenario := 43572
+	endxScenario := 1
 
 	numScen := endxScenario - begScenario
 

@@ -82,9 +82,17 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName, user
 			case ckt.loopy.cktServedAdd <- ckt:
 				//vv("peerAPI.StartRemotePeerAndGetCircuit sent cktServedAdd <- ckt")
 			case <-ckt.Halt.ReqStop.Chan:
+				err = ErrHaltRequested
+				ckt.Close(err)
 			case <-ckt.Context.Done():
+				err = ErrHaltRequested
+				ckt.Close(err)
 			case <-lpb.Ctx.Done():
+				err = ErrHaltRequested
+				ckt.Close(err)
 			case <-p.u.GetHostHalter().ReqStop.Chan:
+				err = ErrHaltRequested
+				ckt.Close(err)
 			}
 		}
 		if autoSendNewCircuitCh != nil {
@@ -93,9 +101,17 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName, user
 			case autoSendNewCircuitCh <- ckt:
 				//vv("peerAPI.StartRemotePeerAndGetCircuit sent new ckt to '%v' on autoSendNewCircuitCh = %p", ckt.RemotePeerName, autoSendNewCircuitCh)
 			case <-ckt.Halt.ReqStop.Chan:
+				err = ErrHaltRequested
+				ckt.Close(err)
 			case <-ckt.Context.Done():
+				err = ErrHaltRequested
+				ckt.Close(err)
 			case <-lpb.Ctx.Done():
+				err = ErrHaltRequested
+				ckt.Close(err)
 			case <-p.u.GetHostHalter().ReqStop.Chan:
+				err = ErrHaltRequested
+				ckt.Close(err)
 			}
 		}
 	}
@@ -295,6 +311,9 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	ckt, _, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, onOriginLocalSide, preferExtant, userString)
 	if err != nil {
 		err0 = err
+		if ckt != nil {
+			ckt.Close(err)
+		}
 		ckt = nil
 		ackMsg = nil
 		return
