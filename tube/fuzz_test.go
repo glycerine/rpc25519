@@ -1679,6 +1679,8 @@ type fuzzNemesis struct {
 	calls int
 }
 
+//var faultK int
+
 func (s *fuzzNemesis) makeTrouble(caller string) {
 	<-s.allowTrouble // a channel lock that synctest can durably block on.
 	//s.mut.Lock() // why deadlocked?
@@ -1838,7 +1840,13 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 		s.clus.AllHealthyAndPowerOn(deliverDroppedSends)
 	}
 	if implemented {
-		//vv("makeTrouble at node = %v; r = %v; implemented = %v", node, r, implemented)
+		//faultK++
+		//vv("faultK = %v; makeTrouble at node = %v; r = %v; implemented = %v", faultK, node, r, implemented)
+		// if faultK == 11 { // all healthy
+		// 	const skipTrafficTrue = true
+		// 	snap := s.clus.SimnetSnapshot(skipTrafficTrue)
+		// 	vv("faultK = %v, snap = '%v'", faultK, snap.ShortString())
+		// }
 	}
 }
 
@@ -1855,8 +1863,11 @@ func Test101_userFuzz(t *testing.T) {
 	//begScenario := 0
 	//endxScenario := 1
 
-	begScenario := 158973 // stuck pump/dumps messages.
+	begScenario := 158973 // stuck pump/dumps messages. 43571 also.
 	endxScenario := 158974
+
+	//begScenario := 43571 // stuck pump/dumps messages.
+	//endxScenario := 43572
 
 	numScen := endxScenario - begScenario
 

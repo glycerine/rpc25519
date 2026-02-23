@@ -809,8 +809,8 @@ func (peerAPI *peerAPI) newLocalPeer(
 		BaseServerAddr:  baseServerAddr,
 		U:               u,
 		NewCircuitCh:    newCircuitCh,
-		ReadsIn:         make(chan *Message, 1),
-		ErrorsIn:        make(chan *Message, 1),
+		ReadsIn:         make(chan *Message, 100),
+		ErrorsIn:        make(chan *Message, 100),
 
 		Remotes:            NewMutexmap[string, *RemotePeer](),
 		TellPumpNewCircuit: make(chan *Circuit),
@@ -1650,7 +1650,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	knownLocalPeer.mut.Unlock()
 
 	go func() {
-		//vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
+		//vv("launching new peerServiceFunc invocation for '%v':'%v'", peerServiceName, peerName)
 		if p.isSim {
 			cfg.GetSimnet().NewGoro(peerName + "_peerServiceFunc")
 		}

@@ -345,6 +345,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		// might () or might not () be a new goroutine, but
 		// cover all the bases.
 		c.simnode.newGoro("Client.runReadLoop")
+		//vv("runReadLoop for client '%v'; from '%v' to '%v'", c.name, local(conn), remote(conn))
 	}
 	var err error
 	ctx, canc := context.WithCancel(context.Background())

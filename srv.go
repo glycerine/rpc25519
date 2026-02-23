@@ -613,6 +613,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 func (s *rwPair) runReadLoop(conn net.Conn) {
 	if s.cfg.UseSimNet {
 		s.Server.simnode.newGoro("rwPair.runReadLoop")
+		//vv("runReadLoop for server '%v'; from '%v' to '%v'", s.Server.name, s.from, s.to)
 	}
 	//if s.Server.cfg.UseSimNet {}
 	stopReason := ""
@@ -990,7 +991,9 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 			case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
 				return
 			case <-time.After(time.Second):
-				vv("warning: notifies sees difficult send/maybe hang: have ToPeerID msg = '%v'; for '%v'", msg.HDR.String(), msg.HDR.ToPeerID)
+				vv("warning: notifies sees difficult send/maybe hang: (wantsToPeerID=%p) have ToPeerID msg = '%v'; for '%v'", wantsToPeerID, msg.HDR.String(), msg.HDR.ToPeerID)
+				//vv("1st all stacks = \n %v \n", allstacks())
+				//vv("end allstacks dump")
 			}
 
 			select {
@@ -3146,7 +3149,7 @@ func (s *Server) GetErrorsForCallID(ch chan *Message, callID string) {
 }
 
 func (s *Server) GetReadsForToPeerID(ch chan *Message, objID string) {
-	//vv("GetReads called! stack='\n\n%v\n'", stack())
+	//vv("GetReads called! ch=%p for objID='%v' stack='\n\n%v\n'", ch, objID, stack())
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}

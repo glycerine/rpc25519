@@ -2122,8 +2122,8 @@ func gte(a, b time.Time) bool {
 }
 
 // does not call armTimer(), so scheduler should
-// afterwards. We don't worry about powerOff b/c
-// when set it deletes all timers.
+// afterwards. We don't worry about powerOff because
+// it deletes all timers when set.
 func (s *Simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
 	if limit == 0 {
 		return
