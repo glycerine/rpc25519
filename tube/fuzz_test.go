@@ -3,6 +3,7 @@ package tube
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"math"
 	"math/big"
@@ -1863,6 +1864,17 @@ func Test101_userFuzz(t *testing.T) {
 
 	begScenario := 0
 	endxScenario := 1
+
+	// for batch runs from env var partition.
+	beg := os.Getenv("SCEN0")
+	batchN := os.Getenv("SCEN_BATCH")
+	if beg != "" && batchN != "" {
+		begScenario, err := strconv.Atoi(beg)
+		panicOn(err)
+		n, err := strconv.Atoi(batchN)
+		panicOn(err)
+		endxScenario = begScenario + n
+	}
 
 	numScen := endxScenario - begScenario
 
