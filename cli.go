@@ -67,7 +67,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	defer func() {
 		r := recover()
 		if r != nil {
-			//vv("runClientMain defer: serverAddr='%v'; end for goro = %v; recover='%v'", serverAddr, GoroNumber(), r)
+			fmt.Printf("recover() non nil in runClientMain defer: serverAddr='%v'; end for goro = %v; recover='%v'\n", serverAddr, GoroNumber(), r)
 		} else {
 			//vv("runClientMain defer: serverAddr='%v'; end for goro = %v; nil recover().", serverAddr, GoroNumber())
 		}
@@ -360,7 +360,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		r := recover()
 		if r != nil {
 			// see a ts mutex deadlock under synctest on shutdown, comment out:
-			//alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'", r) // , stack())
+			fmt.Printf("recover() non nil in cli runReadLoop defer/shutdown running. saw panic '%v'\n", r)
 		} else {
 			//vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
 		}
@@ -575,7 +575,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		r := recover()
 		if r != nil {
 			// printing here can deadlock a synctest test. e.g. 707.
-			alwaysPrintf("cli runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, allstacks())
+			fmt.Printf("recover() non nil in cli runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, allstacks())
 		} else {
 			//vv("cli runSendLoop defer/shutdown running. reason='%v'. conn local '%v' -> '%v' remote", stopReason, local(conn), remote(conn))
 		}
