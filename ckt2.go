@@ -317,70 +317,89 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	if errWriteDur > 0 {
 		timeoutCh = time.After(errWriteDur)
 	}
-	//vv("%v start waiting for ack at '%v' from netAddr='%v' remotePeerServiceName='%v'", lpb.PeerName, lpb.NetAddr, netAddr, remotePeerServiceName)
-	if waitForAck {
-		select {
-		case <-timeoutCh:
-			err0 = ErrTimeout
-			return
-		case errMsg := <-responseErrCh:
-			// errMsg is still our ackMsg with
-			// "#LimitedExistingPeerID_first_url" details, so return it.
-			//vv("got errMsg = '%v'", errMsg)
-			err0 = fmt.Errorf("responseErrCh in implRemotePeerAndGetCircuit sending to remote(frag.Typ='%v'; netAddr='%v'); errMsg.JobErrs='%v'; errMsg='%v'", frag.Typ, netAddr, errMsg.JobErrs, errMsg)
-			ackMsg = errMsg
+	//vv("%v start waiting for ack(waitForAck=%v) at '%v' from netAddr='%v' remotePeerServiceName='%v'", lpb.PeerName, waitForAck, lpb.NetAddr, netAddr, remotePeerServiceName)
+	if !waitForAck {
+		return
+	}
+	select {
+	case <-timeoutCh:
+		err0 = ErrTimeout
+		ckt.Close(err0)
+		ckt = nil
+		return
+	case errMsg := <-responseErrCh:
+		// errMsg is still our ackMsg with
+		// "#LimitedExistingPeerID_first_url" details, so return it.
+		//vv("got errMsg = '%v'", errMsg)
+		err0 = fmt.Errorf("responseErrCh in implRemotePeerAndGetCircuit sending to remote(frag.Typ='%v'; netAddr='%v'); errMsg.JobErrs='%v'; errMsg='%v'", frag.Typ, netAddr, errMsg.JobErrs, errMsg)
+		ackMsg = errMsg
+		//vv("err0 = '%v'", err0) // only once seen when red 410.
+
+		//ckt.Close(err0) // ugh. commenting allows Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL green... but why leak the ckt?? oh well.
+		ckt = nil
+		return
+	case ackMsg = <-responseCh:
+		//vv("got ackMsg! yay! = '%v'", ackMsg)
+		if ackMsg.LocalErr != nil {
+			err0 = ackMsg.LocalErr
+			ckt.Close(err0)
 			ckt = nil
 			return
-		case ackMsg = <-responseCh:
-			//vv("got ackMsg! yay! = '%v'", ackMsg)
-			if ackMsg.LocalErr != nil {
-				err0 = ackMsg.LocalErr
-				return
-			}
-			if ackMsg.JobErrs != "" {
-				err0 = fmt.Errorf("error on ackMsg := <-responseCh: response.JobErrs = '%v'", ackMsg.JobErrs)
-				return
-			}
-			// this is the a minor point of the WaitForAck, (1)
-			// since we already likely have the name elsewhere,
-			// like the a peer-naming config file.
-			rpb.PeerName = ackMsg.HDR.FromPeerName
-
-			if ackMsg.HDR.FromPeerID == "" {
-				panic(fmt.Sprintf("ackMsg.FromPeerID was empty string; should never happen! ackMsg = '%v'", ackMsg))
-			}
-			if ackMsg.HDR.FromPeerID != pleaseAssignNewRemotePeerID {
-				// this is the whole point of the WaitForAck (2),
-				// to get an accurate rpb.PeerID if the
-				// peer was already running and had
-				// already assigned a PeerID to itself.
-				//vv("setting actual PeerID from guess '%v' -> actual '%v'", rpb.PeerID, ackMsg.HDR.FromPeerID)
-				rpb.PeerID = ackMsg.HDR.FromPeerID
-				rpb.PeerName = ackMsg.HDR.FromPeerName
-				ckt.RemotePeerID = ackMsg.HDR.FromPeerID
-				ckt.RemotePeerName = ackMsg.HDR.FromPeerName
-
-				rpb.Hostname = ackMsg.HDR.Args["#fromHostname"]
-				rpb.PID = ackMsg.HDR.Args["#fromPID"]
-
-				if pleaseAssignNewRemotePeerID != "" {
-					lpb.Remotes.Del(pleaseAssignNewRemotePeerID)
-				}
-				if rpb.PeerID == "" {
-					alwaysPrintf("ugh. 3. rpb.PeerID is empty in implRemotePeerAndGetCircuit")
-				}
-				lpb.Remotes.Set(rpb.PeerID, rpb)
-			}
-		case <-ckt.Context.Done():
-			return nil, nil, madeNewAutoCli, "", ErrContextCancelled
-		case <-lpb.Ctx.Done():
-			return nil, nil, madeNewAutoCli, "", ErrContextCancelled
-		case <-hhalt.ReqStop.Chan:
-			return nil, nil, madeNewAutoCli, "", ErrHaltRequested
-		case <-callCtx.Done():
-			return nil, nil, madeNewAutoCli, "", ErrContextCancelled
 		}
+		if ackMsg.JobErrs != "" {
+			err0 = fmt.Errorf("error on ackMsg := <-responseCh: response.JobErrs = '%v'", ackMsg.JobErrs)
+			ckt.Close(err0)
+			ckt = nil
+			return
+		}
+		// this is the a minor point of the WaitForAck, (1)
+		// since we already likely have the name elsewhere,
+		// like the a peer-naming config file.
+		rpb.PeerName = ackMsg.HDR.FromPeerName
+
+		if ackMsg.HDR.FromPeerID == "" {
+			panic(fmt.Sprintf("ackMsg.FromPeerID was empty string; should never happen! ackMsg = '%v'", ackMsg))
+		}
+		if ackMsg.HDR.FromPeerID != pleaseAssignNewRemotePeerID {
+			// this is the whole point of the WaitForAck (2),
+			// to get an accurate rpb.PeerID if the
+			// peer was already running and had
+			// already assigned a PeerID to itself.
+			//vv("setting actual PeerID from guess '%v' -> actual '%v'", rpb.PeerID, ackMsg.HDR.FromPeerID)
+			rpb.PeerID = ackMsg.HDR.FromPeerID
+			rpb.PeerName = ackMsg.HDR.FromPeerName
+			ckt.RemotePeerID = ackMsg.HDR.FromPeerID
+			ckt.RemotePeerName = ackMsg.HDR.FromPeerName
+
+			rpb.Hostname = ackMsg.HDR.Args["#fromHostname"]
+			rpb.PID = ackMsg.HDR.Args["#fromPID"]
+
+			if pleaseAssignNewRemotePeerID != "" {
+				lpb.Remotes.Del(pleaseAssignNewRemotePeerID)
+			}
+			if rpb.PeerID == "" {
+				alwaysPrintf("ugh. 3. rpb.PeerID is empty in implRemotePeerAndGetCircuit")
+			}
+			lpb.Remotes.Set(rpb.PeerID, rpb)
+		}
+	case <-ckt.Context.Done():
+		//vv("boo: <-ckt.Context.Done()")
+		ckt.Close(ErrContextCancelled) // cleanup
+		return nil, nil, madeNewAutoCli, "", ErrContextCancelled
+	case <-lpb.Ctx.Done():
+		//vv("boo: <-lpb.Ctx.Done()")
+		ckt.Close(ErrContextCancelled) // cleanup
+		return nil, nil, madeNewAutoCli, "", ErrContextCancelled
+	case <-hhalt.ReqStop.Chan:
+		//vv("boo: <-hhalt.ReqStop.Chan")
+		ckt.Close(ErrHaltRequested) // cleanup
+		return nil, nil, madeNewAutoCli, "", ErrHaltRequested
+	case <-callCtx.Done():
+		//vv("boo: <-callCtx.Done()")    // seen, for CircuitSN: 13
+		ckt.Close(ErrContextCancelled) // cleanup
+		return nil, nil, madeNewAutoCli, "", ErrContextCancelled
 	}
+
 	return
 }
 

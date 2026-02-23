@@ -1597,10 +1597,12 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	preferExtant bool,
 
 ) (lpb *LocalPeer, err error) {
-	//vv("top peerAPI.unlockedStartLocalPeer(); peerName = '%v'", peerName)
+	//vv("top peerAPI.unlockedStartLocalPeer(); peerServiceName = '%v'; peerName = '%v'", peerServiceName, peerName)
 	if peerName == "" {
 		panic("cannot have peerName empty here at top of unlockedStartLocalPeer") // 400 test
 	}
+	// note: peerName == peerServiceName happens in bootstrapCircuit(); don't panic
+
 	knownLocalPeer, ok := p.localServiceNameMap.Get(peerServiceName)
 	if !ok {
 		//vv("not avail: peerServiceName '%v'", peerServiceName)
@@ -1610,12 +1612,15 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	// enforce cfg.ServiceLimit
 	cfg := p.u.GetConfig()
 	lim := cfg.GetLimitMax(peerServiceName)
+	//vv("lim = %v  for peerServiceName='%v'", lim, peerServiceName)
 	if lim > 0 {
 		knownLocalPeer.mut.Lock()
+		//vv("knownLocalPeer.active = %p", knownLocalPeer.active)
 		if knownLocalPeer.active != nil {
 			ncur := knownLocalPeer.active.Len()
+			//vv("ncur = %v", ncur) // ncur == 0 when 410 red. 1 when green.
 			if ncur >= lim {
-				//vv("at limit, reject making another") // not seen
+				//vv("at limit, reject making another") // seen 410 (when green only)
 				knownLocalPeer.mut.Unlock()
 				return nil, fmt.Errorf("unlockedStartLocalPeer error: peerServiceName '%v' is listed in cfg.LimitedServiceNames and is already at cfg.LimitedServiceMax = %v, (ncur=%v) refusing to make another. Method lpb.PeerAPI.GetLocalPeers(peerServiceName) will list them.", peerServiceName, lim, ncur)
 			}

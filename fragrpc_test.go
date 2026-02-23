@@ -135,9 +135,10 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 	// already started above, will hit limit of 1 if we do it again.
 	// verify that we can an error if we try:
+	//vv("410 about to StartLocalPeer again; peerServiceName=j.srvServiceName='%v'; peerName = 'srv_lpb_peer_name'", j.srvServiceName)
 	srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, "", nil, "srv_lpb_peer_name", false)
 	if err == nil {
-		panic("wanted limit 1 error!")
+		panicf("wanted limit 1 error!; srv_lpb.ServiceName() = '%v'", srv_lpb.ServiceName()) // red here.
 	}
 	if !strings.Contains(err.Error(), "already at cfg.LimitedServiceMax") {
 		panic(fmt.Sprintf("did not see 'already at cfg.LimitedServiceMax' in error: '%v'", err))

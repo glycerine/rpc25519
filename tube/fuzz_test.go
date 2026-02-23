@@ -1806,6 +1806,7 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 			//vv("back from s.clus.Nodes[node].DropSends(probDrop)")
 		} else {
 			s.clus.Nodes[node].DeafToReads(probDeaf)
+			//vv("back from s.clus.Nodes[node].DeafToReads(probDeaf)")
 		}
 	case fuzz_ONE_WAY_FAULT_PROBABALISTIC:
 		implemented = true
@@ -1816,11 +1817,11 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 			s.clus.Nodes[node].DropSends(probDrop)
 			//vv("back from DropSends setting probDrop send = %v on node = %v", probDrop, node)
 			wantSleep = false
-			return
+		} else {
+			probDeaf := s.rng.float64prob()
+			//vv("probDeaf to read = %v on node = %v", probDeaf, node)
+			s.clus.Nodes[node].DeafToReads(probDeaf)
 		}
-		probDeaf := s.rng.float64prob()
-		//vv("probDeaf to read = %v on node = %v", probDeaf, node)
-		s.clus.Nodes[node].DeafToReads(probDeaf)
 
 	case fuzz_ADD_CLIENT:
 	case fuzz_PAUSE_CLIENT:
@@ -1842,11 +1843,11 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 	if implemented {
 		//faultK++
 		//vv("faultK = %v; makeTrouble at node = %v; r = %v; implemented = %v", faultK, node, r, implemented)
-		// if faultK == 11 { // all healthy
-		// 	const skipTrafficTrue = true
-		// 	snap := s.clus.SimnetSnapshot(skipTrafficTrue)
-		// 	vv("faultK = %v, snap = '%v'", faultK, snap.ShortString())
-		// }
+		//if faultK == 6 {
+		//	const skipTrafficTrue = true
+		//	snap := s.clus.SimnetSnapshot(skipTrafficTrue)
+		//	vv("faultK = %v, snap = '%v'", faultK, snap.ShortString())
+		//}
 	}
 }
 
@@ -1860,11 +1861,11 @@ func Test101_userFuzz(t *testing.T) {
 		vv("test 101 wrapping up.")
 	}()
 
-	//begScenario := 0
-	//endxScenario := 1
+	begScenario := 0
+	endxScenario := 200
 
-	begScenario := 158973 // stuck pump/dumps messages. 43571 also.
-	endxScenario := 158974
+	//begScenario := 66522 // stuck pump/dumps messages. 43571 also.
+	//endxScenario := 66523
 
 	//begScenario := 43571 // stuck pump/dumps messages.
 	//endxScenario := 43572

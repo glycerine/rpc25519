@@ -243,100 +243,108 @@ func (pb *LocalPeer) peerbackPump() {
 			var ckt5s []*Circuit
 			var doReturn bool
 		wait5MoreSecondsBeforeCktShutdown:
-			select {
+			for {
+				select {
 
-			// repeat this here (is also in the outer select)
-			// since it was the cause of a deadlock. maybe we
-			// can just accept the circuit and the continue,
-			// and maybe that will result in our desired
-			// recipient being able to receive?
-			case ckt2 := <-pb.TellPumpNewCircuit:
-				//vv("%v pump: ckt := <-pb.TellPumpNewCircuit: for ckt=%p/'%v'", name, ckt, ckt.Name)
-				m[ckt2.CircuitID] = ckt2
-				pb.Halt.AddChild(ckt2.Halt)
-				// and try again with the delivery, rather than drop it.
-				goto wait5MoreSecondsBeforeCktShutdown
+				// repeat this here (is also in the outer select)
+				// since it was the cause of a deadlock. maybe we
+				// can just accept the circuit and the continue,
+				// and maybe that will result in our desired
+				// recipient being able to receive?
+				case ckt2 := <-pb.TellPumpNewCircuit:
+					//vv("%v pump: ckt := <-pb.TellPumpNewCircuit: for ckt=%p/'%v'", name, ckt, ckt.Name)
+					m[ckt2.CircuitID] = ckt2
+					pb.Halt.AddChild(ckt2.Halt)
+					// and try again with the delivery, rather than drop it.
+					continue wait5MoreSecondsBeforeCktShutdown
 
-			// update: also deadlocked/hangs the newCircuit
-			// creation because pump gets stuck here.
-			// new 2025 Sept 11 try adding timeout:
-			case <-time.After(time.Second * 2):
-				alwaysPrintf("warning: pump is dropping frag it could not deliver after 2 sec '%v'", frag) //; allstacks=\n%v\n\n", frag, allstacks()) // get a stack trace too
-				//panic("fix this -- why could we not deliver???")
-				// let the "continue" path below clean up the timer.
+				// update: also deadlocked/hangs the newCircuit
+				// creation because pump gets stuck here.
+				// new 2025 Sept 11 try adding timeout:
+				case <-time.After(time.Second * 2):
+					vv("peerbackPump dropping frag; peerID='%v'; pb.ReadsIn chan= %p; ckt.Reads=%p; ckt='%v'", pb.PeerID, pb.ReadsIn, ckt.Reads, ckt)
+					alwaysPrintf("warning: pump is dropping frag it could not deliver after 2 sec '%v'", frag) //; allstacks=\n%v\n\n", frag, allstacks()) // get a stack trace too
+					panicf("%v fix this -- why could we not deliver??? allstacks = \n %v", pb.PeerID, allstacks())
+					// it turns out this was due to leaking a ckt: not closing
+					// a circuit that failed to be acknowledged by remote.
 
-			// was hung here on shutdown... tried adding this first case...
-			// BUT VERY BAD: this makes the pump exit too early!
-			// causes drop/loss of fragment we need in jysnc
-			// dir_test 440 test; and 220 jsync/e2e_test.go too,
-			// when the ckt shutdown races with the message send;
-			// This was on frag.FragOp == OpRsync_AckBackFIN_ToTaker.
-			// SO BIG WARNING: DO NOT ADD THIS CASE:
-			//case ckt2 := <-pb.HandleCircuitClose:
-			//	vv("%v pump: ckt2 := <-pb.HandleCircuitClose: for ckt2='%v'", name, ckt2.Name)
-			//cleanupCkt(ckt2, true)
+					// let the "continue" path below clean up the timer.
 
-			// BUT we don't want to hang forever on ckt shutdown!
-			// So try to pass the frag for another 5 seconds...
-			// Any subsequent <-pb.HandleCircuitClose
-			// will also get shutdown after the single
-			// 5 seconds of additional time/attemp to
-			// pass on the (likely AckBackFIN_ToTaker) frag.
-			// Sigh: shutdown logical races are a pain.
-			case <-delayedShutCtkTimeoutC: // nil unless len(ckt5s)>0
-				// do the cleanup below
-			case ckt5 := <-pb.HandleCircuitClose:
-				// give 5 more seconds of trying to send on
-				// case ckt.Reads <- frag below until
-				// we actually do shutdown the ckt5
-				//if ckt5 == ckt  // cannot do this, red 220 jsync test!
-				// So actually they are different circuits(!)
-				ckt5s = append(ckt5s, ckt5)
-				if delayedShutCtkTimeout == nil { // only one 5s delay
-					delayedShutCtkTimeout = pb.U.NewTimer(time.Second * 5)
-					//vv("made delayedShutCtkTimeout = %p", delayedShutCtkTimeout)
-					if delayedShutCtkTimeout == nil {
-						// shutting down fully
-						doReturn = true
+				// was hung here on shutdown... tried adding this first case...
+				// BUT VERY BAD: this makes the pump exit too early!
+				// causes drop/loss of fragment we need in jysnc
+				// dir_test 440 test; and 220 jsync/e2e_test.go too,
+				// when the ckt shutdown races with the message send;
+				// This was on frag.FragOp == OpRsync_AckBackFIN_ToTaker.
+				// SO BIG WARNING: DO NOT ADD THIS CASE:
+				//case ckt2 := <-pb.HandleCircuitClose:
+				//	vv("%v pump: ckt2 := <-pb.HandleCircuitClose: for ckt2='%v'", name, ckt2.Name)
+				//cleanupCkt(ckt2, true)
+
+				// BUT we don't want to hang forever on ckt shutdown!
+				// So try to pass the frag for another 5 seconds...
+				// Any subsequent <-pb.HandleCircuitClose
+				// will also get shutdown after the single
+				// 5 seconds of additional time/attemp to
+				// pass on the (likely AckBackFIN_ToTaker) frag.
+				// Sigh: shutdown logical races are a pain.
+				case <-delayedShutCtkTimeoutC: // nil unless len(ckt5s)>0
+					// do the cleanup below
+				case ckt5 := <-pb.HandleCircuitClose:
+					// give 5 more seconds of trying to send on
+					// case ckt.Reads <- frag below until
+					// we actually do shutdown the ckt5
+					//if ckt5 == ckt  // cannot do this, red 220 jsync test!
+					// So actually they are different circuits(!)
+					ckt5s = append(ckt5s, ckt5)
+					if delayedShutCtkTimeout == nil { // only one 5s delay
+						delayedShutCtkTimeout = pb.U.NewTimer(time.Second * 5)
+						//vv("made delayedShutCtkTimeout = %p", delayedShutCtkTimeout)
+						if delayedShutCtkTimeout == nil {
+							// shutting down fully
+							doReturn = true
+						} else {
+							delayedShutCtkTimeoutC = delayedShutCtkTimeout.C
+							// try our select again, this time only
+							// waiting for 5 seconds. We don't do this
+							// universally to allow proper backpressure.
+							continue wait5MoreSecondsBeforeCktShutdown
+						}
 					} else {
-						delayedShutCtkTimeoutC = delayedShutCtkTimeout.C
-						// try our select again, this time only
-						// waiting for 5 seconds. We don't do this
-						// universally to allow proper backpressure.
-						goto wait5MoreSecondsBeforeCktShutdown
+						// handle several case ckt5 := <-pb.HandleCircuitClose
+						// in a row before our first 5 seconds are up.
+						continue wait5MoreSecondsBeforeCktShutdown
 					}
-				} else {
-					// handle several case ckt5 := <-pb.HandleCircuitClose
-					// in a row before our first 5 seconds are up.
-					goto wait5MoreSecondsBeforeCktShutdown
+				case ckt.Reads <- frag: // server should be hung here, if peer code not servicing
+					//vv("pump sent frag on ckt! ckt='%v'; frag='%v'", ckt, frag)
+				case <-ckt.Halt.ReqStop.Chan:
+					//vv("<-ckt.Halt.ReqStop.Chan:")
+					cleanupCkt(ckt, true)
+					// cleanup any delayedShutCtkTimeout below
+				case <-pb.Halt.ReqStop.Chan:
+					//vv("<-pb.Halt.ReqStop.Chan:")
+					doReturn = true
+				case <-done:
+					//vv("<-done:")
+					doReturn = true
 				}
-			case ckt.Reads <- frag: // server should be hung here, if peer code not servicing
-				//vv("pump sent frag on ckt! ckt='%v'; frag='%v'", ckt, frag)
-			case <-ckt.Halt.ReqStop.Chan:
-				//vv("<-ckt.Halt.ReqStop.Chan:")
-				cleanupCkt(ckt, true)
-				//continue // cleanup any delayedShutCtkTimeout below
-			case <-pb.Halt.ReqStop.Chan:
-				//vv("<-pb.Halt.ReqStop.Chan:")
-				doReturn = true
-			case <-done:
-				//vv("<-done:")
-				doReturn = true
-			}
-			// "continue"/cleanup
-			if delayedShutCtkTimeout != nil {
-				delayedShutCtkTimeout.Discard()
-				//vv("discarded delayedShutCtkTimeout = %p", delayedShutCtkTimeout) // not seen!?!
-				delayedShutCtkTimeout = nil
-			}
-			for len(ckt5s) > 0 {
-				ckt5 := ckt5s[0]
-				ckt5s = ckt5s[1:]
-				cleanupCkt(ckt5, true)
-			}
-			if doReturn {
-				return
-			}
+				// "continue"/cleanup
+				if delayedShutCtkTimeout != nil {
+					delayedShutCtkTimeout.Discard()
+					//vv("discarded delayedShutCtkTimeout = %p", delayedShutCtkTimeout) // not seen!?!
+					delayedShutCtkTimeout = nil
+				}
+				for len(ckt5s) > 0 {
+					ckt5 := ckt5s[0]
+					ckt5s = ckt5s[1:]
+					cleanupCkt(ckt5, true)
+				}
+				if doReturn {
+					return
+				}
+				break wait5MoreSecondsBeforeCktShutdown
+			} // end for wait5MoreSecondsBeforeCktShutdown loop
+
 		case msgerr := <-pb.ErrorsIn:
 			// per srv.go:670 handleReply_to_CallID_ToPeerID()
 			// CallError, CallPeerError get here.

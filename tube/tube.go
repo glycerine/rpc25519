@@ -741,7 +741,8 @@ func (s *TubeNode) Start(
 ) (err0 error) {
 
 	s.Ctx = myPeer.Ctx
-	//vv("%v (PeerID: '%v') top of TubeNode.Start() ", s.name, myPeer.PeerID)
+	//vv("%v (PeerID: '%v') top of TubeNode.Start(); newCircuitCh = %p ; s.MyPeer.NewCircuitCh = %p [last two equal = %v]", s.name, myPeer.PeerID, newCircuitCh, myPeer.NewCircuitCh, newCircuitCh == myPeer.NewCircuitCh)
+
 	//vv("%v (PeerID: '%v') top of TubeNode.Start() ; cfg = '%v'", s.name, myPeer.PeerID, s.cfg.ShortSexpString(nil))
 	//cktHasBeenQuietTooLong := make(chan *rpc.Circuit)
 	cktHasDied := make(chan *rpc.Circuit)
@@ -1988,7 +1989,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			// new Circuit connection arrives: a replica joins the cluster.
 		case ckt := <-newCircuitCh:
 			//s.ay("%v ckt := <-newCircuitCh, ckt = '%v'", s.me(), ckt)
-			//vv("%v ckt := <-newCircuitCh, from ckt.RemotePeerName='%v'; ckt.RemotePeerID='%v'", s.me(), ckt.RemotePeerName, ckt.RemotePeerID) // not seen 059
+			//vv("%v ckt := <-newCircuitCh, from ckt.RemotePeerName='%v'; ckt.RemotePeerID='%v'; ckt='%v'", s.me(), ckt.RemotePeerName, ckt.RemotePeerID, ckt)
 			err := s.handleNewCircuit(ckt, done0, arrivingNetworkFrag, cktHasError, cktHasDied)
 			if err != nil {
 				return err
@@ -2129,6 +2130,8 @@ func (s *TubeNode) handleNewCircuit(
 		panic(fmt.Sprintf("cannot have ckt.RemotePeerID empty: ckt='%v'", ckt))
 	}
 
+	//vv("%v 11111111111 handleNewCircuit sees ckt='%v'", s.name, ckt) // not seen for dropped frag ckt.
+
 	// It turns out for remote TUBE_CLIENT having done CallPeerStartCircuitAtMostOne
 	// via getCircuitToLeader() in member/czar.go, our TUBE_REPLICA node
 	// we can indeed end up with an empty ckt.RemotePeerName string.
@@ -2254,7 +2257,7 @@ func (s *TubeNode) handleNewCircuit(
 
 	// listen to this peer on a separate goro
 	go func(ckt *rpc.Circuit, cktP *cktPlus, circuitSN int64) (err0 error) {
-		//vv("444444444444 handleNewCircuit goro started with circuitSN %v from '%v' to '%v'", circuitSN, ckt.LocalPeerName, ckt.RemotePeerName)
+		//vv("444444444444 handleNewCircuit goro started with circuitSN %v from '%v' to '%v'; ckt.CircuitID='%v'; ckt.Reads = %p; ckt='%v'", circuitSN, ckt.LocalPeerName, ckt.RemotePeerName, ckt.CircuitID, ckt.Reads, ckt)
 
 		ctx := ckt.Context
 		cktContextDone := ctx.Done()
