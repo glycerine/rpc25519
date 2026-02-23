@@ -68,6 +68,8 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		r := recover()
 		if r != nil {
 			//vv("runClientMain defer: serverAddr='%v'; end for goro = %v; recover='%v'", serverAddr, GoroNumber(), r)
+		} else {
+			//vv("runClientMain defer: serverAddr='%v'; end for goro = %v; nil recover().", serverAddr, GoroNumber())
 		}
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -271,6 +273,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	}
 
 	cpair := &cliPairState{}
+	c.cpair = cpair // otherwise segfault when keepalive pings are on.
 	go c.runSendLoop(conn, cpair)
 	c.runReadLoop(conn, cpair)
 }
@@ -362,7 +365,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			//vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
 		}
 		//}
-		//vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt)
+		//vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt) // seen much after the send loop closed.
 		canc()
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -528,7 +531,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			msg.HDR.Typ == CallPeerTrafficWithServiceFallback ||
 			msg.HDR.Typ == CallPeerError {
 			// we can get here on shutdown, don't freak.
-			vv("cli readLoop shutting down on unexpected CallPeerTraffic/WithServiceFallback/Error")
+			alwaysPrintf("cli readLoop shutting down on unexpected CallPeerTraffic/WithServiceFallback/Error")
 			return
 		}
 
@@ -572,7 +575,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		r := recover()
 		if r != nil {
 			// printing here can deadlock a synctest test. e.g. 707.
-			//alwaysPrintf("cli runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, allstacks())
+			alwaysPrintf("cli runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, allstacks())
 		} else {
 			//vv("cli runSendLoop defer/shutdown running. reason='%v'. conn local '%v' -> '%v' remote", stopReason, local(conn), remote(conn))
 		}
@@ -634,7 +637,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		lastPing = time.Now()
 		pingTimer = c.NewTimer(pingEvery)
 		if pingTimer == nil {
-			// simnet shutdown in progress
+			//vv("pingTime til! simnet shutdown in progress, exit runSendLoop")
 			stopReason = "pingTimer==nil; simnet shutdown in progress"
 			return
 		}
@@ -691,7 +694,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			pingTimer.Discard() // good, let simnet discard it.
 			pingTimer = c.NewTimer(nextPingDur)
 			if pingTimer == nil {
-				// simnet shutdown in progress
+				//vv("simnet shutdown in progress")
 				stopReason = "pingTimer==nil; simnet shutdown in progress"
 				return
 			}
@@ -722,6 +725,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			continue
 		case <-c.halt.ReqStop.Chan:
 			stopReason = fmt.Sprintf("c.halt.ReqStop.Chan; halt=%p", c.halt)
+			//vv("case <-c.halt.ReqStop.Chan; stopReason = %v", stopReason)
 			return
 		case msg := <-c.oneWayCh:
 
@@ -749,6 +753,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 					strings.Contains(rr, "connection reset by peer") ||
 					strings.Contains(rr, "broken pipe") {
 					stopReason = rr
+					//vv("return with stopReason = '%v'", stopReason)
 					return
 				}
 			} else {
@@ -790,6 +795,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		}
 	}
 	stopReason = "fell off end of send loop"
+	//vv("return after end of send loop: stopReason = '%v'", stopReason)
 }
 
 // interface for goq
@@ -1981,7 +1987,7 @@ func (c *Client) Name() string {
 
 // Close shuts down the Client.
 func (c *Client) Close() error {
-	//vv("Client.Close() called. c.halt=%p", c.halt)
+	//vv("Client.Close() called. c.halt=%p; stack = \n %v", c.halt, stack())
 
 	// don't touch simnet directly here; racey. would need
 	// something like this to not race with simnet_client.go:18
