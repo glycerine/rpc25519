@@ -84,15 +84,19 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName, user
 			case <-ckt.Halt.ReqStop.Chan:
 				err = ErrHaltRequested
 				ckt.Close(err)
+				ckt = nil
 			case <-ckt.Context.Done():
 				err = ErrHaltRequested
 				ckt.Close(err)
+				ckt = nil
 			case <-lpb.Ctx.Done():
 				err = ErrHaltRequested
 				ckt.Close(err)
+				ckt = nil
 			case <-p.u.GetHostHalter().ReqStop.Chan:
 				err = ErrHaltRequested
 				ckt.Close(err)
+				ckt = nil
 			}
 		}
 		if autoSendNewCircuitCh != nil {
@@ -103,15 +107,19 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName, user
 			case <-ckt.Halt.ReqStop.Chan:
 				err = ErrHaltRequested
 				ckt.Close(err)
+				ckt = nil
 			case <-ckt.Context.Done():
 				err = ErrHaltRequested
 				ckt.Close(err)
+				ckt = nil
 			case <-lpb.Ctx.Done():
 				err = ErrHaltRequested
 				ckt.Close(err)
+				ckt = nil
 			case <-p.u.GetHostHalter().ReqStop.Chan:
 				err = ErrHaltRequested
 				ckt.Close(err)
+				ckt = nil
 			}
 		}
 	}
@@ -313,8 +321,8 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 		err0 = err
 		if ckt != nil {
 			ckt.Close(err)
+			ckt = nil
 		}
-		ckt = nil
 		ackMsg = nil
 		return
 	}
@@ -404,18 +412,22 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	case <-ckt.Context.Done():
 		//vv("boo: <-ckt.Context.Done()")
 		ckt.Close(ErrContextCancelled) // cleanup
+		ckt = nil
 		return nil, nil, madeNewAutoCli, "", ErrContextCancelled
 	case <-lpb.Ctx.Done():
 		//vv("boo: <-lpb.Ctx.Done()")
 		ckt.Close(ErrContextCancelled) // cleanup
+		ckt = nil
 		return nil, nil, madeNewAutoCli, "", ErrContextCancelled
 	case <-hhalt.ReqStop.Chan:
 		//vv("boo: <-hhalt.ReqStop.Chan")
 		ckt.Close(ErrHaltRequested) // cleanup
+		ckt = nil
 		return nil, nil, madeNewAutoCli, "", ErrHaltRequested
 	case <-callCtx.Done():
 		//vv("boo: <-callCtx.Done()")    // seen, for CircuitSN: 13
 		ckt.Close(ErrContextCancelled) // cleanup
+		ckt = nil
 		return nil, nil, madeNewAutoCli, "", ErrContextCancelled
 	}
 
