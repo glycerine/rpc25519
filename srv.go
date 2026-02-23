@@ -2404,8 +2404,15 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		case <-cli.halt.ReqStop.Chan:
 			// cli send loop is gone, so
 			// cli.garbageCollectThisRwPairCh will never be serviced.
+
+			// prevent hangs on shutdown
+			p.halt.ReqStop.Close()
+			p.halt.Done.Close()
 			return
 		case <-s.halt.ReqStop.Chan:
+			// prevent hangs on shutdown
+			p.halt.ReqStop.Close()
+			p.halt.Done.Close()
 			return
 		}
 
