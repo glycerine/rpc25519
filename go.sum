@@ -30,6 +30,8 @@ github.com/glycerine/greenpack v0.541.0 h1:27vVEEmJTCXfRz7EiHqkAY+uXM54rUKHEAXxq
 github.com/glycerine/greenpack v0.541.0/go.mod h1:DUVEsWj48QijXF52Jy83ibYhE1c4VIdWFH7fwAWuXbI=
 github.com/glycerine/idem v0.20.6 h1:TugYfz4iDdrNs6rny/TZx8MRTY8oibRddMQMDBz2nXU=
 github.com/glycerine/idem v0.20.6/go.mod h1:gA9QRaEvbRow2nBLZRrTPV36h9VsZ31Kdz6e0iRVkSo=
+github.com/glycerine/idem v0.20.7 h1:EGR8qzHW/qjXEvXEsuR6IXvT+QFTLpr836rekmhHPhM=
+github.com/glycerine/idem v0.20.7/go.mod h1:gA9QRaEvbRow2nBLZRrTPV36h9VsZ31Kdz6e0iRVkSo=
 github.com/glycerine/ipaddr v0.2.7 h1:WRbvTnHOzATK2w2F/NAwYnKulBBsvX7MSp37Mb8BjI0=
 github.com/glycerine/ipaddr v0.2.7/go.mod h1:ook7eYvTG8CSOOEn9oLXaxQwzFo1zcqJbDZT2rxtKVc=
 github.com/glycerine/liner v0.0.0-20160121172638-72909af234e0 h1:4ZegphJXBTc4uFQ08UVoWYmQXorGa+ipXetUj83sMBc=
