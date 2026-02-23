@@ -28,8 +28,6 @@ github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 h1:gclg6gY70GLy
 github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31/go.mod h1:Ogl1Tioa0aV7gstGFO7KhffUsb9M4ydbEbbxpcEDc24=
 github.com/glycerine/greenpack v0.541.0 h1:27vVEEmJTCXfRz7EiHqkAY+uXM54rUKHEAXxqPLC+QE=
 github.com/glycerine/greenpack v0.541.0/go.mod h1:DUVEsWj48QijXF52Jy83ibYhE1c4VIdWFH7fwAWuXbI=
-github.com/glycerine/idem v0.20.6 h1:TugYfz4iDdrNs6rny/TZx8MRTY8oibRddMQMDBz2nXU=
-github.com/glycerine/idem v0.20.6/go.mod h1:gA9QRaEvbRow2nBLZRrTPV36h9VsZ31Kdz6e0iRVkSo=
 github.com/glycerine/idem v0.20.7 h1:EGR8qzHW/qjXEvXEsuR6IXvT+QFTLpr836rekmhHPhM=
 github.com/glycerine/idem v0.20.7/go.mod h1:gA9QRaEvbRow2nBLZRrTPV36h9VsZ31Kdz6e0iRVkSo=
 github.com/glycerine/ipaddr v0.2.7 h1:WRbvTnHOzATK2w2F/NAwYnKulBBsvX7MSp37Mb8BjI0=
