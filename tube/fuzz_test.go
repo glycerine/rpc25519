@@ -1854,6 +1854,11 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 
 func Test101_userFuzz(t *testing.T) {
 	//return
+
+	if !faketime {
+		alwaysPrintf("Test101_userFuzz only works under synctest.")
+		return
+	}
 	runtime.GOMAXPROCS(1)
 	showBinaryVersion("tube.test")
 	fmt.Println("Go version:", runtime.Version())
@@ -1869,7 +1874,8 @@ func Test101_userFuzz(t *testing.T) {
 	beg := os.Getenv("SCEN0")
 	batchN := os.Getenv("SCEN_BATCH")
 	if beg != "" && batchN != "" {
-		begScenario, err := strconv.Atoi(beg)
+		var err error
+		begScenario, err = strconv.Atoi(beg)
 		panicOn(err)
 		n, err := strconv.Atoi(batchN)
 		panicOn(err)
@@ -1877,6 +1883,7 @@ func Test101_userFuzz(t *testing.T) {
 	}
 
 	numScen := endxScenario - begScenario
+	vv("numScen = %v", numScen)
 
 	var curClus *TubeCluster
 	defer func() {
@@ -1924,6 +1931,7 @@ func Test101_userFuzz(t *testing.T) {
 		// there is occassional false alarm at end due to ?
 		var tryOk bool
 		var tryErr error
+	tryloop:
 		for try := 0; try < 2; try++ {
 			onlyBubbled(t, func(t *testing.T) {
 
@@ -2038,12 +2046,13 @@ func Test101_userFuzz(t *testing.T) {
 
 			}) // end onlyBubbled
 			if tryOk {
-				break
+				break tryloop
 			}
 		} // end for try twice
 		if !tryOk {
 			panicf("problem on scenario %v twice we got non-linz: '%v'", scenario, tryErr)
 		}
+		//vv("end scenario for loop")
 	}
 }
 
