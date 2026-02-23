@@ -21,6 +21,7 @@ func prettyPrintCircuitMap(m map[string]*Circuit) (s string) {
 // background goro to read all PeerID *Messages and sort them
 // to all the circuits live in this peer.
 func (pb *LocalPeer) peerbackPump() {
+	//vv("peerbackPump top for peerID='%v'; pb.ReadsIn chan= %p", pb.PeerID, pb.ReadsIn)
 	if pb.PeerAPI.isSim {
 		cfg := pb.PeerAPI.u.GetConfig()
 		// pb.NewAddr might be too varying
@@ -179,7 +180,7 @@ func (pb *LocalPeer) peerbackPump() {
 			close(query.Ready)
 
 		case ckt := <-pb.TellPumpNewCircuit:
-			//vv("%v pump: ckt := <-pb.TellPumpNewCircuit: for ckt=%p/'%v'", name, ckt, ckt.Name)
+			//vv("%v pump (pb.ReadsIn chan=%p): got new ckt := <-pb.TellPumpNewCircuit: for ckt=%p/'%v'", name, pb.ReadsIn, ckt, ckt.Name)
 			m[ckt.CircuitID] = ckt
 			pb.Halt.AddChild(ckt.Halt)
 
@@ -237,11 +238,11 @@ func (pb *LocalPeer) peerbackPump() {
 			frag := ckt.ConvertMessageToFragment(msg)
 			//vv("got frag = '%v'", frag)
 
-		wait5MoreSecondsBeforeCktShutdown:
 			var delayedShutCtkTimeout *SimTimer
 			var delayedShutCtkTimeoutC <-chan time.Time // nil typically
 			var ckt5s []*Circuit
 			var doReturn bool
+		wait5MoreSecondsBeforeCktShutdown:
 			select {
 
 			// repeat this here (is also in the outer select)
@@ -262,7 +263,7 @@ func (pb *LocalPeer) peerbackPump() {
 			case <-time.After(time.Second * 2):
 				alwaysPrintf("warning: pump is dropping frag it could not deliver after 2 sec '%v'", frag) //; allstacks=\n%v\n\n", frag, allstacks()) // get a stack trace too
 				//panic("fix this -- why could we not deliver???")
-				continue
+				// let the "continue" path below clean up the timer.
 
 			// was hung here on shutdown... tried adding this first case...
 			// BUT VERY BAD: this makes the pump exit too early!
@@ -293,6 +294,7 @@ func (pb *LocalPeer) peerbackPump() {
 				ckt5s = append(ckt5s, ckt5)
 				if delayedShutCtkTimeout == nil { // only one 5s delay
 					delayedShutCtkTimeout = pb.U.NewTimer(time.Second * 5)
+					//vv("made delayedShutCtkTimeout = %p", delayedShutCtkTimeout)
 					if delayedShutCtkTimeout == nil {
 						// shutting down fully
 						doReturn = true
@@ -324,6 +326,7 @@ func (pb *LocalPeer) peerbackPump() {
 			// "continue"/cleanup
 			if delayedShutCtkTimeout != nil {
 				delayedShutCtkTimeout.Discard()
+				//vv("discarded delayedShutCtkTimeout = %p", delayedShutCtkTimeout) // not seen!?!
 				delayedShutCtkTimeout = nil
 			}
 			for len(ckt5s) > 0 {
