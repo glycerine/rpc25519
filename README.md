@@ -17,14 +17,18 @@ built on top of rpc25519/tube:
 
 a) rpc25519/tube/cmd/member 
 
-member demonstrates a Reliable Membership service.
+Member demonstrates a Reliable Membership service, such
+as that needed by Hermes.
 
 b) rpc25519/tube/cmd/hermes
 
 Hermes is a RAM based key-value store design
 inspired by hardware cache-invalidation approaches.
 It provides read-any-replica / write-any-replica 
-scalability. The protocol is by Antonios Katsarakis et al. 2020; see https://hermes-protocol.com/ for the algorithm.
+scalability. The Hermes protocol is from the Hermes paper
+by Antonios Katsarakis et al. 2020 (part of his
+Ph.D. dissertation work); see https://hermes-protocol.com/ for 
+the paper, presentations, Q&A, and other details.
 
 * (2026 Feb 5) Tube is our production grade Raft distributed
 consensus implementation.
