@@ -1,7 +1,7 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
-* (2026 Feb 24 addendum) For the recenly released
+* (2026 Feb 24 addendum) For the recently released
 Go v1.26 version, a note: since the GOEXPERIMENT=synctest 
 automatic build tag (goexperiment.synctest) has 
 been retired as of Go v1.26, we have now defined our 
