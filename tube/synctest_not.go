@@ -1,16 +1,18 @@
-//go:build !goexperiment.synctest
+//go:build !synctest
 
 package tube
 
 import (
-	//"fmt"
+	"fmt"
 	"testing"
 )
+
+var _ = fmt.Printf
 
 const faketime bool = false
 
 //func init() {
-//	fmt.Printf("faketime = %v\n", faketime)
+//	fmt.Printf("tube faketime = %v\n", faketime)
 //}
 
 func synctestWait_LetAllOtherGoroFinish() {}

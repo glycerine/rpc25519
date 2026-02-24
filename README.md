@@ -1,6 +1,23 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* (2026 Feb 24 addendum) For the recenly released
+Go v1.26 version, a note: since the GOEXPERIMENT=synctest 
+automatic build tag (goexperiment.synctest) has 
+been retired as of Go v1.26, we now defined our 
+own "synctest" build tag instead as 
+a replacement, as of rpc25519 v1.43.7. 
+
+Hence you can now use "go test -v -tags=synctest"
+to run all tests under synctest, or "go test -v" to
+run without synctest, in both the rpc25519/ top directory
+and in the rpc25519/tube sub-directoy. Similarly,
+use "go test -c -tags=synctest" to build a test
+binary that will run its tests under synctest (since
+we feature the ability to run some tests -- see the
+test helper functions bubbleOrNot() vs onlyBubbled()
+-- under either a synctest or a non-synctest environment).
+
 * (2026 Feb 24) Our latest Tube Raft release includes
 a suite of deterministic simulation testing (DST) fuzz
 tests in tube/fuzz_test.go, and two example applications that

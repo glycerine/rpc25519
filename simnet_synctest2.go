@@ -1,4 +1,4 @@
-//go:build goexperiment.synctest && goj
+//go:build synctest && goj
 
 package rpc25519
 
@@ -15,7 +15,7 @@ import (
 const faketime bool = true
 
 //func init() {
-//	fmt.Printf("faketime = %v\n", faketime)
+//	fmt.Printf("rpc25519 faketime = %v\n", faketime)
 //}
 
 func bubbleOrNot(t *testing.T, f func(t *testing.T)) {

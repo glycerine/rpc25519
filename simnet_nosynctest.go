@@ -1,4 +1,4 @@
-//go:build !goexperiment.synctest
+//go:build !synctest
 
 package rpc25519
 
@@ -11,9 +11,9 @@ const faketime bool = false
 
 var _ = fmt.Printf
 
-func init() {
-	//fmt.Printf("faketime = %v\n", faketime)
-}
+//func init() {
+//	fmt.Printf("rpc faketime = %v\n", faketime)
+//}
 
 func synctestWait_LetAllOtherGoroFinish() {}
 

@@ -1,4 +1,4 @@
-//go:build goexperiment.synctest && !goj
+//go:build synctest && !goj
 
 package rpc25519
 
@@ -15,9 +15,9 @@ const faketime bool = true
 
 var _ = fmt.Printf
 
-func init() {
-	//fmt.Printf("faketime = %v\n", faketime)
-}
+//func init() {
+//	fmt.Printf("rpc25519 faketime = %v\n", faketime)
+//}
 
 func bubbleOrNot(t *testing.T, f func(t *testing.T)) {
 	synctest.Test(t, f)
