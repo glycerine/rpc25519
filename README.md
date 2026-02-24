@@ -8,8 +8,8 @@ demonstrate leader-election and reliable group membership
 services.
 
 As of v1.43.0, our Tube Raft implementation has 
-undergone extensive network fuzz-testing with our 
-DST framework and the
+undergone extensive network fuzz-testing with 
+https://github.com/glycerine/gosimnet (our DST framework) and the
 [porcupine linearizability checker](https://github.com/anishathalye/porcupine).
 
 The rpc25519 repository now includes two example applications 
