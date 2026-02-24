@@ -3964,7 +3964,7 @@ func (s *Simnet) startMEQacceptor() {
 
 // PrepareForSimnet will re-seed our globalPRNG
 // if int64seed is > 0. Otherwise we are a no-op,
-// and altered will come back false. Since is
+// and altered will come back false. This is
 // to avoid repeated output from the PRNG, since
 // it was initialized with zero at init() time.
 //
