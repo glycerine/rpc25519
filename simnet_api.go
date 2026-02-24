@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	cristalbase64 "github.com/cristalhq/base64"
 	blakehash "github.com/glycerine/rpc25519/hash"
 )
 
@@ -1610,6 +1611,11 @@ func (s *Simnet) SimpleNewScenario(int64seed int64) (err error) {
 type requestSimnetNewCallID struct {
 
 	// request
+
+	// we must allocate how many bytes we want here;
+	// the call will fill in pseudo for us.
+	pseudo []byte
+
 	sn      int64
 	proceed chan time.Duration
 	reqtm   time.Time
@@ -1617,8 +1623,7 @@ type requestSimnetNewCallID struct {
 	who     int
 	where   string
 
-	// response
-	callID string
+	// response is in pseudo now.
 }
 
 func (s *Simnet) GetNewCallID() (cid string) {
@@ -1630,6 +1635,9 @@ func (s *Simnet) GetNewCallID() (cid string) {
 		reqtm:   time.Now(),
 		who:     goID(),
 		where:   fileLine(2),
+		// want we want simnet to fill with pseudo random bytes:
+		// we allocate to indicate the size we want.
+		pseudo: make([]byte, 21),
 	}
 
 	select {
@@ -1639,7 +1647,8 @@ func (s *Simnet) GetNewCallID() (cid string) {
 	}
 	select {
 	case pause := <-r.proceed:
-		cid = r.callID
+		//cid = r.callID
+		cid = cristalbase64.URLEncoding.EncodeToString(r.pseudo)
 
 		if s.halt.ReqStop.IsClosed() {
 			return
@@ -1656,6 +1665,59 @@ func (s *Simnet) GetNewCallID() (cid string) {
 	}
 	return
 }
+
+// like io.Reader's Read method. If there is an error it will
+// be ErrShutdown2 because the system is shutting
+// down; otherwise the returned n will be len(p).
+func (s *Simnet) ReadPseudoRandom(p []byte) (n int, err error) {
+
+	if len(p) == 0 {
+		return
+	}
+
+	//vv("top getNewCallID()")
+	r := &requestSimnetNewCallID{
+		sn:      s.simnetNextMopSn("&requestSimnetNewCallID:ReadPseudoRandom"),
+		proceed: make(chan time.Duration, 1),
+		reqtm:   time.Now(),
+		who:     goID(),
+		where:   fileLine(2),
+		// want we want simnet to fill with pseudo random bytes:
+		// we allocate to indicate the size we want.
+		pseudo: p,
+	}
+
+	select {
+	case s.simnetNewCallIDCh <- r:
+	case <-s.halt.ReqStop.Chan:
+		err = ErrShutdown2
+		return
+		//vv("i=%v <-s.halt.ReqStop.Chan", i)
+	}
+	select {
+	case pause := <-r.proceed:
+		n = len(r.pseudo)
+		err = r.err
+
+		if s.halt.ReqStop.IsClosed() {
+			err = ErrShutdown2
+			return
+		}
+		if pause > 0 {
+			select {
+			case <-time.After(pause):
+			case <-s.halt.ReqStop.Chan:
+				err = ErrShutdown2
+				return
+			}
+		}
+	case <-s.halt.ReqStop.Chan:
+		//vv("i=%v <-s.halt.ReqStop.Chan", i)
+		err = ErrShutdown2
+	}
+	return
+}
+
 func (s *Simnet) newCallIdMop(req *requestSimnetNewCallID) *mop {
 	return &mop{
 		newCallIDReq: req,

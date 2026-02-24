@@ -3843,9 +3843,7 @@ func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
 func (s *Simnet) handleNewCallID(op *mop, now time.Time, i int64) {
 	var r *requestSimnetNewCallID = op.newCallIDReq
 
-	var pseudo [21]byte
-	s.scenario.blake3rand.ReadXOF(pseudo[:])
-	r.callID = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
+	s.scenario.blake3rand.ReadXOF(r.pseudo)
 
 	//vv("handleNewCallID: '%v' created r.callID = '%v'", r.where, r.callID)
 
