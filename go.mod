@@ -10,7 +10,7 @@ require (
 	github.com/cristalhq/base64 v0.1.2
 	github.com/glycerine/base58 v0.24.2
 	github.com/glycerine/blake3 v1.5.2
-	github.com/glycerine/cryrand v0.0.0-20170319162230-65c4af4fca8b
+	github.com/glycerine/cryrand v0.9.0
 	github.com/glycerine/fisherexact v0.3.6
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
 	github.com/glycerine/greenpack v0.541.0
