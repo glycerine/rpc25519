@@ -35,6 +35,7 @@ func Test101_userFuzz(t *testing.T) {
 		alwaysPrintf("Test101_userFuzz only works under synctest.")
 		return
 	}
+	fmt.Printf("pid = %v\n", os.Getpid())
 	runtime.GOMAXPROCS(1)
 	showBinaryVersion("tube.test")
 	fmt.Println("Go version:", runtime.Version())
