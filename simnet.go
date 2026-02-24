@@ -3845,7 +3845,7 @@ func (s *Simnet) handleNewCallID(op *mop, now time.Time, i int64) {
 
 	s.scenario.blake3rand.ReadXOF(r.pseudo)
 
-	//vv("handleNewCallID: '%v' created r.callID = '%v'", r.where, r.callID)
+	//vv("handleNewCallID: '%v' created r.pseudo = '%x'", r.where, r.pseudo)
 
 	s.fin(op)
 }

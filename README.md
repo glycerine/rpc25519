@@ -1,6 +1,31 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* (2026 Feb 24) latest Tube Raft implementation includes
+a deterministic simulation testing (DST) framework 
+in fuzz_teat.go, and two example applications that
+demonstrate leader-election and reliable group membership
+services.
+
+As of v1.43.0, our Tube Raft implementation has 
+undergone extensive network fuzz-testing with our 
+DST framework and the
+[porcupine linearizability checker](https://github.com/anishathalye/porcupine).
+
+The rpc25519 repository now includes two example applications 
+built on top of rpc25519/tube: 
+
+a) rpc25519/tube/cmd/member 
+
+member demonstrates a Reliable Membership service.
+
+b) rpc25519/tube/cmd/hermes
+
+Hermes is a RAM based key-value store design
+inspired by hardware cache-invalidation approaches.
+It provides read-any-replica / write-any-replica 
+scalability. The protocol is by Antonios Katsarakis et al. 2020; see https://hermes-protocol.com/ for the algorithm.
+
 * (2026 Feb 5) Tube is our production grade Raft distributed
 consensus implementation.
 
