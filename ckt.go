@@ -2351,9 +2351,10 @@ type EpochVers struct {
 
 // 0 => logically equals (same content); not
 // necessarily the same pointer (a==b would
-// be an easier test if that's all that is needed).
-// -1 means a < b
-// +1 means a > b
+// be an easier test if that's all that is needed);
+// A return value of
+// -1 means a < b; while a return value of
+// +1 means a > b.
 func (a *Fragment) Compare(b *Fragment) int {
 	if a == nil || b == nil {
 		// if both nil, should NaN == NaN? not usually
