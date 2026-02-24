@@ -17,7 +17,7 @@ import (
 
 func Test710_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		cv.Convey("using our rsync-like-protocol, the client, lacking a file, should be able to fetch it from the server. The second time fetching the same should be very fast because of chunking and hash comparisons in the rsync-like protocol", t, func() {
 
@@ -254,7 +254,7 @@ func Test710_client_gets_new_file_over_rsync_twice(t *testing.T) {
 func Test777_big_files_with_small_changes(t *testing.T) {
 	//return
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		cv.Convey("using our rsync-like-protocol, rectifying a small diff in a big file should be efficient. Let the local have a small difference, and sync it to the remote 'template'", t, func() {
 
@@ -472,7 +472,7 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 
 func Test788_rle_zeros_encoded(t *testing.T) {
 
-	bubbleOrNot(func() {
+	bubbleOrNot(t, func(t *testing.T) {
 
 		cv.Convey("using our rsync-like-protocol, all zero files should be efficiently run-length-encoded. Can we get an all zero 10MB file down to one chunk?", t, func() {
 

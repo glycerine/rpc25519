@@ -1,4 +1,4 @@
-//go:build !goexperiment.synctest
+//go:build !synctest
 
 package jsync
 
@@ -15,10 +15,10 @@ const faketime bool = false
 
 func synctestWait_LetAllOtherGoroFinish() {}
 
-func bubbleOrNot(f func()) {
-	f()
+func bubbleOrNot(t *testing.T, f func(t *testing.T)) {
+	f(t)
 }
 
-func onlyBubbled(t *testing.T, f func()) {
+func onlyBubbled(t *testing.T, f func(t *testing.T)) {
 	t.Skip("onlyBubbled: skipping test")
 }
