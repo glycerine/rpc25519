@@ -1,9 +1,9 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
-* (2026 Feb 24) latest Tube Raft implementation includes
+* (2026 Feb 24) Our latest Tube Raft release includes
 a deterministic simulation testing (DST) framework 
-in fuzz_teat.go, and two example applications that
+in fuzz_test.go, and two example applications that
 demonstrate leader-election and reliable group membership
 services.
 
