@@ -25,7 +25,7 @@ b) rpc25519/tube/cmd/hermes
 Hermes is a RAM-based key-value store design
 inspired by multiprocessor cache-coherence protocols.
 It provides read-any-replica / write-any-replica 
-scalability. The Hermes protocol is from paper
+scalability. The Hermes protocol is from the paper
 "Hermes: A Fast, Fault-Tolerant and 
 Linearizable Replication Protocol"
 by Antonios Katsarakis et al. 2020 (part of his
