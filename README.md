@@ -23,7 +23,7 @@ as that needed by Hermes.
 b) rpc25519/tube/cmd/hermes
 
 Hermes is a RAM based key-value store design
-inspired by hardware cache-invalidation approaches.
+inspired by multiprocessor cache-coherence protocols.
 It provides read-any-replica / write-any-replica 
 scalability. The Hermes protocol is from the Hermes paper
 by Antonios Katsarakis et al. 2020 (part of his
