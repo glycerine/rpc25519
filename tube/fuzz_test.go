@@ -45,7 +45,7 @@ func Test101_userFuzz(t *testing.T) {
 	}()
 
 	begScenario := 0
-	endxScenario := 1
+	endxScenario := 1 // 347203
 
 	// for batch runs from env var partition.
 	beg := os.Getenv("SCEN0")
@@ -1270,6 +1270,9 @@ func (s *fuzzUser) linzCheck() error {
 
 	if len(evs) == 0 {
 		panicf("user %v: expected evs > 0, got 0", s.name)
+	}
+	if len(evs) <= 10 {
+		panicf("user %v: expected evs > 10, got %v", s.name, len(evs))
 	}
 
 	//alwaysPrintf(" wal:\n")

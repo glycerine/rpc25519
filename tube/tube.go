@@ -17535,10 +17535,25 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	//            LastAppliedTerm: 5,
 	//               LastLogIndex: 41573 from term 5  (when node_1 was leader)
 	//
-	//if state2.CommitIndex < s.state.CommitIndex {
-	//	panic(fmt.Sprintf("%v we should never be rolling back CommitIndex with state snapshots! state2.CommitIndex(%v) < s.state.CommitIndex(%v)", s.name, state2.CommitIndex, s.state.CommitIndex))
-	// same kind of reasoning for this:
-	//}
+
+	// better alternative to assert, just skip
+	// applying the snapshot: leader should apply more
+	// log entries until their Commit index is more up to date,
+	// then send a better snapshot.
+
+	if state2.CommitIndex < s.state.CommitIndex {
+		alwaysPrintf("%v we avoid rolling back CommitIndex with state snapshots! state2.CommitIndex(%v) < s.state.CommitIndex(%v)... try again later.", s.name, state2.CommitIndex, s.state.CommitIndex)
+		return
+	}
+
+	lli, llt := s.wal.LastLogIndexAndTerm()
+	if state2.CompactionDiscardedLast.Index < lli ||
+		state2.CompactionDiscardedLast.Index < llt {
+		// enforce that they only drive us forward, never backwards
+		// in terms of logical log length. Leader should
+		// keep advancing and try again if they have to.
+		return
+	}
 
 	// we really don't want a stray snapshot from an old
 	// leader updating us by mistake, so enforce that
@@ -17613,6 +17628,7 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	s.wal.installedSnapshot(s.state)
 	s.assertCompactOK()
 
+	//vv("%v end of applyNewStateSnapshot from '%v'", s.me(), state2.PeerName)
 	//vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v ; wal.llt=%v; kv='%v'", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli, s.wal.llt, s.state.KVstore.String())
 }
 
