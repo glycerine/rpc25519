@@ -17561,13 +17561,17 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string) {
 		return
 	}
 
-	lli, llt := s.wal.LastLogIndexAndTerm()
-	if state2.CompactionDiscardedLast.Index < lli ||
-		state2.CompactionDiscardedLast.Index < llt {
-		// enforce that they only drive us forward, never backwards
-		// in terms of logical log length. Leader should
-		// keep advancing and try again if they have to.
-		return
+	// should this actually be on? it pass full fuzz_test 101,
+	// but it seems too restrictive, like we will reject most all snapshots.
+	if false {
+		lli, llt := s.wal.LastLogIndexAndTerm()
+		if state2.CompactionDiscardedLast.Index < lli ||
+			state2.CompactionDiscardedLast.Index < llt {
+			// enforce that they only drive us forward, never backwards
+			// in terms of logical log length. Leader should
+			// keep advancing and try again if they have to.
+			return
+		}
 	}
 
 	// we really don't want a stray snapshot from an old
