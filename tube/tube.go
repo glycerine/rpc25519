@@ -7787,7 +7787,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 	chatty802 := false
 	s.testAEchoices = nil
-	if true { // false {
+	if false {
 		lli := s.wal.LastLogIndex()
 		alwaysPrintf("%v: diagnostic handleAppendEntries top; from '%v'; starting lli=%v; this ae='%v'", s.me(), ae.FromPeerName, lli, ae)
 
@@ -7899,7 +7899,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	if largestCommonRaftIndex > 0 {
 		largestCommonRaftIndexTerm = followerLog.getTermForIndex(largestCommonRaftIndex)
 	}
-	vv("%v largestCommonRaftIndexTerm=%v for largestCommonRaftIndex=%v", s.name, largestCommonRaftIndexTerm, largestCommonRaftIndex)
+	//vv("%v largestCommonRaftIndexTerm=%v for largestCommonRaftIndex=%v", s.name, largestCommonRaftIndexTerm, largestCommonRaftIndex)
 
 	stateSaveNeeded := false
 	prevci := s.state.CommitIndex
@@ -8061,7 +8061,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		ack.PeerCompactionDiscardedLastTerm = s.state.CompactionDiscardedLast.Term
 		ack.LargestCommonRaftIndex = compactedTo // rather than -1
 		ack.LargestCommonRaftIndexTerm = ack.PeerCompactionDiscardedLastTerm
-		vv("%v changed ack.LargestCommonRaftIndexTerm to %v", s.name, ack.LargestCommonRaftIndexTerm)
+		//vv("%v changed ack.LargestCommonRaftIndexTerm to %v", s.name, ack.LargestCommonRaftIndexTerm)
 	}
 
 	// figure 3.1 summary
@@ -8176,8 +8176,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	ack.LargestCommonRaftIndex = largestCommonRaftIndex
 	ack.LargestCommonRaftIndexTerm = largestCommonRaftIndexTerm
 
-	vv("%v changed ack.LargestCommonRaftIndex to %v", s.name, ack.LargestCommonRaftIndex)
-	vv("%v changed ack.LargestCommonRaftIndexTerm to %v", s.name, ack.LargestCommonRaftIndexTerm)
+	//vv("%v changed ack.LargestCommonRaftIndex to %v", s.name, ack.LargestCommonRaftIndex)
+	//vv("%v changed ack.LargestCommonRaftIndexTerm to %v", s.name, ack.LargestCommonRaftIndexTerm)
 
 	if upToDate {
 		s.host.choice("Logs are up to date")
@@ -8400,7 +8400,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			// if keepCount < s.state.CommitIndex {
 			// now:
 			if keepCount < prevci {
-				vv("%v about to panic on log violation, keepCount(%v) < prevci(%v) here are all the WAL for reference", s.me(), keepCount, prevci)
+				alwaysPrintf("%v about to panic on log violation, keepCount(%v) < prevci(%v) here are all the WAL for reference", s.me(), keepCount, prevci)
 
 				if s.isRegularTest() && s.cfg.testCluster != nil {
 
@@ -8417,7 +8417,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 					}
 
 				}
-				vv("%v and now here is the log violation panic:", s.name)
+				alwaysPrintf("%v and now here is the log violation panic:", s.name)
 				panic(fmt.Sprintf("%v log violation: keepCount(%v) < prevci(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, prevci)) // log violation: keepCount(23) < prevci(24): overwriteEntries would kill a committed entry; scenario 10957. log violation: keepCount(14) < prevci(17); scenario 37 with 40 steps.
 			}
 		}
@@ -8545,8 +8545,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			ack.LargestCommonRaftIndex = largestCommonRaftIndex
 			ack.LargestCommonRaftIndexTerm = largestCommonRaftIndexTerm
 
-			vv("%v changed ack.LargestCommonRaftIndex to %v", s.name, ack.LargestCommonRaftIndex)
-			vv("%v changed ack.LargestCommonRaftIndexTerm to %v", s.name, ack.LargestCommonRaftIndexTerm)
+			//vv("%v changed ack.LargestCommonRaftIndex to %v", s.name, ack.LargestCommonRaftIndex)
+			//vv("%v changed ack.LargestCommonRaftIndexTerm to %v", s.name, ack.LargestCommonRaftIndexTerm)
 
 			maxPossibleCI := largestCommonRaftIndex         // not lli
 			maxPossibleCIterm := largestCommonRaftIndexTerm // not llt
@@ -9781,7 +9781,7 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 	s.hlc.ReceiveMessageWithHLC(ack.FollowerHLC)
 
 	//if ack.PeerLogLastIndex >= 4 {
-	vv("%v \n-------->>>    handle AppendEntriesAck() from %v  <<<--------\n ack = %v", s.me(), ack.FromPeerName, ack)
+	//vv("%v \n-------->>>    handle AppendEntriesAck() from %v  <<<--------\n ack = %v", s.me(), ack.FromPeerName, ack)
 	//}
 
 	if s.isRegularTest() {
@@ -10203,13 +10203,13 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 
 		itn := &IndexTerm{Index: mi, Term: mt, Name: info.PeerName}
 		matchIndexes = append(matchIndexes, itn)
-		vv("%v adding to matchIndexes itn = '%v'", s.name, itn)
+		//vv("%v adding to matchIndexes itn = '%v'", s.name, itn)
 	}
 
 	//i := s.quorum() - 1 // 0-indexed slices need -1
 	quor, nofault := s.quorumAndIsNoFaultTolDur()
 	if termAgreeCount < quor {
-		vv("%v we can bail early because termAgreeCount(%v) < quor(%v)  (in nofault period = %v)", s.name, termAgreeCount, quor, nofault)
+		//vv("%v we can bail early because termAgreeCount(%v) < quor(%v)  (in nofault period = %v)", s.name, termAgreeCount, quor, nofault)
 		return
 	}
 
@@ -10219,7 +10219,7 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 		alwaysPrintf("%v warning! We are still in the nofault period(%v) (for another %v), so requiring all %v nodes (not just %v) to ack their wal writes in order for leader to commit.", s.name, s.cfg.NoFaultTolDur, s.t0.Add(s.cfg.NoFaultTolDur).Sub(time.Now()), quor, s.quorumIgnoreNoFaultTolDur())
 	}
 
-	vv("%v s.quorum() - 1 = i=%v; matchIndexes= %v", s.me(), i, matchIndexes)
+	//vv("%v s.quorum() - 1 = i=%v; matchIndexes= %v", s.me(), i, matchIndexes)
 	if i >= len(matchIndexes) {
 		//vv("%v not enough for quorum(%v)... would be out of bounds. i(%v) >= len(matchIndex)=%v", s.me(), i+1, i, len(matchIndexes))
 		return
@@ -10287,7 +10287,7 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 	// This should be the only place and time the leader
 	// updates its CommitIndex.
 
-	vv("%v %v place 3 leaderAdvanceCommitIndex going from s.state.CommitIndex(%v) -> newCommitIndex(%v)", s.me(), s.name, s.state.CommitIndex, newCommitIndex)
+	//vv("%v %v place 3 leaderAdvanceCommitIndex going from s.state.CommitIndex(%v) -> newCommitIndex(%v)", s.me(), s.name, s.state.CommitIndex, newCommitIndex)
 
 	s.state.CommitIndex = newCommitIndex // RaftConsensus.cc:2195
 	s.state.CommitIndexEntryTerm = entry.Term
