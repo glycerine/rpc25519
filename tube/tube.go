@@ -17764,6 +17764,52 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 
 		keepIndex := state2.CompactionDiscardedLast.Index
 		// append the suffix that comes after the snapshot
+		/*
+		   not good:
+		   fuzz_test.go:121 [goID 44723] 2000-01-01T00:00:00.000000000+00:00 int64seed = 142
+
+		   wal.go:1394 [goID 44728] 2000-01-01T00:00:16.532000001+00:00 node_0 wal.installedSnapshot, writing s.lli from 56 -> 54
+		   panic: bad AddTerm(term=3) call: ugh cannot roll backwards into compacted term territory! term(3) < s.CompactTerm=4
+		   	panic: bad: index desynced! logSize=0 but idxSize=1; keepIndex=54; s=raftWriteAheadLog of len 0 [compactIndex: 54; compactTerm: 4; noLogCompaction: true]:
+		   	logIndex: [BaseC: 54 [CompactTerm: 4]|logical len 1; (54:55]TermsRLE{ Base: 54, Endi: 55, Runs:
+		   	}
+		   	 [recovered, repanicked]
+
+		   goroutine 44728 [running, synctest bubble 143]:
+		   github.com/glycerine/rpc25519/tube.(*TubeNode).Start.func1()
+		   	/Users/jaten/rpc25519/tube/tube.go:792 +0x1c7
+		   panic({0xde52760?, 0x2d06c977f230?})
+		   	/usr/local/go/src/runtime/panic.go:860 +0x13a
+		   github.com/glycerine/rpc25519/tube.(*raftWriteAheadLog).assertConsistentWalAndIndex(0x2d06e65b5a40?, 0x36)
+		   	/Users/jaten/rpc25519/tube/wal.go:1372 +0x38b
+		   panic({0xde52760?, 0x2d06c977f210?})
+		   	/usr/local/go/src/runtime/panic.go:860 +0x13a
+		   github.com/glycerine/rpc25519/tube.panicf(...)
+		   	/Users/jaten/rpc25519/tube/vprint.go:286
+		   github.com/glycerine/rpc25519/tube.(*TermsRLE).AddTerm(0x2d070789c300, 0x3)
+		   	/Users/jaten/rpc25519/tube/rle.go:107 +0x2f9
+		   github.com/glycerine/rpc25519/tube.(*raftWriteAheadLog).saveRaftLogEntry_NODISK(0x2d06c537e3c0, 0x2d07426c9860)
+		   	/Users/jaten/rpc25519/tube/memwal.go:60 +0x66
+		   github.com/glycerine/rpc25519/tube.(*raftWriteAheadLog).saveRaftLogEntry(0x480?, 0x2d06c48e3a00?)
+		   	/Users/jaten/rpc25519/tube/wal.go:404 +0x1c
+		   github.com/glycerine/rpc25519/tube.(*raftWriteAheadLog).overwriteEntries_NODISK(0x2d06c537e3c0, 0x36?, {0x2d06c4b227b0, 0x2, 0x3?}, 0xe0?, 0x2d06caeaa4e0?, 0xffffffffffffffff, 0xcd92354?, 0x0, ...)
+		   	/Users/jaten/rpc25519/tube/memwal.go:175 +0xfb
+		   github.com/glycerine/rpc25519/tube.(*raftWriteAheadLog).overwriteEntries(0x2d06c48b1180?, 0x0?, {0x2d06c4b227b0?, 0x0?, 0x44?}, 0x0?, 0x0?, 0x0?, 0x0?, 0x2d06ccf9c808)
+		   	/Users/jaten/rpc25519/tube/wal.go:794 +0x1d2
+		   github.com/glycerine/rpc25519/tube.(*TubeNode).applyNewStateSnapshot(0x2d06ccf9c808, 0x2d06c49c0000, {0x2d06e65b5a40?, 0x2d06c554f5e8?})
+		   	/Users/jaten/rpc25519/tube/tube.go:17767 +0x53f
+		   github.com/glycerine/rpc25519/tube.(*TubeNode).handleStateSnapshotEnclosed(0x2d06ccf9c808, 0x2d06c50ff440, 0x2d06c554fd28?, {0x2d06c50f9c80, 0x35})
+		   	/Users/jaten/rpc25519/tube/tube.go:17596 +0xd54
+		   github.com/glycerine/rpc25519/tube.(*TubeNode).Start(0x2d06ccf9c808, 0x2d06c9a78fc0, {0xdfaf7d0, 0x2d06ca214690}, 0x2d06ca87b570)
+		   	/Users/jaten/rpc25519/tube/tube.go:1695 +0x382e
+		   github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer.func1()
+		   	/Users/jaten/rpc25519/ckt.go:1667 +0x109
+		   created by github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer in goroutine 44723
+		   	/Users/jaten/rpc25519/ckt.go:1661 +0x685
+		   exit status 2
+		   FAIL	github.com/glycerine/rpc25519/tube	48.898s
+
+		*/
 		s.wal.overwriteEntries(keepIndex, saveThese, false, -1, -1, &s.state.CompactionDiscardedLast, s)
 
 		var lastTerm, lastIdx int64

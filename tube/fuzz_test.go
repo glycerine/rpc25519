@@ -47,8 +47,8 @@ func Test101_userFuzz(t *testing.T) {
 		vv("test 101 wrapping up.")
 	}()
 
-	begScenario := 347202
-	endxScenario := 347203
+	begScenario := 0
+	endxScenario := 200
 
 	// for batch runs from env var partition.
 	beg := os.Getenv("SCEN0")
