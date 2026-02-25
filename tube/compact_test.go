@@ -266,7 +266,7 @@ func Test061_handleAppendEntries_is_snapshot_aware(t *testing.T) {
 			// do like tubecli and send in leader's snapshot
 			insp0 := c.Nodes[0].Inspect()
 
-			stateSnapshot := insp0.State
+			stateSnapshot := &Snapshot{State: insp0.State}
 			c.Nodes[1].ApplyNewStateSnapshotCh <- stateSnapshot
 			vv("sent c.Nodes[1].ApplyNewStateSnapshotCh <- stateSnapshot")
 

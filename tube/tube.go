@@ -2971,6 +2971,11 @@ type RaftState struct {
 	// ====================================
 }
 
+type Snapshot struct {
+	State *RaftState     `zid:"0"`
+	AE    *AppendEntries `zid:"1"`
+}
+
 // called after snapshot uptake. set justOne = nil to update
 // the whole table, or use it to only update a single ste.
 func (s *TubeNode) updateSessTableByClientName(justOne *SessionTableEntry) {
@@ -3131,7 +3136,7 @@ type TubeNode struct {
 	singleUpdateMembershipReqCh       chan *Ticket
 	singleUpdateMembershipRegistryMap map[string]*Ticket
 
-	ApplyNewStateSnapshotCh chan *RaftState
+	ApplyNewStateSnapshotCh chan *Snapshot
 
 	// cktall tracks all our peer replicas AND clients (and observers)
 	// and does _not_ include ourself. In
@@ -4405,7 +4410,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 
 		singleUpdateMembershipReqCh:       make(chan *Ticket),
 		singleUpdateMembershipRegistryMap: make(map[string]*Ticket),
-		ApplyNewStateSnapshotCh:           make(chan *RaftState),
+		ApplyNewStateSnapshotCh:           make(chan *Snapshot),
 
 		leaderFullPongPQ:           newPongPQ(name),
 		parked:                     newParkedTree(),
@@ -4727,7 +4732,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.ElectionCount = s.countElections
 	ins.LastLeaderActiveStepDown = s.lastLeaderActiveStepDown
 	if !minimize {
-		ins.State = s.getStateSnapshot()
+		ins.State = s.getStateSnapshot(true).State
 	}
 
 	if !minimize {
@@ -8809,6 +8814,12 @@ func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
 }
 
 func (s *TubeNode) newAE() (ae *AppendEntries) {
+	if s.wal == nil {
+		panic("cannot have nil wal by now")
+	}
+	if s.wal.logIndex == nil {
+		panic("cannot have nil wal.logIndex by now")
+	}
 	ae = &AppendEntries{
 		ClusterID:           s.ClusterID,
 		FromPeerID:          s.PeerID,
@@ -13032,14 +13043,14 @@ func (s *TubeNode) BaseServerHostPort() (hp string) {
 	return
 }
 
-func (s *TubeNode) AddPeerIDToCluster(ctx context.Context, forceChange, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
+func (s *TubeNode) AddPeerIDToCluster(ctx context.Context, forceChange, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderSnap *Snapshot, err error) {
 
 	const addNotRemove = true
 	targetPeerServiceNameVersion := "" // placeholder/versioning of service code
 	return s.SingleUpdateClusterMemberConfig(ctx, forceChange, nonVoting, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, addNotRemove, errWriteDur)
 }
 
-func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, forceChange, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
+func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, forceChange, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderSnap *Snapshot, err error) {
 
 	const addNotRemove = false
 	targetPeerServiceNameVersion := ""
@@ -13059,7 +13070,7 @@ func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, forceChange, non
 // to ensure it well tested.
 //
 // results in call to handleLocalModifyMembership inside.
-func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, forceChange, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL string, addNotRemove bool, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
+func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, forceChange, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL string, addNotRemove bool, errWriteDur time.Duration) (inspection *Inspection, leaderSnap *Snapshot, err error) {
 
 	//vv("%v top SingleUpdateClusterMemberConfig; leaderURL='%v'; addNotRemove=%v; nonVoting=%v", s.me(), leaderURL, addNotRemove, nonVoting)
 
@@ -13203,7 +13214,7 @@ func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, forceCha
 			//vv("%v good: tkt.Insp is NOT nil", s.name) // seen on node_5 in 401
 		}
 		inspection = tkt.Insp // green 401 expects from leader not follower
-		leaderState = tkt.StateSnapshot
+		leaderSnap = &Snapshot{State: tkt.StateSnapshot}
 	case <-timeout:
 		err = ErrTimeOut
 		return
@@ -14610,9 +14621,6 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	// inside changeMembership
 	// side effect: removal from MC will add to ShadowReplicas
 	s.setMC(newConfig, fmt.Sprintf("changeMembership to newConfig '%v'", newConfig.Short()))
-
-	// WTF why full snapshot on each member change???
-	//tkt.StateSnapshot = s.getStateSnapshot()
 
 	if tkt.Insp == nil {
 		//vv("%v changeMembership mongo logless commit adding tkt.Insp", s.me())
@@ -17333,7 +17341,7 @@ func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circu
 
 	// getStateSnapshot() will set CompactionDiscardedLastIndex/Term
 	// correctly so we don't roll back applied log entries.
-	snap := s.getStateSnapshot()
+	snap := s.getStateSnapshot(false)
 
 	bts, err := snap.MarshalMsg(nil)
 	panicOn(err)
@@ -17350,7 +17358,7 @@ func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circu
 	npay := len(bts)
 	const mx = rpc.UserMaxPayload
 	if npay > mx {
-		vv("why so large?? snap.Footprint = %v", snap.Footprint())
+		vv("why so large?? snap.Footprint = %v", snap.State.Footprint())
 
 		// accumulate the checksum of the whole to make sure we
 		// sequenced it right.
@@ -17472,10 +17480,11 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 		}
 		s.snapInProgress = append(s.snapInProgress, frag.Payload...)
 
-		state2 := &RaftState{}
-		_, err := state2.UnmarshalMsg(s.snapInProgress)
+		snap2 := &Snapshot{}
+		_, err := snap2.UnmarshalMsg(s.snapInProgress)
 		panicOn(err)
-		s.applyNewStateSnapshot(state2, caller)
+
+		s.applyNewStateSnapshot(snap2, caller)
 		vv("applied multi-part (%v part) state snapshot", -part)
 		// and reset.
 		s.resetToNoSnapshotInProgress()
@@ -17483,10 +17492,10 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 
 	case part == 0:
 		// single part
-		state2 := &RaftState{}
-		_, err := state2.UnmarshalMsg(frag.Payload)
+		snap2 := &Snapshot{}
+		_, err := snap2.UnmarshalMsg(frag.Payload)
 		panicOn(err)
-		s.applyNewStateSnapshot(state2, caller)
+		s.applyNewStateSnapshot(snap2, caller)
 		//vv("applied single part state snapshot")
 		s.resetToNoSnapshotInProgress()
 		return
@@ -17504,8 +17513,14 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 //
 // called when <-s.ApplyNewStateSnapshotCh; and when
 // above handleStateSnapshotEnclosed.
-func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
+func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string) {
 	//vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; state2.KVstore='%v'\n(state2.LastApplied='%v' state2.LastAppliedTerm='%v')\n( state.LastApplied='%v'  state.LastAppliedTerm='%v')", s.me(), caller, s.state.CommitIndex, state2.CommitIndex, state2.KVstore.String(), state2.LastApplied, state2.LastAppliedTerm, s.state.LastApplied, s.state.LastAppliedTerm)
+
+	// TODO: write snapshot to disk first (or not if memwal)
+	// so that we can transactionally change over both
+	// state and wal to the new versions.
+
+	state2 := snap.State
 
 	if false {
 		if state2.KVstore != nil {
@@ -17628,6 +17643,10 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	s.wal.installedSnapshot(s.state)
 	s.assertCompactOK()
 
+	if snap.AE != nil {
+		s.handleAppendEntries(snap.AE, nil)
+	}
+
 	//vv("%v end of applyNewStateSnapshot from '%v'", s.me(), state2.PeerName)
 	//vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v ; wal.llt=%v; kv='%v'", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli, s.wal.llt, s.state.KVstore.String())
 }
@@ -17637,8 +17656,19 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 // install it and correctly update their
 // wal.logIndex.BaseC/Term. This is  essential
 // to being log-compaction aware.
-func (s *TubeNode) getStateSnapshot() (snapshot *RaftState) {
+func (s *TubeNode) getStateSnapshot(skipLog bool) (snapshot *Snapshot) {
 
+	snapshot = &Snapshot{}
+
+	if s.wal != nil { // allow client_test 710 to work
+		ae := s.newAE()
+		ae.PrevLogIndex = s.state.LastApplied
+		ae.PrevLogTerm = s.state.LastAppliedTerm
+		if !skipLog {
+			ae.Entries = s.wal.getLogPast(s.state.LastApplied)
+		}
+		snapshot.AE = ae
+	}
 	// restore these below
 	idx0 := s.state.CompactionDiscardedLast.Index
 	term0 := s.state.CompactionDiscardedLast.Term
@@ -17651,7 +17681,7 @@ func (s *TubeNode) getStateSnapshot() (snapshot *RaftState) {
 	s.state.CompactionDiscardedLast.Index = s.state.LastApplied
 	s.state.CompactionDiscardedLast.Term = s.state.LastAppliedTerm
 
-	snapshot = s.state.clone()
+	snapshot.State = s.state.clone()
 
 	// restore afterwards, so we don't get confused about
 	// what we have locally (on leader here) compacted.

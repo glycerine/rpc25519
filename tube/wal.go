@@ -1471,3 +1471,17 @@ func firstDiffLogs(a, b *raftWriteAheadLog) (r string) {
 	}
 	return
 }
+
+func (s *raftWriteAheadLog) getLogPast(excludeMe int64) []*RaftLogEntry {
+	n := len(s.raftLog)
+	if excludeMe > s.lli || n == 0 {
+		return nil // nothing; we have nothing past the excludeMe index.
+	}
+	want := excludeMe + 1
+	first := s.raftLog[0].Index
+	if want < first {
+		panicf("getLogPast cannot handle want(%v) < first(%v)", want, first)
+	}
+	start := want - first
+	return s.raftLog[start:]
+}
