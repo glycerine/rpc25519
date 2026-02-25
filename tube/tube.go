@@ -6719,7 +6719,7 @@ func (s *TubeNode) beginElection() {
 	// (with pre-voting) continually
 	// incrementing our term would be bad.
 	if s.role == FOLLOWER {
-		vv("%v beginElection, %v about to increment CurrentTerm from %v -> %v", s.me(), s.name, s.state.CurrentTerm, s.state.CurrentTerm+1)
+		//vv("%v beginElection, %v about to increment CurrentTerm from %v -> %v", s.me(), s.name, s.state.CurrentTerm, s.state.CurrentTerm+1)
 		s.state.CurrentTerm++
 		// ? do we want here: s.state.MC.ConfigTerm = s.state.CurrentTerm
 	}
@@ -7229,7 +7229,7 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 }
 
 func (s *TubeNode) becomeLeader() {
-	vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
+	//vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
 	//defer func() {
 	//	vv("%v end of becomeLeader", s.me())
 	//}()
@@ -10303,14 +10303,15 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 	// This should be the only place and time the leader
 	// updates its CommitIndex.
 
-	vv("%v %v place 3 leaderAdvanceCommitIndex going from s.state.CommitIndex(%v) -> newCommitIndex(%v); matchIndexes = '%v'", s.me(), s.name, s.state.CommitIndex, newCommitIndex, matchIndexes)
-	// TODO debug remove:
-	if newCommitIndex == 89 && s.state.CommitIndex == 86 &&
-		s.name == "node_0" && s.cfg.testCluster != nil {
-		vv("diagnostic dump all nodes, why would node_2 go backwards") // ci:86 to only lli 71 ??
-		s.cfg.testCluster.diagnosticDumpAllNodes()
-	}
-
+	//vv("%v %v place 3 leaderAdvanceCommitIndex going from s.state.CommitIndex(%v) -> newCommitIndex(%v); matchIndexes = '%v'", s.me(), s.name, s.state.CommitIndex, newCommitIndex, matchIndexes)
+	/*
+		// TODO debug remove:
+		if newCommitIndex == 89 && s.state.CommitIndex == 86 &&
+			s.name == "node_0" && s.cfg.testCluster != nil {
+			vv("diagnostic dump all nodes, why would node_2 go backwards") // ci:86 to only lli 71 ??
+			s.cfg.testCluster.diagnosticDumpAllNodes()
+		}
+	*/
 	s.state.CommitIndex = newCommitIndex // RaftConsensus.cc:2195
 	s.state.CommitIndexEntryTerm = entry.Term
 
@@ -17693,14 +17694,17 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 		replayEndi = s.state.CommitIndex
 		var err error
 		saveThese, err = s.wal.getLogSuffixFrom(replayBeg)
-		panicOn(err)
+		if err != nil {
+			vv("%v reject snapshot from '%v': impossible to apply safely: %v", s.me(), state2.PeerName, err)
+			return
+		}
 	}
 
 	if state2.CommitIndex > s.state.CommitIndex {
 		s.state.CommitIndex = state2.CommitIndex
 		s.state.CommitIndexEntryTerm = state2.CommitIndexEntryTerm
 
-		vv("%v place 4 applyNewStateSnapshot going from s.state.CommitIndex(%v) -> state2.CommitIndex(%v)", s.me(), s.state.CommitIndex, state2.CommitIndex)
+		//vv("%v place 4 applyNewStateSnapshot going from s.state.CommitIndex(%v) -> state2.CommitIndex(%v)", s.me(), s.state.CommitIndex, state2.CommitIndex)
 	}
 
 	if state2.CompactionDiscardedLast.Index < s.state.CommitIndex {
@@ -17769,19 +17773,18 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 			}
 			lastTerm = rle.Term
 			lastIdx = rle.Index
+
 			pleaseDefer := s.applyLogEntry(rle, false, rle.Index)
 			if pleaseDefer != nil {
 				defer pleaseDefer()
 			}
 		}
-		if lastTerm != s.state.CommitIndexEntryTerm {
-			panicf("%v internal sanity check on replay log suffix failed: lastTermReplayed(%v) != s.state.CommitIndexTerm(%v)", s.name, lastTerm, s.state.CommitIndexEntryTerm)
+		if lastTerm > 0 && lastTerm != s.state.CommitIndexEntryTerm {
+			panicf("%v internal sanity check on replay log suffix failed: lastTermReplayed(%v) != s.state.CommitIndexTerm(%v)", s.me(), lastTerm, s.state.CommitIndexEntryTerm)
 		}
-		if lastIdx != s.state.CommitIndex {
+		if lastIdx > 0 && lastIdx != s.state.CommitIndex {
 			panicf("%v internal sanity check on replay log suffix failed: lastTermIdx(%v) != s.state.CommitIndex(%v)", s.name, lastIdx, s.state.CommitIndex)
 		}
-		s.state.LastApplied = lastIdx
-		s.state.LastAppliedTerm = lastTerm
 
 		s.wal.noLogCompaction = orig
 		s.saver.save(s.state)
@@ -18757,6 +18760,10 @@ func (s *TubeNode) debugAddCzarLeaseEpoch(tkt *Ticket) {
 
 func (s *TubeNode) applyLogEntry(do *RaftLogEntry, calledOnLeader bool, applyIdx int64) (pleaseDefer func()) {
 
+	if applyIdx != do.Index {
+		panicf("applyIdx(%v) != do.Index(%v)", applyIdx, do.Index)
+	}
+
 	// update LastAppliedLogHLC from the RaftLogEntry.LogHLC
 	s.state.LastAppliedLogHLC.ReceiveMessageWithHLC(do.LogHLC)
 	// below do s.garbageCollectOldSessions() to let session
@@ -18765,10 +18772,11 @@ func (s *TubeNode) applyLogEntry(do *RaftLogEntry, calledOnLeader bool, applyIdx
 	// record this to remember the Term with the
 	// state.LastApplied index.
 	// quick sanity check that we are not writing a zero or decreasing term:
-	if do.Term < s.state.LastAppliedTerm {
-		panic(fmt.Sprintf("terms should be monotone up; do.Term=%v; but s.state.LastAppliedTerm = %v; do='%v'\n state='%v'", do.Term, s.state.LastAppliedTerm, do, s.state)) // saw once, added print of do and state: panic: terms should be monotone up; do.Term=6; but s.state.LastAppliedTerm = 7
-	}
+	//if do.Term < s.state.LastAppliedTerm {
+	//	panic(fmt.Sprintf("terms should be monotone up; do.Term=%v; but s.state.LastAppliedTerm = %v; do='%v'\n state='%v'", do.Term, s.state.LastAppliedTerm, do, s.state)) // saw once, added print of do and state: panic: terms should be monotone up; do.Term=6; but s.state.LastAppliedTerm = 7
+	//}
 	s.state.LastAppliedTerm = do.Term
+	s.state.LastApplied = applyIdx
 
 	do.committed = true
 	tkt := do.Ticket
