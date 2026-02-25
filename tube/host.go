@@ -2,8 +2,7 @@ package tube
 
 import (
 	"time"
-
-	rpc "github.com/glycerine/rpc25519"
+	//rpc "github.com/glycerine/rpc25519"
 )
 
 // keep the interface and implementations in sync.
@@ -22,14 +21,14 @@ type hoster interface {
 	mustGetLastLogIndex() int64
 	newRaftNodeInfo(peerID, peerName, peerServiceName, peerServiceNameVersion string) (info *RaftNodeInfo)
 	getRaftLogSummary() (localFirstIndex, localFirstTerm, localLastIndex, localLastTerm int64)
-	ackAE(ack *AppendEntriesAck, ae *AppendEntries)
+	ackAE(ack *AppendEntriesAck, ae *AppendEntries, sendAck bool)
 	becomeFollower(term int64, mc *MemberConfig, save bool)
 	dispatchAwaitingLeaderTickets()
 	resetElectionTimeout(where string) time.Duration
 	commitWhatWeCan(leader bool) (saved bool)
 	choice(format string, a ...interface{})
 	logsAreMismatched(ae *AppendEntries) (reject bool, conflictTerm int64, conflictTerm1stIndex int64)
-	handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (numOverwrote, numTruncated, numAppended int64)
+	handleAppendEntries(ae *AppendEntries, sendAck bool) (numOverwrote, numTruncated, numAppended int64)
 	// specific to TubeNode or TubeSim
 	//me() string
 	//resetMethodCounters()

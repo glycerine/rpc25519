@@ -227,7 +227,7 @@ func Test802_handle_append_entries_with_random_terms(t *testing.T) {
 				// ============================
 				// the test
 				// ============================
-				nOver, nTrunc, nAppend = s.handleAppendEntries(ae, nil)
+				nOver, nTrunc, nAppend = s.handleAppendEntries(ae, true)
 
 			}()
 		} else {
@@ -235,7 +235,7 @@ func Test802_handle_append_entries_with_random_terms(t *testing.T) {
 			// The wal will panic if we attempt to
 			// overwrite an existing identical value,
 			// or an already committed one. See memwal.go:75
-			nOver, nTrunc, nAppend = s.handleAppendEntries(ae, nil)
+			nOver, nTrunc, nAppend = s.handleAppendEntries(ae, true)
 		}
 		failed := (panicked != nil) || testFailed(tc, foll, ae, firstRunLoud, nOver, nTrunc, nAppend, xOver, xTrunc, xAppend)
 
@@ -259,7 +259,7 @@ func Test802_handle_append_entries_with_random_terms(t *testing.T) {
 			// ============================
 			// re-run the exact same test
 			// ============================
-			nOver2, nTrunc2, nAppend2 := s.handleAppendEntries(ae, nil)
+			nOver2, nTrunc2, nAppend2 := s.handleAppendEntries(ae, true)
 			if nOver2 != nOver || nTrunc2 != nTrunc || nAppend2 != nAppend {
 				panic(fmt.Sprintf("nOver2(%v), nTrunc2(%v), nAppend2(%v) != nOver(%v), nTrunc(%v), nAppend(%v). not reproducing same test?!?", nOver2, nTrunc2, nAppend2, nOver, nTrunc, nAppend))
 			}

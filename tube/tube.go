@@ -295,6 +295,7 @@ import (
 
 	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
+
 	//rb "github.com/glycerine/rbtree"
 	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/tube/art"
@@ -1607,7 +1608,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			}
 
 		case state2 := <-s.ApplyNewStateSnapshotCh:
-			s.applyNewStateSnapshot(state2, "<-s.ApplyNewStateSnapshotCh")
+			s.applyNewStateSnapshot(state2, "<-s.ApplyNewStateSnapshotCh", true)
 
 		case itkt := <-s.requestRemoteInspectCh:
 			prior, already := s.remoteInspectRegistryMap[itkt.fcid]
@@ -1886,7 +1887,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					panic("wrong ClusterID")
 					continue // drop
 				}
-				s.handleAppendEntries(ae, ckt)
+				s.handleAppendEntries(ae, true)
 
 				// Ugh. checking isFollowerKaput causes
 				// pre-mature shutdown of node_4
@@ -7776,7 +7777,10 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 // request that includes log entries already present
 // in its log, it ignores those entries in the new request."
 // So we must be idempotent.
-func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (numOverwrote, numTruncated, numAppended int64) {
+//
+// To support background recovery of snapshot state,
+// if sendAck is false, then we will not ack back to sender/leader.
+func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOverwrote, numTruncated, numAppended int64) {
 
 	var ack *AppendEntriesAck
 	// the first Extends call reponses, so we can assert
@@ -7869,14 +7873,6 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		}
 	} else {
 		// monitoring prod, not test
-		if false {
-			// yes we saw this logging in the follower's
-			// logs. noisy, so off for now.
-			s.countProdAE++
-			if s.countProdAE%10 == 0 {
-				alwaysPrintf("%v [%v] (%v) countProdAE = %v", s.name, s.role, s.PeerServiceName, s.countProdAE)
-			}
-		}
 	}
 
 	if s.state.CurrentTerm <= 0 {
@@ -8071,7 +8067,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		s.host.choice("Rejecting: term too low (ae.Term=%v < currentTerm=%v)", ae.LeaderTerm, s.state.CurrentTerm)
 		// caller's term is stale.
 		ack.RejectReason = fmt.Sprintf("term too low: ae.Term(%v) < s.state.CurrentTerm(%v)", ae.LeaderTerm, s.state.CurrentTerm)
-		s.host.ackAE(ack, ae)
+		s.host.ackAE(ack, ae, sendAck)
 		//vv("%v early AE return 1", s.name)
 		return
 	}
@@ -8171,7 +8167,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		s.host.choice("Logs are up to date")
 		ack.Rejected = false
 		ack.LogsMatchExactly = true
-		s.host.ackAE(ack, ae)
+		s.host.ackAE(ack, ae, sendAck)
 		//vv("%v early AE return 2", s.name)
 		return
 	}
@@ -8217,7 +8213,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		}
 
 		s.host.choice(ack.RejectReason)
-		s.host.ackAE(ack, ae)
+		s.host.ackAE(ack, ae, sendAck)
 
 		// 059 compact_test gets here. The gap means
 		// we need a snapshot state transfer.
@@ -8230,7 +8226,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		ack.RejectReason = fmt.Sprintf("heartbeat detected log update needed. extends=%v, largestCommonRaftIndex=%v", extends, largestCommonRaftIndex)
 		ack.Rejected = true
 		s.host.choice(ack.RejectReason)
-		s.host.ackAE(ack, ae)
+		s.host.ackAE(ack, ae, sendAck)
 		//vv("%v early AE return 4", s.name)
 		return
 	}
@@ -8249,7 +8245,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	if !extends && ae.PrevLogIndex > largestCommonRaftIndex {
 		s.host.choice("Rejecting: gap in log at prev log index %v > lcp %v", ae.PrevLogIndex, largestCommonRaftIndex)
 		ack.RejectReason = fmt.Sprintf("gap: need earlier in leader log: ae.PrevLogIndex(%v) > largestCommonRaftIndex(%v)", ae.PrevLogIndex, largestCommonRaftIndex)
-		s.host.ackAE(ack, ae)
+		s.host.ackAE(ack, ae, sendAck)
 		//vv("%v early AE return 5", s.name)
 		return
 	}
@@ -8269,7 +8265,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 		// if numNew == 0 {
 		// 	ack.RejectReason = fmt.Sprintf("!extends, so gap we cannot bridge, and we got no data this time.")
-		// 	s.ackAE(ack, ae)
+		// 	s.ackAE(ack, ae, sendAck)
 		// 	return
 		// }
 
@@ -8277,7 +8273,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		if entriesIdxBeg > largestCommonRaftIndex+1 {
 			s.host.choice("Rejecting: cannot bridge gap at index %v", entriesIdxBeg)
 			ack.RejectReason = fmt.Sprintf("cannot gap: entriesIdxBeg(%v) > largestCommonRaftIndex+1(%v)", entriesIdxBeg, largestCommonRaftIndex+1)
-			s.host.ackAE(ack, ae)
+			s.host.ackAE(ack, ae, sendAck)
 			//vv("%v early AE return 6", s.name)
 			return
 		} // else we can apply (append or overwrite, or both).
@@ -8309,7 +8305,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			s.host.choice("nothing new to append after clipping off the redundant. leaving neededEntries empty")
 			ack.RejectReason = fmt.Sprintf("nothing new after clipping off redundant. largestCommonRaftIndex(%v); ae=[%v,%v)", largestCommonRaftIndex, entriesIdxBeg, entriesIdxEnd+1)
 			ack.Rejected = false
-			s.host.ackAE(ack, ae)
+			s.host.ackAE(ack, ae, sendAck)
 			//vv("%v early AE return 7", s.name)
 			return
 		}
@@ -8337,7 +8333,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			s.host.choice("nothing new to append after clipping off the redundant")
 			ack.Rejected = false
 			ack.RejectReason = fmt.Sprintf("nothing new after clipping off redundant. largestCommonRaftIndex(%v); ae=[%v,%v)", largestCommonRaftIndex, entriesIdxBeg, entriesIdxEnd+1)
-			s.host.ackAE(ack, ae)
+			s.host.ackAE(ack, ae, sendAck)
 			//vv("%v early AE return 8", s.name)
 			return
 		}
@@ -8436,7 +8432,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 				//vv("keepCount = %v; from = %v; entriesIdxBeg = %v", keepCount, from, entriesIdxBeg) // keepCount = 0; from = -1; entriesIdxBeg = 2
 				ack.RejectReason = fmt.Sprintf("from(%v) was negative: gap/insuffic follower log (rlogicalLen= %v); entriesIdxBeg=%v", from, rlogicalLen, entriesIdxBeg)
 				s.host.choice("from index negative: gap/insufficient follower log")
-				s.host.ackAE(ack, ae)
+				s.host.ackAE(ack, ae, sendAck)
 				//vv("%v early AE return 9", s.name)
 				return
 
@@ -8605,9 +8601,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		case <-s.Halt.ReqStop.Chan:
 		}
 	}
-
 	s.host.choice("Sending success ack")
-	s.host.ackAE(ack, ae)
+	s.host.ackAE(ack, ae, sendAck)
 
 	s.host.resetElectionTimeout("resetElectionTimeout sent ackAE")
 
@@ -8615,7 +8610,11 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	return
 }
 
-func (s *TubeNode) ackAE(ack *AppendEntriesAck, ae *AppendEntries) {
+// if sendAck if false, we are a no-op and return immediately.
+func (s *TubeNode) ackAE(ack *AppendEntriesAck, ae *AppendEntries, sendAck bool) {
+	if !sendAck {
+		return // no-op
+	}
 	ackFrag := s.newFrag()
 	//vv("%v ackAE replying to ae.FromPeerName = '%v; ae.FromPeerID='%v'", s.me(), ae.FromPeerName, ae.FromPeerID)
 	bts, err := ack.MarshalMsg(nil)
@@ -17484,7 +17483,7 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 		_, err := snap2.UnmarshalMsg(s.snapInProgress)
 		panicOn(err)
 
-		s.applyNewStateSnapshot(snap2, caller)
+		s.applyNewStateSnapshot(snap2, caller, true)
 		vv("applied multi-part (%v part) state snapshot", -part)
 		// and reset.
 		s.resetToNoSnapshotInProgress()
@@ -17495,32 +17494,67 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 		snap2 := &Snapshot{}
 		_, err := snap2.UnmarshalMsg(frag.Payload)
 		panicOn(err)
-		s.applyNewStateSnapshot(snap2, caller)
+		s.applyNewStateSnapshot(snap2, caller, true)
 		//vv("applied single part state snapshot")
 		s.resetToNoSnapshotInProgress()
 		return
 	}
 }
 
-// arg. this is fragile; we forgot to add ShadowReplicas
-// at first... why cannot we just apply the full thing,
-// instead of going field by field? maybe we were
-// just wanting to assert before to figure out
-// how stuff was getting lost, but we already fixed that.
+// makeDurableReceivedSnapshot creates a new state and WAL
+// "on disk" for the newly received snap Snapshot.
 //
-// Well, we do want to merge the two Known sets, but besides
-// that...
+// Ideally we do this without distrubing the
+// existing state and wal. The current problem is that
+// there are too many hooks and state changes
+// affecting the TubeNode itself, like MC updates
+// such that we cannot call handleAppendEntries()
+// and expect an isolated state+wal that we switch out
+// later.
 //
-// called when <-s.ApplyNewStateSnapshotCh; and when
-// above handleStateSnapshotEnclosed.
-func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string) {
+// The goal is that the new state can be swapped
+// in atomically, to avoid half applied state situations
+// and to avoid wiping the previous WAL before the
+// new one is really ready.
+/*
+func (s *TubeNode) makeDurableReceivedSnapshot(snap *Snapshot) (state2 *RaftState, wal2 *raftWriteAheadLog, err error) {
+
+	if s.cfg.NoDisk {
+		wal2, err = s.cfg.newRaftWriteAheadLogMemoryOnlyTestingOnly()
+	} else {
+		walPath2 := s.wal.path + ".restore_tmp_" + cryRand15B()
+		wal2, err = s.cfg.newRaftWriteAheadLog(walPath2, false)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	wal2.installedSnapshot(state2)
+
+	if snap.AE != nil {
+		const sendAckBackFalse = false
+		s.handleAppendEntries(snap.AE, sendAckBackFalse)
+	}
+
+	return state2, wal2, nil
+}
+*/
+
+// applyNewStateSnapshot installs snap.State and
+// then replays snap.AE on top if it (if provided).
+//
+// We are called when <-s.ApplyNewStateSnapshotCh; and when
+// the above handleStateSnapshotEnclosed() invokes us.
+func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string, sendAck bool) {
 	//vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; state2.KVstore='%v'\n(state2.LastApplied='%v' state2.LastAppliedTerm='%v')\n( state.LastApplied='%v'  state.LastAppliedTerm='%v')", s.me(), caller, s.state.CommitIndex, state2.CommitIndex, state2.KVstore.String(), state2.LastApplied, state2.LastAppliedTerm, s.state.LastApplied, s.state.LastAppliedTerm)
 
 	// TODO: write snapshot to disk first (or not if memwal)
 	// and apply the AE to it before we blast the old log/state;
 	// so that we can atomically change over both
 	// state and wal to the new versions at once and before we blow
-	// away the old version.
+	// away the old version. See the unfinished draft
+	// makeDurableReceivedSnapshot above for the issues
+	// it presents.
 
 	// TODO: question: then, with the AE append now too,
 	// can we relax the CommitIndex not rolled back check
@@ -17665,7 +17699,7 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string) {
 	s.assertCompactOK()
 
 	if snap.AE != nil {
-		s.handleAppendEntries(snap.AE, nil)
+		s.handleAppendEntries(snap.AE, sendAck)
 		lli2, llt2 := s.wal.LastLogIndexAndTerm()
 		_, _ = lli2, llt2
 		//vv("%v applyNewStateSnapshot() has applied the snap.AE too; before [lli:%v llt:%v] -> [snapshotIncludedIndex = %v] -> now [lli:%v llt:%v]", s.me(), lli0, llt0, snapshotIncludedIndex, lli2, llt2)

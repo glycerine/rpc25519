@@ -125,7 +125,7 @@ func (s *TubeSim) getRaftLogSummary() (localFirstIndex, localFirstTerm, localLas
 	return
 }
 
-func (s *TubeSim) ackAE(ack *AppendEntriesAck, ae *AppendEntries) {
+func (s *TubeSim) ackAE(ack *AppendEntriesAck, ae *AppendEntries, sendAck bool) {
 	s.ackAECount++
 	if ack.Rejected {
 		s.ackAERejectCount++
@@ -482,7 +482,7 @@ func (s *TubeSim) logsAreMismatched(ae *AppendEntries) (
 // live code there. All of the methods this TubeSim
 // version calls have been duplicated and instrumented
 // too, for ease of analysis.
-func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (numOverwrote, numTruncated, numAppended int64) {
+func (s *TubeSim) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOverwrote, numTruncated, numAppended int64) {
 
 	panic("I thought we use the actual tube.go now?")
 
@@ -555,7 +555,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 	if ae.LeaderTerm < s.state.CurrentTerm {
 		s.host.choice("Rejecting: term too low (ae.LeaderTerm=%v < currentTerm=%v)", ae.LeaderTerm, s.state.CurrentTerm)
 		ack.RejectReason = fmt.Sprintf("term too low: ae.LeaderTerm(%v) < s.state.CurrentTerm(%v)", ae.LeaderTerm, s.state.CurrentTerm)
-		s.host.ackAE(ack, ae)
+		s.host.ackAE(ack, ae, true)
 		return
 	}
 
@@ -599,7 +599,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 		s.host.choice("Logs are up to date")
 		ack.Rejected = false
 		ack.LogsMatchExactly = true
-		s.host.ackAE(ack, ae)
+		s.host.ackAE(ack, ae, true)
 		return
 	}
 
@@ -618,7 +618,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 			largestCommonRaftIndex, alsoGap)
 
 		s.host.choice(ack.RejectReason)
-		s.host.ackAE(ack, ae)
+		s.host.ackAE(ack, ae, true)
 		return
 	}
 	// If this is a heartbeat, definitely reject so we get data.
@@ -627,7 +627,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 		ack.RejectReason = fmt.Sprintf("heartbeat detected log update needed. extends=%v, largestCommonRaftIndex=%v", extends, largestCommonRaftIndex)
 		ack.Rejected = true
 		s.host.choice(ack.RejectReason)
-		s.host.ackAE(ack, ae)
+		s.host.ackAE(ack, ae, true)
 		return
 	}
 	// INVAR: len(ae.Entries) > 0, since we just rejected heartbeats
@@ -640,7 +640,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 		s.host.choice("Rejecting: gap in log at prev log index %v > lcp %v", ae.PrevLogIndex, largestCommonRaftIndex)
 		ack.RejectReason = fmt.Sprintf("gap: need earlier in leader log: ae.PrevLogIndex(%v) > largestCommonRaftIndex(%v)",
 			ae.PrevLogIndex, largestCommonRaftIndex)
-		s.host.ackAE(ack, ae)
+		s.host.ackAE(ack, ae, true)
 		return
 	}
 
@@ -649,7 +649,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 		// if numNew == 0 {
 		// 	s.host.choice( "Rejecting: no data to bridge gap")
 		// 	ack.RejectReason = "!extends, so gap we cannot bridge, and we got no data this time."
-		// 	s.host.ackAE(ack, ae)
+		// 	s.host.ackAE(ack, ae, true)
 		// 	return
 		// }
 
@@ -658,7 +658,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 			s.host.choice("Rejecting: cannot bridge gap at index %v", entriesIdxBeg)
 			ack.RejectReason = fmt.Sprintf("cannot gap: entriesIdxBeg(%v) > largestCommonRaftIndex+1(%v)",
 				entriesIdxBeg, largestCommonRaftIndex+1)
-			s.host.ackAE(ack, ae)
+			s.host.ackAE(ack, ae, true)
 			return
 		} // else we can apply (append or overwrite, or both).
 
@@ -685,7 +685,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 			s.host.choice("nothing new to append after clipping off the redundant. leaving neededEntries empty")
 			ack.RejectReason = fmt.Sprintf("nothing new after clipping off redundant. largestCommonRaftIndex(%v); ae=[%v,%v)", largestCommonRaftIndex, entriesIdxBeg, entriesIdxEnd+1)
 			ack.Rejected = false
-			s.host.ackAE(ack, ae)
+			s.host.ackAE(ack, ae, true)
 			return
 		}
 		// !extends. no gap. Cannot just append. entriesIdxEnd > lcp.
@@ -712,7 +712,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 			s.host.choice("nothing new to append after clipping off the redundant")
 			ack.Rejected = false
 			ack.RejectReason = fmt.Sprintf("nothing new after clipping off redundant. largestCommonRaftIndex(%v); ae=[%v,%v)", largestCommonRaftIndex, entriesIdxBeg, entriesIdxEnd+1)
-			s.host.ackAE(ack, ae)
+			s.host.ackAE(ack, ae, true)
 			return
 		}
 		writeBegIdx := neededEntries[0].Index
@@ -768,7 +768,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 
 				s.host.choice("from index negative: gap/insufficient follower log")
 				ack.RejectReason = "from was negative: gap/insuffic follower log"
-				s.host.ackAE(ack, ae)
+				s.host.ackAE(ack, ae, true)
 				return
 
 			default:
@@ -837,7 +837,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 	ack.SuppliedLeaderTermsRLE = ae.LogTermsRLE
 
 	s.host.choice("Sending success ack")
-	s.host.ackAE(ack, ae)
+	s.host.ackAE(ack, ae, true)
 
 	s.host.resetElectionTimeout("handleAppendEntries after ackAE")
 	return
