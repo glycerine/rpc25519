@@ -1050,6 +1050,7 @@ func (s *raftWriteAheadLog) StringWithCommit(commitIndex int64) (r string) {
 }
 
 var ErrEmptyRaftLog = fmt.Errorf("error: empty raft log")
+var ErrNotAvail = fmt.Errorf("error: requested raft log entry not available")
 
 func (s *raftWriteAheadLog) GetAllEntriesFrom(idx int64) (rles []*RaftLogEntry, preBase bool) {
 
@@ -1390,7 +1391,7 @@ func (s *raftWriteAheadLog) installedSnapshot(state *RaftState) {
 	//s.lli = state.CommitIndex
 	//s.llt = state.CommitIndexEntryTerm
 
-	//vv("%v wal.installedSnapshot, writing s.lli from %v -> %v", s.name, s.lli, state.CompactionDiscardedLast.Index)
+	vv("%v wal.installedSnapshot, writing s.lli from %v -> %v", s.name, s.lli, state.CompactionDiscardedLast.Index)
 
 	s.lli = state.CompactionDiscardedLast.Index
 	s.llt = state.CompactionDiscardedLast.Term
@@ -1469,5 +1470,24 @@ func firstDiffLogs(a, b *raftWriteAheadLog) (r string) {
 			return
 		}
 	}
+	return
+}
+
+func (s *raftWriteAheadLog) getLogSuffixFrom(begIdx int64) (es []*RaftLogEntry, err error) {
+
+	if begIdx > s.lli {
+		return
+	}
+	n := len(s.raftLog)
+	if n == 0 {
+		return nil, fmt.Errorf("error: requested raft log entry not available (empty s.raftLog)")
+	}
+
+	first := s.raftLog[0].Index
+	beg := begIdx - first
+	if beg < 0 {
+		return nil, fmt.Errorf("error: requested raft log entry not available (begIdx %v < first available s.raftLog[0].Index = %v)", begIdx, first)
+	}
+	es = s.raftLog[beg:]
 	return
 }

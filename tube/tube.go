@@ -2720,7 +2720,7 @@ type RaftNodeInfo struct {
 
 	MC *MemberConfig `zid:"15"`
 
-	CommitIndex int64 `zid:"16"`
+	FollowerCommitIndex int64 `zid:"16"`
 }
 
 type LogEntrySpan struct {
@@ -3790,6 +3790,7 @@ type AppendEntriesAck struct {
 	SuppliedCompactIndex               int64 `zid:"39"`
 	SuppliedCompactTerm                int64 `zid:"40"`
 	FollowerHLC                        HLC   `zid:"41"`
+	FollowerCommitIndex                int64 `zid:"42"`
 }
 
 func (ack *AppendEntriesAck) clone() (p *AppendEntriesAck) {
@@ -6908,7 +6909,7 @@ func (s *TubeNode) votesString(votes map[string]bool) (r string) {
 // REMINDER: be idempotent even after quorum! we'll see
 // lots of extra pre-votes.
 func (s *TubeNode) tallyPreVote(vote *Vote) {
-	vv("%v \n-------->>>    tally PreVote()  <<<--------\n vote = %v", s.me(), vote)
+	//vv("%v \n-------->>>    tally PreVote()  <<<--------\n vote = %v", s.me(), vote)
 
 	s.hlc.ReceiveMessageWithHLC(vote.SenderHLC)
 
@@ -7935,6 +7936,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		s.state.CommitIndex = maxPossibleCI
 		s.state.CommitIndexEntryTerm = maxPossibleCIterm
 		s.updateMCindex(maxPossibleCI, maxPossibleCIterm)
+
 		if !chatty802 {
 			if s != nil && s.saver != nil {
 				stateSaveNeeded = true
@@ -8054,8 +8056,9 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		SuppliedLeaderLLI:                  ae.LeaderLLI,
 		SuppliedLeaderLLT:                  ae.LeaderLLT,
 
-		PeerMC:      s.state.MC,
-		FollowerHLC: s.hlc.ReceiveMessageWithHLC(ae.LeaderHLC),
+		PeerMC:              s.state.MC,
+		FollowerHLC:         s.hlc.ReceiveMessageWithHLC(ae.LeaderHLC),
+		FollowerCommitIndex: s.state.CommitIndex,
 	}
 	// report on past compations too.
 	compactedTo := s.state.CompactionDiscardedLast.Index
@@ -8565,6 +8568,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 				s.state.CommitIndex = maxPossibleCI
 				s.state.CommitIndexEntryTerm = maxPossibleCIterm
 				s.updateMCindex(maxPossibleCI, maxPossibleCIterm)
+				ack.FollowerCommitIndex = s.state.CommitIndex
 			}
 		}
 	}
@@ -9246,7 +9250,7 @@ func (s *TubeNode) logUpToDateAsOurs(rv *RequestVote) (ans bool) {
 
 	ourLastLogIndex, ourLastLogTerm := s.wal.LastLogIndexAndTerm()
 	if ourLastLogIndex < 1 {
-		//vv("%v logUpToDateAsOurs: we have no log", s.name)
+		vv("%v logUpToDateAsOurs: we have no log", s.name)
 		return true // we have no log
 	}
 
@@ -9256,8 +9260,9 @@ func (s *TubeNode) logUpToDateAsOurs(rv *RequestVote) (ans bool) {
 
 	// page 23 - page 24
 	// "If the logs have last entries with different terms,
-	// then the log with the term is more up to date."
+	// then the log with the later term is more up to date."
 	if rv.LastLogTerm > ourLastLogTerm {
+		//vv("%v rv.LastLogTerm(%v) > ourLastLogTerm(%v) -> true", s.name, rv.LastLogTerm, ourLastLogTerm)
 		return true // requestor is more up to date
 	}
 	if rv.LastLogTerm < ourLastLogTerm {
@@ -9269,6 +9274,7 @@ func (s *TubeNode) logUpToDateAsOurs(rv *RequestVote) (ans bool) {
 	// "If the logs end with the same term, then the
 	// whichever log is longer is more up to date."
 	if rv.LastLogIndex >= ourLastLogIndex {
+		//vv("%v rv.LastLogIndex(%v) >= ourLastLogIndex(%v)", s.name, rv.LastLogIndex, ourLastLogIndex)
 		return true
 	}
 	//vv("end false")
@@ -9955,6 +9961,7 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 			if ack.LargestCommonRaftIndex > foll.MatchIndex {
 				foll.MatchIndex = ack.LargestCommonRaftIndex
 				foll.MatchIndexTerm = ack.LargestCommonRaftIndexTerm
+				foll.FollowerCommitIndex = ack.FollowerCommitIndex
 				s.leaderAdvanceCommitIndex()
 			}
 
@@ -10045,6 +10052,7 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 		if ack.LargestCommonRaftIndex > foll.MatchIndex {
 			foll.MatchIndex = ack.LargestCommonRaftIndex
 			foll.MatchIndexTerm = ack.LargestCommonRaftIndexTerm
+			foll.FollowerCommitIndex = ack.FollowerCommitIndex
 			check = true
 		}
 		if check {
@@ -10182,7 +10190,7 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 	// add our own, since we are not in peers, to support
 	// singleton or pair operation.
 	lli, llt := s.wal.LastLogIndexAndTerm()
-	matchIndexes = append(matchIndexes, &IndexTerm{Index: lli, Term: llt, Name: s.name})
+	matchIndexes = append(matchIndexes, &IndexTerm{Index: lli, Term: llt, Name: s.name, CI: s.state.CommitIndex})
 
 	//vv("%v len of s.peers = %v (%v)", s.me(), len(s.peers), peerNamesAsString(s.peers))
 	termAgreeCount := 1 // one for ourselves.
@@ -10201,7 +10209,7 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 
 		mi := info.MatchIndex
 		mt := info.MatchIndexTerm
-		ci := info.CommitIndex
+		ci := info.FollowerCommitIndex
 		if mt > s.state.CurrentTerm {
 			panicf("%v we are leader; should never happen that mt(%v) > CurrentTerm(%v); info = %v", s.me(), mt, s.state.CurrentTerm, info)
 		}
@@ -10209,7 +10217,7 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 			termAgreeCount++
 		}
 
-		itn := &IndexTerm{Index: mi, Term: mt, Name: info.PeerName}
+		itn := &IndexTerm{Index: mi, Term: mt, Name: info.PeerName, CI: ci}
 		matchIndexes = append(matchIndexes, itn)
 		//vv("%v adding to matchIndexes itn = '%v'", s.name, itn)
 	}
@@ -10296,6 +10304,12 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 	// updates its CommitIndex.
 
 	vv("%v %v place 3 leaderAdvanceCommitIndex going from s.state.CommitIndex(%v) -> newCommitIndex(%v); matchIndexes = '%v'", s.me(), s.name, s.state.CommitIndex, newCommitIndex, matchIndexes)
+	// TODO debug remove:
+	if newCommitIndex == 89 && s.state.CommitIndex == 86 &&
+		s.name == "node_0" && s.cfg.testCluster != nil {
+		vv("diagnostic dump all nodes, why would node_2 go backwards") // ci:86 to only lli 71 ??
+		s.cfg.testCluster.diagnosticDumpAllNodes()
+	}
 
 	s.state.CommitIndex = newCommitIndex // RaftConsensus.cc:2195
 	s.state.CommitIndexEntryTerm = entry.Term
@@ -10391,236 +10405,242 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 			continue
 		}
 
-		// update LastAppliedLogHLC from the RaftLogEntry.LogHLC
-		s.state.LastAppliedLogHLC.ReceiveMessageWithHLC(do.LogHLC)
-		// below do s.garbageCollectOldSessions() to let session
-		// refresh have a chance.
-
-		// record this to remember the Term with the
-		// state.LastApplied index.
-		// quick sanity check that we are not writing a zero or decreasing term:
-		if do.Term < s.state.LastAppliedTerm {
-			panic(fmt.Sprintf("terms should be monotone up; do.Term=%v; but s.state.LastAppliedTerm = %v; do='%v'\n state='%v'", do.Term, s.state.LastAppliedTerm, do, s.state)) // saw once, added print of do and state: panic: terms should be monotone up; do.Term=6; but s.state.LastAppliedTerm = 7
+		pleaseDefer := s.applyLogEntry(do, calledOnLeader, applyIdx)
+		if pleaseDefer != nil {
+			defer pleaseDefer()
 		}
-		s.state.LastAppliedTerm = do.Term
+		/*
+			// update LastAppliedLogHLC from the RaftLogEntry.LogHLC
+			s.state.LastAppliedLogHLC.ReceiveMessageWithHLC(do.LogHLC)
+			// below do s.garbageCollectOldSessions() to let session
+			// refresh have a chance.
 
-		do.committed = true
-		tkt := do.Ticket
-		tkt.Committed = true
-
-		if tkt.LogIndex != applyIdx {
-			panicf("tkt.LogIndex = %v but (applyIdx) == %v; expected agreement. tkt='%v'", tkt.LogIndex, applyIdx, tkt)
-		}
-
-		// THIS IS THE APPLY.
-
-		// This is where we apply the command to the
-		// application state machine. We read the reads,
-		// write the writes, and recognize the special
-		// stalling noop0, the leader's first commit.
-
-		//vv("%v applying committed ticket %v at s.state.CommitIndex=%v; s.state.LastApplied=%v", s.me(), tkt.Op, s.state.CommitIndex, s.state.LastApplied)
-		switch tkt.Op {
-		case MEMBERSHIP_SET_UPDATE, MEMBERSHIP_BOOTSTRAP:
-			//vv("%v tkt='%v' IN THE APPLY: Applying new MemberConfig(%v) = %v", s.me(), tkt.TicketID[:4], tkt.Op, tkt.MC.Short()) // seen 403 only on leader node_0
-
-			// setMC calls
-			// adjustCktReplicaForNewMembership,
-			// so no need to do it again.
-			// in commitWhatWeCan here.
-			_, _ = s.setMC(tkt.MC, fmt.Sprintf("commitWhatWeCan on %v", s.name))
-			//vv("%v ignoredMemberConfigBecauseSuperceded=%v", s.name, ignoredMemberConfigBecauseSuperceded)
-
-			if tkt.Insp == nil {
-				//vv("%v is filling in tkt.Insp in commitWhatWeCan; tkt='%v'", s.me(), tkt.Desc)
-				s.addInspectionToTicket(tkt)
+			// record this to remember the Term with the
+			// state.LastApplied index.
+			// quick sanity check that we are not writing a zero or decreasing term:
+			if do.Term < s.state.LastAppliedTerm {
+				panic(fmt.Sprintf("terms should be monotone up; do.Term=%v; but s.state.LastAppliedTerm = %v; do='%v'\n state='%v'", do.Term, s.state.LastAppliedTerm, do, s.state)) // saw once, added print of do and state: panic: terms should be monotone up; do.Term=6; but s.state.LastAppliedTerm = 7
 			}
-			if calledOnLeader {
-				// not sure why the call is insufficient, but needed:
-				// We made FinishTicket locally idempotent.
-				s.FinishTicket(tkt, calledOnLeader) // 1st call
+			s.state.LastAppliedTerm = do.Term
+
+			do.committed = true
+			tkt := do.Ticket
+			tkt.Committed = true
+
+			if tkt.LogIndex != applyIdx {
+				panicf("tkt.LogIndex = %v but (applyIdx) == %v; expected agreement. tkt='%v'", tkt.LogIndex, applyIdx, tkt)
 			}
 
-			// do we have any stalled membership change requests?
-			if calledOnLeader {
-				// any waiting stalled next config change?
-				if unstallMe := s.unstallChangeMC(); unstallMe != nil {
-					defer s.changeMembership(unstallMe)
+			// THIS IS THE APPLY.
+
+			// This is where we apply the command to the
+			// application state machine. We read the reads,
+			// write the writes, and recognize the special
+			// stalling noop0, the leader's first commit.
+
+			//vv("%v applying committed ticket %v at s.state.CommitIndex=%v; s.state.LastApplied=%v", s.me(), tkt.Op, s.state.CommitIndex, s.state.LastApplied)
+			switch tkt.Op {
+			case MEMBERSHIP_SET_UPDATE, MEMBERSHIP_BOOTSTRAP:
+				//vv("%v tkt='%v' IN THE APPLY: Applying new MemberConfig(%v) = %v", s.me(), tkt.TicketID[:4], tkt.Op, tkt.MC.Short()) // seen 403 only on leader node_0
+
+				// setMC calls
+				// adjustCktReplicaForNewMembership,
+				// so no need to do it again.
+				// in commitWhatWeCan here.
+				_, _ = s.setMC(tkt.MC, fmt.Sprintf("commitWhatWeCan on %v", s.name))
+				//vv("%v ignoredMemberConfigBecauseSuperceded=%v", s.name, ignoredMemberConfigBecauseSuperceded)
+
+				if tkt.Insp == nil {
+					//vv("%v is filling in tkt.Insp in commitWhatWeCan; tkt='%v'", s.me(), tkt.Desc)
+					s.addInspectionToTicket(tkt)
 				}
-			} // end if calledOnLeader
+				if calledOnLeader {
+					// not sure why the call is insufficient, but needed:
+					// We made FinishTicket locally idempotent.
+					s.FinishTicket(tkt, calledOnLeader) // 1st call
+				}
 
-			// end of case MEMBERSHIP_SET_UPDATE/BOOSTRAP
+				// do we have any stalled membership change requests?
+				if calledOnLeader {
+					// any waiting stalled next config change?
+					if unstallMe := s.unstallChangeMC(); unstallMe != nil {
+						defer s.changeMembership(unstallMe)
+					}
+				} // end if calledOnLeader
 
-		case NOOP:
-			tkt.Applied = true
+				// end of case MEMBERSHIP_SET_UPDATE/BOOSTRAP
 
-			// in CommitWhatWeCan
-			//vv("%v no-op commited, ticket '%v'", s.me(), tkt.TicketID)
-			tkt0 := s.initialNoop0Tkt
-			if calledOnLeader && tkt0 != nil {
-				if tkt.TicketID == tkt0.TicketID {
-					//vv("delete noop0 from WaitingAtLeader tkt.TSN='%v'; tkt.LogIndex=%v", s.initialNoop0Tkt.TSN, s.initialNoop0Tkt.LogIndex)
-					s.WaitingAtLeader.del(s.initialNoop0Tkt)
-					s.initialNoop0Tkt.Stage += ":initialNoop0_deleted_from_WaitingAtLeader_in_commitWhatWeCan"
-					//vv("%v leader initalNoopTkt has commited... free to do 2nd txn", s.me())
-					//tkt0.Done.Close() // does it happen elsewhere... FinishTicket below does this.
-					if !s.initialNoop0HasCommitted {
-						s.initialNoop0HasCommitted = true
-						//s.readIndexOptim = s.state.CommitIndex // ?
-						s.readIndexOptim = s.state.LastApplied - 1
+			case NOOP:
+				tkt.Applied = true
 
-						// tell tests about it, next func below.
-						s.otherNoop0applyActions(tkt0)
+				// in CommitWhatWeCan
+				//vv("%v no-op commited, ticket '%v'", s.me(), tkt.TicketID)
+				tkt0 := s.initialNoop0Tkt
+				if calledOnLeader && tkt0 != nil {
+					if tkt.TicketID == tkt0.TicketID {
+						//vv("delete noop0 from WaitingAtLeader tkt.TSN='%v'; tkt.LogIndex=%v", s.initialNoop0Tkt.TSN, s.initialNoop0Tkt.LogIndex)
+						s.WaitingAtLeader.del(s.initialNoop0Tkt)
+						s.initialNoop0Tkt.Stage += ":initialNoop0_deleted_from_WaitingAtLeader_in_commitWhatWeCan"
+						//vv("%v leader initalNoopTkt has commited... free to do 2nd txn", s.me())
+						//tkt0.Done.Close() // does it happen elsewhere... FinishTicket below does this.
+						if !s.initialNoop0HasCommitted {
+							s.initialNoop0HasCommitted = true
+							//s.readIndexOptim = s.state.CommitIndex // ?
+							s.readIndexOptim = s.state.LastApplied - 1
 
-						// warning: without the defer, this will recursively call
-						// commitWhatYouCan immediately, before
-						// the s.state.LastApplied has advanced,
-						// which is kind of a problem; plus our
-						// first no-op is not on disk; other state not adjusted...
-						// So best to leave unless you rethink that flow.
-						//
-						// Update: this cannot be the only place resubmit
-						// is called.
-						// A single node leader could have already self committed its
-						// noop, and then for some reason stalled an MC change?
-						// or after force abandoning an MC change...anyway
-						// we saw in practice getting wedged if this is
-						// the only place resubmit happens. So also
-						// check periodically on another timer (now in connectToMC(),
-						// on <-s.electionTimeoutCh).
-						defer s.resubmitStalledTickets(false) // first (was only) place called
+							// tell tests about it, next func below.
+							s.otherNoop0applyActions(tkt0)
+
+							// warning: without the defer, this will recursively call
+							// commitWhatYouCan immediately, before
+							// the s.state.LastApplied has advanced,
+							// which is kind of a problem; plus our
+							// first no-op is not on disk; other state not adjusted...
+							// So best to leave unless you rethink that flow.
+							//
+							// Update: this cannot be the only place resubmit
+							// is called.
+							// A single node leader could have already self committed its
+							// noop, and then for some reason stalled an MC change?
+							// or after force abandoning an MC change...anyway
+							// we saw in practice getting wedged if this is
+							// the only place resubmit happens. So also
+							// check periodically on another timer (now in connectToMC(),
+							// on <-s.electionTimeoutCh).
+							defer s.resubmitStalledTickets(false) // first (was only) place called
+						}
 					}
 				}
+
+			case ADD_SHADOW_NON_VOTING:
+				s.doAddShadow(tkt)
+				tkt.Applied = true
+
+			case REMOVE_SHADOW_NON_VOTING:
+				s.doRemoveShadow(tkt)
+				tkt.Applied = true
+
+			case USER_DEFINED_FSM_OP:
+				s.doApplyUserDefinedOp(tkt)
+				tkt.Applied = true
+
+			case WRITE:
+				s.doWrite(tkt)
+				tkt.Applied = true
+
+			case CAS:
+				s.doCAS(tkt)
+				tkt.Applied = true
+
+			case MAKE_TABLE:
+				s.doMakeTable(tkt)
+				tkt.Applied = true
+
+			case DELETE_TABLE:
+				s.doDeleteTable(tkt)
+				tkt.Applied = true
+
+			case RENAME_TABLE:
+				s.doRenameTable(tkt)
+				tkt.Applied = true
+
+			case DELETE_KEY:
+				s.doDeleteKey(tkt)
+				tkt.Applied = true
+
+			case SHOW_KEYS:
+				s.doShowKeys(tkt)
+				tkt.Applied = true
+
+			case READ:
+				s.doReadKey(tkt)
+				tkt.Applied = true
+
+			case READ_KEYRANGE:
+				s.doReadKeyRange(tkt)
+				tkt.Applied = true
+
+			case READ_PREFIX_RANGE:
+				s.doReadPrefixRange(tkt)
+				tkt.Applied = true
+
+				//vv("%v applying read of '%v', got ok=%v, val='%v'", s.me(), tkt.Key, ok, string(tkt.Val))
+			case SESS_NEW:
+				s.applyNewSess(tkt, calledOnLeader)
+			case SESS_END:
+				s.applyEndSess(tkt, calledOnLeader)
+
+			default:
+				panic(fmt.Sprintf("what to do with tkt.Op '%v'?", tkt.Op))
 			}
+			tkt.AsOfLogIndex = applyIdx
 
-		case ADD_SHADOW_NON_VOTING:
-			s.doAddShadow(tkt)
-			tkt.Applied = true
+			//if s.isTest() && s.cfg.testNum == 101 {
+			//	do.kvAfterApply = s.state.KVstore.String()
+			//}
 
-		case REMOVE_SHADOW_NON_VOTING:
-			s.doRemoveShadow(tkt)
-			tkt.Applied = true
+			if tkt.SessionID != "" {
+				// =========================================
+				// session implementation (for client linearizability)
+				// i.e. exactly once.
 
-		case USER_DEFINED_FSM_OP:
-			s.doApplyUserDefinedOp(tkt)
-			tkt.Applied = true
+				// should we not be rejecting BEFORE we apply?
+				// Yes, and we do now: see leaderDoneEarlyOnSessionStuff().
+				ste, ok := s.state.SessTable[tkt.SessionID]
+				if !ok {
+					// happens if cluster bounces but member clients stay up and
+					// use stale sessions?? don't freak out.
+					//panicf("how should be handled? should we not already have replicated and thus established the session? unknown tkt.SessionID for tkt=%v", tkt)
 
-		case WRITE:
-			s.doWrite(tkt)
-			tkt.Applied = true
+					// only one reply; from leader. replicas can just drop the session error.
+					if calledOnLeader {
+						tkt.Err = fmt.Errorf("unknown SessionID on tkt '%v'. Must call CreateNewSession first.", tkt)
+						tkt.Stage += ":err_unknown_SessionID_in_commitWhatWeCan"
+						s.respondToClientTicketApplied(tkt)
+					}
+					continue
+				}
+				if tkt.Op != SESS_END {
+					// cache the Ticket for dedup; extend session.
 
-		case CAS:
-			s.doCAS(tkt)
-			tkt.Applied = true
+					ste.ticketID2tkt[tkt.TicketID] = tkt
+					ste.Serial2Ticket.Set(tkt.SessionSerial, tkt)
+					if tkt.SessionSerial > ste.MaxAppliedSerial {
+						//vv("%v: updating ste.MaxAppliedSerial to higher tkt.SessionSerial: %v -> %v; on tkt.SessionID = '%v'", s.name, ste.MaxAppliedSerial, tkt.SessionSerial, tkt.SessionID)
+						ste.MaxAppliedSerial = tkt.SessionSerial
 
-		case MAKE_TABLE:
-			s.doMakeTable(tkt)
-			tkt.Applied = true
+						// leader calls in the pre-replication checks,
+						// but followers cleanup does not happen unless
+						// we do it on them too, like here.
+						s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
+					}
 
-		case DELETE_TABLE:
-			s.doDeleteTable(tkt)
-			tkt.Applied = true
+					if tkt.Op != SESS_NEW {
+						// by using do.Tm below, we gain that
+						// all replicas extend by the same amount each time:
+						// Here 'do' is the RaftLogEntry for this most recent
+						// applied log entry; do.Tm is when the leader created
+						// when it in replicateTicket().
+						ste.SessionReplicatedEndxTm = s.refreshSession(do.Tm, ste)
+					}
+				}
+				// end client session implementation
+				// =========================================
+			}
+			// after refresh above has had a chance.
+			s.garbageCollectOldSessions()
 
-		case RENAME_TABLE:
-			s.doRenameTable(tkt)
-			tkt.Applied = true
-
-		case DELETE_KEY:
-			s.doDeleteKey(tkt)
-			tkt.Applied = true
-
-		case SHOW_KEYS:
-			s.doShowKeys(tkt)
-			tkt.Applied = true
-
-		case READ:
-			s.doReadKey(tkt)
-			tkt.Applied = true
-
-		case READ_KEYRANGE:
-			s.doReadKeyRange(tkt)
-			tkt.Applied = true
-
-		case READ_PREFIX_RANGE:
-			s.doReadPrefixRange(tkt)
-			tkt.Applied = true
-
-			//vv("%v applying read of '%v', got ok=%v, val='%v'", s.me(), tkt.Key, ok, string(tkt.Val))
-		case SESS_NEW:
-			s.applyNewSess(tkt, calledOnLeader)
-		case SESS_END:
-			s.applyEndSess(tkt, calledOnLeader)
-
-		default:
-			panic(fmt.Sprintf("what to do with tkt.Op '%v'?", tkt.Op))
-		}
-		tkt.AsOfLogIndex = applyIdx
-
-		//if s.isTest() && s.cfg.testNum == 101 {
-		//	do.kvAfterApply = s.state.KVstore.String()
-		//}
-
-		if tkt.SessionID != "" {
-			// =========================================
-			// session implementation (for client linearizability)
-			// i.e. exactly once.
-
-			// should we not be rejecting BEFORE we apply?
-			// Yes, and we do now: see leaderDoneEarlyOnSessionStuff().
-			ste, ok := s.state.SessTable[tkt.SessionID]
-			if !ok {
-				// happens if cluster bounces but member clients stay up and
-				// use stale sessions?? don't freak out.
-				//panicf("how should be handled? should we not already have replicated and thus established the session? unknown tkt.SessionID for tkt=%v", tkt)
-
-				// only one reply; from leader. replicas can just drop the session error.
+			if tkt.FromID == s.PeerID {
+				//vv("%v commitWhatWeCan (from self), calling FinishTicket for tkt4=%v", s.me(), tkt.TicketID[:4])
+				s.FinishTicket(tkt, calledOnLeader) // deleting from WAF while waiting for reply! 2nd call on leader
+			} else {
 				if calledOnLeader {
-					tkt.Err = fmt.Errorf("unknown SessionID on tkt '%v'. Must call CreateNewSession first.", tkt)
-					tkt.Stage += ":err_unknown_SessionID_in_commitWhatWeCan"
+					//vv("%v commitWhatWeCan, calledOnLeader calling respondToClientTicketApplied for tkt4=%v ; tkt.FromName='%v'", s.me(), tkt.TicketID[:4], tkt.FromName)
+					// this does FinishTicket
 					s.respondToClientTicketApplied(tkt)
 				}
-				continue
 			}
-			if tkt.Op != SESS_END {
-				// cache the Ticket for dedup; extend session.
-
-				ste.ticketID2tkt[tkt.TicketID] = tkt
-				ste.Serial2Ticket.Set(tkt.SessionSerial, tkt)
-				if tkt.SessionSerial > ste.MaxAppliedSerial {
-					//vv("%v: updating ste.MaxAppliedSerial to higher tkt.SessionSerial: %v -> %v; on tkt.SessionID = '%v'", s.name, ste.MaxAppliedSerial, tkt.SessionSerial, tkt.SessionID)
-					ste.MaxAppliedSerial = tkt.SessionSerial
-
-					// leader calls in the pre-replication checks,
-					// but followers cleanup does not happen unless
-					// we do it on them too, like here.
-					s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
-				}
-
-				if tkt.Op != SESS_NEW {
-					// by using do.Tm below, we gain that
-					// all replicas extend by the same amount each time:
-					// Here 'do' is the RaftLogEntry for this most recent
-					// applied log entry; do.Tm is when the leader created
-					// when it in replicateTicket().
-					ste.SessionReplicatedEndxTm = s.refreshSession(do.Tm, ste)
-				}
-			}
-			// end client session implementation
-			// =========================================
-		}
-		// after refresh above has had a chance.
-		s.garbageCollectOldSessions()
-
-		if tkt.FromID == s.PeerID {
-			//vv("%v commitWhatWeCan (from self), calling FinishTicket for tkt4=%v", s.me(), tkt.TicketID[:4])
-			s.FinishTicket(tkt, calledOnLeader) // deleting from WAF while waiting for reply! 2nd call on leader
-		} else {
-			if calledOnLeader {
-				//vv("%v commitWhatWeCan, calledOnLeader calling respondToClientTicketApplied for tkt4=%v ; tkt.FromName='%v'", s.me(), tkt.TicketID[:4], tkt.FromName)
-				// this does FinishTicket
-				s.respondToClientTicketApplied(tkt)
-			}
-		}
+		*/
 	} // end for ; s.state.LastApplied < s.state.CommitIndex; s.state.LastApplied++
 
 	// in commitWhatWeCan here
@@ -11132,7 +11152,7 @@ func (s *TubeNode) beginPreVote() {
 		}
 	}
 
-	vv("%v \n-------->>>    begin Pre Vote() s.countElections = %v <<<--------", s.me(), s.countElections)
+	//vv("%v \n-------->>>    begin Pre Vote() s.countElections = %v <<<--------", s.me(), s.countElections)
 
 	preVoteTerm := s.state.CurrentTerm + 1
 
@@ -17593,6 +17613,11 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	//vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; state2.KVstore='%v'\n(state2.LastApplied='%v' state2.LastAppliedTerm='%v')\n( state.LastApplied='%v'  state.LastAppliedTerm='%v')", s.me(), caller, s.state.CommitIndex, state2.CommitIndex, state2.KVstore.String(), state2.LastApplied, state2.LastAppliedTerm, s.state.LastApplied, s.state.LastAppliedTerm)
 
+	if state2.CurrentTerm < s.state.CurrentTerm {
+		// ignore stale leader snapshots.
+		return
+	}
+
 	if false {
 		if state2.KVstore != nil {
 			vv("%v about to call installedSnapshot which will discard current wal \n (discard KVstore='%v') \n (in favor of state2.KVstore='%v'\n", s.me(), s.state.KVstore.String(), state2.KVstore.String())
@@ -17621,28 +17646,71 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	//            LastAppliedTerm: 5,
 	//               LastLogIndex: 41573 from term 5  (when node_1 was leader)
 	//
-	//if state2.CommitIndex < s.state.CommitIndex {
-	//	panic(fmt.Sprintf("%v we should never be rolling back CommitIndex with state snapshots! state2.CommitIndex(%v) < s.state.CommitIndex(%v)", s.name, state2.CommitIndex, s.state.CommitIndex))
-	// same kind of reasoning for this:
-	//}
+
+	// problem is if we blow away our log with
+	// someone else's shorter snapshot, then we
+	// can vote for someone who should not get
+	// elected based on not being up to date enough log
+	// to preserve all prior committed entries.
+	// like what happened above...
+	// leading to committed entries being overwritten.
+	// This is confirmed by:
+	//
+	// page 52, section 5.1 of the Raft disseration.
+	// "If, instead, the follower receives a
+	// snapshot that describes a prefix of its log
+	// (due to retransmission or by mistake), then
+	// log entries covered by the snapshot are
+	// deleted but entries following the snapshot
+	// are still valid and must be retained."
+
+	// the retained log entries, up to the local
+	// commitIndex, have to be re-applied to the
+	// snapshots's state machine.
 
 	// we really don't want a stray snapshot from an old
 	// leader updating us by mistake, so enforce that
 	// we are receiving the snapshot only after we have
 	// also received and thus accepted the leader and its term.
 	if state2.CurrentTerm != s.state.CurrentTerm {
-		alwaysPrintf("%v we should never be rolling back Terms with state snapshots! state2.CurrentTerm(%v) != s.state.CurrentTerm(%v)", s.name, state2.CurrentTerm, s.state.CurrentTerm)
+		alwaysPrintf("%v we should never be rolling back Terms with state snapshots! state2.CurrentTerm(%v) != s.state.CurrentTerm(%v); from '%v' (current s.leaderName=')", s.name, state2.CurrentTerm, s.state.CurrentTerm, state2.PeerName, s.leaderName)
 		return
 	}
 
-	s.state.CurrentTerm = state2.CurrentTerm
+	// INVAR: already: s.state.CurrentTerm = state2.CurrentTerm
 
-	//vv("%v place 4 applyNewStateSnapshot going from s.state.CommitIndex(%v) -> state2.CommitIndex(%v)", s.me(), s.state.CommitIndex, state2.CommitIndex)
+	lli := s.wal.LastLogIndex()
 
-	s.state.CommitIndex = state2.CommitIndex
-	s.state.CommitIndexEntryTerm = state2.CommitIndexEntryTerm
-	s.state.LastApplied = state2.LastApplied
-	s.state.LastAppliedTerm = state2.LastAppliedTerm
+	needPartialLogReplay := true
+	var replayBeg, replayEndi int64
+	var saveThese []*RaftLogEntry
+
+	if state2.CompactionDiscardedLast.Index >= lli {
+		needPartialLogReplay = false
+	} else {
+		// below we will need to replay the suffix after snapshot.
+		replayBeg = state2.CompactionDiscardedLast.Index + 1
+		replayEndi = s.state.CommitIndex
+		var err error
+		saveThese, err = s.wal.getLogSuffixFrom(replayBeg)
+		panicOn(err)
+	}
+
+	if state2.CommitIndex > s.state.CommitIndex {
+		s.state.CommitIndex = state2.CommitIndex
+		s.state.CommitIndexEntryTerm = state2.CommitIndexEntryTerm
+
+		vv("%v place 4 applyNewStateSnapshot going from s.state.CommitIndex(%v) -> state2.CommitIndex(%v)", s.me(), s.state.CommitIndex, state2.CommitIndex)
+	}
+
+	if state2.CompactionDiscardedLast.Index < s.state.CommitIndex {
+		alwaysPrintf("%v applyNewStateSnapshot: snapshot would un-commit our CommitIndex: state2.CompactionDiscardedLast.Index(%v) < s.state.CommitIndex(%v)", s.name, state2.CompactionDiscardedLast.Index, s.state.CommitIndex)
+	}
+
+	//s.state.CommitIndex = state2.CommitIndex
+	//s.state.CommitIndexEntryTerm = state2.CommitIndexEntryTerm
+	//s.state.LastApplied = state2.LastApplied
+	//s.state.LastAppliedTerm = state2.LastAppliedTerm
 
 	// KVstore could have been emptied at some point in the
 	// history, so we need to allow this in general. we already
@@ -17671,25 +17739,7 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	s.state.Known.merge(s.state.MC)
 	s.state.LastSaveTimestamp = state2.LastSaveTimestamp
 
-	//compactIndex := state2.CompactionDiscardedLast.Index
-	//compactTerm := state2.CompactionDiscardedLast.Term
-
-	//vv("%v snapshot about to update s.state.CompactionDiscardedLastIndex from %v -> %v; and s.state.CompactionDiscardedLast.Term from %v -> %v", s.name, s.state.CompactionDiscardedLastIndex, compactIndex, s.state.CompactionDiscardedLast.Term, compactTerm)
-
-	// as the scenario above illustrates, we must, actually.
-	//if compactIndex < s.state.CompactionDiscardedLast.Index {
-	//	panic(fmt.Sprintf("%v we should never be rolling back commits with state snapshots! compactIndex(%v) < s.state.CompactionDiscardedLastIndex(%v)", s.name, compactIndex, s.state.CompactionDiscardedLast.Index))
-	//}
 	s.state.CompactionDiscardedLast = state2.CompactionDiscardedLast
-
-	// then we must force the wal to match the new snapshot: this
-	// is what s.wal.installedSnapshot() does below.
-
-	// but we do want too: s.wal.logIndex.BaseC = s.state.CompactionDiscardedLast.Index
-	// which wal.installedSnapshot() just below sets for us, and we assert
-	// immediately afterwards.
-
-	//vv("%v snapshot set s.state.CompactionDiscardedLastIndex=%v; s.state.CompactionDiscardedLast.Term=%v", s.name, s.state.CompactionDiscardedLastIndex, s.state.CompactionDiscardedLast.Term)
 
 	if state2.SessTable != nil {
 		// why is this not already done? because we applie state2 field-by-field.
@@ -17700,6 +17750,42 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	s.saver.save(s.state)
 	s.wal.installedSnapshot(s.state)
 	s.assertCompactOK()
+
+	if needPartialLogReplay {
+		// avoid log compaction while we are replaying the suffix,
+		// because our CommitIndex and AppliedIndex are messed up
+		// temporarily and so we pass -1 for them below in overwriteEntries.
+		orig := s.wal.noLogCompaction
+		s.wal.noLogCompaction = true
+
+		keepIndex := state2.CompactionDiscardedLast.Index
+		// append the suffix that comes after the snapshot
+		s.wal.overwriteEntries(keepIndex, saveThese, false, -1, -1, &s.state.CompactionDiscardedLast, s)
+
+		var lastTerm, lastIdx int64
+		for _, rle := range saveThese {
+			if rle.Index > replayEndi {
+				break
+			}
+			lastTerm = rle.Term
+			lastIdx = rle.Index
+			pleaseDefer := s.applyLogEntry(rle, false, rle.Index)
+			if pleaseDefer != nil {
+				defer pleaseDefer()
+			}
+		}
+		if lastTerm != s.state.CommitIndexEntryTerm {
+			panicf("%v internal sanity check on replay log suffix failed: lastTermReplayed(%v) != s.state.CommitIndexTerm(%v)", s.name, lastTerm, s.state.CommitIndexEntryTerm)
+		}
+		if lastIdx != s.state.CommitIndex {
+			panicf("%v internal sanity check on replay log suffix failed: lastTermIdx(%v) != s.state.CommitIndex(%v)", s.name, lastIdx, s.state.CommitIndex)
+		}
+		s.state.LastApplied = lastIdx
+		s.state.LastAppliedTerm = lastTerm
+
+		s.wal.noLogCompaction = orig
+		s.saver.save(s.state)
+	}
 
 	//vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v ; wal.llt=%v; kv='%v'", s.me(), s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli, s.wal.llt, s.state.KVstore.String())
 }
@@ -18667,4 +18753,242 @@ func (s *TubeNode) debugAddCzarLeaseEpoch(tkt *Ticket) {
 		return
 	}
 	tkt.Desc += leaf.MetaString()
+}
+
+func (s *TubeNode) applyLogEntry(do *RaftLogEntry, calledOnLeader bool, applyIdx int64) (pleaseDefer func()) {
+
+	// update LastAppliedLogHLC from the RaftLogEntry.LogHLC
+	s.state.LastAppliedLogHLC.ReceiveMessageWithHLC(do.LogHLC)
+	// below do s.garbageCollectOldSessions() to let session
+	// refresh have a chance.
+
+	// record this to remember the Term with the
+	// state.LastApplied index.
+	// quick sanity check that we are not writing a zero or decreasing term:
+	if do.Term < s.state.LastAppliedTerm {
+		panic(fmt.Sprintf("terms should be monotone up; do.Term=%v; but s.state.LastAppliedTerm = %v; do='%v'\n state='%v'", do.Term, s.state.LastAppliedTerm, do, s.state)) // saw once, added print of do and state: panic: terms should be monotone up; do.Term=6; but s.state.LastAppliedTerm = 7
+	}
+	s.state.LastAppliedTerm = do.Term
+
+	do.committed = true
+	tkt := do.Ticket
+	tkt.Committed = true
+
+	if tkt.LogIndex != applyIdx {
+		panicf("tkt.LogIndex = %v but (applyIdx) == %v; expected agreement. tkt='%v'", tkt.LogIndex, applyIdx, tkt)
+	}
+
+	// THIS IS THE APPLY.
+
+	// This is where we apply the command to the
+	// application state machine. We read the reads,
+	// write the writes, and recognize the special
+	// stalling noop0, the leader's first commit.
+
+	//vv("%v applying committed ticket %v at s.state.CommitIndex=%v; s.state.LastApplied=%v", s.me(), tkt.Op, s.state.CommitIndex, s.state.LastApplied)
+	switch tkt.Op {
+	case MEMBERSHIP_SET_UPDATE, MEMBERSHIP_BOOTSTRAP:
+		//vv("%v tkt='%v' IN THE APPLY: Applying new MemberConfig(%v) = %v", s.me(), tkt.TicketID[:4], tkt.Op, tkt.MC.Short()) // seen 403 only on leader node_0
+
+		// setMC calls
+		// adjustCktReplicaForNewMembership,
+		// so no need to do it again.
+		// in commitWhatWeCan here.
+		_, _ = s.setMC(tkt.MC, fmt.Sprintf("commitWhatWeCan on %v", s.name))
+		//vv("%v ignoredMemberConfigBecauseSuperceded=%v", s.name, ignoredMemberConfigBecauseSuperceded)
+
+		if tkt.Insp == nil {
+			//vv("%v is filling in tkt.Insp in commitWhatWeCan; tkt='%v'", s.me(), tkt.Desc)
+			s.addInspectionToTicket(tkt)
+		}
+		if calledOnLeader {
+			// not sure why the call is insufficient, but needed:
+			// We made FinishTicket locally idempotent.
+			s.FinishTicket(tkt, calledOnLeader) // 1st call
+		}
+
+		// do we have any stalled membership change requests?
+		if calledOnLeader {
+			// any waiting stalled next config change?
+			if unstallMe := s.unstallChangeMC(); unstallMe != nil {
+				pleaseDefer = func() {
+					s.changeMembership(unstallMe)
+				}
+			}
+		} // end if calledOnLeader
+
+		// end of case MEMBERSHIP_SET_UPDATE/BOOSTRAP
+
+	case NOOP:
+		tkt.Applied = true
+
+		// in CommitWhatWeCan
+		//vv("%v no-op commited, ticket '%v'", s.me(), tkt.TicketID)
+		tkt0 := s.initialNoop0Tkt
+		if calledOnLeader && tkt0 != nil {
+			if tkt.TicketID == tkt0.TicketID {
+				//vv("delete noop0 from WaitingAtLeader tkt.TSN='%v'; tkt.LogIndex=%v", s.initialNoop0Tkt.TSN, s.initialNoop0Tkt.LogIndex)
+				s.WaitingAtLeader.del(s.initialNoop0Tkt)
+				s.initialNoop0Tkt.Stage += ":initialNoop0_deleted_from_WaitingAtLeader_in_commitWhatWeCan"
+				//vv("%v leader initalNoopTkt has commited... free to do 2nd txn", s.me())
+				//tkt0.Done.Close() // does it happen elsewhere... FinishTicket below does this.
+				if !s.initialNoop0HasCommitted {
+					s.initialNoop0HasCommitted = true
+					//s.readIndexOptim = s.state.CommitIndex // ?
+					s.readIndexOptim = s.state.LastApplied - 1
+
+					// tell tests about it, next func below.
+					s.otherNoop0applyActions(tkt0)
+
+					// warning: without the defer, this will recursively call
+					// commitWhatYouCan immediately, before
+					// the s.state.LastApplied has advanced,
+					// which is kind of a problem; plus our
+					// first no-op is not on disk; other state not adjusted...
+					// So best to leave unless you rethink that flow.
+					//
+					// Update: this cannot be the only place resubmit
+					// is called.
+					// A single node leader could have already self committed its
+					// noop, and then for some reason stalled an MC change?
+					// or after force abandoning an MC change...anyway
+					// we saw in practice getting wedged if this is
+					// the only place resubmit happens. So also
+					// check periodically on another timer (now in connectToMC(),
+					// on <-s.electionTimeoutCh).
+					defer s.resubmitStalledTickets(false) // first (was only) place called
+				}
+			}
+		}
+
+	case ADD_SHADOW_NON_VOTING:
+		s.doAddShadow(tkt)
+		tkt.Applied = true
+
+	case REMOVE_SHADOW_NON_VOTING:
+		s.doRemoveShadow(tkt)
+		tkt.Applied = true
+
+	case USER_DEFINED_FSM_OP:
+		s.doApplyUserDefinedOp(tkt)
+		tkt.Applied = true
+
+	case WRITE:
+		s.doWrite(tkt)
+		tkt.Applied = true
+
+	case CAS:
+		s.doCAS(tkt)
+		tkt.Applied = true
+
+	case MAKE_TABLE:
+		s.doMakeTable(tkt)
+		tkt.Applied = true
+
+	case DELETE_TABLE:
+		s.doDeleteTable(tkt)
+		tkt.Applied = true
+
+	case RENAME_TABLE:
+		s.doRenameTable(tkt)
+		tkt.Applied = true
+
+	case DELETE_KEY:
+		s.doDeleteKey(tkt)
+		tkt.Applied = true
+
+	case SHOW_KEYS:
+		s.doShowKeys(tkt)
+		tkt.Applied = true
+
+	case READ:
+		s.doReadKey(tkt)
+		tkt.Applied = true
+
+	case READ_KEYRANGE:
+		s.doReadKeyRange(tkt)
+		tkt.Applied = true
+
+	case READ_PREFIX_RANGE:
+		s.doReadPrefixRange(tkt)
+		tkt.Applied = true
+
+		//vv("%v applying read of '%v', got ok=%v, val='%v'", s.me(), tkt.Key, ok, string(tkt.Val))
+	case SESS_NEW:
+		s.applyNewSess(tkt, calledOnLeader)
+	case SESS_END:
+		s.applyEndSess(tkt, calledOnLeader)
+
+	default:
+		panic(fmt.Sprintf("what to do with tkt.Op '%v'?", tkt.Op))
+	}
+	tkt.AsOfLogIndex = applyIdx
+
+	//if s.isTest() && s.cfg.testNum == 101 {
+	//	do.kvAfterApply = s.state.KVstore.String()
+	//}
+
+	if tkt.SessionID != "" {
+		// =========================================
+		// session implementation (for client linearizability)
+		// i.e. exactly once.
+
+		// should we not be rejecting BEFORE we apply?
+		// Yes, and we do now: see leaderDoneEarlyOnSessionStuff().
+		ste, ok := s.state.SessTable[tkt.SessionID]
+		if !ok {
+			// happens if cluster bounces but member clients stay up and
+			// use stale sessions?? don't freak out.
+			//panicf("how should be handled? should we not already have replicated and thus established the session? unknown tkt.SessionID for tkt=%v", tkt)
+
+			// only one reply; from leader. replicas can just drop the session error.
+			if calledOnLeader {
+				tkt.Err = fmt.Errorf("unknown SessionID on tkt '%v'. Must call CreateNewSession first.", tkt)
+				tkt.Stage += ":err_unknown_SessionID_in_commitWhatWeCan"
+				s.respondToClientTicketApplied(tkt)
+			}
+			return
+		}
+		if tkt.Op != SESS_END {
+			// cache the Ticket for dedup; extend session.
+
+			ste.ticketID2tkt[tkt.TicketID] = tkt
+			ste.Serial2Ticket.Set(tkt.SessionSerial, tkt)
+			if tkt.SessionSerial > ste.MaxAppliedSerial {
+				//vv("%v: updating ste.MaxAppliedSerial to higher tkt.SessionSerial: %v -> %v; on tkt.SessionID = '%v'", s.name, ste.MaxAppliedSerial, tkt.SessionSerial, tkt.SessionID)
+				ste.MaxAppliedSerial = tkt.SessionSerial
+
+				// leader calls in the pre-replication checks,
+				// but followers cleanup does not happen unless
+				// we do it on them too, like here.
+				s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
+			}
+
+			if tkt.Op != SESS_NEW {
+				// by using do.Tm below, we gain that
+				// all replicas extend by the same amount each time:
+				// Here 'do' is the RaftLogEntry for this most recent
+				// applied log entry; do.Tm is when the leader created
+				// when it in replicateTicket().
+				ste.SessionReplicatedEndxTm = s.refreshSession(do.Tm, ste)
+			}
+		}
+		// end client session implementation
+		// =========================================
+	}
+	// after refresh above has had a chance.
+	s.garbageCollectOldSessions()
+
+	if tkt.FromID == s.PeerID {
+		//vv("%v commitWhatWeCan (from self), calling FinishTicket for tkt4=%v", s.me(), tkt.TicketID[:4])
+		s.FinishTicket(tkt, calledOnLeader) // deleting from WAF while waiting for reply! 2nd call on leader
+	} else {
+		if calledOnLeader {
+			//vv("%v commitWhatWeCan, calledOnLeader calling respondToClientTicketApplied for tkt4=%v ; tkt.FromName='%v'", s.me(), tkt.TicketID[:4], tkt.FromName)
+			// this does FinishTicket
+			s.respondToClientTicketApplied(tkt)
+		}
+	}
+	// end for ; s.state.LastApplied < s.state.CommitIndex; s.state.LastApplied++
+	return
 }

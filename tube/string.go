@@ -49,6 +49,7 @@ func (z *IndexTerm) String() (r string) {
 	r += fmt.Sprintf("Index: %v,\n", z.Index)
 	r += fmt.Sprintf(" Term: %v,\n", z.Term)
 	r += fmt.Sprintf(" Name: \"%v\",\n", z.Name)
+	r += fmt.Sprintf("   CI: %v,\n", z.CI)
 	r += "}\n"
 	return
 }

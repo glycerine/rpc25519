@@ -31,6 +31,9 @@ import (
 func Test101_userFuzz(t *testing.T) {
 	//return
 
+	//punish := 100
+	//for range punish {
+
 	if !faketime {
 		alwaysPrintf("Test101_userFuzz only works under synctest.")
 		return
@@ -115,6 +118,7 @@ func Test101_userFuzz(t *testing.T) {
 
 				// get a determinstic seed into rpc.globalPRNG
 				// so that early NewCallID() calls are deterministic too.
+				vv("int64seed = %v", int64seed)
 				rpc.PrepareForSimnet(int64seed, try > 0)
 
 				// 1% or less collision probability, to minimize
@@ -231,7 +235,8 @@ func Test101_userFuzz(t *testing.T) {
 			panicf("problem on scenario %v twice we got non-linz: '%v'", scenario, tryErr)
 		}
 		//vv("end scenario for loop")
-	}
+	} // end for scenario
+	//} // end for punish
 }
 
 // 2026 Feb 15: a note on why we use

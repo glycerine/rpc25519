@@ -1546,7 +1546,7 @@ func (z *AppendEntriesAck) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields15zgensym_8df0a91a1f250219_16 = 42
+	const maxFields15zgensym_8df0a91a1f250219_16 = 43
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields15zgensym_8df0a91a1f250219_16 uint32
@@ -1998,6 +1998,12 @@ doneWithStruct15zgensym_8df0a91a1f250219_16:
 			if err != nil {
 				return
 			}
+		case "FollowerCommitIndex_zid42_i64":
+			found15zgensym_8df0a91a1f250219_16[42] = true
+			z.FollowerCommitIndex, err = dc.ReadInt64()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -2021,9 +2027,9 @@ doneWithStruct15zgensym_8df0a91a1f250219_16:
 }
 
 // fields of AppendEntriesAck
-var decodeMsgFieldOrder15zgensym_8df0a91a1f250219_16 = []string{"ClusterID_zid00_str", "FromPeerID_zid01_str", "FromPeerName_zid02_str", "FromPeerServiceName_zid03_str", "FromPeerServiceNameVersion_zid04_str", "Term_zid05_i64", "Rejected_zid06_boo", "LogsMatchExactly_zid07_boo", "LargestCommonRaftIndex_zid08_i64", "LargestCommonRaftIndexTerm_zid09_i64", "ConflictTerm_zid10_i64", "ConflictTerm1stIndex_zid11_i64", "PeerLogCompactIndex_zid12_i64", "PeerLogCompactTerm_zid13_i64", "PeerLogFirstIndex_zid14_i64", "PeerLogFirstTerm_zid15_i64", "PeerLogLastIndex_zid16_i64", "PeerLogLastTerm_zid17_i64", "SuppliedPrevLogIndex_zid18_i64", "SuppliedPrevLogTerm_zid19_i64", "SuppliedEntriesIndexBeg_zid20_i64", "SuppliedEntriesIndexEnd_zid21_i64", "SuppliedLeaderCommitIndex_zid22_i64", "SuppliedLeader_zid23_str", "SuppliedLeaderName_zid24_str", "SuppliedLeaderTermsRLE_zid25_ptr", "SuppliedLeaderLastTerm_zid26_i64", "SuppliedLeaderLLI_zid27_i64", "SuppliedLeaderLLT_zid28_i64", "PeerLogTermsRLE_zid29_ptr", "RejectReason_zid30_str", "AEID_zid31_str", "MinElectionTimeoutDur_zid32_dur", "SpanMatching_zid33_ptr", "PeerMC_zid34_ptr", "PeerCompactionDiscardedLastIndex_zid35_i64", "PeerCompactionDiscardedLastTerm_zid36_i64", "NeedSnapshotGap_zid37_boo", "SuppliedLeaderCommitIndexEntryTerm_zid38_i64", "SuppliedCompactIndex_zid39_i64", "SuppliedCompactTerm_zid40_i64", "FollowerHLC_zid41_rct"}
+var decodeMsgFieldOrder15zgensym_8df0a91a1f250219_16 = []string{"ClusterID_zid00_str", "FromPeerID_zid01_str", "FromPeerName_zid02_str", "FromPeerServiceName_zid03_str", "FromPeerServiceNameVersion_zid04_str", "Term_zid05_i64", "Rejected_zid06_boo", "LogsMatchExactly_zid07_boo", "LargestCommonRaftIndex_zid08_i64", "LargestCommonRaftIndexTerm_zid09_i64", "ConflictTerm_zid10_i64", "ConflictTerm1stIndex_zid11_i64", "PeerLogCompactIndex_zid12_i64", "PeerLogCompactTerm_zid13_i64", "PeerLogFirstIndex_zid14_i64", "PeerLogFirstTerm_zid15_i64", "PeerLogLastIndex_zid16_i64", "PeerLogLastTerm_zid17_i64", "SuppliedPrevLogIndex_zid18_i64", "SuppliedPrevLogTerm_zid19_i64", "SuppliedEntriesIndexBeg_zid20_i64", "SuppliedEntriesIndexEnd_zid21_i64", "SuppliedLeaderCommitIndex_zid22_i64", "SuppliedLeader_zid23_str", "SuppliedLeaderName_zid24_str", "SuppliedLeaderTermsRLE_zid25_ptr", "SuppliedLeaderLastTerm_zid26_i64", "SuppliedLeaderLLI_zid27_i64", "SuppliedLeaderLLT_zid28_i64", "PeerLogTermsRLE_zid29_ptr", "RejectReason_zid30_str", "AEID_zid31_str", "MinElectionTimeoutDur_zid32_dur", "SpanMatching_zid33_ptr", "PeerMC_zid34_ptr", "PeerCompactionDiscardedLastIndex_zid35_i64", "PeerCompactionDiscardedLastTerm_zid36_i64", "NeedSnapshotGap_zid37_boo", "SuppliedLeaderCommitIndexEntryTerm_zid38_i64", "SuppliedCompactIndex_zid39_i64", "SuppliedCompactTerm_zid40_i64", "FollowerHLC_zid41_rct", "FollowerCommitIndex_zid42_i64"}
 
-var decodeMsgFieldSkip15zgensym_8df0a91a1f250219_16 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip15zgensym_8df0a91a1f250219_16 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
 // fields of LogEntrySpan
 var decodeMsgFieldOrder17zgensym_8df0a91a1f250219_18 = []string{"Beg_zid00_i64", "Endx_zid01_i64"}
@@ -2033,9 +2039,9 @@ var decodeMsgFieldSkip17zgensym_8df0a91a1f250219_18 = []bool{false, false}
 // fieldsNotEmpty supports omitempty tags
 func (z *AppendEntriesAck) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 42
+		return 43
 	}
-	var fieldsInUse uint32 = 42
+	var fieldsInUse uint32 = 43
 	isempty[0] = (len(z.ClusterID) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -2204,6 +2210,10 @@ func (z *AppendEntriesAck) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[41] {
 		fieldsInUse--
 	}
+	isempty[42] = (z.FollowerCommitIndex == 0) // number, omitempty
+	if isempty[42] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -2215,7 +2225,7 @@ func (z *AppendEntriesAck) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_20 [42]bool
+	var empty_zgensym_8df0a91a1f250219_20 [43]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_21 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_20[:])
 
 	// map header
@@ -2815,6 +2825,18 @@ func (z *AppendEntriesAck) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_8df0a91a1f250219_20[42] {
+		// write "FollowerCommitIndex_zid42_i64"
+		err = en.Append(0xbd, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x34, 0x32, 0x5f, 0x69, 0x36, 0x34)
+		if err != nil {
+			return err
+		}
+		err = en.WriteInt64(z.FollowerCommitIndex)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -2827,7 +2849,7 @@ func (z *AppendEntriesAck) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [42]bool
+	var empty [43]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -3140,6 +3162,12 @@ func (z *AppendEntriesAck) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendInt64(o, int64(z.FollowerHLC))
 	}
 
+	if !empty[42] {
+		// string "FollowerCommitIndex_zid42_i64"
+		o = append(o, 0xbd, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x34, 0x32, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.FollowerCommitIndex)
+	}
+
 	return
 }
 
@@ -3158,7 +3186,7 @@ func (z *AppendEntriesAck) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConf
 
 	var field []byte
 	_ = field
-	const maxFields24zgensym_8df0a91a1f250219_25 = 42
+	const maxFields24zgensym_8df0a91a1f250219_25 = 43
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields24zgensym_8df0a91a1f250219_25 uint32
@@ -3660,6 +3688,13 @@ doneWithStruct24zgensym_8df0a91a1f250219_25:
 				}
 				z.FollowerHLC = HLC(zgensym_8df0a91a1f250219_28)
 			}
+		case "FollowerCommitIndex_zid42_i64":
+			found24zgensym_8df0a91a1f250219_25[42] = true
+			z.FollowerCommitIndex, bts, err = nbs.ReadInt64Bytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -3683,9 +3718,9 @@ doneWithStruct24zgensym_8df0a91a1f250219_25:
 }
 
 // fields of AppendEntriesAck
-var unmarshalMsgFieldOrder24zgensym_8df0a91a1f250219_25 = []string{"ClusterID_zid00_str", "FromPeerID_zid01_str", "FromPeerName_zid02_str", "FromPeerServiceName_zid03_str", "FromPeerServiceNameVersion_zid04_str", "Term_zid05_i64", "Rejected_zid06_boo", "LogsMatchExactly_zid07_boo", "LargestCommonRaftIndex_zid08_i64", "LargestCommonRaftIndexTerm_zid09_i64", "ConflictTerm_zid10_i64", "ConflictTerm1stIndex_zid11_i64", "PeerLogCompactIndex_zid12_i64", "PeerLogCompactTerm_zid13_i64", "PeerLogFirstIndex_zid14_i64", "PeerLogFirstTerm_zid15_i64", "PeerLogLastIndex_zid16_i64", "PeerLogLastTerm_zid17_i64", "SuppliedPrevLogIndex_zid18_i64", "SuppliedPrevLogTerm_zid19_i64", "SuppliedEntriesIndexBeg_zid20_i64", "SuppliedEntriesIndexEnd_zid21_i64", "SuppliedLeaderCommitIndex_zid22_i64", "SuppliedLeader_zid23_str", "SuppliedLeaderName_zid24_str", "SuppliedLeaderTermsRLE_zid25_ptr", "SuppliedLeaderLastTerm_zid26_i64", "SuppliedLeaderLLI_zid27_i64", "SuppliedLeaderLLT_zid28_i64", "PeerLogTermsRLE_zid29_ptr", "RejectReason_zid30_str", "AEID_zid31_str", "MinElectionTimeoutDur_zid32_dur", "SpanMatching_zid33_ptr", "PeerMC_zid34_ptr", "PeerCompactionDiscardedLastIndex_zid35_i64", "PeerCompactionDiscardedLastTerm_zid36_i64", "NeedSnapshotGap_zid37_boo", "SuppliedLeaderCommitIndexEntryTerm_zid38_i64", "SuppliedCompactIndex_zid39_i64", "SuppliedCompactTerm_zid40_i64", "FollowerHLC_zid41_rct"}
+var unmarshalMsgFieldOrder24zgensym_8df0a91a1f250219_25 = []string{"ClusterID_zid00_str", "FromPeerID_zid01_str", "FromPeerName_zid02_str", "FromPeerServiceName_zid03_str", "FromPeerServiceNameVersion_zid04_str", "Term_zid05_i64", "Rejected_zid06_boo", "LogsMatchExactly_zid07_boo", "LargestCommonRaftIndex_zid08_i64", "LargestCommonRaftIndexTerm_zid09_i64", "ConflictTerm_zid10_i64", "ConflictTerm1stIndex_zid11_i64", "PeerLogCompactIndex_zid12_i64", "PeerLogCompactTerm_zid13_i64", "PeerLogFirstIndex_zid14_i64", "PeerLogFirstTerm_zid15_i64", "PeerLogLastIndex_zid16_i64", "PeerLogLastTerm_zid17_i64", "SuppliedPrevLogIndex_zid18_i64", "SuppliedPrevLogTerm_zid19_i64", "SuppliedEntriesIndexBeg_zid20_i64", "SuppliedEntriesIndexEnd_zid21_i64", "SuppliedLeaderCommitIndex_zid22_i64", "SuppliedLeader_zid23_str", "SuppliedLeaderName_zid24_str", "SuppliedLeaderTermsRLE_zid25_ptr", "SuppliedLeaderLastTerm_zid26_i64", "SuppliedLeaderLLI_zid27_i64", "SuppliedLeaderLLT_zid28_i64", "PeerLogTermsRLE_zid29_ptr", "RejectReason_zid30_str", "AEID_zid31_str", "MinElectionTimeoutDur_zid32_dur", "SpanMatching_zid33_ptr", "PeerMC_zid34_ptr", "PeerCompactionDiscardedLastIndex_zid35_i64", "PeerCompactionDiscardedLastTerm_zid36_i64", "NeedSnapshotGap_zid37_boo", "SuppliedLeaderCommitIndexEntryTerm_zid38_i64", "SuppliedCompactIndex_zid39_i64", "SuppliedCompactTerm_zid40_i64", "FollowerHLC_zid41_rct", "FollowerCommitIndex_zid42_i64"}
 
-var unmarshalMsgFieldSkip24zgensym_8df0a91a1f250219_25 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip24zgensym_8df0a91a1f250219_25 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
 // fields of LogEntrySpan
 var unmarshalMsgFieldOrder26zgensym_8df0a91a1f250219_27 = []string{"Beg_zid00_i64", "Endx_zid01_i64"}
@@ -3718,7 +3753,7 @@ func (z *AppendEntriesAck) Msgsize() (s int) {
 	} else {
 		s += z.PeerMC.Msgsize()
 	}
-	s += 44 + msgp.Int64Size + 43 + msgp.Int64Size + 26 + msgp.BoolSize + 46 + msgp.Int64Size + 31 + msgp.Int64Size + 30 + msgp.Int64Size + 22 + msgp.Int64Size
+	s += 44 + msgp.Int64Size + 43 + msgp.Int64Size + 26 + msgp.BoolSize + 46 + msgp.Int64Size + 31 + msgp.Int64Size + 30 + msgp.Int64Size + 22 + msgp.Int64Size + 30 + msgp.Int64Size
 	return
 }
 func (z *AppendEntriesAck) Gstring() (r string) {
@@ -3765,6 +3800,7 @@ func (z *AppendEntriesAck) Gstring() (r string) {
 	r += fmt.Sprintf("              SuppliedCompactIndex: %v,\n", z.SuppliedCompactIndex)
 	r += fmt.Sprintf("               SuppliedCompactTerm: %v,\n", z.SuppliedCompactTerm)
 	r += fmt.Sprintf("                       FollowerHLC: %v,\n", z.FollowerHLC)
+	r += fmt.Sprintf("               FollowerCommitIndex: %v,\n", z.FollowerCommitIndex)
 	r += "}\n"
 	return
 }
@@ -13042,9 +13078,9 @@ doneWithStruct180zgensym_8df0a91a1f250219_181:
 					return
 				}
 			}
-		case "CommitIndex_zid16_i64":
+		case "FollowerCommitIndex_zid16_i64":
 			found180zgensym_8df0a91a1f250219_181[16] = true
-			z.CommitIndex, err = dc.ReadInt64()
+			z.FollowerCommitIndex, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
@@ -13071,7 +13107,7 @@ doneWithStruct180zgensym_8df0a91a1f250219_181:
 }
 
 // fields of RaftNodeInfo
-var decodeMsgFieldOrder180zgensym_8df0a91a1f250219_181 = []string{"PeerID_zid00_str", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerURL_zid04_str", "RemoteBaseServerAddr_zid05_str", "IsInspectResponder_zid06_boo", "MatchIndex_zid07_i64", "MatchIndexTerm_zid08_i64", "UnackedPing_zid09_rct", "LastFullPing_zid10_rct", "LastFullPong_zid11_rct", "LastHeardAnything_zid12_tim", "LargestCommonRaftIndex_zid13_i64", "MinElectionTimeoutDur_zid14_dur", "MC_zid15_ptr", "CommitIndex_zid16_i64"}
+var decodeMsgFieldOrder180zgensym_8df0a91a1f250219_181 = []string{"PeerID_zid00_str", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerURL_zid04_str", "RemoteBaseServerAddr_zid05_str", "IsInspectResponder_zid06_boo", "MatchIndex_zid07_i64", "MatchIndexTerm_zid08_i64", "UnackedPing_zid09_rct", "LastFullPing_zid10_rct", "LastFullPong_zid11_rct", "LastHeardAnything_zid12_tim", "LargestCommonRaftIndex_zid13_i64", "MinElectionTimeoutDur_zid14_dur", "MC_zid15_ptr", "FollowerCommitIndex_zid16_i64"}
 
 var decodeMsgFieldSkip180zgensym_8df0a91a1f250219_181 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
@@ -13155,7 +13191,7 @@ func (z *RaftNodeInfo) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[15] {
 		fieldsInUse--
 	}
-	isempty[16] = (z.CommitIndex == 0) // number, omitempty
+	isempty[16] = (z.FollowerCommitIndex == 0) // number, omitempty
 	if isempty[16] {
 		fieldsInUse--
 	}
@@ -13497,12 +13533,12 @@ func (z *RaftNodeInfo) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_8df0a91a1f250219_186[16] {
-		// write "CommitIndex_zid16_i64"
-		err = en.Append(0xb5, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x36, 0x5f, 0x69, 0x36, 0x34)
+		// write "FollowerCommitIndex_zid16_i64"
+		err = en.Append(0xbd, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x36, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
-		err = en.WriteInt64(z.CommitIndex)
+		err = en.WriteInt64(z.FollowerCommitIndex)
 		if err != nil {
 			return
 		}
@@ -13681,9 +13717,9 @@ func (z *RaftNodeInfo) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[16] {
-		// string "CommitIndex_zid16_i64"
-		o = append(o, 0xb5, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x36, 0x5f, 0x69, 0x36, 0x34)
-		o = msgp.AppendInt64(o, z.CommitIndex)
+		// string "FollowerCommitIndex_zid16_i64"
+		o = append(o, 0xbd, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x36, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.FollowerCommitIndex)
 	}
 
 	return
@@ -14042,9 +14078,9 @@ doneWithStruct192zgensym_8df0a91a1f250219_193:
 					}
 				}
 			}
-		case "CommitIndex_zid16_i64":
+		case "FollowerCommitIndex_zid16_i64":
 			found192zgensym_8df0a91a1f250219_193[16] = true
-			z.CommitIndex, bts, err = nbs.ReadInt64Bytes(bts)
+			z.FollowerCommitIndex, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
@@ -14072,7 +14108,7 @@ doneWithStruct192zgensym_8df0a91a1f250219_193:
 }
 
 // fields of RaftNodeInfo
-var unmarshalMsgFieldOrder192zgensym_8df0a91a1f250219_193 = []string{"PeerID_zid00_str", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerURL_zid04_str", "RemoteBaseServerAddr_zid05_str", "IsInspectResponder_zid06_boo", "MatchIndex_zid07_i64", "MatchIndexTerm_zid08_i64", "UnackedPing_zid09_rct", "LastFullPing_zid10_rct", "LastFullPong_zid11_rct", "LastHeardAnything_zid12_tim", "LargestCommonRaftIndex_zid13_i64", "MinElectionTimeoutDur_zid14_dur", "MC_zid15_ptr", "CommitIndex_zid16_i64"}
+var unmarshalMsgFieldOrder192zgensym_8df0a91a1f250219_193 = []string{"PeerID_zid00_str", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerURL_zid04_str", "RemoteBaseServerAddr_zid05_str", "IsInspectResponder_zid06_boo", "MatchIndex_zid07_i64", "MatchIndexTerm_zid08_i64", "UnackedPing_zid09_rct", "LastFullPing_zid10_rct", "LastFullPong_zid11_rct", "LastHeardAnything_zid12_tim", "LargestCommonRaftIndex_zid13_i64", "MinElectionTimeoutDur_zid14_dur", "MC_zid15_ptr", "FollowerCommitIndex_zid16_i64"}
 
 var unmarshalMsgFieldSkip192zgensym_8df0a91a1f250219_193 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
@@ -14094,7 +14130,7 @@ func (z *RaftNodeInfo) Msgsize() (s int) {
 	} else {
 		s += z.MC.Msgsize()
 	}
-	s += 22 + msgp.Int64Size
+	s += 30 + msgp.Int64Size
 	return
 }
 func (z *RaftNodeInfo) Gstring() (r string) {
@@ -14115,7 +14151,7 @@ func (z *RaftNodeInfo) Gstring() (r string) {
 	r += fmt.Sprintf("LargestCommonRaftIndex: %v,\n", z.LargestCommonRaftIndex)
 	r += fmt.Sprintf(" MinElectionTimeoutDur: %v,\n", z.MinElectionTimeoutDur)
 	r += fmt.Sprintf("                    MC: %v,\n", z.MC)
-	r += fmt.Sprintf("           CommitIndex: %v,\n", z.CommitIndex)
+	r += fmt.Sprintf("   FollowerCommitIndex: %v,\n", z.FollowerCommitIndex)
 	r += "}\n"
 	return
 }
