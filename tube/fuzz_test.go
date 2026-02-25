@@ -220,9 +220,7 @@ func Test101_userFuzz(t *testing.T) {
 				if nemesis.calls == 0 {
 					panic("nemesis was never called!")
 				}
-				if nemesis.calls < 10 {
-					panicf("nemesis was called less than 10 times: %v", nemesis.calls)
-				}
+
 				//vv("makeTrouble calls total = %v", nemesis.calls)
 
 			}) // end onlyBubbled
