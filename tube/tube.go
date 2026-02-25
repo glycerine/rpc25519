@@ -2719,6 +2719,8 @@ type RaftNodeInfo struct {
 	MinElectionTimeoutDur time.Duration `zid:"14"`
 
 	MC *MemberConfig `zid:"15"`
+
+	CommitIndex int64 `zid:"16"`
 }
 
 type LogEntrySpan struct {
@@ -3012,6 +3014,7 @@ type IndexTerm struct {
 	Index int64  `zid:"0"`
 	Term  int64  `zid:"1"`
 	Name  string `zid:"2"`
+	CI    int64  `zid:"3"`
 }
 
 func (s *RaftState) votedStatus() string {
@@ -6715,7 +6718,7 @@ func (s *TubeNode) beginElection() {
 	// (with pre-voting) continually
 	// incrementing our term would be bad.
 	if s.role == FOLLOWER {
-		//vv("%v beginElection, %v about to increment CurrentTerm from %v -> %v", s.me(), s.name, s.state.CurrentTerm, s.state.CurrentTerm+1)
+		vv("%v beginElection, %v about to increment CurrentTerm from %v -> %v", s.me(), s.name, s.state.CurrentTerm, s.state.CurrentTerm+1)
 		s.state.CurrentTerm++
 		// ? do we want here: s.state.MC.ConfigTerm = s.state.CurrentTerm
 	}
@@ -6905,7 +6908,7 @@ func (s *TubeNode) votesString(votes map[string]bool) (r string) {
 // REMINDER: be idempotent even after quorum! we'll see
 // lots of extra pre-votes.
 func (s *TubeNode) tallyPreVote(vote *Vote) {
-	//vv("%v \n-------->>>    tally PreVote()  <<<--------\n vote = %v", s.me(), vote)
+	vv("%v \n-------->>>    tally PreVote()  <<<--------\n vote = %v", s.me(), vote)
 
 	s.hlc.ReceiveMessageWithHLC(vote.SenderHLC)
 
@@ -7225,7 +7228,7 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 }
 
 func (s *TubeNode) becomeLeader() {
-	//vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
+	vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
 	//defer func() {
 	//	vv("%v end of becomeLeader", s.me())
 	//}()
@@ -9440,9 +9443,13 @@ FromPeerCurrentTerm: %v,
      IsPreVote: %v,
       MC: %v,
         Reason: "%v" }`,
-		rpc.AliasDecode(v.FromPeerID), v.FromPeerName,
-		rpc.AliasDecode(v.CandidateID), v.FromPeerCurrentTerm,
-		v.CandidatesTerm, v.VoteGranted, v.IsPreVote,
+		rpc.AliasDecode(v.FromPeerID),
+		v.FromPeerName,
+		v.FromPeerCurrentTerm,
+		v.CandidatesTerm,
+		rpc.AliasDecode(v.CandidateID),
+		v.VoteGranted,
+		v.IsPreVote,
 		v.MC.Short(),
 		v.Reason)
 }
@@ -10194,6 +10201,7 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 
 		mi := info.MatchIndex
 		mt := info.MatchIndexTerm
+		ci := info.CommitIndex
 		if mt > s.state.CurrentTerm {
 			panicf("%v we are leader; should never happen that mt(%v) > CurrentTerm(%v); info = %v", s.me(), mt, s.state.CurrentTerm, info)
 		}
@@ -10287,7 +10295,7 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 	// This should be the only place and time the leader
 	// updates its CommitIndex.
 
-	//vv("%v %v place 3 leaderAdvanceCommitIndex going from s.state.CommitIndex(%v) -> newCommitIndex(%v)", s.me(), s.name, s.state.CommitIndex, newCommitIndex)
+	vv("%v %v place 3 leaderAdvanceCommitIndex going from s.state.CommitIndex(%v) -> newCommitIndex(%v); matchIndexes = '%v'", s.me(), s.name, s.state.CommitIndex, newCommitIndex, matchIndexes)
 
 	s.state.CommitIndex = newCommitIndex // RaftConsensus.cc:2195
 	s.state.CommitIndexEntryTerm = entry.Term
@@ -11124,7 +11132,7 @@ func (s *TubeNode) beginPreVote() {
 		}
 	}
 
-	//vv("%v \n-------->>>    begin Pre Vote() s.countElections = %v <<<--------", s.me(), s.countElections)
+	vv("%v \n-------->>>    begin Pre Vote() s.countElections = %v <<<--------", s.me(), s.countElections)
 
 	preVoteTerm := s.state.CurrentTerm + 1
 
