@@ -262,7 +262,10 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 		testNum:                  cfg.testNum,
 		lli:                      0,
 		llt:                      0,
-		compactionThresholdBytes: 6 << 20, // 6MB
+		compactionThresholdBytes: cfg.CompactionThresholdBytes,
+	}
+	if s.compactionThresholdBytes == 0 {
+		s.compactionThresholdBytes = 6 << 20 // 6MB default.
 	}
 	//vv("%v made newRaftWriteAheadLog(path = '%v'); nodisk=%v; cfg.MyName='%v'; noLogCompaction=%v", s.name, path, cfg.NoDisk, cfg.MyName, s.noLogCompaction)
 
@@ -274,6 +277,10 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 }
 
 func (s *raftWriteAheadLog) logSizeOnDisk() int64 {
+	if s.nodisk {
+		return int64(len(s.raftLog))
+	}
+
 	if s.fd == nil {
 		return 0
 	}
@@ -883,7 +890,6 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 		// per the Raft Dissertation suggestion (page 57,
 		// section 5.1.3 -- "Implementation concerns").
 		//
-		// leave off until TermsRLE is compaction ready.
 
 		if s.logSizeOnDisk() > s.compactionThresholdBytes { // over 6MB, then compact (if compact on).
 			s.maybeCompact(lastAppliedIndex, syncme, node)
@@ -921,9 +927,6 @@ func (s *raftWriteAheadLog) isAppendLoggingHelper(keepIndex int64) bool {
 func (s *raftWriteAheadLog) maybeCompact(lastAppliedIndex int64, syncme *IndexTerm, node *TubeNode) (didCompact bool) {
 
 	//vv("maybeCompact called! noLogCompaction = %v", s.noLogCompaction)
-	if s.noLogCompaction {
-		panic("should never call maybeCompact when noLogCompaction is true")
-	}
 
 	// defaults in case we bail early (important to keep stuff in sync!)
 	if syncme != nil {

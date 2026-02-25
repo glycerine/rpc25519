@@ -189,8 +189,6 @@ func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftL
 		// per the Raft Dissertation suggestion (page 57,
 		// section 5.1.3 -- "Implementation concerns").
 		//
-		// leave off until TermsRLE is compaction ready.
-		//s.maybeCompact(curCommitIndex, syncme, nil) // was for quite a while.
 		s.maybeCompact(lastAppliedIndex, syncme, nil) // like wal.go
 	}
 

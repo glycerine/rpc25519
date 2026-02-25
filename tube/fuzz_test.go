@@ -126,6 +126,8 @@ func Test101_userFuzz(t *testing.T) {
 				forceLeader := 0
 				cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
 				//cfg.NoLogCompaction = true
+				cfg.CompactionThresholdBytes = 1 // frequent compaction.
+
 				// using sim.SimpleNewScenario(intSeed) will
 				// be too late, since alot of setup (the raft cluster) with the
 				// default seed will have already been done, making
