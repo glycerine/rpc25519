@@ -1688,7 +1688,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				s.handleInstallEmptyMC(frag, ckt)
 
 			case RequestStateSnapshot:
-				//vv("%v sees frag.FragOp RequestStateSnapshot", s.name)
+				vv("%v sees frag.FragOp RequestStateSnapshot", s.name)
 				s.handleRequestStateSnapshot(frag, ckt, fmt.Sprintf("frag.FragOp=RequestStateSnapshot from '%v'", frag.FromPeerName))
 
 			case StateSnapshotEnclosed:
@@ -17695,7 +17695,7 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 		var err error
 		saveThese, err = s.wal.getLogSuffixFrom(replayBeg)
 		if err != nil {
-			vv("%v reject snapshot from '%v': impossible to apply safely: %v", s.me(), state2.PeerName, err)
+			//vv("%v reject snapshot from '%v': impossible to apply safely: %v", s.me(), state2.PeerName, err)
 			return
 		}
 	}
