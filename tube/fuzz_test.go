@@ -50,8 +50,8 @@ func Test101_userFuzz(t *testing.T) {
 	// for batch runs from env var partition.
 	beg := os.Getenv("SCEN0")
 	batchN := os.Getenv("SCEN_BATCH")
-	vv("SCEN0 = '%v' ; SCEN_BATCH = '%v'", beg, batchN)
 	if beg != "" && batchN != "" {
+		vv("SCEN0 = '%v' ; SCEN_BATCH = '%v'", beg, batchN)
 		var err error
 		begScenario, err = strconv.Atoi(beg)
 		panicOn(err)

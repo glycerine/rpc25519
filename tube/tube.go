@@ -7893,13 +7893,16 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	followerLog := s.wal.getTermsRLE()
 	leaderLog := ae.LogTermsRLE
 	extends, largestCommonRaftIndex, needSnapshot = leaderLog.Extends(followerLog)
-	if largestCommonRaftIndexTerm > 0 {
+	if largestCommonRaftIndex > 0 {
 		largestCommonRaftIndexTerm = followerLog.getTermForIndex(largestCommonRaftIndex)
 	}
 
 	stateSaveNeeded := false
 	prevci := s.state.CommitIndex
-	//lli, llt := s.wal.LastLogIndexAndTerm()
+	//prevciTerm := s.state.CommitIndexEntryTerm
+
+	lli, llt := s.wal.LastLogIndexAndTerm()
+	_, _ = lli, llt
 	lli2, llt2 := ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm
 
 	maxPossibleCI := largestCommonRaftIndex         // not lli
@@ -7917,7 +7920,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	if maxPossibleCI > prevci {
 		// make 707 green with the new assert that CommitIndex has
 		// been updated (in the defer at top).
-		//vv("%v in handleAppendEntries: updating s.state.CommitIndex from %v -> %v (as min(ae.LeaderCommitIndex(%v), lli(%v)); and s.state.CommitIndexEntryTerm(%v) -> maxPossibleCIterm(%v)\n details:\n ae.LeaderCommitIndex = %v \n ae.LeaderCommitIndexEntryTerm = %v \n lli = %v; llt = %v \n ae.LeaderName='%v'; cur s.leaderName='%v'", s.me(), s.state.CommitIndex, maxPossibleCI, ae.LeaderCommitIndex, lli, s.state.CommitIndexEntryTerm, maxPossibleCIterm, ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm, lli, llt, ae.LeaderName, s.leaderName)
+		//vv("%v in handleAppendEntries: updating s.state.CommitIndex from %v -> %v (as min(ae.LeaderCommitIndex(%v), lcri(%v)); and s.state.CommitIndexEntryTerm(%v) -> maxPossibleCIterm(%v)\n details:\n ae.LeaderCommitIndex = %v \n ae.LeaderCommitIndexEntryTerm = %v \n lli = %v; llt = %v \n ae.LeaderName='%v'; cur s.leaderName='%v'", s.me(), s.state.CommitIndex, maxPossibleCI, ae.LeaderCommitIndex, largestCommonRaftIndex, s.state.CommitIndexEntryTerm, maxPossibleCIterm, ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm, lli, llt, ae.LeaderName, s.leaderName)
 
 		s.state.CommitIndex = maxPossibleCI
 		s.state.CommitIndexEntryTerm = maxPossibleCIterm
@@ -8392,7 +8395,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 		// in handleAppendEntries here.
 		//err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
-		err := s.wal.overwriteEntries(keepCount, neededEntries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s) // prefer to pass prevci
+		err := s.wal.overwriteEntries(keepCount, neededEntries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s) // prefer to pass prevci. 1/2 overwriteEntries in handleAE.
 		panicOn(err)
 		if true { // TODO restore: s.cfg.isTest {
 			s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
@@ -8455,7 +8458,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 				numAppended = int64(len(entries))
 				// in handleAppendEntries here.
 				//err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
-				err := s.wal.overwriteEntries(keepCount, entries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s) // prefer to pass prevci
+				err := s.wal.overwriteEntries(keepCount, entries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s) // prefer to pass prevci. 2/2 overwriteEntries in handleAE.
 				panicOn(err)
 
 				if true { // TODO restore: s.cfg.isTest {
@@ -8465,6 +8468,9 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			}
 		} // end if extends
 	} // end if !done
+
+	// We are done with both possible overwriteEntries() calls
+	// in handleAE here.
 
 	// disk write can be slow.
 	s.host.resetElectionTimeout("handleAppendEntries, after disk write")
@@ -8489,7 +8495,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	if ae.LeaderCommitIndex > s.state.CommitIndex {
 		// basic Raft says this in [5] above
 		//s.state.CommitIndex = min(ae.LeaderCommitIndex, ae.Entries[numNew-1].Index)
-		// but we've implemented alot of batching and
+		// but this does not let pings advance the commit index.
+		// we've implemented alot of batching and
 		// deduping, and we don't want to be mistaken here
 		// because we avoided truncating a perfectly valid
 		// log tail, so we use our own our log's last index as the bound.
@@ -8498,29 +8505,28 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 		// Same should apply to truncation, right?
 
-		lli, llt := s.wal.LastLogIndexAndTerm()
-
-		if !chatty802 {
-			if s.state.CommitIndex > prevci {
-				//vv("%v handle AE: s.state.CommitIndex advanced from %v -> %v (lli= %v)", s.me(), prevci, s.state.CommitIndex, lli)
-			}
-		}
-
-		newCI := min(ae.LeaderCommitIndex, lli)
-		s.host.choice("Updating commitIndex from %v to %v", prevci, newCI)
-
-		if newCI != s.state.CommitIndex {
-			//vv("%v updating s.state.CommitIndex from %v -> %v", s.name, s.state.CommitIndex, newCI)
-		}
-		// no: s.state.CommitIndex = min(ae.LeaderCommitIndex, lli)
-		// instead, to get the accurate CommitIndexEntryTerm:
 		lli2, llt2 := ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm
-		if lli < lli2 {
-			s.state.CommitIndex = lli
-			s.state.CommitIndexEntryTerm = llt
-		} else {
-			s.state.CommitIndex = lli2
-			s.state.CommitIndexEntryTerm = llt2
+
+		// re computer longest common prefix after changing our follower log.
+		followerLog = s.wal.getTermsRLE()
+		_, largestCommonRaftIndex, _ = leaderLog.Extends(followerLog)
+		if largestCommonRaftIndex > 0 {
+			largestCommonRaftIndexTerm = followerLog.getTermForIndex(largestCommonRaftIndex)
+
+			maxPossibleCI := largestCommonRaftIndex         // not lli
+			maxPossibleCIterm := largestCommonRaftIndexTerm // not llt
+
+			if lli2 < maxPossibleCI {
+				maxPossibleCI = lli2
+				maxPossibleCIterm = llt2
+			}
+
+			if maxPossibleCI > prevci {
+				s.host.choice("Updating commitIndex from %v to %v", prevci, maxPossibleCI)
+				s.state.CommitIndex = maxPossibleCI
+				s.state.CommitIndexEntryTerm = maxPossibleCIterm
+				s.updateMCindex(maxPossibleCI, maxPossibleCIterm)
+			}
 		}
 	}
 	sawUpdate := prevci != s.state.CommitIndex
@@ -15932,7 +15938,7 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderName, leaderURL s
 			r.ctx, r.canc = context.WithCancel(s.Ctx)
 		} else {
 			// why do we see this:
-			// tube.go:15697 [goID 9] 2000-01-01T00:01:23.486000001+00:00 r is nil. err = ahem. no leader known to me (node 'client101_user2_8'). stashForLeader is false.
+			// tube.go:15697 [goID 9] 2000-01-01T00:01:23.486000001+00:00 r is nil. err = ahem. no leader known to me (node 'client101_user2_8').
 			// even though above we got a ckt:
 			// tube.go:15668 [goID 9] 2000-01-01T00:01:23.486000001+00:00 good, cli got ckt to leaderURL='simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv': from 'client101_user2_8'good, cli got ckt to leaderURL='simnet://srv_node_0/tube-replica/kmSYTOFyUDLsOFW5cNPsvxS9uSFv': from 'client101_user2_8'
 			vv("r is nil. err = %v", err)
