@@ -2,6 +2,7 @@ package tube
 
 import (
 	"cmp"
+	"fmt"
 	"iter"
 	"slices"
 )
@@ -77,4 +78,30 @@ func (p byCircuitID) Less(i, j int) bool {
 }
 func (p byCircuitID) Swap(i, j int) {
 	p[i], p[j] = p[j], p[i]
+}
+
+type indexTermSlice []*IndexTerm
+
+func (p indexTermSlice) Len() int { return len(p) }
+func (p indexTermSlice) Less(i, j int) bool {
+	// sort biggest first!
+	if p[i].Term > p[j].Term {
+		return true
+	}
+	if p[i].Term < p[j].Term {
+		return false
+	}
+	return p[i].Index >= p[j].Index
+}
+func (p indexTermSlice) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+func (p indexTermSlice) String() (r string) {
+	r = fmt.Sprintf("indexTermSlice[%v]{\n", len(p))
+	for i, itn := range p {
+		r += fmt.Sprintf("[%02d] %v\n", i, itn)
+	}
+	r += "}\n"
+	return
 }

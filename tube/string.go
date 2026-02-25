@@ -43,3 +43,12 @@ func (z *RaftState) String() (r string) {
 	r += "}\n"
 	return
 }
+
+func (z *IndexTerm) String() (r string) {
+	r = "&IndexTerm{\n"
+	r += fmt.Sprintf("Index: %v,\n", z.Index)
+	r += fmt.Sprintf(" Term: %v,\n", z.Term)
+	r += fmt.Sprintf(" Name: \"%v\",\n", z.Name)
+	r += "}\n"
+	return
+}

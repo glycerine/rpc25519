@@ -2704,20 +2704,21 @@ type RaftNodeInfo struct {
 	// MatchIndex: index of highest log entry known
 	// to be replicated on server. Initialized to 0,
 	// increases monotonically.
-	MatchIndex int64 `zid:"7"`
+	MatchIndex     int64 `zid:"7"`
+	MatchIndexTerm int64 `zid:"8"`
 
 	// track heartbeat/AE history
-	UnackedPing       Ping      `zid:"8"`  // move to LastFullPing when ackAE back
-	LastFullPing      Ping      `zid:"9"`  // a complete round trip, begin
-	LastFullPong      Pong      `zid:"10"` // a complete round trip, end
-	LastHeardAnything time.Time `zid:"11"`
+	UnackedPing       Ping      `zid:"9"`  // move to LastFullPing when ackAE back
+	LastFullPing      Ping      `zid:"10"` // a complete round trip, begin
+	LastFullPong      Pong      `zid:"11"` // a complete round trip, end
+	LastHeardAnything time.Time `zid:"12"`
 
-	LargestCommonRaftIndex int64 `zid:"12"` // becomes MatchIndex for quorum
+	LargestCommonRaftIndex int64 `zid:"13"` // becomes MatchIndex for quorum
 
 	// guard against unique local configuration changes
-	MinElectionTimeoutDur time.Duration `zid:"13"`
+	MinElectionTimeoutDur time.Duration `zid:"14"`
 
-	MC *MemberConfig `zid:"14"`
+	MC *MemberConfig `zid:"15"`
 }
 
 type LogEntrySpan struct {
@@ -3008,8 +3009,9 @@ func (s *TubeNode) updateSessTableByClientName(justOne *SessionTableEntry) {
 }
 
 type IndexTerm struct {
-	Index int64 `zid:"0"`
-	Term  int64 `zid:"1"`
+	Index int64  `zid:"0"`
+	Term  int64  `zid:"1"`
+	Name  string `zid:"2"`
 }
 
 func (s *RaftState) votedStatus() string {
@@ -3733,57 +3735,58 @@ type AppendEntriesAck struct {
 	// this is the longest common prefix of the
 	// leader and this follower's log.
 	// Mind the gap, though. (See rle.go)
-	LargestCommonRaftIndex int64 `zid:"8"`
+	LargestCommonRaftIndex     int64 `zid:"8"`
+	LargestCommonRaftIndexTerm int64 `zid:"9"`
 
 	// if Rejected, details per page 21:
 	// "For example, when rejecting an AppendEntries request,
 	// the follower can include the term of the conflicting
 	// entry and the first index it stores for that term.
-	ConflictTerm         int64 `zid:"9"`
-	ConflictTerm1stIndex int64 `zid:"10"`
+	ConflictTerm         int64 `zid:"10"`
+	ConflictTerm1stIndex int64 `zid:"11"`
 	// With Rejected, we return -1 if our
 	// log is too short; this gives the leader our log length,
 	// and first index.
-	PeerLogCompactIndex int64 `zid:"11"`
-	PeerLogCompactTerm  int64 `zid:"12"`
-	PeerLogFirstIndex   int64 `zid:"13"`
-	PeerLogFirstTerm    int64 `zid:"14"`
-	PeerLogLastIndex    int64 `zid:"15"`
-	PeerLogLastTerm     int64 `zid:"16"`
+	PeerLogCompactIndex int64 `zid:"12"`
+	PeerLogCompactTerm  int64 `zid:"13"`
+	PeerLogFirstIndex   int64 `zid:"14"`
+	PeerLogFirstTerm    int64 `zid:"15"`
+	PeerLogLastIndex    int64 `zid:"16"`
+	PeerLogLastTerm     int64 `zid:"17"`
 
 	// reproduce part of the AppendEntries
 	// request, to re-establish context
 	// since server state might have
 	// changed in the meantime, as we are
 	// not RPC based.
-	SuppliedPrevLogIndex      int64     `zid:"17"`
-	SuppliedPrevLogTerm       int64     `zid:"18"`
-	SuppliedEntriesIndexBeg   int64     `zid:"19"`
-	SuppliedEntriesIndexEnd   int64     `zid:"20"`
-	SuppliedLeaderCommitIndex int64     `zid:"21"`
-	SuppliedLeader            string    `zid:"22"`
-	SuppliedLeaderName        string    `zid:"23"`
-	SuppliedLeaderTermsRLE    *TermsRLE `zid:"24"`
-	SuppliedLeaderLastTerm    int64     `zid:"25"`
-	SuppliedLeaderLLI         int64     `zid:"26"`
-	SuppliedLeaderLLT         int64     `zid:"27"`
+	SuppliedPrevLogIndex      int64     `zid:"18"`
+	SuppliedPrevLogTerm       int64     `zid:"19"`
+	SuppliedEntriesIndexBeg   int64     `zid:"20"`
+	SuppliedEntriesIndexEnd   int64     `zid:"21"`
+	SuppliedLeaderCommitIndex int64     `zid:"22"`
+	SuppliedLeader            string    `zid:"23"`
+	SuppliedLeaderName        string    `zid:"24"`
+	SuppliedLeaderTermsRLE    *TermsRLE `zid:"25"`
+	SuppliedLeaderLastTerm    int64     `zid:"26"`
+	SuppliedLeaderLLI         int64     `zid:"27"`
+	SuppliedLeaderLLT         int64     `zid:"28"`
 
-	PeerLogTermsRLE *TermsRLE `zid:"28"`
-	RejectReason    string    `zid:"29"`
-	AEID            string    `zid:"30"`
+	PeerLogTermsRLE *TermsRLE `zid:"29"`
+	RejectReason    string    `zid:"30"`
+	AEID            string    `zid:"31"`
 
-	MinElectionTimeoutDur time.Duration `zid:"31"`
-	SpanMatching          *LogEntrySpan `zid:"32"`
+	MinElectionTimeoutDur time.Duration `zid:"32"`
+	SpanMatching          *LogEntrySpan `zid:"33"`
 
-	PeerMC *MemberConfig `zid:"33"`
+	PeerMC *MemberConfig `zid:"34"`
 
-	PeerCompactionDiscardedLastIndex   int64 `zid:"34"`
-	PeerCompactionDiscardedLastTerm    int64 `zid:"35"`
-	NeedSnapshotGap                    bool  `zid:"36"`
-	SuppliedLeaderCommitIndexEntryTerm int64 `zid:"37"`
-	SuppliedCompactIndex               int64 `zid:"38"`
-	SuppliedCompactTerm                int64 `zid:"39"`
-	FollowerHLC                        HLC   `zid:"40"`
+	PeerCompactionDiscardedLastIndex   int64 `zid:"35"`
+	PeerCompactionDiscardedLastTerm    int64 `zid:"36"`
+	NeedSnapshotGap                    bool  `zid:"37"`
+	SuppliedLeaderCommitIndexEntryTerm int64 `zid:"38"`
+	SuppliedCompactIndex               int64 `zid:"39"`
+	SuppliedCompactTerm                int64 `zid:"40"`
+	FollowerHLC                        HLC   `zid:"41"`
 }
 
 func (ack *AppendEntriesAck) clone() (p *AppendEntriesAck) {
@@ -7901,8 +7904,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	prevci := s.state.CommitIndex
 	//prevciTerm := s.state.CommitIndexEntryTerm
 
-	lli, llt := s.wal.LastLogIndexAndTerm()
-	_, _ = lli, llt
+	//lli, llt := s.wal.LastLogIndexAndTerm()
+	//_, _ = lli, llt
 	lli2, llt2 := ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm
 
 	maxPossibleCI := largestCommonRaftIndex         // not lli
@@ -7918,6 +7921,9 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		maxPossibleCIterm = llt2
 	}
 	if maxPossibleCI > prevci {
+		//if maxPossibleCI >= 86 {
+		//vv("%v place 1: Updating commitIndex from %v to maxPossibleCI=%v; largestCommonRaftIndex=%v; largestCommonRaftIndexTerm=%v; maxPossibleCIterm = %v", s.name, prevci, maxPossibleCI, largestCommonRaftIndex, largestCommonRaftIndexTerm, maxPossibleCIterm)
+		//}
 		// make 707 green with the new assert that CommitIndex has
 		// been updated (in the defer at top).
 		//vv("%v in handleAppendEntries: updating s.state.CommitIndex from %v -> %v (as min(ae.LeaderCommitIndex(%v), lcri(%v)); and s.state.CommitIndexEntryTerm(%v) -> maxPossibleCIterm(%v)\n details:\n ae.LeaderCommitIndex = %v \n ae.LeaderCommitIndexEntryTerm = %v \n lli = %v; llt = %v \n ae.LeaderName='%v'; cur s.leaderName='%v'", s.me(), s.state.CommitIndex, maxPossibleCI, ae.LeaderCommitIndex, largestCommonRaftIndex, s.state.CommitIndexEntryTerm, maxPossibleCIterm, ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm, lli, llt, ae.LeaderName, s.leaderName)
@@ -8017,7 +8023,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		// -1 means unknown, by the convention I just invented.
 		// I added this optimization (LargestCommonRaftIndex)
 		// for Tube, so this should serve to establish expectations.
-		LargestCommonRaftIndex: largestCommonRaftIndex,
+		LargestCommonRaftIndex:     largestCommonRaftIndex,
+		LargestCommonRaftIndexTerm: largestCommonRaftIndexTerm,
 
 		PeerLogTermsRLE:     followerLog,
 		PeerLogCompactIndex: s.wal.logIndex.BaseC,
@@ -8052,6 +8059,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		ack.PeerCompactionDiscardedLastIndex = compactedTo
 		ack.PeerCompactionDiscardedLastTerm = s.state.CompactionDiscardedLast.Term
 		ack.LargestCommonRaftIndex = compactedTo // rather than -1
+		ack.LargestCommonRaftIndexTerm = ack.PeerCompactionDiscardedLastTerm
+
 	}
 
 	// figure 3.1 summary
@@ -8164,6 +8173,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	upToDate := largestCommonRaftIndex == leaderLog.Endi
 	// set this immediately, so any rejection still conveys this essential info.
 	ack.LargestCommonRaftIndex = largestCommonRaftIndex
+	ack.LargestCommonRaftIndexTerm = largestCommonRaftIndexTerm
 
 	if upToDate {
 		s.host.choice("Logs are up to date")
@@ -8386,7 +8396,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			// if keepCount < s.state.CommitIndex {
 			// now:
 			if keepCount < prevci {
-				vv("%v about to panic on log violation, here is our WAL for reference", s.me())
+				vv("%v about to panic on log violation, keepCount(%v) < prevci(%v) here is our WAL for reference", s.me(), keepCount, prevci)
 				s.DumpRaftWAL(nil)
 				vv("%v and now here is the log violation panic:", s.name)
 				panic(fmt.Sprintf("%v log violation: keepCount(%v) < prevci(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, prevci)) // log violation: keepCount(23) < prevci(24): overwriteEntries would kill a committed entry; scenario 10957. log violation: keepCount(14) < prevci(17); scenario 37 with 40 steps.
@@ -8513,6 +8523,9 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		if largestCommonRaftIndex > 0 {
 			largestCommonRaftIndexTerm = followerLog.getTermForIndex(largestCommonRaftIndex)
 
+			ack.LargestCommonRaftIndex = largestCommonRaftIndex
+			ack.LargestCommonRaftIndexTerm = largestCommonRaftIndexTerm
+
 			maxPossibleCI := largestCommonRaftIndex         // not lli
 			maxPossibleCIterm := largestCommonRaftIndexTerm // not llt
 
@@ -8522,7 +8535,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			}
 
 			if maxPossibleCI > prevci {
-				s.host.choice("Updating commitIndex from %v to %v", prevci, maxPossibleCI)
+				//s.host.choice("Updating commitIndex from %v to %v", prevci, maxPossibleCI)
+				//vv("%v place 2: Updating commitIndex from %v to %v", s.name, prevci, maxPossibleCI) // not seen on red scenario 347202
 				s.state.CommitIndex = maxPossibleCI
 				s.state.CommitIndexEntryTerm = maxPossibleCIterm
 				s.updateMCindex(maxPossibleCI, maxPossibleCIterm)
@@ -9908,6 +9922,7 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 			// and if it changed release some waiters, too.
 			if ack.LargestCommonRaftIndex > foll.MatchIndex {
 				foll.MatchIndex = ack.LargestCommonRaftIndex
+				foll.MatchIndexTerm = ack.LargestCommonRaftIndexTerm
 				s.leaderAdvanceCommitIndex()
 			}
 
@@ -9994,7 +10009,13 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 
 		check := s.advanceCheckForced()
 		if ack.PeerLogLastIndex > foll.MatchIndex {
-			foll.MatchIndex = ack.PeerLogLastIndex
+			// I think this was a long lurking bug!
+			// Even if we accepted, does not mean we agree
+			// everywhere, right?
+			// nope: foll.MatchIndex = ack.PeerLogLastIndex
+			// yes:
+			foll.MatchIndex = ack.LargestCommonRaftIndex
+			foll.MatchIndexTerm = ack.LargestCommonRaftIndexTerm
 			check = true
 		}
 		if check {
@@ -10128,12 +10149,14 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 	// that a quorum of acceptors have accepted).
 
 	// Find the smallest match index that is replicated to a majority
-	var matchIndexes []int64
+	var matchIndexes indexTermSlice // []*IndexTerm
 	// add our own, since we are not in peers, to support
 	// singleton or pair operation.
-	matchIndexes = append(matchIndexes, s.lastLogIndex())
+	lli, llt := s.wal.LastLogIndexAndTerm()
+	matchIndexes = append(matchIndexes, &IndexTerm{Index: lli, Term: llt, Name: s.name})
 
 	//vv("%v len of s.peers = %v (%v)", s.me(), len(s.peers), peerNamesAsString(s.peers))
+	termAgreeCount := 1 // one for ourselves.
 	for peerID, info := range s.peers {
 		_ = peerID
 
@@ -10148,8 +10171,17 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 		}
 
 		mi := info.MatchIndex
-		matchIndexes = append(matchIndexes, mi)
-		//vv("%v peer '%v' has MatchIndex = '%v'", s.me(), info.PeerName, mi)
+		mt := info.MatchIndexTerm
+		if mt > s.state.CurrentTerm {
+			panicf("%v we are leader; should never happen that mt(%v) > CurrentTerm(%v); info = %v", s.me(), mt, s.state.CurrentTerm, info)
+		}
+		if mt == s.state.CurrentTerm {
+			termAgreeCount++
+		}
+
+		itn := &IndexTerm{Index: mi, Term: mt, Name: info.PeerName}
+		matchIndexes = append(matchIndexes, itn)
+		vv("%v adding to matchIndexes itn = '%v'", s.name, itn)
 	}
 
 	//i := s.quorum() - 1 // 0-indexed slices need -1
@@ -10160,19 +10192,26 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 		alwaysPrintf("%v warning! We are still in the nofault period(%v) (for another %v), so requiring all %v nodes (not just %v) to ack their wal writes in order for leader to commit.", s.name, s.cfg.NoFaultTolDur, s.t0.Add(s.cfg.NoFaultTolDur).Sub(time.Now()), quor, s.quorumIgnoreNoFaultTolDur())
 	}
 
-	//vv("%v s.quorum() - 1 = i=%v; len(matchIndexes)=%v (%#v)", s.me(), i, len(matchIndexes), matchIndexes)
+	vv("%v s.quorum() - 1 = i=%v; matchIndexes= %v", s.me(), i, matchIndexes)
 	if i >= len(matchIndexes) {
 		//vv("%v not enough for quorum(%v)... would be out of bounds. i(%v) >= len(matchIndex)=%v", s.me(), i+1, i, len(matchIndexes))
 		return
 	}
 
 	// sort biggest first.
-	sort.Slice(matchIndexes, func(i, j int) bool {
-		return matchIndexes[i] > matchIndexes[j]
-	})
+	sort.Sort(matchIndexes)
+	// back when we left out the term:
+	//sort.Slice(matchIndexes, func(i, j int) bool {
+	//	return matchIndexes[i] > matchIndexes[j]
+	//})
 
 	//vv("%v quorumMinSlice = i = %v and sorted big-first matchIndexes='%#v'; setting newCommitIndex = matchIndexes[%v]='%v'", s.me(), i, matchIndexes, i, matchIndexes[i])
-	newCommitIndex := matchIndexes[i]
+	newCommitIndex := matchIndexes[i].Index
+	newCommitIndexTerm := matchIndexes[i].Term
+
+	if newCommitIndexTerm != s.state.CurrentTerm {
+		return
+	}
 
 	// especially with NoFaultTolDur, we
 	// might get a newCommitIndex of 0 if
@@ -10220,6 +10259,8 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 	// Thus it is now safe to advance the CommitIndex.
 	// This should be the only place and time the leader
 	// updates its CommitIndex.
+
+	vv("%v %v place 3 leaderAdvanceCommitIndex going from s.state.CommitIndex(%v) -> newCommitIndex(%v)", s.me(), s.name, s.state.CommitIndex, newCommitIndex)
 
 	s.state.CommitIndex = newCommitIndex // RaftConsensus.cc:2195
 	s.state.CommitIndexEntryTerm = entry.Term
@@ -17556,6 +17597,8 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	}
 
 	s.state.CurrentTerm = state2.CurrentTerm
+
+	//vv("%v place 4 applyNewStateSnapshot going from s.state.CommitIndex(%v) -> state2.CommitIndex(%v)", s.me(), s.state.CommitIndex, state2.CommitIndex)
 
 	s.state.CommitIndex = state2.CommitIndex
 	s.state.CommitIndexEntryTerm = state2.CommitIndexEntryTerm
