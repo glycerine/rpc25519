@@ -17554,13 +17554,18 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string, sendAck 
 	// state and wal to the new versions at once and before we blow
 	// away the old version. See the unfinished draft
 	// makeDurableReceivedSnapshot above for the issues
-	// it presents.
+	// it presents. It is almost better to bring up
+	// a whole new TubeNode with the state, and if it
+	// comes up fine, then change it into the membership
+	// and have the old TubeNode retire from the membership.
+	// Otherwise we could be offline for a very long
+	// time trying to get the state replayed?
 
 	// TODO: question: then, with the AE append now too,
 	// can we relax the CommitIndex not rolled back check
 	// below where we discard the snapshot and AE if
 	// the new commitIndex is lower? we don't want to
-	// wedge recover, but we also don't want to overwrite
+	// wedge recovery, but we also don't want to overwrite
 	// committed before we can get a new state machine
 	// with all the proper log entries applied in place.
 

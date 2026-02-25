@@ -45,7 +45,7 @@ func Test101_userFuzz(t *testing.T) {
 	}()
 
 	begScenario := 0
-	endxScenario := 200
+	endxScenario := 1
 
 	// for batch runs from env var partition.
 	beg := os.Getenv("SCEN0")
@@ -125,7 +125,7 @@ func Test101_userFuzz(t *testing.T) {
 
 				forceLeader := 0
 				cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
-				cfg.NoLogCompaction = true
+				//cfg.NoLogCompaction = true
 				// using sim.SimpleNewScenario(intSeed) will
 				// be too late, since alot of setup (the raft cluster) with the
 				// default seed will have already been done, making
@@ -219,6 +219,9 @@ func Test101_userFuzz(t *testing.T) {
 
 				if nemesis.calls == 0 {
 					panic("nemesis was never called!")
+				}
+				if nemesis.calls < 10 {
+					panicf("nemesis was called less than 10 times: %v", nemesis.calls)
 				}
 				//vv("makeTrouble calls total = %v", nemesis.calls)
 
