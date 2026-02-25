@@ -7899,6 +7899,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	if largestCommonRaftIndex > 0 {
 		largestCommonRaftIndexTerm = followerLog.getTermForIndex(largestCommonRaftIndex)
 	}
+	vv("%v largestCommonRaftIndexTerm=%v for largestCommonRaftIndex=%v", s.name, largestCommonRaftIndexTerm, largestCommonRaftIndex)
 
 	stateSaveNeeded := false
 	prevci := s.state.CommitIndex
@@ -8060,7 +8061,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		ack.PeerCompactionDiscardedLastTerm = s.state.CompactionDiscardedLast.Term
 		ack.LargestCommonRaftIndex = compactedTo // rather than -1
 		ack.LargestCommonRaftIndexTerm = ack.PeerCompactionDiscardedLastTerm
-
+		vv("%v changed ack.LargestCommonRaftIndexTerm to %v", s.name, ack.LargestCommonRaftIndexTerm)
 	}
 
 	// figure 3.1 summary
@@ -8174,6 +8175,9 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	// set this immediately, so any rejection still conveys this essential info.
 	ack.LargestCommonRaftIndex = largestCommonRaftIndex
 	ack.LargestCommonRaftIndexTerm = largestCommonRaftIndexTerm
+
+	vv("%v changed ack.LargestCommonRaftIndex to %v", s.name, ack.LargestCommonRaftIndex)
+	vv("%v changed ack.LargestCommonRaftIndexTerm to %v", s.name, ack.LargestCommonRaftIndexTerm)
 
 	if upToDate {
 		s.host.choice("Logs are up to date")
@@ -8397,11 +8401,12 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			// now:
 			if keepCount < prevci {
 				vv("%v about to panic on log violation, keepCount(%v) < prevci(%v) here are all the WAL for reference", s.me(), keepCount, prevci)
-				vv("%v DumpRaftWAL (violator):", s.name)
-				s.DumpRaftWAL(nil)
-				vv("%v and the state (of the AE violating) = %v", s.me(), s.state)
 
 				if s.isRegularTest() && s.cfg.testCluster != nil {
+
+					vv("%v DumpRaftWAL (violator):", s.name)
+					s.DumpRaftWAL(nil)
+					vv("%v and the state (of the AE violating) = %v", s.me(), s.state)
 					for _, node := range s.cfg.testCluster.Nodes {
 						if node.name == s.name {
 							continue // already printed above.
@@ -8410,8 +8415,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 						node.DumpRaftWAL(nil)
 						vv("%v and the state = %v", node.me(), node.state)
 					}
-				}
 
+				}
 				vv("%v and now here is the log violation panic:", s.name)
 				panic(fmt.Sprintf("%v log violation: keepCount(%v) < prevci(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, prevci)) // log violation: keepCount(23) < prevci(24): overwriteEntries would kill a committed entry; scenario 10957. log violation: keepCount(14) < prevci(17); scenario 37 with 40 steps.
 			}
@@ -8540,6 +8545,9 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			ack.LargestCommonRaftIndex = largestCommonRaftIndex
 			ack.LargestCommonRaftIndexTerm = largestCommonRaftIndexTerm
 
+			vv("%v changed ack.LargestCommonRaftIndex to %v", s.name, ack.LargestCommonRaftIndex)
+			vv("%v changed ack.LargestCommonRaftIndexTerm to %v", s.name, ack.LargestCommonRaftIndexTerm)
+
 			maxPossibleCI := largestCommonRaftIndex         // not lli
 			maxPossibleCIterm := largestCommonRaftIndexTerm // not llt
 
@@ -8610,11 +8618,13 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		localLastTerm == leaderLog.lastTerm()
 	if ack.LogsMatchExactly {
 		ack.LargestCommonRaftIndex = localLastIndex
+		ack.LargestCommonRaftIndexTerm = localLastTerm
 	} else {
 		_, ack.LargestCommonRaftIndex, ack.NeedSnapshotGap = leaderLog.Extends(ack.PeerLogTermsRLE)
 		if ack.LargestCommonRaftIndex == 0 {
 			// account for compactions that already happened.
 			ack.LargestCommonRaftIndex = s.state.CompactionDiscardedLast.Index
+			ack.LargestCommonRaftIndexTerm = s.state.CompactionDiscardedLast.Term
 		}
 	}
 
@@ -9532,6 +9542,7 @@ func (s *TubeNode) newRaftNodeInfo(peerID, peerName, peerServiceName, peerServic
 		PeerServiceNameVersion: peerServiceNameVersion,
 		PeerID:                 peerID,
 		MatchIndex:             0,
+		MatchIndexTerm:         0,
 	}
 	return
 }
@@ -9770,7 +9781,7 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 	s.hlc.ReceiveMessageWithHLC(ack.FollowerHLC)
 
 	//if ack.PeerLogLastIndex >= 4 {
-	//vv("%v \n-------->>>    handle AppendEntriesAck() from %v  <<<--------\n ack = %v", s.me(), ack.FromPeerName, ack)
+	vv("%v \n-------->>>    handle AppendEntriesAck() from %v  <<<--------\n ack = %v", s.me(), ack.FromPeerName, ack)
 	//}
 
 	if s.isRegularTest() {
@@ -10022,12 +10033,9 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 		// the expiration of NoFaultTolDur.
 
 		check := s.advanceCheckForced()
-		if ack.PeerLogLastIndex > foll.MatchIndex {
-			// I think this was a long lurking bug!
-			// Even if we accepted, does not mean we agree
-			// everywhere, right?
-			// nope: foll.MatchIndex = ack.PeerLogLastIndex
-			// yes:
+		// was: if ack.PeerLogLastIndex > foll.MatchIndex {
+		// was:     foll.MatchIndex = ack.PeerLogLastIndex
+		if ack.LargestCommonRaftIndex > foll.MatchIndex {
 			foll.MatchIndex = ack.LargestCommonRaftIndex
 			foll.MatchIndexTerm = ack.LargestCommonRaftIndexTerm
 			check = true
@@ -10955,6 +10963,7 @@ func (a *AppendEntriesAck) String() string {
          LogsMatchExactly: %v, 
                  --- conflict identified ---
       LargestCommonRaftIndex: %v, (longest common prefix)
+  LargestCommonRaftIndexTerm: %v,
              ConflictTerm: %v,
      ConflictTerm1stIndex: %v,
           NeedSnapshotGap: %v,
@@ -10979,7 +10988,10 @@ PeerCompactionDiscardedLastIndex: %v,
 SuppliedLeaderCommitIndex: %v,
 SuppliedLeaderCommitIndexEntryTerm: %v,
 }
-`, rpc.AliasDecode(a.ClusterID), a.FromPeerID, a.FromPeerName, a.FromPeerServiceName, rpc.AliasDecode(a.SuppliedLeader), a.SuppliedLeaderName, a.Term, a.Rejected, a.RejectReason, a.LogsMatchExactly, a.LargestCommonRaftIndex, a.ConflictTerm, a.ConflictTerm1stIndex, a.NeedSnapshotGap, a.PeerLogCompactIndex, a.PeerLogCompactTerm, a.PeerLogFirstIndex, a.PeerLogFirstTerm, a.PeerLogLastIndex, a.PeerLogLastTerm, a.PeerCompactionDiscardedLastIndex, a.PeerCompactionDiscardedLastTerm, a.PeerLogTermsRLE, a.SuppliedLeaderTermsRLE, a.SuppliedCompactIndex, a.SuppliedCompactTerm, a.SuppliedPrevLogIndex, a.SuppliedPrevLogTerm, a.SuppliedEntriesIndexBeg, a.SuppliedEntriesIndexEnd, a.SuppliedLeaderCommitIndex, a.SuppliedLeaderCommitIndexEntryTerm)
+`, rpc.AliasDecode(a.ClusterID), a.FromPeerID, a.FromPeerName, a.FromPeerServiceName, rpc.AliasDecode(a.SuppliedLeader), a.SuppliedLeaderName, a.Term, a.Rejected, a.RejectReason, a.LogsMatchExactly,
+		a.LargestCommonRaftIndex,
+		a.LargestCommonRaftIndexTerm,
+		a.ConflictTerm, a.ConflictTerm1stIndex, a.NeedSnapshotGap, a.PeerLogCompactIndex, a.PeerLogCompactTerm, a.PeerLogFirstIndex, a.PeerLogFirstTerm, a.PeerLogLastIndex, a.PeerLogLastTerm, a.PeerCompactionDiscardedLastIndex, a.PeerCompactionDiscardedLastTerm, a.PeerLogTermsRLE, a.SuppliedLeaderTermsRLE, a.SuppliedCompactIndex, a.SuppliedCompactTerm, a.SuppliedPrevLogIndex, a.SuppliedPrevLogTerm, a.SuppliedEntriesIndexBeg, a.SuppliedEntriesIndexEnd, a.SuppliedLeaderCommitIndex, a.SuppliedLeaderCommitIndexEntryTerm)
 }
 
 func (a *RaftLogEntry) Equal(b *RaftLogEntry) bool {
@@ -12364,7 +12376,7 @@ func (s *TubeNode) choice(format string, a ...interface{}) {
 		a = append([]any{fileLine(2)}, a...)
 		last := fmt.Sprintf("AE CHOICE(%v): "+format, a...)
 		s.testAEchoices = append(s.testAEchoices, last)
-		vv("%v: %v", s.name, last)
+		//vv("%v: %v", s.name, last)
 	}
 	// allow compiler to get rid of these calls if possible.
 	//if s != nil && false { // s.choiceLoud {

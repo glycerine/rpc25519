@@ -291,8 +291,19 @@ func (c *TubeCluster) waitForLeaderNoop(t0 time.Time) {
 	case <-time.After(allowedNoop):
 		elap := time.Since(t0)
 		vv("bad: NO leader no-op was committed after %v", elap)
+		c.diagnosticDumpAllNodes()
 		panic("leader did not commit first noop0")
 	}
+}
+
+func (c *TubeCluster) diagnosticDumpAllNodes() {
+	alwaysPrintf("==== begin diagnosticDumpAllNodes caller")
+	for _, node := range c.Nodes {
+		alwaysPrintf("%v DumpRaftWAL:", node.name)
+		node.DumpRaftWAL(nil)
+		alwaysPrintf("%v and the state = %v", node.me(), node.state)
+	}
+	alwaysPrintf("==== end diagnosticDumpAllNodes caller")
 }
 
 // IF the minority had the leader, then verify
