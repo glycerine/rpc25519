@@ -7787,7 +7787,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 	chatty802 := false
 	s.testAEchoices = nil
-	if false {
+	if true { // false {
 		lli := s.wal.LastLogIndex()
 		alwaysPrintf("%v: diagnostic handleAppendEntries top; from '%v'; starting lli=%v; this ae='%v'", s.me(), ae.FromPeerName, lli, ae)
 
@@ -8396,8 +8396,22 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 			// if keepCount < s.state.CommitIndex {
 			// now:
 			if keepCount < prevci {
-				vv("%v about to panic on log violation, keepCount(%v) < prevci(%v) here is our WAL for reference", s.me(), keepCount, prevci)
+				vv("%v about to panic on log violation, keepCount(%v) < prevci(%v) here are all the WAL for reference", s.me(), keepCount, prevci)
+				vv("%v DumpRaftWAL (violator):", s.name)
 				s.DumpRaftWAL(nil)
+				vv("%v and the state (of the AE violating) = %v", s.me(), s.state)
+
+				if s.isRegularTest() && s.cfg.testCluster != nil {
+					for _, node := range s.cfg.testCluster.Nodes {
+						if node.name == s.name {
+							continue // already printed above.
+						}
+						vv("%v DumpRaftWAL:", node.name)
+						node.DumpRaftWAL(nil)
+						vv("%v and the state = %v", node.me(), node.state)
+					}
+				}
+
 				vv("%v and now here is the log violation panic:", s.name)
 				panic(fmt.Sprintf("%v log violation: keepCount(%v) < prevci(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, prevci)) // log violation: keepCount(23) < prevci(24): overwriteEntries would kill a committed entry; scenario 10957. log violation: keepCount(14) < prevci(17); scenario 37 with 40 steps.
 			}
@@ -10186,6 +10200,11 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 
 	//i := s.quorum() - 1 // 0-indexed slices need -1
 	quor, nofault := s.quorumAndIsNoFaultTolDur()
+	if termAgreeCount < quor {
+		vv("%v we can bail early because termAgreeCount(%v) < quor(%v)  (in nofault period = %v)", s.name, termAgreeCount, quor, nofault)
+		return
+	}
+
 	i := quor - 1 // 0-indexed slices need -1
 
 	if nofault {
@@ -12345,7 +12364,7 @@ func (s *TubeNode) choice(format string, a ...interface{}) {
 		a = append([]any{fileLine(2)}, a...)
 		last := fmt.Sprintf("AE CHOICE(%v): "+format, a...)
 		s.testAEchoices = append(s.testAEchoices, last)
-		//vv("%v: %v", s.name, last)
+		vv("%v: %v", s.name, last)
 	}
 	// allow compiler to get rid of these calls if possible.
 	//if s != nil && false { // s.choiceLoud {
