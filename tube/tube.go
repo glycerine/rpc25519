@@ -17517,10 +17517,24 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string) {
 	//vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; state2.KVstore='%v'\n(state2.LastApplied='%v' state2.LastAppliedTerm='%v')\n( state.LastApplied='%v'  state.LastAppliedTerm='%v')", s.me(), caller, s.state.CommitIndex, state2.CommitIndex, state2.KVstore.String(), state2.LastApplied, state2.LastAppliedTerm, s.state.LastApplied, s.state.LastAppliedTerm)
 
 	// TODO: write snapshot to disk first (or not if memwal)
-	// so that we can transactionally change over both
-	// state and wal to the new versions.
+	// and apply the AE to it before we blast the old log/state;
+	// so that we can atomically change over both
+	// state and wal to the new versions at once and before we blow
+	// away the old version.
+
+	// TODO: question: then, with the AE append now too,
+	// can we relax the CommitIndex not rolled back check
+	// below where we discard the snapshot and AE if
+	// the new commitIndex is lower? we don't want to
+	// wedge recover, but we also don't want to overwrite
+	// committed before we can get a new state machine
+	// with all the proper log entries applied in place.
 
 	state2 := snap.State
+
+	// to report before vs after
+	lli0, llt0 := s.wal.LastLogIndexAndTerm()
+	_, _ = lli0, llt0
 
 	if false {
 		if state2.KVstore != nil {
@@ -17628,6 +17642,9 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string) {
 	//}
 	s.state.CompactionDiscardedLast = state2.CompactionDiscardedLast
 
+	snapshotIncludedIndex := state2.CompactionDiscardedLast.Index
+	_ = snapshotIncludedIndex
+
 	// then we must force the wal to match the new snapshot: this
 	// is what s.wal.installedSnapshot() does below.
 
@@ -17649,6 +17666,9 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string) {
 
 	if snap.AE != nil {
 		s.handleAppendEntries(snap.AE, nil)
+		lli2, llt2 := s.wal.LastLogIndexAndTerm()
+		_, _ = lli2, llt2
+		//vv("%v applyNewStateSnapshot() has applied the snap.AE too; before [lli:%v llt:%v] -> [snapshotIncludedIndex = %v] -> now [lli:%v llt:%v]", s.me(), lli0, llt0, snapshotIncludedIndex, lli2, llt2)
 	}
 
 	//vv("%v end of applyNewStateSnapshot from '%v'", s.me(), state2.PeerName)
