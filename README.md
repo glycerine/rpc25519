@@ -1,6 +1,15 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* 2026 Feb 26: rpc25519 v1.44.0: rpc and tube have been hardened
+by additional network "kinda-determinstic simulation
+testing" (kDST). The "kinda" is because the standard
+Go runtime heartily resists reproducible and deterministic
+executions, but we do the best we can anyway. In 
+addition to tube/fuzz_test.go, the new
+tube/fuzz102_test.go runs for more steps with more
+users and a larger Raft cluster.
+
 * (2026 Feb 24 addendum) For the recently released
 Go v1.26 version, a note: since the GOEXPERIMENT=synctest 
 automatic build tag (goexperiment.synctest) has 
