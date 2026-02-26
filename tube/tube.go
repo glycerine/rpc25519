@@ -17615,9 +17615,14 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string, sendAck 
 	// log entries until their Commit index is more up to date,
 	// then send a better snapshot.
 
-	if state2.CommitIndex < s.state.CommitIndex {
-		alwaysPrintf("%v we avoid rolling back CommitIndex with state snapshots! state2.CommitIndex(%v) < s.state.CommitIndex(%v)... try again later.", s.name, state2.CommitIndex, s.state.CommitIndex)
-		return
+	// lots of fuzz testing says "if true" is okay here; but
+	// now try relazing the CommitIndex ducking of snapshots
+	// with "if false" here...
+	if false {
+		if state2.CommitIndex < s.state.CommitIndex {
+			alwaysPrintf("%v we avoid rolling back CommitIndex with state snapshots! state2.CommitIndex(%v) < s.state.CommitIndex(%v)... try again later.", s.name, state2.CommitIndex, s.state.CommitIndex)
+			return
+		}
 	}
 
 	// should this actually be on? it pass full fuzz_test 101,
