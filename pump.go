@@ -445,5 +445,6 @@ func closeCktInBackgroundToAvoidDeadlock(queueSendCh chan *Message, msg *Message
 	select {
 	case queueSendCh <- msg:
 	case <-halt.ReqStop.Chan:
+	case <-time.After(5 * time.Second):
 	}
 }

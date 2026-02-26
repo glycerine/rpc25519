@@ -1246,7 +1246,7 @@ type Config struct {
 	LimitedServiceNames []string
 	LimitedServiceMax   []int
 
-	ListenerLimit int // default 300
+	ListenerLimit int // default 3000
 
 	// RateLimitEveryDur implements rate limiting (if not zero).
 	// If not zero, then RateLimitEveryDur is passed to
@@ -1386,11 +1386,12 @@ func NewConfig() *Config {
 		shared:           &sharedTransport{},
 		simnetRendezvous: &simnetRendezvous{},
 
-		ListenerLimit: 300,
+		ListenerLimit: 30000, // 30K => limit not really in force.
 
+		// 0 => not rate limited.
 		// 10ms => allows 100 messages/second.
 		// 100ms => allows 10 messages/second. (but tube/052_partition test red)
-		RateLimitEveryDur: 10 * time.Millisecond,
+		RateLimitEveryDur: 0, // 1 * time.Millisecond,
 
 		// usually want this on so auto-clients work.
 		ServerAutoCreateClientsToDialOtherServers: true,
