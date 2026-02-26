@@ -9695,7 +9695,7 @@ func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerService
 			}
 		}
 		if prevLogIndex > 0 && prevLogTerm == 0 {
-			panic(fmt.Sprintf("assert failed: cannot send prevLogTerm == 0 !?! s.wal.logIndex=%v", s.wal.logIndex))
+			panic(fmt.Sprintf("%v assert failed: cannot send prevLogTerm == 0 for (prevLog=%v) prevLogIndex=%v; !?! s.state.CompactionDiscardedLast='%v';  s.wal.logIndex=%v", s.me(), prevLog.String(), prevLogIndex, s.state.CompactionDiscardedLast, s.wal.logIndex))
 		}
 	}
 

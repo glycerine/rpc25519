@@ -34,7 +34,7 @@ func Test102_longer_userFuzz(t *testing.T) {
 	fmt.Println("Go version:", runtime.Version())
 
 	defer func() {
-		vv("test 101 wrapping up.")
+		vv("test 102 wrapping up.")
 	}()
 
 	begScenario := 0
@@ -130,7 +130,7 @@ func Test102_longer_userFuzz(t *testing.T) {
 				// the creation of the simnet.
 				cfg.InitialSimnetScenario = int64seed
 
-				c, leaderName, leadi, _ := setupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 101)
+				c, leaderName, leadi, _ := setupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 102)
 
 				curClus = c
 
@@ -187,7 +187,7 @@ func Test102_longer_userFuzz(t *testing.T) {
 					// try to never create a whole new TubeNode;
 					// should just be able to restart its sessions and connections!
 					// otherwise the names in the simnet dns explode/overlap.
-					cliName := fmt.Sprintf("client101_%v", user.name)
+					cliName := fmt.Sprintf("client102_%v", user.name)
 					cliCfg := *c.Cfg
 					cliCfg.MyName = cliName
 					cliCfg.PeerServiceName = TUBE_CLIENT

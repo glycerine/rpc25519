@@ -12,9 +12,11 @@ users and a larger Raft cluster.
 
 Except for a few utility functions for the viewing of
 x509 certificates in the selfcert/ sub-directory,
-all of the code herein was written by a human (me; JEA).
+and the regression tests in tube/rle2_test.go for a bug
+that DST found originally, all of the code herein was 
+written by a human (me; JEA).
 All of it has been heavily tested.
-The only reason I put an LLM guidance file in
+The reason I put an LLM guidance file in
 tube/CLAUDE.md was to make it easier for you, a user,
 to leverage LLMs if you want to use, understand 
 or extend the functionality of these packages.

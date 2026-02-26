@@ -17,8 +17,8 @@ var _ = atomic.AddInt64
 // 	Runs  []*TermRLE `zid:"2"`
 //
 // track snapshot/compaction:
-//  CompactIndex int64 `zid:"3"` // replaced with BaseC
-//  CompactTerm  int64 `zid:"4"`
+//  // replaced with BaseC: CompactIndex int64
+//  CompactTerm  int64 `zid:"3"`
 // }
 
 // type TermRLE struct {
@@ -140,7 +140,9 @@ func (s *TermsRLE) Truncate(keepIndex int64, syncme *IndexTerm) {
 		// clear out everything
 		s.Runs = s.Runs[:0]
 		s.BaseC = keepIndex
-		s.CompactTerm = 0
+		if keepIndex < base {
+			s.CompactTerm = 0
+		} // else retain CompactTerm, we need it!
 
 		if syncme != nil {
 			syncme.Index = s.BaseC
