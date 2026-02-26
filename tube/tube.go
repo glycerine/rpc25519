@@ -17610,14 +17610,13 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string, sendAck 
 	//               LastLogIndex: 41573 from term 5  (when node_1 was leader)
 	//
 
-	// better alternative to assert, just skip
-	// applying the snapshot: leader should apply more
-	// log entries until their Commit index is more up to date,
-	// then send a better snapshot.
-
-	// lots of fuzz testing says "if true" is okay here; but
-	// now try relazing the CommitIndex ducking of snapshots
-	// with "if false" here...
+	// fuzz testing says we can allow CommitIndex to
+	// rollback when we also extend the log with the
+	// Snapshot.AE afterwards--so we match at
+	// least the leader's log length (for the leader
+	// and its state+wal when it sent us the Snapshot).
+	// i.e. with "if false" here.
+	// This addresses the scenario described just above.
 	if false {
 		if state2.CommitIndex < s.state.CommitIndex {
 			alwaysPrintf("%v we avoid rolling back CommitIndex with state snapshots! state2.CommitIndex(%v) < s.state.CommitIndex(%v)... try again later.", s.name, state2.CommitIndex, s.state.CommitIndex)
