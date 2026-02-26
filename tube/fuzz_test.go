@@ -1945,9 +1945,17 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 	var node int
 
 	if isHeal {
-		if numDamaged == 0 {
+		switch numDamaged {
+		case 0:
 			r = fuzz_NOOP
-		} else {
+		case 1:
+			r = fuzz_HEAL_NODE
+			node = s.damagedSlc[0]
+			// remove node from s.damaged and s.damagedSlc
+			s.damagedSlc = nil
+			delete(s.damaged, node)
+
+		default:
 			r = fuzz_HEAL_NODE
 			// pick a damaged node at random to heal.
 			which := int(s.rnd(int64(numDamaged)))
