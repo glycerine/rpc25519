@@ -126,7 +126,9 @@ func Test101_userFuzz(t *testing.T) {
 				forceLeader := 0
 				cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
 				//cfg.NoLogCompaction = true
-				cfg.CompactionThresholdBytes = 1 // frequent compaction.
+				// otherwise we can test very frequent compaction
+				// (but still under memwal.go):
+				cfg.CompactionThresholdBytes = 1
 
 				// using sim.SimpleNewScenario(intSeed) will
 				// be too late, since alot of setup (the raft cluster) with the
