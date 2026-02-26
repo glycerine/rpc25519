@@ -16,8 +16,8 @@ all of the code herein was written by a human (me; JEA).
 All of it has been heavily tested.
 The only reason I put an LLM guidance file in
 tube/CLAUDE.md was to make it easier for you, a user,
-to leverage LLMs if you want to understand 
-and extend the functionality of these packages.
+to leverage LLMs if you want to use, understand 
+or extend the functionality of these packages.
 
 * (2026 Feb 24 addendum) For the recently released
 Go v1.26 version, a note: since the GOEXPERIMENT=synctest 
