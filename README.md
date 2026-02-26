@@ -10,6 +10,15 @@ addition to tube/fuzz_test.go, the new
 tube/fuzz102_test.go runs for more steps with more
 users and a larger Raft cluster.
 
+Except for a few utility functions for the viewing of
+x509 certificates in the selfcert/ sub-directory,
+all of the code herein was written by a human (me; JEA).
+All of it has been heavily tested.
+The only reason I put an LLM guidance file in
+tube/CLAUDE.md was to make it easier for you, a user,
+to leverage LLMs if you want to understand 
+and extend the functionality of these packages.
+
 * (2026 Feb 24 addendum) For the recently released
 Go v1.26 version, a note: since the GOEXPERIMENT=synctest 
 automatic build tag (goexperiment.synctest) has 
