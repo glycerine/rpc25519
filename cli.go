@@ -1246,7 +1246,7 @@ type Config struct {
 	LimitedServiceNames []string
 	LimitedServiceMax   []int
 
-	ListenerLimit int // default 3000
+	ListenerLimit int // default 0, no limit
 
 	// RateLimitEveryDur implements rate limiting (if not zero).
 	// If not zero, then RateLimitEveryDur is passed to
@@ -1386,7 +1386,7 @@ func NewConfig() *Config {
 		shared:           &sharedTransport{},
 		simnetRendezvous: &simnetRendezvous{},
 
-		ListenerLimit: 30000, // 30K => limit not really in force.
+		ListenerLimit: 0, // no limit
 
 		// 0 => not rate limited.
 		// 10ms => allows 100 messages/second.

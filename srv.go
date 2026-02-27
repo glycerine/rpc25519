@@ -170,12 +170,17 @@ func (s *Server) runServerMain(
 	if err != nil {
 		log.Fatalf("Failed to listen on %v: %v", serverAddress, err)
 	}
-	// prevent overwhelm
-	if s.cfg.ListenerLimit < 10 {
-		panicf("s.cfg.ListenerLimit must be >= 10, not: %v", s.cfg.ListenerLimit)
+
+	// optional: set ListenerLimit to prevent overwhelm if desired.
+	// We don't want users to be caught unaware of this limit, so
+	// we let them turn it on only if they need it.
+	if s.cfg.ListenerLimit > 0 {
+		if s.cfg.ListenerLimit < 100 {
+			panicf("s.cfg.ListenerLimit must be >= 100 if set, not: %v", s.cfg.ListenerLimit)
+		}
+		origLsn := listener
+		listener = newTlsLimitListener(origLsn, s.cfg.ListenerLimit)
 	}
-	origLsn := listener
-	listener = newTlsLimitListener(origLsn, s.cfg.ListenerLimit)
 
 	defer listener.Close()
 
@@ -266,13 +271,14 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 		log.Fatalf("Failed to listen on %v: %v", serverAddress, err)
 	}
 
-	// prevent overwhelm
-	if s.cfg.ListenerLimit < 10 {
-		panicf("s.cfg.ListenerLimit must be >= 10, not: %v", s.cfg.ListenerLimit)
+	// optional connection limit to prevent overwhelm
+	if s.cfg.ListenerLimit > 0 {
+		if s.cfg.ListenerLimit < 100 {
+			panicf("s.cfg.ListenerLimit must be >= 100 if set, not: %v", s.cfg.ListenerLimit)
+		}
+		origLsn := listener
+		listener = netutil.LimitListener(origLsn, s.cfg.ListenerLimit)
 	}
-	origLsn := listener
-	listener = netutil.LimitListener(origLsn, s.cfg.ListenerLimit)
-
 	defer listener.Close()
 
 	addr := listener.Addr()
