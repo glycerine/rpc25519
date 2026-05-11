@@ -208,23 +208,26 @@ func thisStack() []byte {
 // GoroNumber returns the calling goroutine's number.
 func GoroNumber() int {
 
-	//g1 := int(runtime.GoID())
-
 	buf := make([]byte, 48)
 	nw := runtime.Stack(buf, false) // false => just us, no other goro.
 	buf = buf[:nw]
+
+	if nw < 11 { // len("goroutine ")+1
+		// tinygo returns 0 from runtime.Stack,
+		// so don't index out of bounds. Just bail.
+		return 0 // unknown
+	}
 
 	// prefix "goroutine " is len 10.
 	i := 10
 	for buf[i] != ' ' && i < 30 {
 		i++
+		if i >= nw {
+			return 0
+		}
 	}
 	n, err := strconv.Atoi(string(buf[10:i]))
 	panicOn(err)
-
-	//if g1 != n {
-	//	panic(fmt.Sprintf("GoID() %v != GoroNumber %v", g1, n))
-	//}
 
 	return n
 }
