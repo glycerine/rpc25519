@@ -2,6 +2,9 @@
 ./cli
 ./srv
 ./selfy
+jcp
+jsrv
+./samesame
 tmp
 certs
 my-keep-private-dir
@@ -17,3 +20,5 @@ server.sent.streams.all.together.txt
 testdata/*
 gitcommit.go
 snap707*
+tube/tube.test
+rpc25519.test
