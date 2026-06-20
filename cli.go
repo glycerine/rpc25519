@@ -1338,6 +1338,25 @@ func (s *Server) DataDir() string {
 	return s.cfg.srvDataDir
 }
 
+// NewConfigWithServerDataDir allows libraries
+// that use rpc25519 to set the server
+// data directory without using the
+// traditional env variables. Traditionally
+// one would use the env variables described
+// in config.go herein:
+//
+// RPC25519_SERVER_DATA_DIR
+// $XDG_DATA_HOME/rpc25519
+// $HOME/.local/share/rpc25519
+//
+// This function may be more convenient for
+// some libraries. See also NewConfig() which we call.
+func NewConfigWithServerDataDir(serverDataDir string) (cfg *Config) {
+	cfg = NewConfig()
+	cfg.srvDataDir = serverDataDir
+	return
+}
+
 // Clone returns a copy of cfg. This is a shallow copy to
 // enable shared transport between a QUIC client and a QUIC
 // server on the same port.
