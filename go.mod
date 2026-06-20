@@ -22,7 +22,7 @@ require (
 	github.com/glycerine/rate v0.0.1
 	github.com/glycerine/rbtree v0.2.1
 	github.com/glycerine/restic-chunker-mod v0.5.0
-	github.com/glycerine/zygomys/v9 v9.1.2
+	github.com/glycerine/zygomys/v9 v9.6.1
 	github.com/google/btree v1.1.3
 	github.com/klauspost/compress v1.18.2
 	github.com/klauspost/cpuid/v2 v2.0.9

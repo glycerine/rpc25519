@@ -50,6 +50,8 @@ github.com/glycerine/restic-chunker-mod v0.5.0 h1:6OA/O0rEHvENyTlzYJ2/E7UNQBu3+8
 github.com/glycerine/restic-chunker-mod v0.5.0/go.mod h1:ME0iI4hyOXTHSzS1AunwmanKVWnAt8+JwBl7Zs0YdwU=
 github.com/glycerine/zygomys/v9 v9.1.2 h1:Rnk+l5aV6JailGp5BzrgYJU7wC+XKU3/NDOTEJMo3K4=
 github.com/glycerine/zygomys/v9 v9.1.2/go.mod h1:hckAUIPikusS9epDmMmEkfXeOK2qvWhmeVK6Su8y/1k=
+github.com/glycerine/zygomys/v9 v9.6.1 h1:cjj4zafAyeAoTs11TOlmeug1v/dLotgEXTiucEj1KVo=
+github.com/glycerine/zygomys/v9 v9.6.1/go.mod h1:+5AzbzmLb9nv3wrE44I7ilaV1dxkm3u2BmkA7+xKCbI=
 github.com/google/btree v1.1.3 h1:CVpQJjYgC4VbzxeGVHfvZrv1ctoYCAI8vbl07Fcxlyg=
 github.com/google/btree v1.1.3/go.mod h1:qOPhT0dTNdNzV6Z/lhRX0YXUafgPLFUh+gZMl761Gm4=
 github.com/gopherjs/gopherjs v1.17.2 h1:fQnZVsXk8uxXIStYb0N4bGk7jeyTalG/wsZjQ25dO0g=
