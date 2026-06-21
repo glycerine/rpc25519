@@ -24,8 +24,8 @@ func createHostCID_onDisk() string {
 	if fileExists(path) {
 		sz, err := fileSize(path)
 		panicOn(err)
-		if sz != 37 {
-			panic(fmt.Sprintf("unexpected size for '%v'", path))
+		if sz < 20 {
+			panic(fmt.Sprintf("unexpected size for host cid path '%v': %v\n", path, sz))
 		}
 		by, err := os.ReadFile(path)
 		panicOn(err)
