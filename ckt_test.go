@@ -572,11 +572,13 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 	if got, want := len(j.srvs.sendch), 0; got != want {
 		t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 	}
+	<-j.clis.dropcopy_sends
 
 	// have server send 1 to client.
 	frag := NewFragment()
 	frag.FragPart = 0
 	j.srvs.requestToSend <- frag
+	<-j.srvs.dropcopy_sends
 
 	// wait for it to get the client
 
@@ -609,6 +611,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 	frag.FragPart = 1
 	drain(j.srvs.dropcopy_reads)
 	j.clis.requestToSend <- frag
+	<-j.clis.dropcopy_sends
 
 	// wait for it to get the server
 	timeout = j.srv.NewTimer(2 * time.Second)
