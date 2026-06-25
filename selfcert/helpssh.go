@@ -12,16 +12,23 @@ import (
 )
 
 // PrivateToSSHKeyPair writes an Ed25519 private key and its public key in
-// OpenSSH-compatible formats under destinationDir.
-func PrivateToSSHKeyPair(privKey ed25519.PrivateKey, keyname, destinationDir string) error {
+// OpenSSH-compatible formats under destinationDir. privateKeyFileName
+// should give just the private keys file name; the public key will
+// be this plus a ".pub" suffix. The keys are written into
+// the destinationDir directory. Any existing files with the
+// same names will be overwritten and lost. keyName gives
+// the internet short 'nickname' for the key. It is used
+// as the comment when constructing the ssh key for user
+// convenience. It can be the empty string.
+func PrivateToSSHKeyPair(privKey ed25519.PrivateKey, keyname, privateKeyFileName, destinationDir string) error {
 	if len(privKey) != ed25519.PrivateKeySize {
 		return fmt.Errorf("ed25519 private key has length %d; want %d", len(privKey), ed25519.PrivateKeySize)
 	}
-	if keyname == "" {
-		return fmt.Errorf("keyname cannot be empty")
+	if privateKeyFileName == "" {
+		return fmt.Errorf("privateKeyFileName cannot be empty")
 	}
-	if strings.ContainsAny(keyname, `/\`) {
-		return fmt.Errorf("keyname cannot contain path separators: '%v'", keyname)
+	if strings.ContainsAny(privateKeyFileName, `/\`) {
+		return fmt.Errorf("privateKeyFileName cannot contain path separators: '%v'", privateKeyFileName)
 	}
 	if destinationDir == "" {
 		return fmt.Errorf("destinationDir cannot be empty")
@@ -34,15 +41,8 @@ func PrivateToSSHKeyPair(privKey ed25519.PrivateKey, keyname, destinationDir str
 		return err
 	}
 
-	privatePath := filepath.Join(destinationDir, fmt.Sprintf("id_ed25519_%s", keyname))
+	privatePath := filepath.Join(destinationDir, privateKeyFileName)
 	publicPath := privatePath + ".pub"
-
-	if fileExists(privatePath) {
-		return fmt.Errorf("privatePath already exists for keyname '%v': pick a different keyname or delete this path: '%v'", keyname, privatePath)
-	}
-	if fileExists(publicPath) {
-		return fmt.Errorf("publicPath already exists for keyname '%v': pick a different keyname or delete this path: '%v'", keyname, publicPath)
-	}
 
 	privateBlock, err := ssh.MarshalPrivateKey(privKey, keyname)
 	if err != nil {

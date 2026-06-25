@@ -18,11 +18,11 @@ func TestPrivateToSSHKeyPair(t *testing.T) {
 	}
 
 	destinationDir := t.TempDir()
-	if err := PrivateToSSHKeyPair(privKey, "test", destinationDir); err != nil {
+	if err := PrivateToSSHKeyPair(privKey, "", "test", destinationDir); err != nil {
 		t.Fatalf("PrivateToSSHKeyPair failed: %v", err)
 	}
 
-	privatePath := filepath.Join(destinationDir, "id_ed25519_test")
+	privatePath := filepath.Join(destinationDir, "test")
 	publicPath := privatePath + ".pub"
 
 	privateBytes, err := os.ReadFile(privatePath)
@@ -75,7 +75,7 @@ func TestPrivateToSSHKeyPair(t *testing.T) {
 }
 
 func TestPrivateToSSHKeyPairRejectsInvalidPrivateKey(t *testing.T) {
-	if err := PrivateToSSHKeyPair(ed25519.PrivateKey("short"), "test", t.TempDir()); err == nil {
+	if err := PrivateToSSHKeyPair(ed25519.PrivateKey("short"), "", "test", t.TempDir()); err == nil {
 		t.Fatalf("expected invalid private key length error")
 	}
 }
