@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"golang.org/x/crypto/ssh"
@@ -69,9 +70,16 @@ func TestPrivateToSSHKeyPair(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stat(%q) failed: %v", publicPath, err)
 	}
-	if got := publicInfo.Mode().Perm(); got != 0644 {
-		t.Fatalf("public key permissions = %o; want 0644", got)
+	if got, want := publicInfo.Mode().Perm(), wantSSHPublicKeyPerm(); got != want {
+		t.Fatalf("public key permissions = %o; want %o", got, want)
 	}
+}
+
+func wantSSHPublicKeyPerm() os.FileMode {
+	if runtime.GOOS == "windows" {
+		return 0600
+	}
+	return 0644
 }
 
 func TestPrivateToSSHKeyPairRejectsInvalidPrivateKey(t *testing.T) {

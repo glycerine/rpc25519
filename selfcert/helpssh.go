@@ -55,8 +55,8 @@ func PrivateToSSHKeyPair(privKey ed25519.PrivateKey, keyname, privateKeyFileName
 	if err := os.WriteFile(privatePath, privateBytes, 0600); err != nil {
 		return fmt.Errorf("could not write private key to %q: %w", privatePath, err)
 	}
-	if err := os.Chmod(privatePath, 0600); err != nil {
-		return fmt.Errorf("could not chmod private key %q: %w", privatePath, err)
+	if err := ownerOnly(privatePath); err != nil {
+		return fmt.Errorf("could not secure private key %q: %w", privatePath, err)
 	}
 
 	publicKey, err := ssh.NewPublicKey(privKey.Public())
@@ -66,8 +66,8 @@ func PrivateToSSHKeyPair(privKey ed25519.PrivateKey, keyname, privateKeyFileName
 	if err := os.WriteFile(publicPath, ssh.MarshalAuthorizedKey(publicKey), 0644); err != nil {
 		return fmt.Errorf("could not write public key to %q: %w", publicPath, err)
 	}
-	if err := os.Chmod(publicPath, 0644); err != nil {
-		return fmt.Errorf("could not chmod public key %q: %w", publicPath, err)
+	if err := sshPublicKeyPerm(publicPath); err != nil {
+		return fmt.Errorf("could not secure public key %q: %w", publicPath, err)
 	}
 
 	return nil

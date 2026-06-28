@@ -177,26 +177,3 @@ func Step1_MakeCertificateAuthority(pathCA string, verbose bool, encrypt bool, v
 	}
 	return privKey, nil
 }
-
-// chmod og-wrx path
-func ownerOnly(path string) error {
-
-	// Get the current file info
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("Error getting file '%v' stat: '%v'", path, err)
-	}
-
-	// Get the current permissions
-	currentPerm := fileInfo.Mode().Perm()
-
-	// Remove read, write, and execute permissions for group and others
-	newPerm := currentPerm &^ (os.FileMode(0o077))
-
-	// Change the file permissions
-	err = os.Chmod(path, newPerm)
-	if err != nil {
-		return fmt.Errorf("Error changing file permissions on '%v': '%v'", path, err)
-	}
-	return nil
-}
