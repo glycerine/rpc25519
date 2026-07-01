@@ -2580,7 +2580,7 @@ func (s *TubeNode) deleteFromCktAll(oldCktP *cktPlus) {
 
 	// cktAuditByName
 	ckt, ok := s.cktAuditByName.Get(oldCktP.PeerName)
-	if ok && oldCktP.ckt.CircuitID == ckt.CircuitID {
+	if ok && oldCktP.ckt != nil && oldCktP.ckt.CircuitID == ckt.CircuitID {
 		s.cktAuditByName.Del(oldCktP.PeerName)
 	}
 }
@@ -16514,21 +16514,24 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	// decide to keep one that sortes lexicographically lower
 	// based on cktID.
 
-	oldCktP, haveOld := s.cktAllByName[ckt.RemotePeerName]
-	if haveOld && oldCktP.PeerServiceName == ckt.RemoteServiceName {
-		if false { // def not ready for such... at the moment this is
-			// the build version, which evolves alot...
-			if oldCktP.PeerServiceNameVersion > ckt.RemotePeerServiceNameVersion {
-				alwaysPrintf("%v dropping update to RemotePeerName='%v'; PeerServiceName='%v' with version '%v' that is stale versus our current version '%v'", s.name, ckt.RemotePeerName, oldCktP.PeerServiceName, ckt.RemotePeerServiceNameVersion, oldCktP.PeerServiceNameVersion)
-				rejected = true
-				cktP = nil
-				return
-			}
-		}
-	}
+	// old code, not in use at the moment: we now do everyting
+	// by PeerID instead of name.
+	// oldCktP, haveOld := s.cktAllByName[ckt.RemotePeerName]
+	// if haveOld && oldCktP.PeerServiceName == ckt.RemoteServiceName {
+	// 	if false { // def not ready for such... at the moment this is
+	// 		// the build version, which evolves alot...
+	// 		if oldCktP.PeerServiceNameVersion > ckt.RemotePeerServiceNameVersion {
+	// 			alwaysPrintf("%v dropping update to RemotePeerName='%v'; PeerServiceName='%v' with version '%v' that is stale versus our current version '%v'", s.name, ckt.RemotePeerName, oldCktP.PeerServiceName, ckt.RemotePeerServiceNameVersion, oldCktP.PeerServiceNameVersion)
+	// 			rejected = true
+	// 			cktP = nil
+	// 			return
+	// 		}
+	// 	}
+	// }
+
 	// moved from <-incomingNewCkt :
 	// can be logically racy, don't freak out.
-	oldCktP, haveOld = s.cktall[ckt.RemotePeerID]
+	oldCktP, haveOld := s.cktall[ckt.RemotePeerID]
 	if haveOld && oldCktP.ckt.CircuitID == ckt.CircuitID { // && oldCktP.ckt == ckt {
 		vv("%v ignoring redunant notice of circuitID '%v' from '%v'", s.me(), ckt.CircuitID, ckt.RemotePeerName) // not seen 057
 		cktP = oldCktP
