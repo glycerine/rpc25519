@@ -1,3 +1,5 @@
+//go:build !synctest
+
 package tube
 
 // optional debug utility:
@@ -20,7 +22,7 @@ func init() {
 	sigQuitCh = make(chan os.Signal, 1)
 	signal.Notify(sigQuitCh, syscall.SIGQUIT)
 	go func() {
-		for range sigQuitCh {
+		for range sigQuitCh { // this is never durably blocked, so can mess with synctest. thus we added the tag !synctest at the top.
 			// Allocate buffer for stack trace
 			buf := make([]byte, 1<<20)
 			for {

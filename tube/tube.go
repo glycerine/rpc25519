@@ -5085,6 +5085,11 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		alwaysPrintf("%v non nil error '%v' on Redirect to '%v'", s.me(), err, ckt.RemotePeerID)
 		tkt.Stage += ":redirectToLeader_error_on_SendOneWay"
 		tkt.Err = fmt.Errorf("%v non nil error '%v' on Redirect to '%v'", s.me(), err, ckt.RemotePeerID)
+
+		// we never had this. do we want it on a single send error?
+		//s.replyToForwardedTicketWithError(tkt)
+		//s.FinishTicket(tkt, false)
+
 		return true
 	}
 	if tkt.Op != WRITE {
