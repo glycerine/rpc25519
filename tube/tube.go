@@ -7234,7 +7234,7 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 }
 
 func (s *TubeNode) becomeLeader() {
-	//vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
+	vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
 	//defer func() {
 	//	vv("%v end of becomeLeader", s.me())
 	//}()

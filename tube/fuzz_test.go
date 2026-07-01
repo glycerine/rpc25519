@@ -84,7 +84,7 @@ func Test101_userFuzz(t *testing.T) {
 		seedString := fmt.Sprintf("%v", scenario)
 		uint64seed, seedBytes := parseSeedString(seedString)
 		int64seed := int64(uint64seed)
-		//runtime.ResetDsimSeed(seed)
+		runtime.ResetDsimSeed(uint64seed)
 
 		if int64seed != int64(scenario) {
 			panicf("got %v, wanted same scenario number back %v", int64seed, scenario)
@@ -92,7 +92,7 @@ func Test101_userFuzz(t *testing.T) {
 		rng := newPRNG(seedBytes)
 		rnd := rng.pseudoRandNonNegInt64Range
 
-		steps := 40 // 1000 ok. 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
+		steps := 1000 // 1000 ok. 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
 		numNodes := 3
 		// numUsers of 20 ok at 200 steps, but 30 users is
 		// too much for porcupine at even just 30 steps.
@@ -225,7 +225,7 @@ func Test101_userFuzz(t *testing.T) {
 					panic("nemesis was never called!")
 				}
 
-				//vv("makeTrouble calls total = %v", nemesis.calls)
+				vv("makeTrouble calls total = %v", nemesis.calls)
 
 			}) // end onlyBubbled
 			if tryOk {

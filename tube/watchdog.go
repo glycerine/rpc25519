@@ -176,7 +176,9 @@ func refused(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(err.Error(), "connection refused")
+	errs := err.Error()
+	return strings.Contains(errs, "connection refused") ||
+		strings.Contains(errs, "context cancelled")
 }
 
 // we park all c into c.node.parked before doing anything else.
