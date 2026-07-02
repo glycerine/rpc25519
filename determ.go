@@ -94,14 +94,14 @@ func (s *Simnet) meetpointCheck(meet *determMeetpoint, prandMEQ uint64, i int64,
 			}
 			//vv("good: agreement at i = %v: prandMEQ = %v; meqBatch = %v ; npop = %v; topOfBatchNextDispatch = %v", i, prandMEQ, meqBatch, npop, topOfBatchNextDispatch)
 
-		case <-s.halt.ReqStop.Chan:
+		case <-s.Halt.ReqStop.Chan:
 			shutdown = true
 			return
 		}
 	case "B":
 		select {
 		case meet.toA <- point:
-		case <-s.halt.ReqStop.Chan:
+		case <-s.Halt.ReqStop.Chan:
 			shutdown = true
 			return
 		}

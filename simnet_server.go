@@ -226,7 +226,7 @@ func (s *simconn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n int
 
 	select {
 	case s.net.msgSendCh <- send:
-	case <-s.net.halt.ReqStop.Chan:
+	case <-s.net.Halt.ReqStop.Chan:
 		n = 0
 		err = ErrShutdown()
 		return
@@ -254,7 +254,7 @@ func (s *simconn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n int
 	select {
 	case <-send.proceed:
 		return
-	case <-s.net.halt.ReqStop.Chan:
+	case <-s.net.Halt.ReqStop.Chan:
 		n = 0
 		err = ErrShutdown()
 		return
@@ -320,7 +320,7 @@ func (s *simconn) Read(data []byte) (n int, err error) {
 
 	select {
 	case s.net.msgReadCh <- read:
-	case <-s.net.halt.ReqStop.Chan:
+	case <-s.net.Halt.ReqStop.Chan:
 		err = ErrShutdown()
 		return
 	case timeout := <-readDead:
@@ -355,7 +355,7 @@ func (s *simconn) Read(data []byte) (n int, err error) {
 			s.localClosed.Close()  // this too, maybe?
 		}
 
-	case <-s.net.halt.ReqStop.Chan:
+	case <-s.net.Halt.ReqStop.Chan:
 		vv("halted during Read")
 		err = ErrShutdown()
 		return

@@ -142,17 +142,19 @@ func Test101_userFuzz(t *testing.T) {
 				curClus = c
 
 				leaderURL := c.Nodes[leadi].URL
-				defer func() {
-					vv("begin close of simnet")
-					c.Close()
-					vv("done with close of simnet")
-				}()
 				//const skipTrafficTrue = true
 				//snap := s.clus.SimnetSnapshot(skipTrafficTrue)
 				sim := c.Nodes[0].cfg.RpcCfg.GetSimnet()
 				if sim == nil {
 					panic("why could not get simnet?")
 				}
+				defer func() {
+					vv("begin close of cluster")
+					c.Close()
+					vv("done with close of cluster")
+					<-sim.Halt.Done.Chan
+					vv("done with close of simnet")
+				}()
 
 				c.Cfg.prng = rng
 				for i := range c.Nodes {
@@ -194,7 +196,6 @@ func Test101_userFuzz(t *testing.T) {
 						nemesis:           nemesis,
 					}
 					users = append(users, user)
-					c.Halt.AddChild(user.halt)
 
 					// try to never create a whole new TubeNode;
 					// should just be able to restart its sessions and connections!

@@ -1,7 +1,7 @@
 package rpc25519
 
 import (
-//"strings"
+// "strings"
 )
 
 // doLoops is for traditional rpc/peer where we need the
@@ -47,7 +47,7 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 
 	select {
 	case c.simnet.cliRegisterCh <- registration:
-	case <-c.simnet.halt.ReqStop.Chan:
+	case <-c.simnet.Halt.ReqStop.Chan:
 		return ErrShutdown()
 	case <-c.halt.ReqStop.Chan:
 		return ErrShutdown()
@@ -68,7 +68,7 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 			}
 			return registration.err
 		}
-	case <-c.simnet.halt.ReqStop.Chan:
+	case <-c.simnet.Halt.ReqStop.Chan:
 		return ErrShutdown()
 	case <-c.halt.ReqStop.Chan:
 		return ErrShutdown()

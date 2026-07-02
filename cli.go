@@ -3104,7 +3104,7 @@ func (c *Client) NewTimer(dur time.Duration) (ti *SimTimer) {
 	ti.simnode = c.simnode
 	ti.simtimer = c.simnet.createNewTimer(c.simnode, dur, time.Now(), true) // isCli
 	select {
-	case <-c.simnet.halt.ReqStop.Chan:
+	case <-c.simnet.Halt.ReqStop.Chan:
 		// if we shutdown, this timer is no good anyway,
 		// and we need to avoid a race on reading timerC.
 		// Leaving ti.C nil means that timer will never fire.
@@ -3128,7 +3128,7 @@ func (c *Client) Sleep(dur time.Duration) {
 		return
 	}
 	select {
-	case <-c.simnet.halt.ReqStop.Chan:
+	case <-c.simnet.Halt.ReqStop.Chan:
 	case <-ti.C:
 	}
 }
@@ -3144,7 +3144,7 @@ func (s *Server) Sleep(dur time.Duration) {
 		return
 	}
 	select {
-	case <-s.simnet.halt.ReqStop.Chan:
+	case <-s.simnet.Halt.ReqStop.Chan:
 	case <-ti.C:
 	}
 }
@@ -3164,7 +3164,7 @@ func (s *Server) NewTimer(dur time.Duration) (ti *SimTimer) {
 	// false => isCli false
 	ti.simtimer = s.simnet.createNewTimer(s.simnode, dur, time.Now(), false)
 	select {
-	case <-s.simnet.halt.ReqStop.Chan:
+	case <-s.simnet.Halt.ReqStop.Chan:
 		// if we shutdown, this timer is no good anyway,
 		// and we need to avoid a race on reading timerC.
 		// Leaving ti.C nil means that timer will never fire.

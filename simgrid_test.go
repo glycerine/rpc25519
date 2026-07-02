@@ -962,7 +962,7 @@ func Test711_simnet_online_determinism_check(t *testing.T) {
 		var snet *Simnet
 		defer func() {
 			if snet != nil {
-				snet.halt.ReqStop.Close()
+				snet.Halt.ReqStop.Close()
 			}
 		}()
 
@@ -1018,10 +1018,10 @@ func Test711_simnet_online_determinism_check(t *testing.T) {
 				//vv("good, snet = %p", snet)
 				// arrange for shutdown on abort
 				if parenthalt != nil {
-					parenthalt.AddChild(snet.halt)
+					parenthalt.AddChild(snet.Halt)
 				}
 				if childhalt != nil {
-					snet.halt.AddChild(childhalt)
+					snet.Halt.AddChild(childhalt)
 				}
 			}
 			//vv("c.net = %p", c.net) // yes, new simnet each time.

@@ -420,7 +420,7 @@ func (s *Simnet) release(op *mop, addme int) {
 		case op.proceed <- time.Duration(addme):
 			//vv("op.sn released (sn=%v): '%v'; op.proceed=%p", op.sn, op, op.proceed) // seen sn=153 fuzz_test 101. not seen for sn=452
 		//case op.proceed <- s.scenario.tick + time.Duration(addme):
-		case <-s.halt.ReqStop.Chan:
+		case <-s.Halt.ReqStop.Chan:
 			return
 		default:
 			panicf("all proceed channels are buffered now, should never block")
@@ -872,9 +872,8 @@ type Simnet struct {
 	alterHostCh    chan *simnodeAlteration
 	submitBatchCh  chan *mop
 
-	// same as srv.halt; we don't need
-	// our own, at least for now.
-	halt *idem.Halter
+	// added as child of srv.halt
+	Halt *idem.Halter
 
 	msgSendCh      chan *mop
 	msgReadCh      chan *mop
@@ -1201,7 +1200,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	default:
 		panicf("ugh. no room in srvnode.tellServerNewConnCh channel: cap = %v; len = %v' srvnode.name='%v'; srvnode=%p; if cap==0, is this actually a _client_ and not a server? srvnode='%v'", cap(srvnode.tellServerNewConnCh), len(srvnode.tellServerNewConnCh), srvnode.name, srvnode, srvnode)
 
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 }
@@ -1217,7 +1216,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 		// already started. Still, everyone
 		// register separately no matter.
 		net := cfg.simnetRendezvous.singleSimnet
-		net.halt.AddChild(srv.halt)
+		net.Halt.AddChild(srv.halt)
 		return net
 	}
 	// 5 msec is 2x - 3x faster sim than 1msec
@@ -1308,8 +1307,8 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 		nextTimer: time.NewTimer(time.Hour * 10_000),
 	}
 	s.nextTimer.Stop()
-	s.halt = idem.NewHalterNamed(fmt.Sprintf("simnet %p", s))
-	s.halt.AddChild(srv.halt)
+	s.Halt = idem.NewHalterNamed(fmt.Sprintf("simnet %p", s))
+	s.Halt.AddChild(srv.halt)
 
 	if !cfg.skipExecutionHistory {
 		s.preallocateX()
@@ -2050,7 +2049,7 @@ func (s *Simnet) handleRead(read *mop, limit, loopi int64) (changed int64) {
 	// don't want this! only when read matches with send!
 	//defer close(read.proceed)
 
-	if s.halt.ReqStop.IsClosed() {
+	if s.Halt.ReqStop.IsClosed() {
 		read.err = ErrShutdown()
 		s.fin(read)
 		return
@@ -2194,7 +2193,7 @@ func (s *Simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 				select {
 				//case timer.timerC <- now:
 				case *tC <- now:
-				case <-simnode.net.halt.ReqStop.Chan:
+				case <-simnode.net.Halt.ReqStop.Chan:
 					return
 					// inherently race wrt shutdown though, right?
 				default:
@@ -2607,8 +2606,8 @@ func (s *Simnet) scheduler() {
 	defer func() {
 		r := recover()
 		//vv("scheduler defer shutdown running on goro = %v; recover='%v'", GoroNumber(), r)
-		s.halt.ReqStop.Close()
-		s.halt.Done.Close()
+		s.Halt.ReqStop.Close()
+		s.Halt.Done.Close()
 		if r != nil {
 			if s.cfg.wantSchedulerToRecover != "" {
 				rstr := fmt.Sprintf("%v", r)
@@ -2677,7 +2676,7 @@ func (s *Simnet) scheduler() {
 
 	for ; ; i++ {
 
-		if s.halt.ReqStop.IsClosed() {
+		if s.Halt.ReqStop.IsClosed() {
 			return
 		}
 
@@ -2687,7 +2686,7 @@ func (s *Simnet) scheduler() {
 		select {
 		case <-time.After(tick):
 			// slept for 1 tick of the clock.
-		case <-s.halt.ReqStop.Chan:
+		case <-s.Halt.ReqStop.Chan:
 			return
 		}
 		if faketime {
@@ -2816,7 +2815,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64, beginPrand uint64) (npop 
 
 	for k := 0; ; k++ {
 		select {
-		case <-s.halt.ReqStop.Chan:
+		case <-s.Halt.ReqStop.Chan:
 			shutdown = true
 			return
 		default:
@@ -2955,8 +2954,8 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64, beginPrand uint64) (npop 
 			// 		//case op.proceedMop.timerC <- now: // might need to make buffered?
 			// 		case *tC <- now: // might need to make buffered?
 			// 			vv("TIMER_FIRES delivered to timer: %v", op.proceedMop)
-			// 		case <-s.halt.ReqStop.Chan:
-			// 			vv("i=%v <-s.halt.ReqStop.Chan", i)
+			// 		case <-s.Halt.ReqStop.Chan:
+			// 			vv("i=%v <-s.Halt.ReqStop.Chan", i)
 			// 			return
 			// 		}
 			// 	}
@@ -3435,7 +3434,7 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	for k, v := range s.xdis2sn {
 		req.Xdis2sn[k] = v
 	}
-	req.NetClosed = s.halt.ReqStop.IsClosed()
+	req.NetClosed = s.Halt.ReqStop.IsClosed()
 	if len(s.servers) == 0 {
 		req.GetSimnetStatusErr = fmt.Errorf("no servers found in simnet; "+
 			"len(allnodes)=%v", len(s.allnodes))
@@ -3835,11 +3834,11 @@ func (s *Simnet) NoisyNothing(oldval, newval bool) (swapped bool) {
 
 func (s *Simnet) Close() {
 	//vv("simnet.Close() called.")
-	if s == nil || s.halt == nil {
+	if s == nil || s.Halt == nil {
 		return
 	}
 	atomicGlobalSimnetPointer.CompareAndSwap(s, nil)
-	s.halt.ReqStop.Close()
+	s.Halt.ReqStop.Close()
 }
 
 func (s *Simnet) handleNewGoro(op *mop, now time.Time, i int64) {
@@ -3962,7 +3961,7 @@ func (s *Simnet) startMEQacceptor() {
 				//vv("j=%v simnetCloseNodeCh -> closeNodeReq", j)
 				s.add2meq(s.newCloseSimnodeMop(closeSimnodeReq), j)
 
-			case <-s.halt.ReqStop.Chan:
+			case <-s.Halt.ReqStop.Chan:
 				return
 			}
 		}

@@ -33,7 +33,7 @@ import (
 //   s.addTimer
 //   s.msgReadCh
 //   s.msgSendCh
-//   s.halt.ReqStop.Chan
+//   s.Halt.ReqStop.Chan
 //
 // and the helper routines that setup the
 // channel ops, also below:
@@ -84,22 +84,22 @@ func (s *Simnet) NewGoro(name string) {
 	}
 	select {
 	case s.simnetNewGoroCh <- r:
-	case <-s.halt.ReqStop.Chan:
-		//vv("i=%v <-s.halt.ReqStop.Chan", i)
+	case <-s.Halt.ReqStop.Chan:
+		//vv("i=%v <-s.Halt.ReqStop.Chan", i)
 	}
 	select {
 	case pause := <-r.proceed:
-		if s.halt.ReqStop.IsClosed() {
+		if s.Halt.ReqStop.IsClosed() {
 			return
 		}
 		if pause > 0 {
 			select {
 			case <-time.After(pause):
-			case <-s.halt.ReqStop.Chan:
+			case <-s.Halt.ReqStop.Chan:
 				return
 			}
 		}
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		//vv("i=%v <-s.halt.ReqStop.Chan", i)
 	}
 }
@@ -354,7 +354,7 @@ func (s *Simnet) FaultCircuit(origin, target string, dd DropDeafSpec, deliverDro
 	select {
 	case s.injectCircuitFaultCh <- fault:
 		//vv("sent DeafToReads fault on injectFaultCh; about to wait on proceed")
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	select {
@@ -366,7 +366,7 @@ func (s *Simnet) FaultCircuit(origin, target string, dd DropDeafSpec, deliverDro
 			target = "(any and all)"
 		}
 		//vv("server '%v' CircuitFault from '%v'; err = '%v'", origin, target, err)
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	return
@@ -379,7 +379,7 @@ func (s *Simnet) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends
 	select {
 	case s.injectHostFaultCh <- fault:
 		//vv("sent fault on injectHostFaultCh; about to wait on proceed")
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	//vv("about to wait for fault.proceed=%p  on fault='%v'", fault.proceed, fault) // sn 152 not released (ok now). but still sn 452 not released
@@ -388,7 +388,7 @@ func (s *Simnet) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends
 		_ = pause
 		err = fault.err
 		//vv("'%v' server, we have received on fault.proceed=%p; dd='%v'; err = '%v'; pause = %v", hostName, fault.proceed, dd, err, pause)
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	return
@@ -408,7 +408,7 @@ func (s *Simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, 
 	select {
 	case s.repairCircuitCh <- oneGood:
 		//vv("RepairCircuit sent oneGood on repairCircuitCh; about to wait on proceed")
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	select {
@@ -416,7 +416,7 @@ func (s *Simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, 
 		_ = pause
 		err = oneGood.err
 		//vv("RepairCircuit '%v' proceed. err = '%v'", originName, err)
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	return
@@ -434,7 +434,7 @@ func (s *Simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, all
 	select {
 	case s.repairHostCh <- repair:
 		//vv("RepairHost sent repair on repairHostCh; about to wait on proceed")
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	select {
@@ -442,7 +442,7 @@ func (s *Simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, all
 		_ = pause
 		err = repair.err
 		//vv("RepairHost '%v' proceed. err = '%v'", originName, err)
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	return
@@ -474,17 +474,17 @@ func (s *Simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.T
 
 	select {
 	case s.addTimer <- timer:
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	select {
 	case pause := <-timer.proceed:
 		_ = pause
-		if s.halt.ReqStop.IsClosed() {
+		if s.Halt.ReqStop.IsClosed() {
 			timer = nil
 		}
 		return
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	return
@@ -505,28 +505,28 @@ func (s *Simnet) readMessage(conn uConn) (msg *Message, err error) {
 	read.readFileLine = fileLine(3)
 	select {
 	case s.msgReadCh <- read:
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return nil, ErrShutdown()
 	}
 	select {
 	case pause := <-read.proceed:
 		// this could be data racey on shutdown. double
 		// check we are not shutting down.
-		if s.halt.ReqStop.IsClosed() {
+		if s.Halt.ReqStop.IsClosed() {
 			// avoid .msg race on shutdown, CopyForSimNetSend vs sendLoop
 			return nil, ErrShutdown()
 		}
 		if pause > 0 {
 			select {
 			case <-time.After(pause):
-			case <-s.halt.ReqStop.Chan:
+			case <-s.Halt.ReqStop.Chan:
 				return nil, ErrShutdown()
 			}
 		}
 		msg = read.msg
 		err = read.err
 
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return nil, ErrShutdown()
 	}
 	return
@@ -546,26 +546,26 @@ func (s *Simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) (
 	send.sendFileLine = fileLine(3)
 	select {
 	case s.msgSendCh <- send:
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return ErrShutdown()
 	}
 	select {
 	case pause := <-send.proceed:
 		// this could be data racey on shutdown. double
 		// check we are not shutting down.
-		if s.halt.ReqStop.IsClosed() {
+		if s.Halt.ReqStop.IsClosed() {
 			// avoid .msg race on shutdown, CopyForSimNetSend vs sendLoop
 			return ErrShutdown()
 		}
 		if pause > 0 {
 			select {
 			case <-time.After(pause):
-			case <-s.halt.ReqStop.Chan:
+			case <-s.Halt.ReqStop.Chan:
 				return ErrShutdown()
 			}
 		}
 		err = send.err
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return ErrShutdown()
 	}
 	return
@@ -634,24 +634,24 @@ func (s *Simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time
 
 	select {
 	case s.discardTimerCh <- discard:
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	select {
 	case pause := <-discard.proceed:
-		if s.halt.ReqStop.IsClosed() {
+		if s.Halt.ReqStop.IsClosed() {
 			return
 		}
 		if pause > 0 {
 			// since createNewTimer ignores pause, maybe we should too.
 			//	select {
 			//	case <-time.After(pause):
-			//	case <-s.halt.ReqStop.Chan:
+			//	case <-s.Halt.ReqStop.Chan:
 			//		return
 			//	}
 		}
 		return discard.wasArmed
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	return
@@ -736,20 +736,20 @@ func (s *Simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 	select {
 	case s.srvRegisterCh <- reg:
 		//vv("sent registration on srvRegisterCh; about to wait on proceed goro = %v", GoroNumber())
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		err = ErrShutdown()
 		return
 	}
 	select {
 	case pause := <-reg.proceed:
-		if s.halt.ReqStop.IsClosed() {
+		if s.Halt.ReqStop.IsClosed() {
 			err = ErrShutdown()
 			return
 		}
 		if pause > 0 {
 			select {
 			case <-time.After(pause):
-			case <-s.halt.ReqStop.Chan:
+			case <-s.Halt.ReqStop.Chan:
 				return
 			}
 		}
@@ -762,7 +762,7 @@ func (s *Simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 		srv.simnet = reg.simnet
 		newCliConnCh = reg.tellServerNewConnCh
 		return
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		err = ErrShutdown()
 		return
 	}
@@ -812,7 +812,7 @@ func (s *Simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bo
 	select {
 	case s.alterSimnodeCh <- alt:
 		//vv("sent alt on alterSimnodeCh; about to wait on proceed goro = %v", GoroNumber())
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	select {
@@ -821,7 +821,7 @@ func (s *Simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bo
 		undo = alt.undo
 		err = alt.err
 		//vv("server altered: %v", simnode)
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	return
@@ -840,7 +840,7 @@ func (s *Simnet) AlterHost(simnodeName string, alter Alteration) (undo Alteratio
 	select {
 	case s.alterHostCh <- alt:
 		//vv("sent alt on alterHostCh; about to wait on proceed goro = %v", GoroNumber())
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	select {
@@ -849,7 +849,7 @@ func (s *Simnet) AlterHost(simnodeName string, alter Alteration) (undo Alteratio
 		undo = alt.undo
 		err = alt.err
 		//vv("host altered: %v", simnode)
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	return
@@ -1122,14 +1122,14 @@ func (s *Simnet) GetSimnetSnapshot(skipTraffic bool) (snap *SimnetSnapshot) {
 	}
 	select {
 	case s.simnetSnapshotRequestCh <- snap:
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	select {
 	case <-snap.proceed:
 		// this is internal diagnostics, not a part of the simulation
 		// that we want to control by pausing.
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 	}
 	return
 }
@@ -1182,13 +1182,13 @@ func (s *Simnet) SubmitBatch(batch *SimnetBatch) {
 	}
 	select {
 	case s.submitBatchCh <- op:
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	//select {
 	//case <-batch.proceed:
 	//	err = batch.err
-	//case <-s.halt.ReqStop.Chan:
+	//case <-s.Halt.ReqStop.Chan:
 	//}
 	return
 }
@@ -1425,14 +1425,14 @@ func (s *Simnet) CloseSimnode(simnodeName string, reason error) (err error) {
 	select {
 	case s.simnetCloseNodeCh <- cl:
 		//vv("sent cl on Ch; about to wait on proceed goro = %v", GoroNumber())
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	select {
 	case pause := <-cl.proceed:
 		_ = pause
 		err = cl.err
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		return
 	}
 	return
@@ -1601,7 +1601,7 @@ func (s *Simnet) SimpleNewScenario(int64seed int64) (err error) {
 	scen := NewScenarioBaseline(time.Millisecond, int64seed)
 	select {
 	case s.newScenarioCh <- scen:
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		err = ErrShutdown()
 		return
 	}
@@ -1642,26 +1642,26 @@ func (s *Simnet) GetNewCallID() (cid string) {
 
 	select {
 	case s.simnetNewCallIDCh <- r:
-	case <-s.halt.ReqStop.Chan:
-		//vv("i=%v <-s.halt.ReqStop.Chan", i)
+	case <-s.Halt.ReqStop.Chan:
+		//vv("i=%v <-s.Halt.ReqStop.Chan", i)
 	}
 	select {
 	case pause := <-r.proceed:
 		//cid = r.callID
 		cid = cristalbase64.URLEncoding.EncodeToString(r.pseudo)
 
-		if s.halt.ReqStop.IsClosed() {
+		if s.Halt.ReqStop.IsClosed() {
 			return
 		}
 		if pause > 0 {
 			select {
 			case <-time.After(pause):
-			case <-s.halt.ReqStop.Chan:
+			case <-s.Halt.ReqStop.Chan:
 				return
 			}
 		}
-	case <-s.halt.ReqStop.Chan:
-		//vv("i=%v <-s.halt.ReqStop.Chan", i)
+	case <-s.Halt.ReqStop.Chan:
+		//vv("i=%v <-s.Halt.ReqStop.Chan", i)
 	}
 	return
 }
@@ -1689,30 +1689,30 @@ func (s *Simnet) ReadPseudoRandom(p []byte) (n int, err error) {
 
 	select {
 	case s.simnetNewCallIDCh <- r:
-	case <-s.halt.ReqStop.Chan:
+	case <-s.Halt.ReqStop.Chan:
 		err = ErrShutdown2
 		return
-		//vv("i=%v <-s.halt.ReqStop.Chan", i)
+		//vv("i=%v <-s.Halt.ReqStop.Chan", i)
 	}
 	select {
 	case pause := <-r.proceed:
 		n = len(r.pseudo)
 		err = r.err
 
-		if s.halt.ReqStop.IsClosed() {
+		if s.Halt.ReqStop.IsClosed() {
 			err = ErrShutdown2
 			return
 		}
 		if pause > 0 {
 			select {
 			case <-time.After(pause):
-			case <-s.halt.ReqStop.Chan:
+			case <-s.Halt.ReqStop.Chan:
 				err = ErrShutdown2
 				return
 			}
 		}
-	case <-s.halt.ReqStop.Chan:
-		//vv("i=%v <-s.halt.ReqStop.Chan", i)
+	case <-s.Halt.ReqStop.Chan:
+		//vv("i=%v <-s.Halt.ReqStop.Chan", i)
 		err = ErrShutdown2
 	}
 	return
