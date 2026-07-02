@@ -1804,7 +1804,8 @@ func (s *Simnet) handleAlterHost(altop *mop) (undo Alteration) {
 
 	node, ok := s.dns[alt.simnodeName]
 	if !ok {
-		alt.err = fmt.Errorf("error: handleAlterHost could not find simnodeName '%v' in dns: '%v'", alt.simnodeName, s.dns)
+		//alt.err = fmt.Errorf("error: handleAlterHost could not find simnodeName '%v' in dns: '%v'", alt.simnodeName, s.dns)
+		alt.err = fmt.Errorf("error: handleAlterHost could not find simnodeName '%v' in dns.", alt.simnodeName)
 		// well huh: power on of previously poweroff and closed node gets here.
 		// but that is kind of expected with a powered off node.
 		// Because we want to power back on later with the same name,
@@ -2814,6 +2815,12 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64, beginPrand uint64) (npop 
 	var op *mop
 
 	for k := 0; ; k++ {
+		select {
+		case <-s.halt.ReqStop.Chan:
+			shutdown = true
+			return
+		default:
+		}
 
 		top := s.meq.peek()
 		if top == nil {

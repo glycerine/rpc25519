@@ -142,8 +142,11 @@ func Test101_userFuzz(t *testing.T) {
 				curClus = c
 
 				leaderURL := c.Nodes[leadi].URL
-				defer c.Close()
-
+				defer func() {
+					vv("begin close of simnet")
+					c.Close()
+					vv("done with close of simnet")
+				}()
 				//const skipTrafficTrue = true
 				//snap := s.clus.SimnetSnapshot(skipTrafficTrue)
 				sim := c.Nodes[0].cfg.RpcCfg.GetSimnet()
@@ -156,6 +159,13 @@ func Test101_userFuzz(t *testing.T) {
 					c.Nodes[i].cfg.prng = rng
 				}
 
+				// if we limit to 100sec, then we can only get
+				// in around 500 steps (with 15 users, 3 node cluster).
+				//ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				//ctx := context.Background()
+
 				nemesis := &fuzzNemesis{
 					rng:          rng,
 					rnd:          rnd,
@@ -165,12 +175,6 @@ func Test101_userFuzz(t *testing.T) {
 				}
 				// unlock it
 				nemesis.allowTrouble <- true
-
-				// if we limit to 100sec, then we can only get
-				// in around 500 steps (with 15 users, 3 node cluster).
-				//ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
-				//defer cancel()
-				ctx := context.Background()
 
 				atomicLastEventID := &atomic.Int64{}
 				var users []*fuzzUser
@@ -190,6 +194,7 @@ func Test101_userFuzz(t *testing.T) {
 						nemesis:           nemesis,
 					}
 					users = append(users, user)
+					c.Halt.AddChild(user.halt)
 
 					// try to never create a whole new TubeNode;
 					// should just be able to restart its sessions and connections!
@@ -235,7 +240,7 @@ func Test101_userFuzz(t *testing.T) {
 		if !tryOk {
 			panicf("problem on scenario %v twice we got non-linz: '%v'", scenario, tryErr)
 		}
-		//vv("end scenario for loop")
+		vv("end scenario for loop; scenario = %v", scenario)
 	}
 }
 
