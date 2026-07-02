@@ -1065,11 +1065,14 @@ func Test711_simnet_online_determinism_check(t *testing.T) {
 			for i := range nodes {
 				gotSent := gridCfg.hist.sentBy(nodes[i].name)
 				if gotSent != wantSendPerPeer*nPeer {
-					t.Fatalf("node %v sent %v but wanted %v", i, gotSent, wantSendPerPeer*nPeer)
+					// panic instead as vet objects:Fatalf must be called on the original goroutine.
+					//t.Fatalf("node %v sent %v but wanted %v", i, gotSent, wantSendPerPeer*nPeer)
+					panicf("node %v sent %v but wanted %v", i, gotSent, wantSendPerPeer*nPeer)
 				}
 				gotRead := gridCfg.hist.readBy(nodes[i].name)
 				if gotRead != wantRead {
-					t.Fatalf("node %v read %v but wanted %v", i, gotRead, wantRead)
+					//t.Fatalf("node %v read %v but wanted %v", i, gotRead, wantRead)
+					panicf("node %v read %v but wanted %v", i, gotRead, wantRead)
 				}
 			}
 		}) // end onlyBubbled

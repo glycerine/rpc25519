@@ -37,8 +37,10 @@ import (
 
 var _ = cryrand.Read
 
-const DefaultUseCompression = true
-const DefaultUseCompressAlgo = "s2" // see magic7.go
+// const DefaultUseCompression = true
+// const DefaultUseCompressAlgo = "s2" // see magic7.go
+const DefaultUseCompression = false
+const DefaultUseCompressAlgo = "" // no compression
 
 type localRemoteAddr interface {
 	RemoteAddr() net.Addr
@@ -1147,17 +1149,17 @@ type Config struct {
 	ClientSendKeepAlive time.Duration
 
 	// CompressAlgo choices are in magic7.go;
-	// The current choices are "" (default compression, "s2" at the moment),
-	// or: "s2" (Klaus Post's faster SnappyV2, good for incompressibles);
+	// The current choices are "" (default: no compression),
+	// "s2" (Klaus Post's faster SnappyV2, good for incompressibles);
 	// "lz4", (a very fast compressor; see https://lz4.org/);
 	// "zstd:01" (fastest setting for Zstandard, very little compression);
 	// "zstd:03", (the Zstandard 'default' level; slower but more compression);
 	// "zstd:07", (even more compression, even slower);
 	// "zstd:11", (slowest version of Zstandard, the most compression).
 	//
-	// Note! empty string means we use DefaultUseCompressAlgo
-	// (at the top of cli.go), which is currently "s2".
-	// To turn off compression, you must use the
+	// Note! empty string means we use no compression (it uses alot of memory,
+	// so we turned it off by default).
+	// To turn off compression, you can also use the
 	// CompressionOff setting.
 	CompressAlgo string
 
@@ -1902,7 +1904,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	} else {
 		return nil, fmt.Errorf("missing config.ServerAddr to connect to")
 	}
-	c.setDefaults(config)
+	cfg.setDefaults()
 	c = &Client{
 		cfg:  cfg,
 		name: name,
@@ -1958,7 +1960,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	return c, nil
 }
 
-func (c *Client) setDefaults(cfg *Config) {
+func (cfg *Config) setDefaults() {
 	if !cfg.CompressionOff {
 		if cfg.CompressAlgo == "" {
 			cfg.CompressAlgo = DefaultUseCompressAlgo
