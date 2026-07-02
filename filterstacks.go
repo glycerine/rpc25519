@@ -15,7 +15,7 @@ import (
 var sigQuitCh chan os.Signal
 
 func init() {
-	//return // comment to turn on this debugging.
+	return // comment to turn on this debugging.
 	sigQuitCh = make(chan os.Signal, 1)
 	signal.Notify(sigQuitCh, syscall.SIGQUIT)
 	go func() {
