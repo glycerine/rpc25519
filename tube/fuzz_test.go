@@ -29,7 +29,7 @@ import (
 )
 
 func Test101_userFuzz(t *testing.T) {
-	//return
+	return
 
 	if !faketime {
 		alwaysPrintf("Test101_userFuzz only works under synctest.")
@@ -44,8 +44,8 @@ func Test101_userFuzz(t *testing.T) {
 		vv("test 101 wrapping up.")
 	}()
 
-	begScenario := 0
-	endxScenario := 1
+	begScenario := 1000
+	endxScenario := 1200
 
 	// for batch runs from env var partition.
 	beg := os.Getenv("SCEN0")
@@ -92,16 +92,16 @@ func Test101_userFuzz(t *testing.T) {
 		rng := newPRNG(seedBytes)
 		rnd := rng.pseudoRandNonNegInt64Range
 
-		steps := 1000 // 1000 ok. 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
-		numNodes := 3
+		steps := 10_000 // 1000 ok. 20 ok. 15 ok for one run; but had "still have a ticket in waiting"
+		numNodes := 5
 		// numUsers of 20 ok at 200 steps, but 30 users is
 		// too much for porcupine at even just 30 steps.
-		numUsers := 3
+		numUsers := 9
 		//numUsers := 5 // green at 5 (10 steps)
 		//numUsers := 9 // 7=>258 events, 8=>310 events, 9=>329 events,10=>366
 		//numUsers := 15 // inf err loop at 15 (10 steps)
 
-		if numScen <= 100 || scenario%10 == 0 {
+		if true { // numScen <= 100 || scenario%10 == 0 {
 			alwaysPrintf("top of seed/scenario = %v ; steps = %v ; numNodes = %v ; numUsers = %v", scenario, steps, numNodes, numUsers)
 		}
 

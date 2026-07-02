@@ -19,6 +19,7 @@ var sigQuitCh chan os.Signal
 
 func init() {
 	//return // comment to turn on this debugging.
+	vv("installing SIGQUIT filterstacks.")
 	sigQuitCh = make(chan os.Signal, 1)
 	signal.Notify(sigQuitCh, syscall.SIGQUIT)
 	go func() {

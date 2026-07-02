@@ -1,3 +1,5 @@
+//go:build !synctest
+
 package tube
 
 // optional debug utility:
@@ -29,6 +31,7 @@ var sigHupCh chan os.Signal
 func init() {
 	//return // comment to turn on this debugging.
 
+	vv("installing SIGHUP memory profiler")
 	path := "debug"
 	sigHupCh = make(chan os.Signal, 1)
 	signal.Notify(sigHupCh, syscall.SIGHUP)
