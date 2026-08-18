@@ -31,7 +31,7 @@ var sigHupCh chan os.Signal
 func init() {
 	//return // comment to turn on this debugging.
 
-	vv("installing SIGHUP memory profiler")
+	//vv("installing SIGHUP memory profiler") // no! might panic if vprint.go init has not run yet.
 	path := "debug"
 	sigHupCh = make(chan os.Signal, 1)
 	signal.Notify(sigHupCh, syscall.SIGHUP)

@@ -19,7 +19,7 @@ var sigQuitCh chan os.Signal
 
 func init() {
 	//return // comment to turn on this debugging.
-	vv("installing SIGQUIT filterstacks.")
+	//vv("installing SIGQUIT filterstacks.") // vv crashes b/c timezone data not yet initiallized since the vprint.go init() has not yet run. solution: do not call vv in an init().
 	sigQuitCh = make(chan os.Signal, 1)
 	signal.Notify(sigQuitCh, syscall.SIGQUIT)
 	go func() {
