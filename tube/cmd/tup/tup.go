@@ -147,7 +147,7 @@ func main() {
 		for {
 			errs := err.Error()
 			if strings.Contains(errs, "call CreateNewSession first") ||
-				strings.Contains(errs, "no leader known to me") {
+				strings.Contains(errs, "no leader known") {
 				sess.Close()
 
 				s2, redir, err = node.CreateNewSession(ctx, leaderName, leaderURL)
