@@ -282,21 +282,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"runtime/debug"
-	//"iter"
-	//"io"
-	//"os"
-	//"math"
-	//"sort"
-	//"sync"
-	//cryrand "crypto/rand"
-	//"path/filepath"
-	//"github.com/glycerine/greenpack/msgp"
-
 	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
+	"runtime/debug"
 
-	//rb "github.com/glycerine/rbtree"
 	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/tube/art"
 )
@@ -322,6 +311,15 @@ func init() {
 	debug.SetMemoryLimit(10 << 30) // 10 GB. Was 2 GB but => grinding at 400% cpu sometimes.
 
 	raiseFileHandleLimit(100_000)
+}
+
+const Err_ahem_no_leader_prefix string = "ahem. no leader known to me"
+
+func IsNoLeaderError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "no leader known")
 }
 
 // HLC (see hlc.go) is a hybrid logical/physical clock, based
@@ -4993,7 +4991,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 			//addOther = true
 			xtra = fmt.Sprintf(" MEMBERSHIP_SET_UPDATE tkt.AddPeerName='%v'. To prevent a node from adding a dead neighbor (the drowned sailor scenario, page 22, The Part-Time Parliament) by mistake, we require additions to leaderless clusters to come from self-add only. See also bootstrappedOrForcedMembership() circa tube.go:15131. This error from redirectToLeader() circa %v. Update: the tubeadd -f forcedNodeAddition can be used as a last resort, but risks membership corruption...", tkt.AddPeerName, fileLine(1))
 		}
-		tkt.Err = fmt.Errorf("ahem. no leader known to me (node '%v'). stashForLeader is false.%v", s.name, xtra) // seen fuzz_test 101
+		tkt.Err = fmt.Errorf("%v (node '%v'). stashForLeader is false.%v", Err_ahem_no_leader_prefix, s.name, xtra) // seen fuzz_test 101
 
 		// page 22 of Lamport 1998, "The Part-Time Parliament".
 		// "Changing the composition of Parliament in this
@@ -5051,7 +5049,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		// stashing for later leader made for a weird
 		// command line tubeadd experience/hang.
 		//vv("%v stashForLeader is false, and no cktall for leader '%v'", s.me(), s.leaderName)
-		tkt.Err = fmt.Errorf("hmm. no leader known to me (node '%v')", s.name)
+		tkt.Err = fmt.Errorf("%v (node '%v')", Err_ahem_no_leader_prefix, s.name)
 		//s.respondToClientTicketApplied(tkt)
 		s.replyToForwardedTicketWithError(tkt)
 		s.FinishTicket(tkt, false)
@@ -6469,10 +6467,10 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 		doFsync = (i == last)
 		s.wal.saveRaftLogEntryDoFsync(entry, doFsync) // in replicateBatch
 	}
-	// we compact aggressively for better testing of compaction vs appendEntries logic.
-	// TODO: uncomment below to only compact occassionally, since it
-	// involves lots of slow fsyncs and file rewrites. but less testing.
-	if s.wal.logSizeOnDisk() > s.wal.compactionThresholdBytes { // over 6MB, then compact (if compact on).
+	// only compact occassionally, since it
+	// involves lots of slow fsyncs and file rewrites.
+	if s.wal.logSizeOnDisk() > s.wal.compactionThresholdBytes {
+		// e.g. over threshold (6MB default), then compact (if compact on).
 		s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
 	}
 
@@ -7499,7 +7497,7 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 	conflictTerm int64, // -1 if no conflict
 	conflictTerm1stIndex int64) { // -1 if no conflict
 
-	if true { // !s.cfg.isTest || s.cfg.testNo != 802 {
+	if false { // !s.cfg.isTest || s.cfg.testNo != 802 {
 		s.wal.assertConsistentWalAndIndex(0)
 		if s.state.CompactionDiscardedLast.Index != s.wal.logIndex.BaseC {
 
@@ -8406,7 +8404,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 		//err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
 		err := s.wal.overwriteEntries(keepCount, neededEntries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s) // prefer to pass prevci
 		panicOn(err)
-		if true { // TODO restore: s.cfg.isTest {
+		if s.cfg.isTest {
 			s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
 		}
 		didAddOrOverData = true
@@ -8470,7 +8468,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 				err := s.wal.overwriteEntries(keepCount, entries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s) // prefer to pass prevci
 				panicOn(err)
 
-				if true { // TODO restore: s.cfg.isTest {
+				if s.cfg.isTest {
 					s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
 				}
 				didAddOrOverData = true
@@ -12418,7 +12416,7 @@ func (s *TubeNode) haveStickyLeader(reqVote *RequestVote) (recentLeader bool, de
 		return
 	}
 
-	if s.leaderID != "" { // huh? TODO: should this not be == "" ?
+	if s.leaderID == "" {
 		return // no leader at all
 	}
 
@@ -14162,7 +14160,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 	// in setupFirstRaftLogEntryBootstrapLog() here.
 	err := s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0, &s.state.CompactionDiscardedLast, s)
 	panicOn(err)
-	if true { // TODO restore: s.cfg.isTest {
+	if s.cfg.isTest {
 		s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
 	}
 
@@ -15573,7 +15571,7 @@ func (s *TubeNode) testSetupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntr
 	err = s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0, &s.state.CompactionDiscardedLast, s)
 	panicOn(err)
 
-	if true { // TODO restore: s.cfg.isTest {
+	if s.cfg.isTest {
 		s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
 	}
 

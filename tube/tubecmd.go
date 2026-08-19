@@ -186,8 +186,8 @@ func (cfg *TubeConfig) RunTubeServiceMain(cmdCfg *ConfigTubeCmd) {
 	_ = reallyLeader // leaderName will be empty so maybe not needed?
 	if err != nil {
 		// this is fine... expected under example/remote
-		// "error: no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node"
-		if strings.Contains(err.Error(), "no leaders found") {
+		// "error: no leader known and no cfg.InitialLeaderName; use -c to contact a specific node"
+		if strings.Contains(err.Error(), "no leader known") {
 			// ignore it.
 			err = nil
 		} else {

@@ -169,9 +169,11 @@ func (s *TubeNode) RaftWALString() (r string) {
 func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raftWriteAheadLog, err0 error) {
 	//vv("newRaftWriteAheadLog(path = '%v'); nodisk=%v; cfg.MyName='%v'", path, cfg.NoDisk, cfg.MyName)
 
-	defer func() {
-		s.assertConsistentWalAndIndex(0)
-	}()
+	if cfg.isTest {
+		defer func() {
+			s.assertConsistentWalAndIndex(0)
+		}()
+	}
 
 	if cfg.NoDisk {
 		return cfg.newRaftWriteAheadLogMemoryOnlyTestingOnly()
@@ -703,7 +705,7 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 
 	//vv("%v begin overwriteEntries()[isAppend=%v] keepIndex=%v; len(raftLog)=%v: %v", s.name, s.isAppendLoggingHelper(keepIndex), keepIndex, len(s.raftLog), s.StringWithCommit(curCommitIndex))
 
-	if true { // TODO restore: isTest {
+	if s.isTest {
 		defer s.assertConsistentWalAndIndex(keepIndex)
 	}
 

@@ -351,7 +351,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 		pp("ugh. len(leaders) = %v; leaders='%#v'", len(leaders), leaders)
 		if contactName == "" {
 			if cfg.InitialLeaderName == "" {
-				err0 = fmt.Errorf("error: no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node.")
+				err0 = fmt.Errorf("error: no leader known and no cfg.InitialLeaderName; use -c to contact a specific node.")
 				//os.Exit(1)
 				return
 			} else {
