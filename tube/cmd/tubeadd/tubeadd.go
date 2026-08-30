@@ -88,10 +88,10 @@ Solution: tubeadd -f node_0 -c node_1
      AND: tubeadd -f node_0 -c node_0
 
 which says: force 1 and 0 to add node_0 to the membership;
-ignoring the qourum rules that usually forbid this.
+ignoring the quorum rules that usually forbid this.
 This typically will enable an election to start.
 
-It is a little risky because the version of the
+This is a little risky because the version of the
 membership could possible get desynced and
 then differ across the cluster, but
 usually it will get the cluster back
