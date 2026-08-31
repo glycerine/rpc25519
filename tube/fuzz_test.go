@@ -29,7 +29,7 @@ import (
 )
 
 func Test101_userFuzz(t *testing.T) {
-	return
+	//return
 
 	if !faketime {
 		alwaysPrintf("Test101_userFuzz only works under synctest.")
@@ -44,8 +44,8 @@ func Test101_userFuzz(t *testing.T) {
 		vv("test 101 wrapping up.")
 	}()
 
-	begScenario := 1000
-	endxScenario := 1200
+	begScenario := 1001
+	endxScenario := 1002
 
 	// for batch runs from env var partition.
 	beg := os.Getenv("SCEN0")
@@ -84,7 +84,7 @@ func Test101_userFuzz(t *testing.T) {
 		seedString := fmt.Sprintf("%v", scenario)
 		uint64seed, seedBytes := parseSeedString(seedString)
 		int64seed := int64(uint64seed)
-		runtime.ResetDsimSeed(uint64seed)
+		//runtime.ResetDsimSeed(uint64seed)
 
 		if int64seed != int64(scenario) {
 			panicf("got %v, wanted same scenario number back %v", int64seed, scenario)
@@ -241,7 +241,8 @@ func Test101_userFuzz(t *testing.T) {
 		if !tryOk {
 			panicf("problem on scenario %v twice we got non-linz: '%v'", scenario, tryErr)
 		}
-		vv("end scenario for loop; scenario = %v", scenario)
+		rnd16 := rpc.NewCallID("")
+		vv("end scenario for loop; scenario = %v; rnd16 = '%v'", scenario, rnd16)
 	}
 }
 
@@ -1439,7 +1440,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			prevCanc()
 			stepCtx, canc := context.WithTimeout(startCtx, time.Second*10)
 			prevCanc = canc
-			if step > 0 && step%100 == 0 {
+			if step > 0 && step%10 == 0 { // TODO remote step%100
 				vv("%v: fuzzUser.Start on step %v", s.name, step)
 			}
 			select {

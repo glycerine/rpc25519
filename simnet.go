@@ -1097,7 +1097,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 		return
 	}
 	if srvnode.isCli {
-		reg.err = fmt.Errorf("bagh! cannot dial client-to-client, only client-to-server: reg.dialTo '%v' is a client", reg.dialTo)
+		reg.err = fmt.Errorf("bagh! cannot dial client-to-client, only client-to-server: reg.dialTo '%v' is a client; reg.serverAddrStr='%v'; full clientRegistration='%#v'", reg.dialTo, reg.serverAddrStr, reg)
 		s.fin(regop)
 		return
 	}
