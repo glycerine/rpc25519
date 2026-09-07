@@ -431,7 +431,12 @@ func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 	shut.HDR.FromPeerServiceNameVersion = pb.PeerServiceNameVersion
 
 	// -2 version => almost no blocking; err below if cannot send in 1 msec.
-	madeNewAutoCli, queueSendCh, err := pb.U.SendOneWayMessage(ctxB, shut, -2, false)
+	//
+	// forbidAutoCli was false, but that's weird: if the remote is already down,
+	// we don't want to construct another path to them just to tell them we
+	// are going down too... shutdown races are common, normal path stuff.
+	// so I changed the last parameter here (forbidAutoCli) to true.
+	madeNewAutoCli, queueSendCh, err := pb.U.SendOneWayMessage(ctxB, shut, -2, true)
 	_ = madeNewAutoCli
 	if err == ErrAntiDeadlockMustQueue {
 		//vv("err == ErrAntiDeadlockMustQueue, closing in background goro")
