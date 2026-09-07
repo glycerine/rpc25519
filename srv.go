@@ -2292,6 +2292,13 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			//vv("Server sendOneWayMessage got ErrNetConnectionNotFound and auto-dial out is %v (or forbidAutoCli = %v) ! msg.HDR.To='%v'", s.cfg.ServerAutoCreateClientsToDialOtherServers, forbidAutoCli, msg.HDR.To)
 			return
 		}
+		if strings.Contains(msg.HDR.To, auto_cli_recognition_prefix) {
+			baseURL, _ := autoCliToBaseURL(msg.HDR.To)
+			if baseURL != "" && baseURL != msg.HDR.To {
+				err = fmt.Errorf("%v: it will never work to dial client-to-client! maybe we should be dialing baseURL='%v' instead of msg.HDR.To='%v'", ErrNetConnectionNotFound.Error(), baseURL, msg.HDR.To)
+				return
+			}
+		}
 		if !s.cfg.QuietTestMode {
 			s.mut.Lock()
 			lenAutoCli := len(s.autoClients) + 1
