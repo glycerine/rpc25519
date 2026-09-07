@@ -5,10 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	//_ "net/http/pprof" // for web based profiling while running
@@ -16,19 +13,6 @@ import (
 )
 
 func init() {
-	// emu StopAt instruction counting executes EBREAK, which
-	// the guest linux converts to SIGTRAP. We convert to SIGSTOP
-	// so that we can attach delve (dlv) without running
-	// under delve initially which was causing our SATP heuristic to
-	// deliver the SIGTRAP to delve instead of to the debug target process tube.test.
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGTRAP)
-	go func() {
-		<-ch
-		// pause the process so we can "dlv attach pid" here.
-		syscall.Kill(syscall.Getpid(), syscall.SIGSTOP)
-	}()
-
 	return
 	addr := "127.0.0.1:9999"
 	fmt.Printf("webprofile starting at '%v'...\n", addr)
