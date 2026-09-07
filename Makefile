@@ -37,16 +37,16 @@ test:
 	cd bytes && go test -v
 
 synctest:
-	GOTRACEBACK=all GOEXPERIMENT=synctest go test -v
+	GOTRACEBACK=all go test -v -tags synctest
 
 rr:
 	##rm -rf ~/.local/share/rr/ ## careful! deletes all old traces!
-	#GOTRACEBACK=all GOEXPERIMENT=synctest go test -race -c -o rpc.test -count=1
-	GOTRACEBACK=all GOEXPERIMENT=synctest go test -c -o rpc.test -count=1
+	#GOTRACEBACK=all go test -race -c -o rpc.test -count=1 -tags synctest
+	GOTRACEBACK=all go test -c -o rpc.test -count=1 -tags synctest
 	rr record ./rpc.test -test.v -test.run 707
 
 rrh:
-	GOTRACEBACK=all GOEXPERIMENT=synctest go test -c -o rpc.test -count=1
+	GOTRACEBACK=all go test -c -o rpc.test -count=1 -tags synctest
 	rr record -h ./rpc.test -test.v #-test.run 707
 
 rr2:

@@ -383,6 +383,24 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 		// since we already likely have the name elsewhere,
 		// like the a peer-naming config file.
 		rpb.PeerName = ackMsg.HDR.FromPeerName
+		if ackMsg.HDR.Args != nil {
+			baseServerName := ackMsg.HDR.Args["#fromBaseServerName"]
+			if baseServerName != "" {
+				rpb.BaseServerName = baseServerName
+			}
+			baseServerAddr := ackMsg.HDR.Args["#fromBaseServerAddr"]
+			if baseServerAddr != "" {
+				rpb.BaseServerAddr = baseServerAddr
+			}
+			hostname := ackMsg.HDR.Args["#fromHostname"]
+			if hostname != "" {
+				rpb.Hostname = hostname
+			}
+			pid := ackMsg.HDR.Args["#fromPID"]
+			if pid != "" {
+				rpb.PID = pid
+			}
+		}
 
 		if ackMsg.HDR.FromPeerID == "" {
 			panic(fmt.Sprintf("ackMsg.FromPeerID was empty string; should never happen! ackMsg = '%v'", ackMsg))
@@ -397,9 +415,6 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 			rpb.PeerName = ackMsg.HDR.FromPeerName
 			ckt.RemotePeerID = ackMsg.HDR.FromPeerID
 			ckt.RemotePeerName = ackMsg.HDR.FromPeerName
-
-			rpb.Hostname = ackMsg.HDR.Args["#fromHostname"]
-			rpb.PID = ackMsg.HDR.Args["#fromPID"]
 
 			if pleaseAssignNewRemotePeerID != "" {
 				lpb.Remotes.Del(pleaseAssignNewRemotePeerID)

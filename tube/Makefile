@@ -10,7 +10,7 @@ all:
 	cd cmd/hermes; go install
 
 wasm:
-	GOTRACEBACK=all GOEXPERIMENT=synctest GOOS=wasip1 GOARCH=wasm  goj test -c -o tube.test.wasm -tags goj
+	GOTRACEBACK=all GOEXPERIMENT=synctest GOOS=wasip1 GOARCH=wasm  goj test -c -o tube.test.wasm -tags goj -tags synctest
 	GOTRACEBACK=all GOEXPERIMENT=synctest GOOS=wasip1 GOARCH=wasm  wasmtime --env HOME=/ --dir .::/ --env GO_DSIM_SEED=3 tube.test.wasm -test.v -test.run 016
 
 rr:

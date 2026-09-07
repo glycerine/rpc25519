@@ -1,7 +1,7 @@
 package rpc25519
 
 // build/run with:
-// GOTRACEBACK=all GOEXPERIMENT=synctest go test -v
+// GOTRACEBACK=all go test -v -tags synctest
 
 import (
 	"fmt"

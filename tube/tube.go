@@ -15268,6 +15268,10 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 		if peerID == "" {
 			peerID = peerID2
 		}
+		netAddr = fmt.Sprintf("%v://%v", split[0], host)
+		if cktP.PeerBaseServerAddr == "" {
+			cktP.PeerBaseServerAddr = netAddr
+		}
 		url = fmt.Sprintf("%v://%v/%v/%v", split[0], host, serviceName, peerID)
 		//vv("new url = '%v'", url)
 	}
