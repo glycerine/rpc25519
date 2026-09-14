@@ -84,7 +84,7 @@ func Test101_userFuzz(t *testing.T) {
 		seedString := fmt.Sprintf("%v", scenario)
 		uint64seed, seedBytes := parseSeedString(seedString)
 		int64seed := int64(uint64seed)
-		//runtime.ResetDsimSeed(uint64seed)
+		runtime.ResetDsimSeed(uint64seed)
 
 		if int64seed != int64(scenario) {
 			panicf("got %v, wanted same scenario number back %v", int64seed, scenario)
@@ -1440,7 +1440,7 @@ func (s *fuzzUser) Start(startCtx context.Context, steps int, leaderName, leader
 			prevCanc()
 			stepCtx, canc := context.WithTimeout(startCtx, time.Second*10)
 			prevCanc = canc
-			if step > 0 && step%10 == 0 { // TODO remote step%100
+			if step > 0 && step%100 == 0 { // TODO remote step%100
 				vv("%v: fuzzUser.Start on step %v", s.name, step)
 			}
 			select {
