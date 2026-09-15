@@ -647,6 +647,7 @@ isolate hermes_protocol = {
         invariant ready(N) -> live(N)
         invariant ready(N) -> seen_epoch(ready_epoch(N))
         invariant ready(N) -> ready_epoch(N) ~= init_epoch
+        invariant ready(N) -> ready_epoch_active(ready_epoch(N))
         invariant epoch_done(E) -> seen_epoch(E)
         invariant ready_epoch_active(E) -> seen_epoch(E)
         invariant ~complete_try(N)
