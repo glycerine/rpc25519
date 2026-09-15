@@ -2174,9 +2174,12 @@ def receivedAllAcks {Node : Type uRefNode} {Value : Type uRefValue}
   forall a, st.live a -> a ≠ n -> st.nodeRcvedAcks n a
 
 def o3AckQuorum {Node : Type uRefNode} {Value : Type uRefValue}
-    (st : RefState Node Value) (coordinator : Node) (t : Timestamp Node) : Prop :=
-  forall a, st.live a -> a ≠ coordinator ->
-    st.ackMsgs { sender := a, epochID := st.epochID, ts := t }
+    (rank : NodeRank Node) (st : RefState Node Value)
+    (coordinator : Node) (t : Timestamp Node) : Prop :=
+  st.live coordinator /\
+    tsLe rank t (st.nodeTS coordinator) /\
+    forall a, st.live a -> a ≠ coordinator ->
+      st.ackMsgs { sender := a, epochID := st.epochID, ts := t }
 
 def invalidStateAfterGreater {Node : Type uRefNode} {Value : Type uRefValue}
     (st : RefState Node Value) (n : Node) : HState :=
@@ -2457,13 +2460,488 @@ inductive HRNext {Node : Type uRefNode} {Value : Type uRefValue}
       HRNext rank st .silent (nodeFailurePost st n)
   | hr_o3_observe {st n c t} :
       st.live n ->
-      o3AckQuorum st c t ->
+      o3AckQuorum rank st c t ->
       HRNext rank st .silent (o3ObservePost st n c t)
   | hr_o3_complete {st n c} :
       st.live n ->
       st.nodeState n ≠ HState.hs_valid ->
       st.o3Quorum n c (st.nodeTS n) st.epochID ->
       HRNext rank st (.o3Complete n) (o3CompletePost st n)
+
+def initTimestamp {Node : Type uRefNode} (initNode : Node) : Timestamp Node where
+  version := 0
+  tieBreaker := initNode
+
+def RefCommitted
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    (initTs : Timestamp Node) (st : RefState Node Value)
+    (t : Timestamp Node) : Prop :=
+  t = initTs \/ st.committedRMWs t \/ st.committedWrites t
+
+def stateCanSendVal {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) (n : Node) : Prop :=
+  st.nodeState n = HState.hs_write \/ st.nodeState n = HState.hs_replay
+
+structure RefAgreementInvariant
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    (rank : NodeRank Node) (initTs : Timestamp Node)
+    (st : RefState Node Value) : Prop where
+  init_le_live :
+    forall n, st.live n -> tsLe rank initTs (st.nodeTS n)
+  ack_msg_advanced :
+    forall m, st.ackMsgs m -> tsLe rank m.ts (st.nodeTS m.sender)
+  rcved_ack_advanced :
+    forall n a, st.nodeRcvedAcks n a ->
+      tsLe rank (st.nodeLastWriteTS n) (st.nodeTS a)
+  val_msg_committed :
+    forall m, st.valMsgs m -> RefCommitted initTs st m.ts
+  committed_live_advanced :
+    forall t n, (st.committedRMWs t \/ st.committedWrites t) ->
+      st.live n -> tsLe rank t (st.nodeTS n)
+  valid_committed :
+    forall n, st.nodeState n = HState.hs_valid ->
+      RefCommitted initTs st (st.nodeTS n)
+  write_or_replay_last_current :
+    forall n, stateCanSendVal st n ->
+      st.nodeLastWriteTS n = st.nodeTS n
+  o3_quorum_epoch_le :
+    forall n c t e, st.o3Quorum n c t e -> e <= st.epochID
+  o3_current_quorum_advanced :
+    forall n c t, st.o3Quorum n c t st.epochID ->
+      forall a, st.live a -> tsLe rank t (st.nodeTS a)
+
+theorem tsLe_total {Node : Type uRefNode} (rank : NodeRank Node)
+    (a b : Timestamp Node) :
+    tsLe rank a b \/ tsLe rank b a := by
+  rcases a with ⟨av, atie⟩
+  rcases b with ⟨bv, btie⟩
+  unfold tsLe
+  simp
+  by_cases havb : av < bv
+  · exact Or.inl (Or.inl havb)
+  · by_cases hbav : bv < av
+    · exact Or.inr (Or.inl hbav)
+    · have hv : av = bv := by omega
+      subst hv
+      rcases Nat.le_total (rank.rank atie) (rank.rank btie) with hle | hle
+      · exact Or.inl (Or.inr ⟨rfl, hle⟩)
+      · exact Or.inr (Or.inr ⟨rfl, hle⟩)
+
+theorem tsLe_of_not_tsLt {Node : Type uRefNode} (rank : NodeRank Node)
+    {a b : Timestamp Node} :
+    Not (tsLt rank a b) -> tsLe rank b a := by
+  intro hNot
+  rcases tsLe_total rank a b with hab | hba
+  · by_cases hEq : a = b
+    · simpa [hEq] using tsLe_refl rank b
+    · exact False.elim (hNot ⟨hab, hEq⟩)
+  · exact hba
+
+theorem tsLe_to_succ {Node : Type uRefNode} (rank : NodeRank Node)
+    (t : Timestamp Node) (n : Node) :
+    tsLe rank t (tsOf (t.version.succ) n) := by
+  unfold tsLe tsOf
+  exact Or.inl (Nat.lt_succ_self t.version)
+
+theorem tsLe_to_succ_succ {Node : Type uRefNode} (rank : NodeRank Node)
+    (t : Timestamp Node) (n : Node) :
+    tsLe rank t (tsOf (t.version.succ.succ) n) := by
+  unfold tsLe tsOf
+  exact Or.inl (Nat.lt_trans (Nat.lt_succ_self t.version)
+    (Nat.lt_succ_self t.version.succ))
+
+theorem ref_committed_public
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    {initTs : Timestamp Node} {st : RefState Node Value} {t : Timestamp Node} :
+    (st.committedRMWs t \/ st.committedWrites t) ->
+      RefCommitted initTs st t := by
+  intro h
+  exact Or.inr h
+
+theorem ref_committed_live_advanced
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    {rank : NodeRank Node} {initTs : Timestamp Node}
+    {st : RefState Node Value}
+    (hInv : RefAgreementInvariant rank initTs st) :
+    forall t n, RefCommitted initTs st t ->
+      st.live n -> tsLe rank t (st.nodeTS n) := by
+  intro t n hCommitted hLive
+  rcases hCommitted with rfl | hPublic
+  · exact hInv.init_le_live n hLive
+  · exact hInv.committed_live_advanced t n hPublic hLive
+
+theorem step_nodeTS_monotone
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {rank : NodeRank Node} {st st' : RefState Node Value}
+    {label : RefLabel Node}
+    (hStep : HRNext rank st label st') :
+    forall a, tsLe rank (st.nodeTS a) (st'.nodeTS a) := by
+  intro a
+  cases hStep with
+  | hr_write hLive hState =>
+      simp [writePost, startUpdatePost, replace]
+      split
+      · subst_vars
+        exact tsLe_to_succ_succ rank _ _
+      · exact tsLe_refl rank _
+  | hr_rmw hLive hState =>
+      simp [rmwPost, startUpdatePost, replace]
+      split
+      · subst_vars
+        exact tsLe_to_succ rank _ _
+      · exact tsLe_refl rank _
+  | hr_write_replay hLive hState hEpoch hMissing hFlag =>
+      simp [writeReplayPost]
+      exact tsLe_refl rank (st.nodeTS a)
+  | hr_rmw_replay hLive hState hEpoch hMissing hFlag =>
+      simp [rmwReplayPost]
+      exact tsLe_refl rank (st.nodeTS a)
+  | hr_rcv_ack hLive hMsg hEpoch hSender hFresh hTs hState =>
+      simp [receiveAckPost]
+      exact tsLe_refl rank (st.nodeTS a)
+  | hr_send_vals_rmw hLive hFlag hState hAll =>
+      simp [sendValsPost]
+      exact tsLe_refl rank (st.nodeTS a)
+  | hr_send_vals_write hLive hFlag hState hAll =>
+      simp [sendValsPost]
+      exact tsLe_refl rank (st.nodeTS a)
+  | hr_rcv_write_inv hLive hMsg hEpoch hSender hKind =>
+      unfold receiveWriteInvPost
+      split
+      · rename_i hGreater
+        simp [replace]
+        split
+        · subst_vars
+          exact hGreater.1
+        · exact tsLe_refl rank _
+      ·
+        simp
+        exact tsLe_refl rank _
+  | hr_rcv_rmw_inv hLive hMsg hEpoch hSender hKind =>
+      unfold receiveRmwInvPost
+      split
+      · rename_i hGreater
+        simp [replace]
+        split
+        · subst_vars
+          exact hGreater.1
+        · exact tsLe_refl rank _
+      · split
+        · simp
+          exact tsLe_refl rank _
+        · simp
+          exact tsLe_refl rank _
+  | hr_rcv_val hLive hVal hState =>
+      unfold receiveValPost
+      split
+      · simp
+        exact tsLe_refl rank _
+      · exact tsLe_refl rank _
+  | hr_follower_replay hLive hState hDead =>
+      simp [followerReplayPost]
+      exact tsLe_refl rank (st.nodeTS a)
+  | hr_node_failure hLive =>
+      simp [nodeFailurePost]
+      exact tsLe_refl rank (st.nodeTS a)
+  | hr_o3_observe hLive hQuorum =>
+      simp [o3ObservePost]
+      exact tsLe_refl rank (st.nodeTS a)
+  | hr_o3_complete hLive hState hQuorum =>
+      simp [o3CompletePost]
+      exact tsLe_refl rank (st.nodeTS a)
+
+theorem step_live_old_of_new
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {rank : NodeRank Node} {st st' : RefState Node Value}
+    {label : RefLabel Node}
+    (hStep : HRNext rank st label st') :
+    forall a, st'.live a -> st.live a := by
+  intro a hLivePost
+  cases hStep with
+  | hr_write hLive hState =>
+      simpa [writePost, startUpdatePost] using hLivePost
+  | hr_rmw hLive hState =>
+      simpa [rmwPost, startUpdatePost] using hLivePost
+  | hr_write_replay hLive hState hEpoch hMissing hFlag =>
+      simpa [writeReplayPost] using hLivePost
+  | hr_rmw_replay hLive hState hEpoch hMissing hFlag =>
+      simpa [rmwReplayPost] using hLivePost
+  | hr_rcv_ack hLive hMsg hEpoch hSender hFresh hTs hState =>
+      simpa [receiveAckPost] using hLivePost
+  | hr_send_vals_rmw hLive hFlag hState hAll =>
+      simpa [sendValsPost] using hLivePost
+  | hr_send_vals_write hLive hFlag hState hAll =>
+      simpa [sendValsPost] using hLivePost
+  | hr_rcv_write_inv hLive hMsg hEpoch hSender hKind =>
+      unfold receiveWriteInvPost at hLivePost
+      split at hLivePost
+      · change st.live a at hLivePost
+        exact hLivePost
+      · change st.live a at hLivePost
+        exact hLivePost
+  | hr_rcv_rmw_inv hLive hMsg hEpoch hSender hKind =>
+      unfold receiveRmwInvPost at hLivePost
+      split at hLivePost
+      · change st.live a at hLivePost
+        exact hLivePost
+      · split at hLivePost
+        · change st.live a at hLivePost
+          exact hLivePost
+        · change st.live a at hLivePost
+          exact hLivePost
+  | hr_rcv_val hLive hVal hState =>
+      unfold receiveValPost at hLivePost
+      split at hLivePost
+      · change st.live a at hLivePost
+        exact hLivePost
+      · change st.live a at hLivePost
+        exact hLivePost
+  | hr_follower_replay hLive hState hDead =>
+      simpa [followerReplayPost] using hLivePost
+  | hr_node_failure hLive =>
+      simp [nodeFailurePost, removeLive] at hLivePost
+      exact hLivePost.1
+  | hr_o3_observe hLive hQuorum =>
+      simpa [o3ObservePost] using hLivePost
+  | hr_o3_complete hLive hState hQuorum =>
+      simpa [o3CompletePost] using hLivePost
+
+theorem send_vals_quorum_advanced
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {rank : NodeRank Node} {initTs : Timestamp Node}
+    {st : RefState Node Value} {n : Node}
+    (hInv : RefAgreementInvariant rank initTs st)
+    (hState : stateCanSendVal st n)
+    (hAll : receivedAllAcks st n) :
+    forall a, st.live a -> tsLe rank (st.nodeTS n) (st.nodeTS a) := by
+  intro a hLiveA
+  by_cases hA : a = n
+  · subst hA
+    exact tsLe_refl rank (st.nodeTS a)
+  · have hAck : st.nodeRcvedAcks n a := hAll a hLiveA hA
+    have hLast : st.nodeLastWriteTS n = st.nodeTS n :=
+      hInv.write_or_replay_last_current n hState
+    simpa [hLast] using hInv.rcved_ack_advanced n a hAck
+
+theorem o3_ack_quorum_advanced
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {rank : NodeRank Node} {initTs : Timestamp Node}
+    {st : RefState Node Value} {c : Node} {t : Timestamp Node}
+    (hInv : RefAgreementInvariant rank initTs st)
+    (hQuorum : o3AckQuorum rank st c t) :
+    forall a, st.live a -> tsLe rank t (st.nodeTS a) := by
+  intro a hLiveA
+  rcases hQuorum with ⟨hLiveC, hCoordAdvanced, hAcked⟩
+  by_cases hA : a = c
+  · subst hA
+    exact hCoordAdvanced
+  · exact hInv.ack_msg_advanced
+      { sender := a, epochID := st.epochID, ts := t }
+      (hAcked a hLiveA hA)
+
+set_option maxHeartbeats 400000 in
+theorem step_ack_msg_advanced
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {rank : NodeRank Node} {initTs : Timestamp Node}
+    {st st' : RefState Node Value} {label : RefLabel Node}
+    (hInv : RefAgreementInvariant rank initTs st)
+    (hStep : HRNext rank st label st') :
+    forall msg, st'.ackMsgs msg -> tsLe rank msg.ts (st'.nodeTS msg.sender) := by
+  have hMono := step_nodeTS_monotone hStep
+  intro msg hMsgPost
+  cases hStep with
+  | hr_write hLive hState =>
+      exact tsLe_trans rank (hInv.ack_msg_advanced msg (by
+        simpa [writePost, startUpdatePost] using hMsgPost)) (hMono msg.sender)
+  | hr_rmw hLive hState =>
+      exact tsLe_trans rank (hInv.ack_msg_advanced msg (by
+        simpa [rmwPost, startUpdatePost] using hMsgPost)) (hMono msg.sender)
+  | hr_write_replay hLive hState hEpoch hMissing hFlag =>
+      exact tsLe_trans rank (hInv.ack_msg_advanced msg (by
+        simpa [writeReplayPost] using hMsgPost)) (hMono msg.sender)
+  | hr_rmw_replay hLive hState hEpoch hMissing hFlag =>
+      exact tsLe_trans rank (hInv.ack_msg_advanced msg (by
+        simpa [rmwReplayPost] using hMsgPost)) (hMono msg.sender)
+  | hr_rcv_ack hLive hMsg hEpoch hSender hFresh hTs hState =>
+      exact tsLe_trans rank (hInv.ack_msg_advanced msg (by
+        simpa [receiveAckPost] using hMsgPost)) (hMono msg.sender)
+  | hr_send_vals_rmw hLive hFlag hState hAll =>
+      exact tsLe_trans rank (hInv.ack_msg_advanced msg (by
+        simpa [sendValsPost] using hMsgPost)) (hMono msg.sender)
+  | hr_send_vals_write hLive hFlag hState hAll =>
+      exact tsLe_trans rank (hInv.ack_msg_advanced msg (by
+        simpa [sendValsPost] using hMsgPost)) (hMono msg.sender)
+  | hr_rcv_write_inv hLive hRmsg hEpoch hSender hKind =>
+      unfold receiveWriteInvPost at hMsgPost ⊢
+      split
+      · rename_i hGreater
+        simp [hGreater, addAck] at hMsgPost
+        rcases hMsgPost with hOld | rfl
+        · have hOldLe := hInv.ack_msg_advanced msg hOld
+          simp [replace]
+          split
+          · rename_i hSenderEq
+            exact tsLe_trans rank hOldLe (by
+              simpa [hSenderEq] using hGreater.1)
+          · exact hOldLe
+        · simp [sendAckMsg, replace]
+          exact tsLe_refl rank _
+      · rename_i hNotGreater
+        simp [hNotGreater, addAck] at hMsgPost
+        rcases hMsgPost with hOld | rfl
+        · exact hInv.ack_msg_advanced msg hOld
+        · simpa [sendAckMsg] using tsLe_of_not_tsLt rank hNotGreater
+  | hr_rcv_rmw_inv hLive hRmsg hEpoch hSender hKind =>
+      unfold receiveRmwInvPost at hMsgPost ⊢
+      split
+      · rename_i hGreater
+        simp [hGreater, addAck] at hMsgPost
+        rcases hMsgPost with hOld | rfl
+        · have hOldLe := hInv.ack_msg_advanced msg hOld
+          simp [replace]
+          split
+          · rename_i hSenderEq
+            exact tsLe_trans rank hOldLe (by
+              simpa [hSenderEq] using hGreater.1)
+          · exact hOldLe
+        · simp [sendAckMsg, replace]
+          exact tsLe_refl rank _
+      · rename_i hNotGreater
+        simp [hNotGreater] at hMsgPost
+        split
+        · rename_i hEq
+          simp [hEq, addAck] at hMsgPost
+          rcases hMsgPost with hOld | rfl
+          · exact hInv.ack_msg_advanced msg hOld
+          · simpa [sendAckMsg, hEq] using tsLe_refl rank _
+        · rename_i hEq
+          simp [hEq] at hMsgPost
+          exact hInv.ack_msg_advanced msg hMsgPost
+  | hr_rcv_val hLive hVal hState =>
+      exact tsLe_trans rank (hInv.ack_msg_advanced msg (by
+        unfold receiveValPost at hMsgPost
+        split at hMsgPost <;> simpa using hMsgPost)) (hMono msg.sender)
+  | hr_follower_replay hLive hState hDead =>
+      exact tsLe_trans rank (hInv.ack_msg_advanced msg (by
+        simpa [followerReplayPost] using hMsgPost)) (hMono msg.sender)
+  | hr_node_failure hLive =>
+      exact tsLe_trans rank (hInv.ack_msg_advanced msg (by
+        simpa [nodeFailurePost] using hMsgPost)) (hMono msg.sender)
+  | hr_o3_observe hLive hQuorum =>
+      exact tsLe_trans rank (hInv.ack_msg_advanced msg (by
+        simpa [o3ObservePost] using hMsgPost)) (hMono msg.sender)
+  | hr_o3_complete hLive hState hQuorum =>
+      exact tsLe_trans rank (hInv.ack_msg_advanced msg (by
+        simpa [o3CompletePost] using hMsgPost)) (hMono msg.sender)
+
+set_option maxHeartbeats 500000 in
+theorem step_rcved_ack_advanced
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {rank : NodeRank Node} {initTs : Timestamp Node}
+    {st st' : RefState Node Value} {label : RefLabel Node}
+    (hInv : RefAgreementInvariant rank initTs st)
+    (hStep : HRNext rank st label st') :
+    forall owner ackSender, st'.nodeRcvedAcks owner ackSender ->
+      tsLe rank (st'.nodeLastWriteTS owner) (st'.nodeTS ackSender) := by
+  have hMono := step_nodeTS_monotone hStep
+  intro owner ackSender hAckPost
+  cases hStep with
+  | hr_write hLive hState =>
+      simp [writePost, startUpdatePost, replaceRelFirst, replace] at hAckPost ⊢
+      split
+      · simpa using hAckPost
+      · exact tsLe_trans rank (hInv.rcved_ack_advanced owner ackSender hAckPost)
+          (hMono ackSender)
+  | hr_rmw hLive hState =>
+      simp [rmwPost, startUpdatePost, replaceRelFirst, replace] at hAckPost ⊢
+      split
+      · simpa using hAckPost
+      · exact tsLe_trans rank (hInv.rcved_ack_advanced owner ackSender hAckPost)
+          (hMono ackSender)
+  | hr_write_replay hLive hState hEpoch hMissing hFlag =>
+      simp [writeReplayPost, replaceRelFirst, replace] at hAckPost ⊢
+      split
+      · have hLast := hInv.write_or_replay_last_current _ hState
+        simpa [hLast] using hInv.rcved_ack_advanced owner ackSender hAckPost
+      · exact tsLe_trans rank (hInv.rcved_ack_advanced owner ackSender hAckPost)
+          (hMono ackSender)
+  | hr_rmw_replay hLive hState hEpoch hMissing hFlag =>
+      simp [rmwReplayPost, replaceRelFirst, replace] at hAckPost ⊢
+      split
+      · simpa using hAckPost
+      · exact tsLe_trans rank (hInv.rcved_ack_advanced owner ackSender hAckPost)
+          (hMono ackSender)
+  | hr_rcv_ack hLive hMsg hEpoch hSender hFresh hTs hState =>
+      simp [receiveAckPost, replaceRelFirst] at hAckPost ⊢
+      split
+      · rcases hAckPost with hOld | hNew
+        · exact hInv.rcved_ack_advanced owner ackSender hOld
+        · subst hNew
+          simpa [hTs] using hInv.ack_msg_advanced _ hMsg
+      · exact hInv.rcved_ack_advanced owner ackSender hAckPost
+  | hr_send_vals_rmw hLive hFlag hState hAll =>
+      exact hInv.rcved_ack_advanced owner ackSender (by
+        simpa [sendValsPost] using hAckPost)
+  | hr_send_vals_write hLive hFlag hState hAll =>
+      exact hInv.rcved_ack_advanced owner ackSender (by
+        simpa [sendValsPost] using hAckPost)
+  | hr_rcv_write_inv hLive hRmsg hEpoch hSender hKind =>
+      unfold receiveWriteInvPost at hAckPost ⊢
+      split
+      · rename_i hGreater
+        simp [hGreater, replace]
+        split
+        · rename_i hAckSender
+          exact tsLe_trans rank
+            (hInv.rcved_ack_advanced owner ackSender (by
+              simpa [hGreater] using hAckPost))
+            (by simpa [hAckSender] using hGreater.1)
+        · exact hInv.rcved_ack_advanced owner ackSender (by
+            simpa [hGreater] using hAckPost)
+      · rename_i hNotGreater
+        exact hInv.rcved_ack_advanced owner ackSender (by
+          simpa [hNotGreater] using hAckPost)
+  | hr_rcv_rmw_inv hLive hRmsg hEpoch hSender hKind =>
+      unfold receiveRmwInvPost at hAckPost ⊢
+      split
+      · rename_i hGreater
+        simp [hGreater, replace]
+        split
+        · rename_i hAckSender
+          exact tsLe_trans rank
+            (hInv.rcved_ack_advanced owner ackSender (by
+              simpa [hGreater] using hAckPost))
+            (by simpa [hAckSender] using hGreater.1)
+        · exact hInv.rcved_ack_advanced owner ackSender (by
+            simpa [hGreater] using hAckPost)
+      · rename_i hNotGreater
+        simp [hNotGreater] at hAckPost
+        split
+        · rename_i hEq
+          exact hInv.rcved_ack_advanced owner ackSender (by
+            simpa [hNotGreater, hEq] using hAckPost)
+        · rename_i hEq
+          exact hInv.rcved_ack_advanced owner ackSender (by
+            simpa [hNotGreater, hEq] using hAckPost)
+  | hr_rcv_val hLive hVal hState =>
+      unfold receiveValPost at hAckPost ⊢
+      split
+      · exact hInv.rcved_ack_advanced owner ackSender (by
+          simpa using hAckPost)
+      · exact hInv.rcved_ack_advanced owner ackSender hAckPost
+  | hr_follower_replay hLive hState hDead =>
+      simp [followerReplayPost, replaceRelFirst, replace] at hAckPost ⊢
+      split
+      · simpa using hAckPost
+      · exact hInv.rcved_ack_advanced owner ackSender hAckPost
+  | hr_node_failure hLive =>
+      simpa [nodeFailurePost] using hAckPost
+  | hr_o3_observe hLive hQuorum =>
+      exact hInv.rcved_ack_advanced owner ackSender (by
+        simpa [o3ObservePost] using hAckPost)
+  | hr_o3_complete hLive hState hQuorum =>
+      exact hInv.rcved_ack_advanced owner ackSender (by
+        simpa [o3CompletePost] using hAckPost)
 
 def HConsistent {Node : Type uRefNode} {Value : Type uRefValue}
     (st : RefState Node Value) : Prop :=
@@ -2525,6 +3003,65 @@ theorem init_safety
       cases hx
     · intro x y hx _hy
       cases hx
+
+theorem init_agreement_invariant
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    (rank : NodeRank Node) (initNode : Node) (initValue : Value) :
+    RefAgreementInvariant rank (initTimestamp initNode)
+      (initState (Node := Node) (Value := Value) initNode initValue) := by
+  refine {
+    init_le_live := ?_
+    ack_msg_advanced := ?_
+    rcved_ack_advanced := ?_
+    val_msg_committed := ?_
+    committed_live_advanced := ?_
+    valid_committed := ?_
+    write_or_replay_last_current := ?_
+    o3_quorum_epoch_le := ?_
+    o3_current_quorum_advanced := ?_
+  }
+  · intro n _hLive
+    exact tsLe_refl rank (initTimestamp initNode)
+  · intro m h
+    cases h
+  · intro n a h
+    cases h
+  · intro m hm
+    left
+    simpa [initState, initTimestamp] using hm
+  · intro t n hCommitted _hLive
+    rcases hCommitted with hRmw | hWrite
+    · cases hRmw
+    · subst hWrite
+      exact tsLe_refl rank (initTimestamp initNode)
+  · intro n hValid
+    left
+    rfl
+  · intro n hState
+    rcases hState with hWrite | hReplay
+    · cases hWrite
+    · cases hReplay
+  · intro n c t e h
+    cases h
+  · intro n c t h
+    cases h
+
+theorem agreement_invariant_consistent
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    {rank : NodeRank Node} {initTs : Timestamp Node}
+    {st : RefState Node Value}
+    (hInv : RefAgreementInvariant rank initTs st) :
+    HConsistent st := by
+  intro k s hk hs hvk hvs
+  have hCommittedK : RefCommitted initTs st (st.nodeTS k) :=
+    hInv.valid_committed k hvk
+  have hCommittedS : RefCommitted initTs st (st.nodeTS s) :=
+    hInv.valid_committed s hvs
+  have hks : tsLe rank (st.nodeTS k) (st.nodeTS s) :=
+    ref_committed_live_advanced hInv (st.nodeTS k) s hCommittedK hs
+  have hsk : tsLe rank (st.nodeTS s) (st.nodeTS k) :=
+    ref_committed_live_advanced hInv (st.nodeTS s) k hCommittedS hk
+  exact tsLe_antisymm rank hks hsk
 
 theorem failure_increments_epoch
     {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
@@ -2595,23 +3132,29 @@ theorem stale_rmw_inv_sends_local_rinv
 
 theorem o3_quorum_excludes_coordinator_self_ack
     {Node : Type uRefNode} {Value : Type uRefValue}
+    (rank : NodeRank Node)
     (st : RefState Node Value) (coordinator : Node) (t : Timestamp Node)
+    (hLiveCoordinator : st.live coordinator)
+    (hCoordinatorAdvanced : tsLe rank t (st.nodeTS coordinator))
     (hNonSelf :
       forall a, st.live a -> a ≠ coordinator ->
         st.ackMsgs { sender := a, epochID := st.epochID, ts := t }) :
-    o3AckQuorum st coordinator t := by
-  exact hNonSelf
+    o3AckQuorum rank st coordinator t := by
+  exact ⟨hLiveCoordinator, hCoordinatorAdvanced, hNonSelf⟩
 
 theorem o3_quorum_allows_missing_coordinator_ack
     {Node : Type uRefNode} {Value : Type uRefValue}
+    (rank : NodeRank Node)
     (st : RefState Node Value) (coordinator : Node) (t : Timestamp Node)
+    (hLiveCoordinator : st.live coordinator)
+    (hCoordinatorAdvanced : tsLe rank t (st.nodeTS coordinator))
     (hNonSelf :
       forall a, st.live a -> a ≠ coordinator ->
         st.ackMsgs { sender := a, epochID := st.epochID, ts := t })
     (hNoSelf :
       Not (st.ackMsgs { sender := coordinator, epochID := st.epochID, ts := t })) :
-    o3AckQuorum st coordinator t := by
-  exact hNonSelf
+    o3AckQuorum rank st coordinator t := by
+  exact ⟨hLiveCoordinator, hCoordinatorAdvanced, hNonSelf⟩
 
 def StepTrace
     {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
