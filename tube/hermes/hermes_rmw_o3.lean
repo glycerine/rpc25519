@@ -1475,6 +1475,55 @@ theorem core_init_invariant
         initTs initValue initEpoch) :=
   core_of_safety (init_safety hinit)
 
+set_option maxHeartbeats 200000 in
+theorem local_write_preserves_core
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    {st : State Node TS Value Epoch} {n : Node} {t : TS} {v : Value}
+    (hCore : CoreInvariant ord initTs initValue initEpoch st)
+    (hLive : st.live n)
+    (hNotPending : Not (st.pending n))
+    (hState : st.state n = HState.hs_valid \/ st.state n = HState.hs_invalid)
+    (hLt : lt ord (st.curTs n) t)
+    (hFresh : Not (st.seenTs t))
+    (hSpacing : forall R, st.parent R (st.curTs n) -> st.tsRmw R -> lt ord R t) :
+    CoreInvariant ord initTs initValue initEpoch (localWritePost st n t v) := by
+  cases hCore
+  refine {
+    ts_value_functional := ?_
+    parent_seen := ?_
+    ts_value_seen := ?_
+    ts_rmw_seen := ?_
+    rmw_conflict_seen := ?_
+    rmw_conflict_rmw := ?_
+    inv_write_wf := ?_
+    inv_rmw_wf := ?_
+    ack_msg_advanced := ?_
+    val_msg_completed := ?_
+    o3_quorum_live_ack := ?_
+    cur_value_seen := ?_
+    cur_rmw_ts := ?_
+    cur_non_rmw_ts := ?_
+    pending_below_cur := ?_
+    pending_rmw_ts := ?_
+    pending_non_rmw_ts := ?_
+    pending_rmw_current := ?_
+    pending_acked_advanced := ?_
+    ready_pending := ?_
+    ready_live_acked := ?_
+    ready_rmw_no_completed_conflict := ?_
+    completed_live_advanced := ?_
+    valid_completed := ?_
+    write_rmw_spacing := ?_
+    completed_rmw_same_base := ?_
+    ready_live := ?_
+    no_complete_try := ?_
+    no_o3_try := ?_
+  } <;>
+    (simp_all [localWritePost, upd, add1, set1, set2FirstSelf, add3,
+      addTsValue, addParent, removeTs, lt] <;>
+    grind [TotalOrder.trans, TotalOrder.antisymm])
+
 end Operational
 
 end HermesRmwO3
