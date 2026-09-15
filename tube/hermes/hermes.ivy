@@ -14,6 +14,24 @@ module total_order(r) = {
     axiom r(X,Y) | r(Y,X)
 }
 
+module signal1(data) = {
+    action raise(val:data)
+
+    specification {
+        relation now
+        individual value:data
+        after init {
+            now := false;
+        }
+        before raise {
+            value := val;
+            now := true;
+            now := false;
+        }
+        invariant ~now
+    }
+}
+
 isolate hermes_protocol = {
 
     type node
@@ -425,25 +443,9 @@ isolate hermes_protocol = {
         # Liveness/progress obligation
         ################################################################################
 
-        relation complete_scheduled(N:node)
-        after init {
-            complete_scheduled(N) := false;
-        }
-
-        before complete_current {
-            complete_scheduled(n) := true;
-            complete_scheduled(n) := false;
-        }
-
-        before complete_overwritten {
-            complete_scheduled(n) := true;
-            complete_scheduled(n) := false;
-        }
+        instance completion : signal1(node)
 
         before complete_ready {
-            complete_scheduled(n) := true;
-            complete_scheduled(n) := false;
-
             if live(n) & ready(n) & pending(n) & pending_ts(n) = cur_ts(n) & (state(n) = hs_write | state(n) = hs_replay) {
                 completed(cur_ts(n)) := true;
                 val_msg(cur_ts(n)) := true;
@@ -464,29 +466,25 @@ isolate hermes_protocol = {
                         state(n) := hs_invalid;
                     }
                 }
-            }
+            };
+
+            call completion.raise(n);
         }
 
-        individual n0:node
+        invariant ready(N) -> live(N)
 
-        temporal property [all_acked_updates_do_not_stutter_forever] (
-            ((exists N0. ~(globally ~(ready(N0) & globally ready(N0)))) -> ~(globally ~(ready(n0) & globally ready(n0))))
-        ) -> (
-            (forall N. globally eventually complete_scheduled(N)) -> (forall N. globally ~(ready(N) & globally ready(N)))
-        )
+        temporal property [ready_nodes_eventually_complete]
+        forall N. (globally eventually (completion.now & completion.value = N)) -> (globally (ready(N) -> eventually ~ready(N)))
         proof {
-            tactic l2s with
-                invariant ~complete_scheduled(N)
-                invariant globally eventually complete_scheduled(N)
-                invariant eventually (ready(n0) & globally ready(n0))
-                invariant ~($l2s_w. (ready(n0) & globally ready(n0))) <-> (ready(n0) & globally ready(n0))
-                invariant ready(N) -> pending(N)
-                invariant l2s_waiting | l2s_frozen | l2s_saved
-                invariant ~l2s_waiting | ~l2s_frozen
-                invariant ~l2s_waiting | ~l2s_saved
-                invariant ~l2s_frozen | ~l2s_saved
-                invariant l2s_frozen -> (ready(n0) & globally ready(n0))
-                invariant l2s_saved -> (ready(n0) & globally ready(n0))
+            tactic skolemizenp;
+            tactic l2s_auto2 with {
+                definition work_created = true
+                definition work_needed = true
+                definition work_done = false
+                definition work_end = ready(_N) & globally ready(_N)
+                definition work_start = ready(_N) & globally ready(_N)
+                definition work_progress = completion.now & completion.value = _N
+            }
         }
     }
 }
