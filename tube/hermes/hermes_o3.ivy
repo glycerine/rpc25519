@@ -425,6 +425,7 @@ isolate hermes_protocol = {
         invariant ack_msg(A,C,T) -> le(T,cur_ts(A))
         invariant val_msg(T) -> completed(T)
         invariant completed(T) -> seen_ts(T)
+        invariant o3_quorum(N,C,T) & live(A) -> ack_msg(A,C,T)
 
         invariant seen_ts(cur_ts(N))
         invariant ts_value(cur_ts(N),cur_value(N))
@@ -572,17 +573,17 @@ isolate hermes_protocol = {
 
         explicit temporal property [o3_ack_quorums_eventually_finish]
         forall N,C,T. (globally eventually o3_try(N)) ->
-            globally ~(o3_enabled(N,C,T) & globally (cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & all_acked(C,T) & rmw_conflict_clear(T)))
+            globally ~(o3_quorum(N,C,T) & cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & ~ts_rmw(T) & globally (cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T)))
         proof {
             tactic skolemize;
             tactic l2s_auto5 with {
                 definition work_created(Q) = Q = o3_task
-                definition work_needed(Q) = Q = o3_task & o3_enabled(_N,_C,_T) & ~completed(_T)
-                definition work_done(Q) = Q = o3_task & (completed(_T) | state(_N) = hs_valid | cur_ts(_N) ~= _T | ~all_acked(_C,_T) | ~rmw_conflict_clear(_T))
-                definition work_invar = cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & all_acked(_C,_T) & rmw_conflict_clear(_T)
-                definition work_start = o3_enabled(_N,_C,_T) & globally (cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & all_acked(_C,_T) & rmw_conflict_clear(_T))
+                definition work_needed(Q) = Q = o3_task & o3_quorum(_N,_C,_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~ts_rmw(_T)
+                definition work_done(Q) = Q = o3_task & (completed(_T) | state(_N) = hs_valid | cur_ts(_N) ~= _T)
+                definition work_invar = o3_quorum(_N,_C,_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~ts_rmw(_T)
+                definition work_start = o3_quorum(_N,_C,_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~ts_rmw(_T) & globally (cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T))
                 definition work_progress = o3_try(_N)
-                definition work_helpful = cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & all_acked(_C,_T) & rmw_conflict_clear(_T)
+                definition work_helpful = o3_quorum(_N,_C,_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~ts_rmw(_T)
                 invariant l2s_saved & ($l2s_s . cur_ts(_N) = _T & state(_N) ~= hs_valid) & ~completed(_T) -> cur_ts(_N) = _T & state(_N) ~= hs_valid
             }
         }
@@ -599,6 +600,7 @@ export hermes_protocol.mark_ready
 export hermes_protocol.complete_current
 export hermes_protocol.complete_overwritten
 export hermes_protocol.complete_ready
+export hermes_protocol.o3_observe_quorum
 export hermes_protocol.o3_complete
 export hermes_protocol.receive_validate
 export hermes_protocol.replay_after_failure
