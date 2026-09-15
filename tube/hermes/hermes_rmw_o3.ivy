@@ -1,5 +1,6 @@
 #lang ivy1.7
 
+# ivy_check said OK.
 # Single-key Hermes protocol model with O3 broadcast-ACK completion,
 # including RMW O3 completion guarded by the RMW conflict rule.
 #
