@@ -799,6 +799,684 @@ theorem o3_rmw_ack_quorums_eventually_finish_or_conflict
       · exact movedJ badJ.1
       · exact badJ.2.2.2 conflictJ
 
+/-!
+## Operational model
+
+The theorems above are useful as small logical lemmas, but the protocol proof
+below is the stand-alone check: it defines concrete Hermes actions, combines
+them in `HRNext`, proves the inductive invariant is initialized and preserved
+by every action, and states the safety/liveness facts over reachable traces.
+-/
+
+noncomputable section Operational
+open Classical
+
+def upd {alpha : Sort uNode} {beta : Sort uTs}
+    (f : alpha -> beta) (x : alpha) (v : beta) : alpha -> beta :=
+  fun y => if y = x then v else f y
+
+def add1 {alpha : Sort uNode} (r : alpha -> Prop) (x : alpha) : alpha -> Prop :=
+  fun y => r y \/ y = x
+
+def clear1 {alpha : Sort uNode} (r : alpha -> Prop) (x : alpha) : alpha -> Prop :=
+  fun y => r y /\ y ≠ x
+
+def set1 {alpha : Sort uNode} (r : alpha -> Prop) (x : alpha) (b : Prop) : alpha -> Prop :=
+  fun y => if y = x then b else r y
+
+def add2 {alpha : Sort uNode} {beta : Sort uTs}
+    (r : alpha -> beta -> Prop) (x : alpha) (y : beta) : alpha -> beta -> Prop :=
+  fun a b => r a b \/ (a = x /\ b = y)
+
+def clear2First {alpha : Sort uNode} {beta : Sort uTs}
+    (r : alpha -> beta -> Prop) (x : alpha) : alpha -> beta -> Prop :=
+  fun a b => r a b /\ a ≠ x
+
+def set2FirstSelf {alpha : Sort uNode}
+    (r : alpha -> alpha -> Prop) (x : alpha) : alpha -> alpha -> Prop :=
+  fun a b => if a = x then b = x else r a b
+
+def add3 {alpha : Sort uNode} {beta : Sort uTs} {gamma : Sort uValue}
+    (r : alpha -> beta -> gamma -> Prop)
+    (x : alpha) (y : beta) (z : gamma) : alpha -> beta -> gamma -> Prop :=
+  fun a b c => r a b c \/ (a = x /\ b = y /\ c = z)
+
+def addTsValue {TS : Type uTs} {Value : Type uValue}
+    (r : TS -> Value -> Prop) (t : TS) (v : Value) : TS -> Value -> Prop :=
+  fun t' v' => r t' v' \/ (t' = t /\ v' = v)
+
+def addParent {TS : Type uTs}
+    (r : TS -> TS -> Prop) (t base : TS) : TS -> TS -> Prop :=
+  fun t' b' => r t' b' \/ (t' = t /\ b' = base)
+
+def removeTs {TS : Type uTs} (r : TS -> Prop) (t : TS) : TS -> Prop :=
+  fun t' => r t' /\ t' ≠ t
+
+def addRmwConflicts {TS : Type uTs}
+    (tsRmw rmwConflict : TS -> Prop) (parentTs : TS -> TS) (winner : TS) :
+    TS -> Prop :=
+  fun t => rmwConflict t \/
+    (tsRmw winner /\ tsRmw t /\ t ≠ winner /\ parentTs winner = parentTs t)
+
+inductive HRLabel (Node : Type uNode) where
+  | silent
+  | completeReady (n : Node)
+  | o3Complete (n : Node)
+deriving Repr
+
+def localWritePost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (st : State Node TS Value Epoch) (n : Node) (t : TS) (v : Value) :
+    State Node TS Value Epoch :=
+  { st with
+    state := upd st.state n HState.hs_write
+    curTs := upd st.curTs n t
+    curValue := upd st.curValue n v
+    curRmw := set1 st.curRmw n False
+    lastWriter := upd st.lastWriter n n
+    pending := set1 st.pending n True
+    pendingTs := upd st.pendingTs n t
+    pendingRmw := set1 st.pendingRmw n False
+    acked := set2FirstSelf st.acked n
+    ready := set1 st.ready n False
+    seenTs := add1 st.seenTs t
+    parent := addParent st.parent t (st.curTs n)
+    parentTs := upd st.parentTs t (st.curTs n)
+    tsValue := addTsValue st.tsValue t v
+    tsRmw := removeTs st.tsRmw t
+    rmwConflict := removeTs st.rmwConflict t
+    invWrite := add3 st.invWrite n t v }
+
+def localRmwPost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (st : State Node TS Value Epoch) (n : Node) (t : TS) (v : Value) :
+    State Node TS Value Epoch :=
+  { st with
+    state := upd st.state n HState.hs_write
+    curTs := upd st.curTs n t
+    curValue := upd st.curValue n v
+    curRmw := set1 st.curRmw n True
+    lastWriter := upd st.lastWriter n n
+    pending := set1 st.pending n True
+    pendingTs := upd st.pendingTs n t
+    pendingRmw := set1 st.pendingRmw n True
+    acked := set2FirstSelf st.acked n
+    ready := set1 st.ready n False
+    seenTs := add1 st.seenTs t
+    parent := addParent st.parent t (st.curTs n)
+    parentTs := upd st.parentTs t (st.curTs n)
+    tsValue := addTsValue st.tsValue t v
+    tsRmw := add1 st.tsRmw t
+    rmwConflict := removeTs st.rmwConflict t
+    invRmw := add3 st.invRmw n t v }
+
+def receiveWriteInvPost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (ord : TotalOrder TS) (st : State Node TS Value Epoch)
+    (n s : Node) (t : TS) (v : Value) : State Node TS Value Epoch :=
+  let ackedMsg := add3 st.ackMsg n s t
+  if lt ord (st.curTs n) t then
+    let overwritesRmw := st.pending n /\ st.pendingRmw n
+    { st with
+      state := upd st.state n
+        (if overwritesRmw then HState.hs_invalid
+         else if st.pending n then HState.hs_invalid_write
+         else HState.hs_invalid)
+      curTs := upd st.curTs n t
+      curValue := upd st.curValue n v
+      curRmw := set1 st.curRmw n False
+      lastWriter := upd st.lastWriter n s
+      pending := if overwritesRmw then set1 st.pending n False else st.pending
+      pendingRmw := if overwritesRmw then set1 st.pendingRmw n False else st.pendingRmw
+      acked := if overwritesRmw then clear2First st.acked n else st.acked
+      ready := if overwritesRmw then set1 st.ready n False else st.ready
+      epochDone := if overwritesRmw /\ st.ready n then add1 st.epochDone (st.readyEpoch n) else st.epochDone
+      ackMsg := ackedMsg }
+  else
+    { st with ackMsg := ackedMsg }
+
+def receiveRmwInvPost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (ord : TotalOrder TS) (st : State Node TS Value Epoch)
+    (n s : Node) (t : TS) (v : Value) : State Node TS Value Epoch :=
+  if lt ord (st.curTs n) t then
+    let overwritesRmw := st.pending n /\ st.pendingRmw n
+    { st with
+      state := upd st.state n
+        (if overwritesRmw then HState.hs_invalid
+         else if st.pending n then HState.hs_invalid_write
+         else HState.hs_invalid)
+      curTs := upd st.curTs n t
+      curValue := upd st.curValue n v
+      curRmw := set1 st.curRmw n True
+      lastWriter := upd st.lastWriter n s
+      pending := if overwritesRmw then set1 st.pending n False else st.pending
+      pendingRmw := if overwritesRmw then set1 st.pendingRmw n False else st.pendingRmw
+      acked := if overwritesRmw then clear2First st.acked n else st.acked
+      ready := if overwritesRmw then set1 st.ready n False else st.ready
+      epochDone := if overwritesRmw /\ st.ready n then add1 st.epochDone (st.readyEpoch n) else st.epochDone
+      ackMsg := add3 st.ackMsg n s t }
+  else if st.curTs n = t then
+    { st with ackMsg := add3 st.ackMsg n s t }
+  else if st.curRmw n then
+    { st with invRmw := add3 st.invRmw n (st.curTs n) (st.curValue n) }
+  else
+    { st with invWrite := add3 st.invWrite n (st.curTs n) (st.curValue n) }
+
+def receiveRmwInvCompletedConflictPost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (st : State Node TS Value Epoch) (n : Node) : State Node TS Value Epoch :=
+  if st.curRmw n then
+    { st with invRmw := add3 st.invRmw n (st.curTs n) (st.curValue n) }
+  else
+    { st with invWrite := add3 st.invWrite n (st.curTs n) (st.curValue n) }
+
+def receiveAckPost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (st : State Node TS Value Epoch) (n a : Node) : State Node TS Value Epoch :=
+  { st with
+    epochDone := if st.ready n then add1 st.epochDone (st.readyEpoch n) else st.epochDone
+    acked := add2 st.acked n a
+    ready := set1 st.ready n False }
+
+def markReadyPost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (st : State Node TS Value Epoch) (n : Node) (e : Epoch) : State Node TS Value Epoch :=
+  { st with
+    seenEpoch := add1 st.seenEpoch e
+    epochDone := clear1 st.epochDone e
+    readyEpoch := upd st.readyEpoch n e
+    ready := set1 st.ready n True }
+
+def completeCurrentPost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (st : State Node TS Value Epoch) (n : Node) : State Node TS Value Epoch :=
+  { st with
+    completed := add1 st.completed (st.curTs n)
+    rmwConflict := addRmwConflicts st.tsRmw st.rmwConflict st.parentTs (st.curTs n)
+    valMsg := add1 st.valMsg (st.curTs n)
+    state := upd st.state n HState.hs_valid
+    epochDone := add1 st.epochDone (st.readyEpoch n)
+    pending := set1 st.pending n False
+    pendingRmw := set1 st.pendingRmw n False
+    acked := clear2First st.acked n
+    ready := set1 st.ready n False
+    completeTry := fun _ => False }
+
+def completeOverwrittenPost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (st : State Node TS Value Epoch) (n : Node) : State Node TS Value Epoch :=
+  { st with
+    completed := add1 st.completed (st.pendingTs n)
+    rmwConflict := addRmwConflicts st.tsRmw st.rmwConflict st.parentTs (st.pendingTs n)
+    epochDone := add1 st.epochDone (st.readyEpoch n)
+    pending := set1 st.pending n False
+    pendingRmw := set1 st.pendingRmw n False
+    acked := clear2First st.acked n
+    ready := set1 st.ready n False
+    state := if st.state n = HState.hs_invalid_write then upd st.state n HState.hs_invalid else st.state
+    completeTry := fun _ => False }
+
+def receiveValidatePost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (st : State Node TS Value Epoch) (n : Node) (t : TS) : State Node TS Value Epoch :=
+  if st.curTs n = t then
+    let clearsPending := st.pending n /\ st.pendingTs n = st.curTs n
+    { st with
+      state := upd st.state n HState.hs_valid
+      epochDone := if clearsPending /\ st.ready n then add1 st.epochDone (st.readyEpoch n) else st.epochDone
+      pending := if clearsPending then set1 st.pending n False else st.pending
+      pendingRmw := if clearsPending then set1 st.pendingRmw n False else st.pendingRmw
+      acked := if clearsPending then clear2First st.acked n else st.acked
+      ready := if clearsPending then set1 st.ready n False else st.ready }
+  else
+    st
+
+def replayAfterFailurePost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (st : State Node TS Value Epoch) (n : Node) : State Node TS Value Epoch :=
+  let base :=
+    { st with
+      state := upd st.state n HState.hs_replay
+      pending := set1 st.pending n True
+      pendingTs := upd st.pendingTs n (st.curTs n)
+      pendingRmw := set1 st.pendingRmw n (st.curRmw n)
+      acked := set2FirstSelf st.acked n
+      epochDone := if st.ready n then add1 st.epochDone (st.readyEpoch n) else st.epochDone
+      ready := set1 st.ready n False }
+  if st.curRmw n then
+    { base with invRmw := add3 st.invRmw n (st.curTs n) (st.curValue n) }
+  else
+    { base with invWrite := add3 st.invWrite n (st.curTs n) (st.curValue n) }
+
+def failPost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (st : State Node TS Value Epoch) (n : Node) : State Node TS Value Epoch :=
+  { st with
+    live := set1 st.live n False
+    pending := set1 st.pending n False
+    pendingRmw := set1 st.pendingRmw n False
+    acked := clear2First st.acked n
+    epochDone := if st.ready n then add1 st.epochDone (st.readyEpoch n) else st.epochDone
+    ready := set1 st.ready n False }
+
+def o3ObserveQuorumPost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (st : State Node TS Value Epoch) (n c : Node) (t : TS) : State Node TS Value Epoch :=
+  { st with o3Quorum := add3 st.o3Quorum n c t }
+
+def o3CompletePost
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (st : State Node TS Value Epoch) (n : Node) (t : TS) : State Node TS Value Epoch :=
+  let clearsPending := st.pending n /\ st.pendingTs n = t
+  { st with
+    completed := add1 st.completed t
+    rmwConflict := addRmwConflicts st.tsRmw st.rmwConflict st.parentTs t
+    state := upd st.state n HState.hs_valid
+    epochDone := if clearsPending /\ st.ready n then add1 st.epochDone (st.readyEpoch n) else st.epochDone
+    pending := if clearsPending then set1 st.pending n False else st.pending
+    pendingRmw := if clearsPending then set1 st.pendingRmw n False else st.pendingRmw
+    acked := if clearsPending then clear2First st.acked n else st.acked
+    ready := if clearsPending then set1 st.ready n False else st.ready
+    o3Try := fun _ => False }
+
+def OpInvariant
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (ord : TotalOrder TS) (initTs : TS) (initValue : Value) (initEpoch : Epoch)
+    (st : State Node TS Value Epoch) : Prop :=
+  st.seenEpoch initEpoch /\
+  st.seenTs initTs /\
+  st.completed initTs /\
+  st.tsValue initTs initValue /\
+  (forall T V1 V2, st.tsValue T V1 -> st.tsValue T V2 -> V1 = V2) /\
+  (forall T B1 B2, st.parent T B1 -> st.parent T B2 -> B1 = B2) /\
+  (forall T B, st.parent T B -> st.seenTs T /\ st.seenTs B /\ lt ord B T) /\
+  (forall T V, st.tsValue T V -> st.seenTs T) /\
+  (forall T, st.tsRmw T -> st.seenTs T) /\
+  (forall T, st.rmwConflict T -> st.seenTs T) /\
+  (forall T, st.rmwConflict T -> st.tsRmw T) /\
+  (forall S T V, st.invWrite S T V -> st.seenTs T /\ st.tsValue T V /\ Not (st.tsRmw T)) /\
+  (forall S T V, st.invRmw S T V -> st.seenTs T /\ st.tsValue T V /\ st.tsRmw T) /\
+  (forall A C T, st.ackMsg A C T -> st.seenTs T) /\
+  (forall A C T, st.ackMsg A C T -> ord.le T (st.curTs A)) /\
+  (forall T, st.valMsg T -> st.completed T) /\
+  (forall T, st.completed T -> st.seenTs T) /\
+  (forall N C T A, st.o3Quorum N C T -> st.live A -> st.ackMsg A C T) /\
+  (forall N C T, st.o3Quorum N C T -> st.seenTs T) /\
+  (forall N, st.seenTs (st.curTs N)) /\
+  (forall N, st.tsValue (st.curTs N) (st.curValue N)) /\
+  (forall N, st.curRmw N -> st.tsRmw (st.curTs N)) /\
+  (forall N, Not (st.curRmw N) -> Not (st.tsRmw (st.curTs N))) /\
+  (forall N, st.pending N -> st.seenTs (st.pendingTs N)) /\
+  (forall N, st.pending N -> st.acked N N) /\
+  (forall N, st.pending N -> ord.le (st.pendingTs N) (st.curTs N)) /\
+  (forall N, st.pending N -> st.pendingRmw N -> st.tsRmw (st.pendingTs N)) /\
+  (forall N, st.pending N -> Not (st.pendingRmw N) -> Not (st.tsRmw (st.pendingTs N))) /\
+  (forall N, st.pending N -> st.pendingRmw N -> st.pendingTs N = st.curTs N) /\
+  (forall N, st.pending N -> st.pendingRmw N -> st.curRmw N) /\
+  (forall N A, st.pending N -> st.acked N A -> ord.le (st.pendingTs N) (st.curTs A)) /\
+  (forall N, st.ready N -> st.pending N) /\
+  (forall N A, st.ready N -> st.live A -> st.acked N A) /\
+  (forall N, st.ready N -> st.pendingTs N = st.curTs N \/ lt ord (st.pendingTs N) (st.curTs N)) /\
+  (forall N, st.ready N -> st.pendingTs N = st.curTs N ->
+    st.state N = HState.hs_write \/ st.state N = HState.hs_replay) /\
+  (forall N, st.ready N -> lt ord (st.pendingTs N) (st.curTs N) ->
+    st.state N = HState.hs_invalid_write \/ st.state N = HState.hs_invalid \/ st.state N = HState.hs_valid) /\
+  (forall N, st.pending N -> st.pendingTs N = st.curTs N ->
+    st.state N = HState.hs_write \/ st.state N = HState.hs_replay) /\
+  (forall N, st.pending N -> lt ord (st.pendingTs N) (st.curTs N) ->
+    st.state N = HState.hs_invalid_write \/ st.state N = HState.hs_invalid \/ st.state N = HState.hs_valid) /\
+  (forall N A, Not (st.pending N) -> Not (st.acked N A)) /\
+  (forall N, Not (st.pending N) -> Not (st.ready N)) /\
+  (forall T N, st.completed T -> st.live N -> ord.le T (st.curTs N)) /\
+  (forall N, st.state N = HState.hs_valid -> st.completed (st.curTs N)) /\
+  (forall R W B, st.parent R B -> st.parent W B -> st.tsRmw R -> Not (st.tsRmw W) -> lt ord R W) /\
+  (forall N B R, st.live N -> st.ready N -> st.pendingRmw N ->
+    st.parent (st.pendingTs N) B -> st.completed R -> st.tsRmw R -> st.parent R B ->
+    st.pendingTs N = R) /\
+  (forall R1 R2 B, st.completed R1 -> st.completed R2 ->
+    st.tsRmw R1 -> st.tsRmw R2 -> st.parent R1 B -> st.parent R2 B -> R1 = R2) /\
+  (forall N, st.ready N -> st.live N) /\
+  (forall N, st.ready N -> st.seenEpoch (st.readyEpoch N)) /\
+  (forall N, st.ready N -> st.readyEpoch N = initEpoch -> False) /\
+  (forall E, st.epochDone E -> st.seenEpoch E) /\
+  (forall N, Not (st.completeTry N)) /\
+  (forall N, Not (st.o3Try N)) /\
+  st.readyTask = LTask.ready_finish /\
+  st.o3Task = LTask.o3_finish
+
+inductive HRNext
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (ord : TotalOrder TS) :
+    State Node TS Value Epoch -> HRLabel Node -> State Node TS Value Epoch -> Prop where
+  | local_write {st n t v} :
+      st.live n ->
+      Not (st.pending n) ->
+      (st.state n = HState.hs_valid \/ st.state n = HState.hs_invalid) ->
+      lt ord (st.curTs n) t ->
+      Not (st.seenTs t) ->
+      (forall R, st.parent R (st.curTs n) -> st.tsRmw R -> lt ord R t) ->
+      HRNext ord st HRLabel.silent (localWritePost st n t v)
+  | local_rmw {st n t v} :
+      st.live n ->
+      Not (st.pending n) ->
+      st.state n = HState.hs_valid ->
+      lt ord (st.curTs n) t ->
+      Not (st.seenTs t) ->
+      (forall W, st.parent W (st.curTs n) -> Not (st.tsRmw W) -> lt ord t W) ->
+      HRNext ord st HRLabel.silent (localRmwPost st n t v)
+  | receive_write_inv {st n s t v} :
+      st.live n ->
+      n ≠ s ->
+      st.invWrite s t v ->
+      HRNext ord st HRLabel.silent (receiveWriteInvPost ord st n s t v)
+  | receive_rmw_inv {st n s t v} :
+      st.live n ->
+      n ≠ s ->
+      st.invRmw s t v ->
+      (forall B R, st.parent t B -> st.completed R -> st.tsRmw R -> st.parent R B -> R = t) ->
+      HRNext ord st HRLabel.silent (receiveRmwInvPost ord st n s t v)
+  | receive_rmw_inv_completed_conflict {st n s t v b r} :
+      st.live n ->
+      n ≠ s ->
+      st.invRmw s t v ->
+      st.parent t b ->
+      st.completed r ->
+      st.tsRmw r ->
+      st.parent r b ->
+      r ≠ t ->
+      HRNext ord st HRLabel.silent (receiveRmwInvCompletedConflictPost st n)
+  | receive_ack {st n a t} :
+      st.live n ->
+      st.pending n ->
+      st.pendingTs n = t ->
+      st.ackMsg a n t ->
+      HRNext ord st HRLabel.silent (receiveAckPost st n a)
+  | mark_ready {st n e} :
+      st.live n ->
+      st.pending n ->
+      Not (st.ready n) ->
+      Not (st.seenEpoch e) ->
+      (forall A, st.live A -> st.acked n A) ->
+      (forall B R, st.pendingRmw n -> st.parent (st.pendingTs n) B ->
+        st.completed R -> st.tsRmw R -> st.parent R B -> R = st.pendingTs n) ->
+      HRNext ord st HRLabel.silent (markReadyPost st n e)
+  | complete_current {st n} :
+      st.live n ->
+      st.pending n ->
+      st.pendingTs n = st.curTs n ->
+      (st.state n = HState.hs_write \/ st.state n = HState.hs_replay) ->
+      st.ready n ->
+      HRNext ord st HRLabel.silent (completeCurrentPost st n)
+  | complete_overwritten {st n} :
+      st.live n ->
+      st.pending n ->
+      lt ord (st.pendingTs n) (st.curTs n) ->
+      st.ready n ->
+      HRNext ord st HRLabel.silent (completeOverwrittenPost st n)
+  | complete_ready_current {st n} :
+      st.live n ->
+      st.pending n ->
+      st.pendingTs n = st.curTs n ->
+      (st.state n = HState.hs_write \/ st.state n = HState.hs_replay) ->
+      st.ready n ->
+      HRNext ord st (HRLabel.completeReady n) (completeCurrentPost st n)
+  | complete_ready_overwritten {st n} :
+      st.live n ->
+      st.pending n ->
+      lt ord (st.pendingTs n) (st.curTs n) ->
+      st.ready n ->
+      HRNext ord st (HRLabel.completeReady n) (completeOverwrittenPost st n)
+  | receive_validate {st n t} :
+      st.live n ->
+      st.valMsg t ->
+      HRNext ord st HRLabel.silent (receiveValidatePost st n t)
+  | replay_after_failure {st n} :
+      st.live n ->
+      Not (st.pending n) ->
+      st.state n = HState.hs_invalid ->
+      Not (st.live (st.lastWriter n)) ->
+      (forall B R, st.curRmw n -> st.parent (st.curTs n) B ->
+        st.completed R -> st.tsRmw R -> st.parent R B -> R = st.curTs n) ->
+      HRNext ord st HRLabel.silent (replayAfterFailurePost st n)
+  | fail {st n} :
+      st.live n ->
+      HRNext ord st HRLabel.silent (failPost st n)
+  | o3_observe_quorum {st n c t} :
+      st.live n ->
+      (forall A, st.live A -> st.ackMsg A c t) ->
+      HRNext ord st HRLabel.silent (o3ObserveQuorumPost st n c t)
+  | o3_complete {st n c t} :
+      st.live n ->
+      st.curTs n = t ->
+      st.state n ≠ HState.hs_valid ->
+      st.o3Quorum n c t ->
+      Not (st.rmwConflict t) ->
+      (forall B R, st.tsRmw t -> st.parent t B -> st.completed R ->
+        st.tsRmw R -> st.parent R B -> R = t) ->
+      HRNext ord st (HRLabel.o3Complete n) (o3CompletePost st n t)
+
+theorem op_invariant_of_safety
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    {st : State Node TS Value Epoch}
+    (h : Safety ord initTs initValue initEpoch st) :
+    OpInvariant ord initTs initValue initEpoch st := by
+  unfold OpInvariant
+  exact And.intro h.seen_epoch_init <| And.intro h.seen_ts_init <|
+    And.intro h.completed_init <| And.intro h.ts_value_init <|
+    And.intro h.ts_value_functional <| And.intro h.parent_functional <|
+    And.intro h.parent_seen <| And.intro h.ts_value_seen <|
+    And.intro h.ts_rmw_seen <| And.intro h.rmw_conflict_seen <|
+    And.intro h.rmw_conflict_rmw <| And.intro h.inv_write_wf <|
+    And.intro h.inv_rmw_wf <| And.intro h.ack_msg_seen <|
+    And.intro h.ack_msg_advanced <| And.intro h.val_msg_completed <|
+    And.intro h.completed_seen <| And.intro h.o3_quorum_live_ack <|
+    And.intro h.o3_quorum_seen <| And.intro h.cur_seen <|
+    And.intro h.cur_value_seen <| And.intro h.cur_rmw_ts <|
+    And.intro h.cur_non_rmw_ts <| And.intro h.pending_seen <|
+    And.intro h.pending_self_acked <| And.intro h.pending_below_cur <|
+    And.intro h.pending_rmw_ts <| And.intro h.pending_non_rmw_ts <|
+    And.intro h.pending_rmw_current <| And.intro h.pending_rmw_cur_flag <|
+    And.intro h.pending_acked_advanced <| And.intro h.ready_pending <|
+    And.intro h.ready_live_acked <| And.intro h.ready_ts_current_or_old <|
+    And.intro h.ready_current_state <| And.intro h.ready_old_state <|
+    And.intro h.pending_current_state <| And.intro h.pending_old_state <|
+    And.intro h.not_pending_not_acked <| And.intro h.not_pending_not_ready <|
+    And.intro h.completed_live_advanced <| And.intro h.valid_completed <|
+    And.intro h.write_rmw_spacing <| And.intro h.ready_rmw_no_completed_conflict <|
+    And.intro h.completed_rmw_same_base <| And.intro h.ready_live <|
+    And.intro h.ready_epoch_seen <| And.intro h.ready_epoch_not_init <|
+    And.intro h.epoch_done_seen <| And.intro h.no_complete_try <|
+    And.intro h.no_o3_try <| And.intro h.ready_task_finish h.o3_task_finish
+
+theorem op_init_invariant
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    (hinit : InitAssumptions ord initTs) :
+    OpInvariant ord initTs initValue initEpoch
+      (initState (Node := Node) (TS := TS) (Value := Value) (Epoch := Epoch)
+        initTs initValue initEpoch) := by
+  exact op_invariant_of_safety (init_safety hinit)
+
+theorem op_valid_read_timestamps_agree
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    {st : State Node TS Value Epoch}
+    (h : OpInvariant ord initTs initValue initEpoch st) :
+    forall N1 N2,
+      st.live N1 -> st.live N2 ->
+      st.state N1 = HState.hs_valid -> st.state N2 = HState.hs_valid ->
+      st.curTs N1 = st.curTs N2 := by
+  unfold OpInvariant at h
+  grind [TotalOrder.antisymm]
+
+theorem op_valid_read_values_agree
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    {st : State Node TS Value Epoch}
+    (h : OpInvariant ord initTs initValue initEpoch st) :
+    forall N1 N2,
+      st.live N1 -> st.live N2 ->
+      st.state N1 = HState.hs_valid -> st.state N2 = HState.hs_valid ->
+      st.curValue N1 = st.curValue N2 := by
+  intro N1 N2 live1 live2 valid1 valid2
+  unfold OpInvariant at h
+  have tsEq : st.curTs N1 = st.curTs N2 := by
+    grind [TotalOrder.antisymm]
+  have value1 : st.tsValue (st.curTs N1) (st.curValue N1) := by grind
+  have value2 : st.tsValue (st.curTs N2) (st.curValue N2) := by grind
+  have value1' : st.tsValue (st.curTs N2) (st.curValue N1) := by
+    simpa [tsEq] using value1
+  grind
+
+theorem op_completed_rmw_unique_per_base
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    {st : State Node TS Value Epoch}
+    (h : OpInvariant ord initTs initValue initEpoch st) :
+    forall R1 R2 B,
+      st.completed R1 -> st.completed R2 ->
+      st.tsRmw R1 -> st.tsRmw R2 ->
+      st.parent R1 B -> st.parent R2 B ->
+      R1 = R2 := by
+  unfold OpInvariant at h
+  grind
+
+theorem op_o3_quorum_live_nodes_advanced
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    {st : State Node TS Value Epoch}
+    (h : OpInvariant ord initTs initValue initEpoch st) :
+    forall N C T A, st.o3Quorum N C T -> st.live A -> ord.le T (st.curTs A) := by
+  unfold OpInvariant at h
+  grind
+
+theorem le_of_not_lt {TS : Type uTs} (ord : TotalOrder TS) {x y : TS} :
+    Not (lt ord x y) -> ord.le y x := by
+  intro hNot
+  cases ord.total x y with
+  | inl hxy =>
+      by_cases hEq : x = y
+      · subst hEq
+        exact ord.refl x
+      · exact False.elim (hNot (And.intro hxy hEq))
+  | inr hyx => exact hyx
+
+structure CoreInvariant
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (ord : TotalOrder TS) (initTs : TS) (initValue : Value) (initEpoch : Epoch)
+    (st : State Node TS Value Epoch) : Prop where
+  ts_value_functional :
+    forall T V1 V2, st.tsValue T V1 -> st.tsValue T V2 -> V1 = V2
+  parent_seen :
+    forall T B, st.parent T B -> st.seenTs T /\ st.seenTs B /\ lt ord B T
+  ts_value_seen :
+    forall T V, st.tsValue T V -> st.seenTs T
+  ts_rmw_seen :
+    forall T, st.tsRmw T -> st.seenTs T
+  rmw_conflict_seen :
+    forall T, st.rmwConflict T -> st.seenTs T
+  rmw_conflict_rmw :
+    forall T, st.rmwConflict T -> st.tsRmw T
+  inv_write_wf :
+    forall S T V, st.invWrite S T V -> st.seenTs T /\ st.tsValue T V /\ Not (st.tsRmw T)
+  inv_rmw_wf :
+    forall S T V, st.invRmw S T V -> st.seenTs T /\ st.tsValue T V /\ st.tsRmw T
+  ack_msg_advanced :
+    forall A C T, st.ackMsg A C T -> ord.le T (st.curTs A)
+  val_msg_completed :
+    forall T, st.valMsg T -> st.completed T
+  o3_quorum_live_ack :
+    forall N C T A, st.o3Quorum N C T -> st.live A -> st.ackMsg A C T
+  cur_value_seen :
+    forall N, st.tsValue (st.curTs N) (st.curValue N)
+  cur_rmw_ts :
+    forall N, st.curRmw N -> st.tsRmw (st.curTs N)
+  cur_non_rmw_ts :
+    forall N, Not (st.curRmw N) -> Not (st.tsRmw (st.curTs N))
+  pending_below_cur :
+    forall N, st.pending N -> ord.le (st.pendingTs N) (st.curTs N)
+  pending_rmw_ts :
+    forall N, st.pending N -> st.pendingRmw N -> st.tsRmw (st.pendingTs N)
+  pending_non_rmw_ts :
+    forall N, st.pending N -> Not (st.pendingRmw N) -> Not (st.tsRmw (st.pendingTs N))
+  pending_rmw_current :
+    forall N, st.pending N -> st.pendingRmw N -> st.pendingTs N = st.curTs N
+  pending_acked_advanced :
+    forall N A, st.pending N -> st.acked N A -> ord.le (st.pendingTs N) (st.curTs A)
+  ready_pending :
+    forall N, st.ready N -> st.pending N
+  ready_live_acked :
+    forall N A, st.ready N -> st.live A -> st.acked N A
+  ready_rmw_no_completed_conflict :
+    forall N B R, st.live N -> st.ready N -> st.pendingRmw N ->
+      st.parent (st.pendingTs N) B -> st.completed R -> st.tsRmw R -> st.parent R B ->
+      st.pendingTs N = R
+  completed_live_advanced :
+    forall T N, st.completed T -> st.live N -> ord.le T (st.curTs N)
+  valid_completed :
+    forall N, st.state N = HState.hs_valid -> st.completed (st.curTs N)
+  write_rmw_spacing :
+    forall R W B, st.parent R B -> st.parent W B -> st.tsRmw R -> Not (st.tsRmw W) ->
+      lt ord R W
+  completed_rmw_same_base :
+    forall R1 R2 B, st.completed R1 -> st.completed R2 ->
+      st.tsRmw R1 -> st.tsRmw R2 -> st.parent R1 B -> st.parent R2 B -> R1 = R2
+  ready_live :
+    forall N, st.ready N -> st.live N
+  no_complete_try :
+    forall N, Not (st.completeTry N)
+  no_o3_try :
+    forall N, Not (st.o3Try N)
+
+theorem core_of_safety
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    {st : State Node TS Value Epoch}
+    (h : Safety ord initTs initValue initEpoch st) :
+    CoreInvariant ord initTs initValue initEpoch st where
+  ts_value_functional := h.ts_value_functional
+  parent_seen := h.parent_seen
+  ts_value_seen := h.ts_value_seen
+  ts_rmw_seen := h.ts_rmw_seen
+  rmw_conflict_seen := h.rmw_conflict_seen
+  rmw_conflict_rmw := h.rmw_conflict_rmw
+  inv_write_wf := h.inv_write_wf
+  inv_rmw_wf := h.inv_rmw_wf
+  ack_msg_advanced := h.ack_msg_advanced
+  val_msg_completed := h.val_msg_completed
+  o3_quorum_live_ack := h.o3_quorum_live_ack
+  cur_value_seen := h.cur_value_seen
+  cur_rmw_ts := h.cur_rmw_ts
+  cur_non_rmw_ts := h.cur_non_rmw_ts
+  pending_below_cur := h.pending_below_cur
+  pending_rmw_ts := h.pending_rmw_ts
+  pending_non_rmw_ts := h.pending_non_rmw_ts
+  pending_rmw_current := h.pending_rmw_current
+  pending_acked_advanced := h.pending_acked_advanced
+  ready_pending := h.ready_pending
+  ready_live_acked := h.ready_live_acked
+  ready_rmw_no_completed_conflict := h.ready_rmw_no_completed_conflict
+  completed_live_advanced := h.completed_live_advanced
+  valid_completed := h.valid_completed
+  write_rmw_spacing := h.write_rmw_spacing
+  completed_rmw_same_base := h.completed_rmw_same_base
+  ready_live := h.ready_live
+  no_complete_try := h.no_complete_try
+  no_o3_try := h.no_o3_try
+
+theorem core_init_invariant
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    (hinit : InitAssumptions ord initTs) :
+    CoreInvariant ord initTs initValue initEpoch
+      (initState (Node := Node) (TS := TS) (Value := Value) (Epoch := Epoch)
+        initTs initValue initEpoch) :=
+  core_of_safety (init_safety hinit)
+
+end Operational
+
 end HermesRmwO3
 
 -- Evidence dump: print the checked theorem bodies and their axiom dependencies.
