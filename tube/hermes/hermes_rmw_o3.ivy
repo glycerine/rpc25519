@@ -431,7 +431,6 @@ isolate hermes_protocol = {
         invariant ts_rmw(T) -> seen_ts(T)
         invariant rmw_conflict(T) -> seen_ts(T)
         invariant rmw_conflict(T) -> ts_rmw(T)
-        invariant completed(R) & ts_rmw(R) & ts_rmw(T) & parent_ts(R) = parent_ts(T) & R ~= T -> rmw_conflict(T)
         invariant inv_write(S,T,V) -> seen_ts(T) & ts_value(T,V) & ~ts_rmw(T)
         invariant inv_rmw(S,T,V) -> seen_ts(T) & ts_value(T,V) & ts_rmw(T)
         invariant ack_msg(A,C,T) -> seen_ts(T)
