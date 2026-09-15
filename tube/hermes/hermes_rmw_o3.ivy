@@ -486,6 +486,8 @@ isolate hermes_protocol = {
         # complete. Sequential RMWs have different parents.
         invariant completed(R1) & completed(R2) & ts_rmw(R1) & ts_rmw(R2) & parent(R1,B) & parent(R2,B) -> R1 = R2
 
+        invariant completed(R) & ts_rmw(R) & parent(R,B) & ts_rmw(W) & parent(W,B) & W ~= R -> lt(W,R)
+
         ################################################################################
         # Liveness/progress obligation
         ################################################################################

@@ -1488,66 +1488,279 @@ theorem local_write_preserves_core
     (hFresh : Not (st.seenTs t))
     (hSpacing : forall R, st.parent R (st.curTs n) -> st.tsRmw R -> lt ord R t) :
     CoreInvariant ord initTs initValue initEpoch (localWritePost st n t v) := by
-  cases hCore
+  rcases hCore with
+    ⟨hTsValueFunctional, hParentSeen, hTsValueSeen, hTsRmwSeen,
+      hRmwConflictSeen, hRmwConflictRmw, hInvWriteWf, hInvRmwWf,
+      hAckMsgAdvanced, hValMsgCompleted, hO3QuorumLiveAck,
+      hCurValueSeen, hCurRmwTs, hCurNonRmwTs, hPendingBelowCur,
+      hPendingRmwTs, hPendingNonRmwTs, hPendingRmwCurrent,
+      hPendingAckedAdvanced, hReadyPending, hReadyLiveAcked,
+      hReadyRmwNoCompletedConflict, hCompletedLiveAdvanced,
+      hValidCompleted, hWriteRmwSpacing, hCompletedRmwSameBase,
+      hReadyLive, hNoCompleteTry, hNoO3Try⟩
   refine {
-    ts_value_functional := ?_
-    parent_seen := ?_
-    ts_value_seen := ?_
-    ts_rmw_seen := ?_
-    rmw_conflict_seen := ?_
-    rmw_conflict_rmw := ?_
-    inv_write_wf := ?_
-    inv_rmw_wf := ?_
-    ack_msg_advanced := ?_
-    val_msg_completed := ?_
-    o3_quorum_live_ack := ?_
-    cur_value_seen := ?_
-    cur_rmw_ts := ?_
-    cur_non_rmw_ts := ?_
-    pending_below_cur := ?_
-    pending_rmw_ts := ?_
-    pending_non_rmw_ts := ?_
-    pending_rmw_current := ?_
-    pending_acked_advanced := ?_
-    ready_pending := ?_
-    ready_live_acked := ?_
-    ready_rmw_no_completed_conflict := ?_
-    completed_live_advanced := ?_
-    valid_completed := ?_
-    write_rmw_spacing := ?_
-    completed_rmw_same_base := ?_
-    ready_live := ?_
-    no_complete_try := ?_
-    no_o3_try := ?_
-  } <;>
-    (simp_all [localWritePost, upd, add1, set1, set2FirstSelf, add3,
-      addTsValue, addParent, removeTs, lt] <;>
-    grind [TotalOrder.trans, TotalOrder.antisymm])
+    ts_value_functional := by
+      intro T V1 V2 hv1 hv2
+      simp [localWritePost, addTsValue] at hv1 hv2
+      rcases hv1 with hv1 | hNew1
+      · rcases hv2 with hv2 | hNew2
+        · exact hTsValueFunctional T V1 V2 hv1 hv2
+        · exact False.elim (hFresh (by
+            simpa [hNew2.1] using hTsValueSeen T V1 hv1))
+      · rcases hv2 with hv2 | hNew2
+        · exact False.elim (hFresh (by
+            simpa [hNew1.1] using hTsValueSeen T V2 hv2))
+        · exact hNew1.2.trans hNew2.2.symm
+    parent_seen := by
+      intro T B hp
+      simp [localWritePost, addParent] at hp
+      rcases hp with hp | ⟨rfl, rfl⟩
+      · rcases hParentSeen T B hp with ⟨hSeenT, hSeenB, hLtBT⟩
+        exact ⟨Or.inl hSeenT, Or.inl hSeenB, hLtBT⟩
+      · have hSeenCur : st.seenTs (st.curTs n) :=
+          hTsValueSeen (st.curTs n) (st.curValue n) (hCurValueSeen n)
+        exact ⟨Or.inr rfl, Or.inl hSeenCur, hLt⟩
+    ts_value_seen := by
+      intro T V hv
+      simp [localWritePost, addTsValue] at hv ⊢
+      rcases hv with hv | hNew
+      · exact Or.inl (hTsValueSeen T V hv)
+      · exact Or.inr hNew.1
+    ts_rmw_seen := by
+      intro T hr
+      simp [localWritePost, removeTs] at hr ⊢
+      exact Or.inl (hTsRmwSeen T hr.1)
+    rmw_conflict_seen := by
+      intro T hc
+      simp [localWritePost, removeTs] at hc ⊢
+      exact Or.inl (hRmwConflictSeen T hc.1)
+    rmw_conflict_rmw := by
+      intro T hc
+      simp [localWritePost, removeTs] at hc ⊢
+      exact ⟨hRmwConflictRmw T hc.1, hc.2⟩
+    inv_write_wf := by
+      intro S T V hi
+      simp [localWritePost, add3, add1, addTsValue, removeTs] at hi ⊢
+      rcases hi with hi | hNew
+      · rcases hInvWriteWf S T V hi with ⟨hSeen, hVal, hNotRmw⟩
+        exact ⟨Or.inl hSeen, Or.inl hVal, by
+          intro hRmw
+          exact False.elim (hNotRmw hRmw)⟩
+      · exact ⟨Or.inr hNew.2.1, Or.inr ⟨hNew.2.1, hNew.2.2⟩, by
+          intro hRmw
+          exact hNew.2.1⟩
+    inv_rmw_wf := by
+      intro S T V hi
+      simp [localWritePost, add1, addTsValue, removeTs] at hi ⊢
+      rcases hInvRmwWf S T V hi with ⟨hSeen, hVal, hRmw⟩
+      have hNe : T ≠ t := by
+        intro hEq
+        subst hEq
+        exact hFresh hSeen
+      exact ⟨Or.inl hSeen, Or.inl hVal, hRmw, hNe⟩
+    ack_msg_advanced := by
+      intro A C T ha
+      by_cases hA : A = n
+      · have hAdvance : ord.le (st.curTs A) t := by
+          simpa [hA] using hLt.1
+        simpa [localWritePost, upd, hA] using
+          ord.trans (hAckMsgAdvanced A C T ha) hAdvance
+      · simpa [localWritePost, upd, hA] using hAckMsgAdvanced A C T ha
+    val_msg_completed := by
+      intro T hv
+      exact hValMsgCompleted T hv
+    o3_quorum_live_ack := by
+      intro N C T A hq hl
+      exact hO3QuorumLiveAck N C T A hq hl
+    cur_value_seen := by
+      intro N
+      by_cases hN : N = n
+      · simp [localWritePost, upd, addTsValue, hN]
+      · simp [localWritePost, upd, addTsValue, hN]
+        exact Or.inl (hCurValueSeen N)
+    cur_rmw_ts := by
+      intro N hRmw
+      by_cases hN : N = n
+      · simp [localWritePost, upd, set1, removeTs, hN] at hRmw
+      · simp [localWritePost, upd, set1, removeTs, hN] at hRmw ⊢
+        have oldRmw : st.tsRmw (st.curTs N) := hCurRmwTs N hRmw
+        have hNe : st.curTs N ≠ t := by
+          intro hEq
+          exact hFresh (by simpa [hEq] using hTsRmwSeen (st.curTs N) oldRmw)
+        exact ⟨oldRmw, hNe⟩
+    cur_non_rmw_ts := by
+      intro N hNotCur hRmw
+      by_cases hN : N = n
+      · simp [localWritePost, upd, set1, removeTs, hN] at hNotCur hRmw
+      · simp [localWritePost, upd, set1, removeTs, hN] at hNotCur hRmw
+        exact hCurNonRmwTs N hNotCur hRmw.1
+    pending_below_cur := by
+      intro N hp
+      by_cases hN : N = n
+      · simp [localWritePost, upd, set1, hN]
+        exact ord.refl t
+      · simp [localWritePost, upd, set1, hN] at hp ⊢
+        exact hPendingBelowCur N hp
+    pending_rmw_ts := by
+      intro N hp hr
+      by_cases hN : N = n
+      · simp [localWritePost, set1, upd, removeTs, hN] at hr
+      · simp [localWritePost, set1, upd, removeTs, hN] at hp hr ⊢
+        have oldRmw : st.tsRmw (st.pendingTs N) :=
+          hPendingRmwTs N hp hr
+        have hNe : st.pendingTs N ≠ t := by
+          intro hEq
+          exact hFresh (by simpa [hEq] using hTsRmwSeen (st.pendingTs N) oldRmw)
+        exact ⟨oldRmw, hNe⟩
+    pending_non_rmw_ts := by
+      intro N hp hNotRmw hRmw
+      by_cases hN : N = n
+      · simp [localWritePost, set1, upd, removeTs, hN] at hRmw
+      · simp [localWritePost, set1, upd, removeTs, hN] at hp hNotRmw hRmw
+        exact hPendingNonRmwTs N hp hNotRmw hRmw.1
+    pending_rmw_current := by
+      intro N hp hr
+      by_cases hN : N = n
+      · simp [localWritePost, set1, upd, hN] at hr
+      · simp [localWritePost, set1, upd, hN] at hp hr ⊢
+        exact hPendingRmwCurrent N hp hr
+    pending_acked_advanced := by
+      intro N A hp ha
+      by_cases hN : N = n
+      · have hA : A = n := by
+          simpa [localWritePost, set1, set2FirstSelf, hN] using ha
+        simp [localWritePost, set1, set2FirstSelf, upd, hN, hA]
+        exact ord.refl t
+      · by_cases hA : A = n
+        · simp [localWritePost, set1, set2FirstSelf, upd, hN, hA] at hp ha ⊢
+          exact ord.trans (hPendingAckedAdvanced N n hp (by simpa [hA] using ha)) hLt.1
+        · simp [localWritePost, set1, set2FirstSelf, upd, hN, hA] at hp ha ⊢
+          exact hPendingAckedAdvanced N A hp ha
+    ready_pending := by
+      intro N hr
+      by_cases hN : N = n
+      · simp [localWritePost, set1, hN] at hr
+      · simp [localWritePost, set1, hN] at hr ⊢
+        exact hReadyPending N hr
+    ready_live_acked := by
+      intro N A hr hl
+      by_cases hN : N = n
+      · simp [localWritePost, set1, hN] at hr
+      · simp [localWritePost, set1, set2FirstSelf, hN] at hr ⊢
+        exact hReadyLiveAcked N A hr hl
+    ready_rmw_no_completed_conflict := by
+      intro N B R hl hr hpRmw hParentPending hCompleted hRmwR hParentR
+      by_cases hN : N = n
+      · simp [localWritePost, set1, upd, addParent, removeTs, hN] at hr
+      · simp [localWritePost, set1, upd, addParent, removeTs, hN] at hr hpRmw hParentPending hRmwR hParentR ⊢
+        have oldReady : st.ready N := hr
+        have oldPendingRmw : st.pendingRmw N := hpRmw
+        have oldPending : st.pending N := hReadyPending N oldReady
+        have oldPendingTsSeen : st.seenTs (st.pendingTs N) :=
+          hTsRmwSeen (st.pendingTs N) (hPendingRmwTs N oldPending oldPendingRmw)
+        have pendingParentOld : st.parent (st.pendingTs N) B := by
+          rcases hParentPending with hp | ⟨hEq, _hb⟩
+          · exact hp
+          · exact False.elim (hFresh (by simpa [hEq] using oldPendingTsSeen))
+        have rmwROld : st.tsRmw R := hRmwR.1
+        have parentROld : st.parent R B := by
+          rcases hParentR with hp | hNew
+          · exact hp
+          · exact False.elim (hRmwR.2 hNew.1)
+        exact hReadyRmwNoCompletedConflict N B R hl oldReady oldPendingRmw
+          pendingParentOld hCompleted rmwROld parentROld
+    completed_live_advanced := by
+      intro T N hCompleted hl
+      by_cases hN : N = n
+      · have hAdvance : ord.le (st.curTs N) t := by
+          simpa [hN] using hLt.1
+        simpa [localWritePost, upd, hN] using
+          ord.trans (hCompletedLiveAdvanced T N hCompleted hl) hAdvance
+      · simpa [localWritePost, upd, hN] using hCompletedLiveAdvanced T N hCompleted hl
+    valid_completed := by
+      intro N hValid
+      by_cases hN : N = n
+      · simp [localWritePost, upd, hN] at hValid
+      · simp [localWritePost, upd, hN] at hValid ⊢
+        exact hValidCompleted N hValid
+    write_rmw_spacing := by
+      intro R W B hParentR hParentW hRmwR hNotRmwW
+      have hParentROldOrNew :
+          st.parent R B \/ (R = t /\ B = st.curTs n) := by
+        simpa [localWritePost, addParent] using hParentR
+      have hParentWOldOrNew :
+          st.parent W B \/ (W = t /\ B = st.curTs n) := by
+        simpa [localWritePost, addParent] using hParentW
+      have hRmwROld : st.tsRmw R /\ R ≠ t := by
+        simpa [localWritePost, removeTs] using hRmwR
+      have hNotOldW : ¬st.tsRmw W := by
+        intro hOldW
+        have hEqW : W = t := by
+          have hNotPost : ¬(st.tsRmw W /\ W ≠ t) := by
+            simpa [localWritePost, removeTs] using hNotRmwW
+          by_cases hWt : W = t
+          · exact hWt
+          · exact False.elim (hNotPost ⟨hOldW, hWt⟩)
+        exact hFresh (by simpa [hEqW] using hTsRmwSeen W hOldW)
+      rcases hParentROldOrNew with hParentROld | hParentRNew
+      · rcases hParentWOldOrNew with hParentWOld | hParentWNew
+        · exact hWriteRmwSpacing R W B hParentROld hParentWOld hRmwROld.1 hNotOldW
+        · have hParentRBase : st.parent R (st.curTs n) := by
+            simpa [hParentWNew.2] using hParentROld
+          simpa [hParentWNew.1] using hSpacing R hParentRBase hRmwROld.1
+      · exact False.elim (hRmwROld.2 hParentRNew.1)
+    completed_rmw_same_base := by
+      intro R1 R2 B hCompleted1 hCompleted2 hRmw1 hRmw2 hParent1 hParent2
+      have hRmw1Old : st.tsRmw R1 /\ R1 ≠ t := by
+        simpa [localWritePost, removeTs] using hRmw1
+      have hRmw2Old : st.tsRmw R2 /\ R2 ≠ t := by
+        simpa [localWritePost, removeTs] using hRmw2
+      have hParent1OldOrNew : st.parent R1 B \/ (R1 = t /\ B = st.curTs n) := by
+        simpa [localWritePost, addParent] using hParent1
+      have hParent2OldOrNew : st.parent R2 B \/ (R2 = t /\ B = st.curTs n) := by
+        simpa [localWritePost, addParent] using hParent2
+      have parent1Old : st.parent R1 B := by
+        rcases hParent1OldOrNew with hp | hNew
+        · exact hp
+        · exact False.elim (hRmw1Old.2 hNew.1)
+      have parent2Old : st.parent R2 B := by
+        rcases hParent2OldOrNew with hp | hNew
+        · exact hp
+        · exact False.elim (hRmw2Old.2 hNew.1)
+      exact hCompletedRmwSameBase R1 R2 B hCompleted1 hCompleted2
+        hRmw1Old.1 hRmw2Old.1 parent1Old parent2Old
+    ready_live := by
+      intro N hr
+      by_cases hN : N = n
+      · simp [localWritePost, set1, hN] at hr
+      · simp [localWritePost, set1, hN] at hr
+        exact hReadyLive N hr
+    no_complete_try := by
+      intro N hTry
+      exact hNoCompleteTry N hTry
+    no_o3_try := by
+      intro N hTry
+      exact hNoO3Try N hTry
+  }
+
+set_option maxHeartbeats 50000 in
+theorem local_rmw_preserves_core_probe
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    {st : State Node TS Value Epoch} {n : Node} {t : TS} {v : Value}
+    (hCore : CoreInvariant ord initTs initValue initEpoch st)
+    (hLive : st.live n)
+    (hNotPending : Not (st.pending n))
+    (hState : st.state n = HState.hs_valid)
+    (hLt : lt ord (st.curTs n) t)
+    (hFresh : Not (st.seenTs t))
+    (hSpacing : forall W, st.parent W (st.curTs n) -> Not (st.tsRmw W) -> lt ord t W) :
+    CoreInvariant ord initTs initValue initEpoch (localRmwPost st n t v) := by
+  cases hCore
+  simp [CoreInvariant, localRmwPost, upd, add1, set1, set2FirstSelf,
+    add3, addTsValue, addParent, removeTs, addRmwConflicts, lt] at *
+  grind [TotalOrder.trans, TotalOrder.antisymm]
 
 end Operational
 
 end HermesRmwO3
-
--- Evidence dump: print the checked theorem bodies and their axiom dependencies.
-#print HermesRmwO3.valid_read_timestamps_agree_from_core
-#print axioms HermesRmwO3.valid_read_timestamps_agree_from_core
-#print HermesRmwO3.valid_read_values_agree_from_core
-#print axioms HermesRmwO3.valid_read_values_agree_from_core
-#print HermesRmwO3.completed_rmw_unique_per_base
-#print axioms HermesRmwO3.completed_rmw_unique_per_base
-#print HermesRmwO3.rmw_conflict_seen_ts
-#print axioms HermesRmwO3.rmw_conflict_seen_ts
-#print HermesRmwO3.rmw_conflict_is_rmw
-#print axioms HermesRmwO3.rmw_conflict_is_rmw
-#print HermesRmwO3.o3_quorum_seen_ts
-#print axioms HermesRmwO3.o3_quorum_seen_ts
-#print HermesRmwO3.o3_quorum_live_nodes_advanced
-#print axioms HermesRmwO3.o3_quorum_live_nodes_advanced
-#print HermesRmwO3.init_safety
-#print axioms HermesRmwO3.init_safety
-#print HermesRmwO3.ready_epochs_eventually_finish
-#print axioms HermesRmwO3.ready_epochs_eventually_finish
-#print HermesRmwO3.o3_ack_quorums_eventually_finish_or_conflict
-#print axioms HermesRmwO3.o3_ack_quorums_eventually_finish_or_conflict
-#print HermesRmwO3.o3_rmw_ack_quorums_eventually_finish_or_conflict
-#print axioms HermesRmwO3.o3_rmw_ack_quorums_eventually_finish_or_conflict

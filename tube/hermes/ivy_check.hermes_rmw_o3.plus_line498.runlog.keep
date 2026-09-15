@@ -1,0 +1,571 @@
+
+Isolate hermes_protocol:
+
+    The following properties are treated as axioms: 
+        hermes_rmw_o3.ivy: line 12: hermes_protocol.axiom1
+        hermes_rmw_o3.ivy: line 13: hermes_protocol.axiom2
+        hermes_rmw_o3.ivy: line 14: hermes_protocol.axiom3
+        hermes_rmw_o3.ivy: line 15: hermes_protocol.axiom4
+        hermes_rmw_o3.ivy: line 57: hermes_protocol.axiom6
+
+    The following properties are treated as properties:
+        hermes_rmw_o3.ivy: line 577: hermes_protocol.ready_epochs_eventually_finish
+        hermes_rmw_o3.ivy: line 593: hermes_protocol.o3_ack_quorums_eventually_finish_or_conflict
+        hermes_rmw_o3.ivy: line 610: hermes_protocol.o3_rmw_ack_quorums_eventually_finish_or_conflict
+
+    The following properties are treated as conjectures: 
+        hermes_rmw_o3.ivy: line 422: hermes_protocol.invar80
+        hermes_rmw_o3.ivy: line 423: hermes_protocol.invar81
+        hermes_rmw_o3.ivy: line 424: hermes_protocol.invar82
+        hermes_rmw_o3.ivy: line 425: hermes_protocol.invar83
+        hermes_rmw_o3.ivy: line 427: hermes_protocol.invar84
+        hermes_rmw_o3.ivy: line 428: hermes_protocol.invar85
+        hermes_rmw_o3.ivy: line 429: hermes_protocol.invar86
+        hermes_rmw_o3.ivy: line 430: hermes_protocol.invar87
+        hermes_rmw_o3.ivy: line 431: hermes_protocol.invar88
+        hermes_rmw_o3.ivy: line 432: hermes_protocol.invar89
+        hermes_rmw_o3.ivy: line 433: hermes_protocol.invar90
+        hermes_rmw_o3.ivy: line 434: hermes_protocol.invar91
+        hermes_rmw_o3.ivy: line 435: hermes_protocol.invar92
+        hermes_rmw_o3.ivy: line 436: hermes_protocol.invar93
+        hermes_rmw_o3.ivy: line 437: hermes_protocol.invar94
+        hermes_rmw_o3.ivy: line 438: hermes_protocol.invar95
+        hermes_rmw_o3.ivy: line 439: hermes_protocol.invar96
+        hermes_rmw_o3.ivy: line 440: hermes_protocol.invar97
+        hermes_rmw_o3.ivy: line 441: hermes_protocol.invar98
+        hermes_rmw_o3.ivy: line 442: hermes_protocol.invar99
+        hermes_rmw_o3.ivy: line 443: hermes_protocol.invar100
+        hermes_rmw_o3.ivy: line 444: hermes_protocol.invar101
+        hermes_rmw_o3.ivy: line 445: hermes_protocol.invar102
+        hermes_rmw_o3.ivy: line 446: hermes_protocol.invar103
+        hermes_rmw_o3.ivy: line 447: hermes_protocol.invar104
+        hermes_rmw_o3.ivy: line 448: hermes_protocol.invar105
+        hermes_rmw_o3.ivy: line 449: hermes_protocol.invar106
+        hermes_rmw_o3.ivy: line 450: hermes_protocol.invar107
+        hermes_rmw_o3.ivy: line 451: hermes_protocol.invar108
+        hermes_rmw_o3.ivy: line 452: hermes_protocol.invar109
+        hermes_rmw_o3.ivy: line 453: hermes_protocol.invar110
+        hermes_rmw_o3.ivy: line 454: hermes_protocol.invar111
+        hermes_rmw_o3.ivy: line 455: hermes_protocol.invar112
+        hermes_rmw_o3.ivy: line 456: hermes_protocol.invar113
+        hermes_rmw_o3.ivy: line 457: hermes_protocol.invar114
+        hermes_rmw_o3.ivy: line 458: hermes_protocol.invar115
+        hermes_rmw_o3.ivy: line 459: hermes_protocol.invar116
+        hermes_rmw_o3.ivy: line 460: hermes_protocol.invar117
+        hermes_rmw_o3.ivy: line 461: hermes_protocol.invar118
+        hermes_rmw_o3.ivy: line 462: hermes_protocol.invar119
+        hermes_rmw_o3.ivy: line 467: hermes_protocol.invar120
+        hermes_rmw_o3.ivy: line 469: hermes_protocol.invar121
+        hermes_rmw_o3.ivy: line 473: hermes_protocol.invar122
+        hermes_rmw_o3.ivy: line 474: hermes_protocol.invar123
+        hermes_rmw_o3.ivy: line 477: hermes_protocol.invar124
+        hermes_rmw_o3.ivy: line 482: hermes_protocol.invar125
+        hermes_rmw_o3.ivy: line 483: hermes_protocol.invar126
+        hermes_rmw_o3.ivy: line 487: hermes_protocol.invar127
+        hermes_rmw_o3.ivy: line 489: hermes_protocol.invar128
+        hermes_rmw_o3.ivy: line 568: hermes_protocol.invar141
+        hermes_rmw_o3.ivy: line 569: hermes_protocol.invar142
+        hermes_rmw_o3.ivy: line 570: hermes_protocol.invar143
+        hermes_rmw_o3.ivy: line 571: hermes_protocol.invar144
+        hermes_rmw_o3.ivy: line 572: hermes_protocol.invar145
+        hermes_rmw_o3.ivy: line 573: hermes_protocol.invar146
+        hermes_rmw_o3.ivy: line 574: hermes_protocol.invar147
+        hermes_rmw_o3.ivy: line 575: hermes_protocol.invar148
+
+    The following properties are assumed as axioms:
+        hermes_rmw_o3.ivy: line 12: hermes_protocol.axiom1
+        hermes_rmw_o3.ivy: line 13: hermes_protocol.axiom2
+        hermes_rmw_o3.ivy: line 14: hermes_protocol.axiom3
+        hermes_rmw_o3.ivy: line 15: hermes_protocol.axiom4
+        hermes_rmw_o3.ivy: line 57: hermes_protocol.axiom6
+
+    The following definitions are used:
+        hermes_rmw_o3.ivy: line 50: hermes_protocol.def5
+
+    The following properties are to be checked:
+
+    The inductive invariant consists of the following conjectures:
+        hermes_rmw_o3.ivy: line 422: hermes_protocol.invar80
+        hermes_rmw_o3.ivy: line 423: hermes_protocol.invar81
+        hermes_rmw_o3.ivy: line 424: hermes_protocol.invar82
+        hermes_rmw_o3.ivy: line 425: hermes_protocol.invar83
+        hermes_rmw_o3.ivy: line 427: hermes_protocol.invar84
+        hermes_rmw_o3.ivy: line 428: hermes_protocol.invar85
+        hermes_rmw_o3.ivy: line 429: hermes_protocol.invar86
+        hermes_rmw_o3.ivy: line 430: hermes_protocol.invar87
+        hermes_rmw_o3.ivy: line 431: hermes_protocol.invar88
+        hermes_rmw_o3.ivy: line 432: hermes_protocol.invar89
+        hermes_rmw_o3.ivy: line 433: hermes_protocol.invar90
+        hermes_rmw_o3.ivy: line 434: hermes_protocol.invar91
+        hermes_rmw_o3.ivy: line 435: hermes_protocol.invar92
+        hermes_rmw_o3.ivy: line 436: hermes_protocol.invar93
+        hermes_rmw_o3.ivy: line 437: hermes_protocol.invar94
+        hermes_rmw_o3.ivy: line 438: hermes_protocol.invar95
+        hermes_rmw_o3.ivy: line 439: hermes_protocol.invar96
+        hermes_rmw_o3.ivy: line 440: hermes_protocol.invar97
+        hermes_rmw_o3.ivy: line 441: hermes_protocol.invar98
+        hermes_rmw_o3.ivy: line 442: hermes_protocol.invar99
+        hermes_rmw_o3.ivy: line 443: hermes_protocol.invar100
+        hermes_rmw_o3.ivy: line 444: hermes_protocol.invar101
+        hermes_rmw_o3.ivy: line 445: hermes_protocol.invar102
+        hermes_rmw_o3.ivy: line 446: hermes_protocol.invar103
+        hermes_rmw_o3.ivy: line 447: hermes_protocol.invar104
+        hermes_rmw_o3.ivy: line 448: hermes_protocol.invar105
+        hermes_rmw_o3.ivy: line 449: hermes_protocol.invar106
+        hermes_rmw_o3.ivy: line 450: hermes_protocol.invar107
+        hermes_rmw_o3.ivy: line 451: hermes_protocol.invar108
+        hermes_rmw_o3.ivy: line 452: hermes_protocol.invar109
+        hermes_rmw_o3.ivy: line 453: hermes_protocol.invar110
+        hermes_rmw_o3.ivy: line 454: hermes_protocol.invar111
+        hermes_rmw_o3.ivy: line 455: hermes_protocol.invar112
+        hermes_rmw_o3.ivy: line 456: hermes_protocol.invar113
+        hermes_rmw_o3.ivy: line 457: hermes_protocol.invar114
+        hermes_rmw_o3.ivy: line 458: hermes_protocol.invar115
+        hermes_rmw_o3.ivy: line 459: hermes_protocol.invar116
+        hermes_rmw_o3.ivy: line 460: hermes_protocol.invar117
+        hermes_rmw_o3.ivy: line 461: hermes_protocol.invar118
+        hermes_rmw_o3.ivy: line 462: hermes_protocol.invar119
+        hermes_rmw_o3.ivy: line 467: hermes_protocol.invar120
+        hermes_rmw_o3.ivy: line 469: hermes_protocol.invar121
+        hermes_rmw_o3.ivy: line 473: hermes_protocol.invar122
+        hermes_rmw_o3.ivy: line 474: hermes_protocol.invar123
+        hermes_rmw_o3.ivy: line 477: hermes_protocol.invar124
+        hermes_rmw_o3.ivy: line 482: hermes_protocol.invar125
+        hermes_rmw_o3.ivy: line 483: hermes_protocol.invar126
+        hermes_rmw_o3.ivy: line 487: hermes_protocol.invar127
+        hermes_rmw_o3.ivy: line 489: hermes_protocol.invar128
+        hermes_rmw_o3.ivy: line 568: hermes_protocol.invar141
+        hermes_rmw_o3.ivy: line 569: hermes_protocol.invar142
+        hermes_rmw_o3.ivy: line 570: hermes_protocol.invar143
+        hermes_rmw_o3.ivy: line 571: hermes_protocol.invar144
+        hermes_rmw_o3.ivy: line 572: hermes_protocol.invar145
+        hermes_rmw_o3.ivy: line 573: hermes_protocol.invar146
+        hermes_rmw_o3.ivy: line 574: hermes_protocol.invar147
+        hermes_rmw_o3.ivy: line 575: hermes_protocol.invar148
+
+    The following action implementations are present:
+        hermes_rmw_o3.ivy: line 35: implementation of hermes_protocol.complete_current
+        hermes_rmw_o3.ivy: line 36: implementation of hermes_protocol.complete_overwritten
+        hermes_rmw_o3.ivy: line 37: implementation of hermes_protocol.complete_ready
+        hermes_rmw_o3.ivy: line 43: implementation of hermes_protocol.fail
+        hermes_rmw_o3.ivy: line 30: implementation of hermes_protocol.local_rmw
+        hermes_rmw_o3.ivy: line 29: implementation of hermes_protocol.local_write
+        hermes_rmw_o3.ivy: line 40: implementation of hermes_protocol.mark_ready
+        hermes_rmw_o3.ivy: line 39: implementation of hermes_protocol.o3_complete
+        hermes_rmw_o3.ivy: line 38: implementation of hermes_protocol.o3_observe_quorum
+        hermes_rmw_o3.ivy: line 34: implementation of hermes_protocol.receive_ack
+        hermes_rmw_o3.ivy: line 32: implementation of hermes_protocol.receive_rmw_inv
+        hermes_rmw_o3.ivy: line 33: implementation of hermes_protocol.receive_rmw_inv_completed_conflict
+        hermes_rmw_o3.ivy: line 41: implementation of hermes_protocol.receive_validate
+        hermes_rmw_o3.ivy: line 31: implementation of hermes_protocol.receive_write_inv
+        hermes_rmw_o3.ivy: line 42: implementation of hermes_protocol.replay_after_failure
+
+    The following action monitors are present:
+        hermes_rmw_o3.ivy: line 324: monitor of hermes_protocol.complete_current
+        hermes_rmw_o3.ivy: line 344: monitor of hermes_protocol.complete_overwritten
+        hermes_rmw_o3.ivy: line 495: monitor of hermes_protocol.complete_ready
+        hermes_rmw_o3.ivy: line 406: monitor of hermes_protocol.fail
+        hermes_rmw_o3.ivy: line 171: monitor of hermes_protocol.local_rmw
+        hermes_rmw_o3.ivy: line 138: monitor of hermes_protocol.local_write
+        hermes_rmw_o3.ivy: line 311: monitor of hermes_protocol.mark_ready
+        hermes_rmw_o3.ivy: line 542: monitor of hermes_protocol.o3_complete
+        hermes_rmw_o3.ivy: line 533: monitor of hermes_protocol.o3_observe_quorum
+        hermes_rmw_o3.ivy: line 299: monitor of hermes_protocol.receive_ack
+        hermes_rmw_o3.ivy: line 235: monitor of hermes_protocol.receive_rmw_inv
+        hermes_rmw_o3.ivy: line 279: monitor of hermes_protocol.receive_rmw_inv_completed_conflict
+        hermes_rmw_o3.ivy: line 365: monitor of hermes_protocol.receive_validate
+        hermes_rmw_o3.ivy: line 203: monitor of hermes_protocol.receive_write_inv
+        hermes_rmw_o3.ivy: line 382: monitor of hermes_protocol.replay_after_failure
+
+    The following initializers are present:
+initializer:        hermes_rmw_o3.ivy: line 102:  hermes_protocol.init[after7]
+
+    Initialization must establish the invariant
+        hermes_rmw_o3.ivy: line 422: hermes_protocol.invar80 ...
+PASS
+        hermes_rmw_o3.ivy: line 423: hermes_protocol.invar81 ...
+PASS
+        hermes_rmw_o3.ivy: line 424: hermes_protocol.invar82 ...
+PASS
+        hermes_rmw_o3.ivy: line 425: hermes_protocol.invar83 ...
+PASS
+        hermes_rmw_o3.ivy: line 427: hermes_protocol.invar84 ...
+PASS
+        hermes_rmw_o3.ivy: line 428: hermes_protocol.invar85 ...
+PASS
+        hermes_rmw_o3.ivy: line 429: hermes_protocol.invar86 ...
+PASS
+        hermes_rmw_o3.ivy: line 430: hermes_protocol.invar87 ...
+PASS
+        hermes_rmw_o3.ivy: line 431: hermes_protocol.invar88 ...
+PASS
+        hermes_rmw_o3.ivy: line 432: hermes_protocol.invar89 ...
+PASS
+        hermes_rmw_o3.ivy: line 433: hermes_protocol.invar90 ...
+PASS
+        hermes_rmw_o3.ivy: line 434: hermes_protocol.invar91 ...
+PASS
+        hermes_rmw_o3.ivy: line 435: hermes_protocol.invar92 ...
+PASS
+        hermes_rmw_o3.ivy: line 436: hermes_protocol.invar93 ...
+PASS
+        hermes_rmw_o3.ivy: line 437: hermes_protocol.invar94 ...
+PASS
+        hermes_rmw_o3.ivy: line 438: hermes_protocol.invar95 ...
+PASS
+        hermes_rmw_o3.ivy: line 439: hermes_protocol.invar96 ...
+PASS
+        hermes_rmw_o3.ivy: line 440: hermes_protocol.invar97 ...
+PASS
+        hermes_rmw_o3.ivy: line 441: hermes_protocol.invar98 ...
+PASS
+        hermes_rmw_o3.ivy: line 442: hermes_protocol.invar99 ...
+PASS
+        hermes_rmw_o3.ivy: line 443: hermes_protocol.invar100 ...
+PASS
+        hermes_rmw_o3.ivy: line 444: hermes_protocol.invar101 ...
+PASS
+        hermes_rmw_o3.ivy: line 445: hermes_protocol.invar102 ...
+PASS
+        hermes_rmw_o3.ivy: line 446: hermes_protocol.invar103 ...
+PASS
+        hermes_rmw_o3.ivy: line 447: hermes_protocol.invar104 ...
+PASS
+        hermes_rmw_o3.ivy: line 448: hermes_protocol.invar105 ...
+PASS
+        hermes_rmw_o3.ivy: line 449: hermes_protocol.invar106 ...
+PASS
+        hermes_rmw_o3.ivy: line 450: hermes_protocol.invar107 ...
+PASS
+        hermes_rmw_o3.ivy: line 451: hermes_protocol.invar108 ...
+PASS
+        hermes_rmw_o3.ivy: line 452: hermes_protocol.invar109 ...
+PASS
+        hermes_rmw_o3.ivy: line 453: hermes_protocol.invar110 ...
+PASS
+        hermes_rmw_o3.ivy: line 454: hermes_protocol.invar111 ...
+PASS
+        hermes_rmw_o3.ivy: line 455: hermes_protocol.invar112 ...
+PASS
+        hermes_rmw_o3.ivy: line 456: hermes_protocol.invar113 ...
+PASS
+        hermes_rmw_o3.ivy: line 457: hermes_protocol.invar114 ...
+PASS
+        hermes_rmw_o3.ivy: line 458: hermes_protocol.invar115 ...
+PASS
+        hermes_rmw_o3.ivy: line 459: hermes_protocol.invar116 ...
+PASS
+        hermes_rmw_o3.ivy: line 460: hermes_protocol.invar117 ...
+PASS
+        hermes_rmw_o3.ivy: line 461: hermes_protocol.invar118 ...
+PASS
+        hermes_rmw_o3.ivy: line 462: hermes_protocol.invar119 ...
+PASS
+        hermes_rmw_o3.ivy: line 467: hermes_protocol.invar120 ...
+PASS
+        hermes_rmw_o3.ivy: line 469: hermes_protocol.invar121 ...
+PASS
+        hermes_rmw_o3.ivy: line 473: hermes_protocol.invar122 ...
+PASS
+        hermes_rmw_o3.ivy: line 474: hermes_protocol.invar123 ...
+PASS
+        hermes_rmw_o3.ivy: line 477: hermes_protocol.invar124 ...
+PASS
+        hermes_rmw_o3.ivy: line 482: hermes_protocol.invar125 ...
+PASS
+        hermes_rmw_o3.ivy: line 483: hermes_protocol.invar126 ...
+PASS
+        hermes_rmw_o3.ivy: line 487: hermes_protocol.invar127 ...
+PASS
+        hermes_rmw_o3.ivy: line 489: hermes_protocol.invar128 ...
+PASS
+        hermes_rmw_o3.ivy: line 568: hermes_protocol.invar141 ...
+PASS
+        hermes_rmw_o3.ivy: line 569: hermes_protocol.invar142 ...
+PASS
+        hermes_rmw_o3.ivy: line 570: hermes_protocol.invar143 ...
+PASS
+        hermes_rmw_o3.ivy: line 571: hermes_protocol.invar144 ...
+PASS
+        hermes_rmw_o3.ivy: line 572: hermes_protocol.invar145 ...
+PASS
+        hermes_rmw_o3.ivy: line 573: hermes_protocol.invar146 ...
+PASS
+        hermes_rmw_o3.ivy: line 574: hermes_protocol.invar147 ...
+PASS
+        hermes_rmw_o3.ivy: line 575: hermes_protocol.invar148 ...
+PASS
+
+    The following set of external actions must preserve the invariant:
+        (internal) ext:hermes_protocol.complete_current
+            hermes_rmw_o3.ivy: line 422: hermes_protocol.invar80 ...
+PASS
+            hermes_rmw_o3.ivy: line 423: hermes_protocol.invar81 ...
+PASS
+            hermes_rmw_o3.ivy: line 424: hermes_protocol.invar82 ...
+PASS
+            hermes_rmw_o3.ivy: line 425: hermes_protocol.invar83 ...
+PASS
+            hermes_rmw_o3.ivy: line 427: hermes_protocol.invar84 ...
+PASS
+            hermes_rmw_o3.ivy: line 428: hermes_protocol.invar85 ...
+PASS
+            hermes_rmw_o3.ivy: line 429: hermes_protocol.invar86 ...
+PASS
+            hermes_rmw_o3.ivy: line 430: hermes_protocol.invar87 ...
+PASS
+            hermes_rmw_o3.ivy: line 431: hermes_protocol.invar88 ...
+PASS
+            hermes_rmw_o3.ivy: line 432: hermes_protocol.invar89 ...
+PASS
+            hermes_rmw_o3.ivy: line 433: hermes_protocol.invar90 ...
+PASS
+            hermes_rmw_o3.ivy: line 434: hermes_protocol.invar91 ...
+PASS
+            hermes_rmw_o3.ivy: line 435: hermes_protocol.invar92 ...
+PASS
+            hermes_rmw_o3.ivy: line 436: hermes_protocol.invar93 ...
+PASS
+            hermes_rmw_o3.ivy: line 437: hermes_protocol.invar94 ...
+PASS
+            hermes_rmw_o3.ivy: line 438: hermes_protocol.invar95 ...
+PASS
+            hermes_rmw_o3.ivy: line 439: hermes_protocol.invar96 ...
+PASS
+            hermes_rmw_o3.ivy: line 440: hermes_protocol.invar97 ...
+PASS
+            hermes_rmw_o3.ivy: line 441: hermes_protocol.invar98 ...
+PASS
+            hermes_rmw_o3.ivy: line 442: hermes_protocol.invar99 ...
+PASS
+            hermes_rmw_o3.ivy: line 443: hermes_protocol.invar100 ...
+PASS
+            hermes_rmw_o3.ivy: line 444: hermes_protocol.invar101 ...
+PASS
+            hermes_rmw_o3.ivy: line 445: hermes_protocol.invar102 ...
+PASS
+            hermes_rmw_o3.ivy: line 446: hermes_protocol.invar103 ...
+PASS
+            hermes_rmw_o3.ivy: line 447: hermes_protocol.invar104 ...
+PASS
+            hermes_rmw_o3.ivy: line 448: hermes_protocol.invar105 ...
+PASS
+            hermes_rmw_o3.ivy: line 449: hermes_protocol.invar106 ...
+PASS
+            hermes_rmw_o3.ivy: line 450: hermes_protocol.invar107 ...
+PASS
+            hermes_rmw_o3.ivy: line 451: hermes_protocol.invar108 ...
+PASS
+            hermes_rmw_o3.ivy: line 452: hermes_protocol.invar109 ...
+PASS
+            hermes_rmw_o3.ivy: line 453: hermes_protocol.invar110 ...
+PASS
+            hermes_rmw_o3.ivy: line 454: hermes_protocol.invar111 ...
+PASS
+            hermes_rmw_o3.ivy: line 455: hermes_protocol.invar112 ...
+PASS
+            hermes_rmw_o3.ivy: line 456: hermes_protocol.invar113 ...
+PASS
+            hermes_rmw_o3.ivy: line 457: hermes_protocol.invar114 ...
+PASS
+            hermes_rmw_o3.ivy: line 458: hermes_protocol.invar115 ...
+PASS
+            hermes_rmw_o3.ivy: line 459: hermes_protocol.invar116 ...
+PASS
+            hermes_rmw_o3.ivy: line 460: hermes_protocol.invar117 ...
+PASS
+            hermes_rmw_o3.ivy: line 461: hermes_protocol.invar118 ...
+PASS
+            hermes_rmw_o3.ivy: line 462: hermes_protocol.invar119 ...
+PASS
+            hermes_rmw_o3.ivy: line 467: hermes_protocol.invar120 ...
+PASS
+            hermes_rmw_o3.ivy: line 469: hermes_protocol.invar121 ...
+PASS
+            hermes_rmw_o3.ivy: line 473: hermes_protocol.invar122 ...
+PASS
+            hermes_rmw_o3.ivy: line 474: hermes_protocol.invar123 ...
+PASS
+            hermes_rmw_o3.ivy: line 477: hermes_protocol.invar124 ...
+PASS
+            hermes_rmw_o3.ivy: line 482: hermes_protocol.invar125 ...
+PASS
+            hermes_rmw_o3.ivy: line 483: hermes_protocol.invar126 ...
+PASS
+            hermes_rmw_o3.ivy: line 487: hermes_protocol.invar127 ...
+PASS
+            hermes_rmw_o3.ivy: line 489: hermes_protocol.invar128 ...
+FAIL
+searching for a small model... done
+[
+    @B = 1
+    @R = 0
+    @W = 2
+    hermes_protocol.ack_msg(0,0,0) = false
+    hermes_protocol.ack_msg(0,0,1) = false
+    hermes_protocol.ack_msg(0,0,2) = false
+    hermes_protocol.acked(0,0) = true
+    hermes_protocol.complete_try(0) = false
+    hermes_protocol.completed(0) = false
+    hermes_protocol.completed(1) = true
+    hermes_protocol.completed(2) = false
+    hermes_protocol.cur_rmw(0) = true
+    hermes_protocol.cur_ts(0) = 0
+    hermes_protocol.cur_value(0) = 0
+    hermes_protocol.epoch_done(0) = false
+    hermes_protocol.epoch_done(1) = false
+    hermes_protocol.init_epoch = 0
+    hermes_protocol.init_ts = 1
+    hermes_protocol.init_value = 0
+    hermes_protocol.inv_rmw(0,0,0) = false
+    hermes_protocol.inv_rmw(0,1,0) = false
+    hermes_protocol.inv_rmw(0,2,0) = false
+    hermes_protocol.inv_write(0,0,0) = false
+    hermes_protocol.inv_write(0,1,0) = false
+    hermes_protocol.inv_write(0,2,0) = false
+    hermes_protocol.le(0,0) = true
+    hermes_protocol.le(0,1) = false
+    hermes_protocol.le(0,2) = true
+    hermes_protocol.le(1,0) = true
+    hermes_protocol.le(1,1) = true
+    hermes_protocol.le(1,2) = true
+    hermes_protocol.le(2,0) = false
+    hermes_protocol.le(2,1) = false
+    hermes_protocol.le(2,2) = true
+    hermes_protocol.live(0) = true
+    hermes_protocol.lt(0,0) = false
+    hermes_protocol.lt(0,1) = false
+    hermes_protocol.lt(0,2) = true
+    hermes_protocol.lt(1,0) = true
+    hermes_protocol.lt(1,1) = false
+    hermes_protocol.lt(1,2) = true
+    hermes_protocol.lt(2,0) = false
+    hermes_protocol.lt(2,1) = false
+    hermes_protocol.lt(2,2) = false
+    hermes_protocol.o3_quorum(0,0,0) = false
+    hermes_protocol.o3_quorum(0,0,1) = false
+    hermes_protocol.o3_quorum(0,0,2) = false
+    hermes_protocol.o3_task = o3_finish
+    hermes_protocol.o3_try(0) = false
+    hermes_protocol.parent(0,0) = false
+    hermes_protocol.parent(0,1) = true
+    hermes_protocol.parent(0,2) = false
+    hermes_protocol.parent(1,0) = false
+    hermes_protocol.parent(1,1) = false
+    hermes_protocol.parent(1,2) = false
+    hermes_protocol.parent(2,0) = false
+    hermes_protocol.parent(2,1) = true
+    hermes_protocol.parent(2,2) = false
+    hermes_protocol.parent_ts(0) = 0
+    hermes_protocol.parent_ts(1) = 0
+    hermes_protocol.parent_ts(2) = 0
+    hermes_protocol.pending(0) = true
+    hermes_protocol.pending_rmw(0) = true
+    hermes_protocol.pending_ts(0) = 0
+    hermes_protocol.ready(0) = true
+    hermes_protocol.ready_epoch(0) = 1
+    hermes_protocol.ready_task = ready_finish
+    hermes_protocol.rmw_conflict(0) = false
+    hermes_protocol.rmw_conflict(1) = false
+    hermes_protocol.rmw_conflict(2) = false
+    hermes_protocol.seen_epoch(0) = true
+    hermes_protocol.seen_epoch(1) = true
+    hermes_protocol.seen_ts(0) = true
+    hermes_protocol.seen_ts(1) = true
+    hermes_protocol.seen_ts(2) = true
+    hermes_protocol.state(0) = hermes_protocol.hs_replay
+    hermes_protocol.ts_rmw(0) = true
+    hermes_protocol.ts_rmw(1) = true
+    hermes_protocol.ts_rmw(2) = true
+    hermes_protocol.ts_value(0,0) = true
+    hermes_protocol.ts_value(1,0) = true
+    hermes_protocol.ts_value(2,0) = true
+    hermes_protocol.val_msg(0) = false
+    hermes_protocol.val_msg(1) = false
+    hermes_protocol.val_msg(2) = false
+]
+call hermes_protocol.complete_current
+
+{
+    [
+        fml:n = 0
+    ]
+hermes_rmw_o3.ivy: line 325: 
+    assume [hermes_protocol.asrt54] hermes_protocol.live(fml:n)
+
+hermes_rmw_o3.ivy: line 326: 
+    assume [hermes_protocol.asrt55] hermes_protocol.pending(fml:n)
+
+hermes_rmw_o3.ivy: line 327: 
+    assume [hermes_protocol.asrt56] hermes_protocol.pending_ts(fml:n) = hermes_protocol.cur_ts(fml:n)
+
+hermes_rmw_o3.ivy: line 328: 
+    assume [hermes_protocol.asrt57] hermes_protocol.state(fml:n) = hermes_protocol.hs_write | hermes_protocol.state(fml:n) = hermes_protocol.hs_replay
+
+hermes_rmw_o3.ivy: line 329: 
+    assume [hermes_protocol.asrt58] hermes_protocol.ready(fml:n)
+
+hermes_rmw_o3.ivy: line 330: 
+    assume [hermes_protocol.asrt59] hermes_protocol.live(A) -> hermes_protocol.acked(fml:n,A)
+
+hermes_rmw_o3.ivy: line 331: 
+    assume [hermes_protocol.asrt60] hermes_protocol.live(A) -> hermes_protocol.le(hermes_protocol.cur_ts(fml:n),hermes_protocol.cur_ts(A))
+
+hermes_rmw_o3.ivy: line 333: 
+    hermes_protocol.completed(hermes_protocol.cur_ts(fml:n)) := true
+
+    [
+        hermes_protocol.completed(0) = true
+    ]
+hermes_rmw_o3.ivy: line 334: 
+    hermes_protocol.rmw_conflict(T) := hermes_protocol.rmw_conflict(T) | (hermes_protocol.ts_rmw(hermes_protocol.cur_ts(fml:n)) & hermes_protocol.ts_rmw(T) & T ~= hermes_protocol.cur_ts(fml:n) & hermes_protocol.parent_ts(hermes_protocol.cur_ts(fml:n)) = hermes_protocol.parent_ts(T))
+
+    [
+        hermes_protocol.rmw_conflict(1) = true
+        hermes_protocol.rmw_conflict(2) = true
+    ]
+hermes_rmw_o3.ivy: line 335: 
+    hermes_protocol.val_msg(hermes_protocol.cur_ts(fml:n)) := true
+
+    [
+        hermes_protocol.val_msg(0) = true
+    ]
+hermes_rmw_o3.ivy: line 336: 
+    hermes_protocol.state(fml:n) := hermes_protocol.hs_valid
+
+    [
+        hermes_protocol.state(0) = hermes_protocol.hs_valid
+    ]
+hermes_rmw_o3.ivy: line 337: 
+    hermes_protocol.epoch_done(E) := hermes_protocol.epoch_done(E) | E = hermes_protocol.ready_epoch(fml:n)
+
+    [
+        hermes_protocol.epoch_done(1) = true
+    ]
+hermes_rmw_o3.ivy: line 338: 
+    hermes_protocol.pending(fml:n) := false
+
+    [
+        hermes_protocol.pending(0) = false
+    ]
+hermes_rmw_o3.ivy: line 339: 
+    hermes_protocol.pending_rmw(fml:n) := false
+
+    [
+        hermes_protocol.pending_rmw(0) = false
+    ]
+hermes_rmw_o3.ivy: line 340: 
+    hermes_protocol.acked(fml:n,A) := false
+
+    [
+        hermes_protocol.acked(0,0) = false
+    ]
+hermes_rmw_o3.ivy: line 341: 
+    hermes_protocol.ready(fml:n) := false
+
+    [
+        hermes_protocol.ready(0) = false
+    ]
+}
+
+
