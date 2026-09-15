@@ -300,9 +300,9 @@ doneWithStruct4zgensym_da1be0b343e58527_5:
 			if err != nil {
 				return
 			}
-		case "Vtype_zid03_u64":
+		case "Vtype_zid03_str":
 			found4zgensym_da1be0b343e58527_5[3] = true
-			z.Vtype, err = dc.ReadUint64()
+			z.Vtype, err = dc.ReadString()
 			if err != nil {
 				return
 			}
@@ -377,7 +377,7 @@ doneWithStruct4zgensym_da1be0b343e58527_5:
 }
 
 // fields of Leaf
-var decodeMsgFieldOrder4zgensym_da1be0b343e58527_5 = []string{"Key_zid00_str", "Value_zid01_bin", "Version_zid02_i64", "Vtype_zid03_u64", "Leasor_zid04_str", "LeaseUntilTm_zid05_tim", "WriteRaftLogIndex_zid06_i64", "LeaseEpoch_zid07_i64", "AutoDelete_zid08_boo", "LeasorPeerID_zid09_str", "LeaseEpochT0_zid10_tim", "LeaseRenewalElap_zid11_dur"}
+var decodeMsgFieldOrder4zgensym_da1be0b343e58527_5 = []string{"Key_zid00_str", "Value_zid01_bin", "Version_zid02_i64", "Vtype_zid03_str", "Leasor_zid04_str", "LeaseUntilTm_zid05_tim", "WriteRaftLogIndex_zid06_i64", "LeaseEpoch_zid07_i64", "AutoDelete_zid08_boo", "LeasorPeerID_zid09_str", "LeaseEpochT0_zid10_tim", "LeaseRenewalElap_zid11_dur"}
 
 var decodeMsgFieldSkip4zgensym_da1be0b343e58527_5 = []bool{false, false, false, false, false, false, false, false, false, false, false, false}
 
@@ -399,7 +399,7 @@ func (z *Leaf) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[2] {
 		fieldsInUse--
 	}
-	isempty[3] = (z.Vtype == 0) // number, omitempty
+	isempty[3] = (len(z.Vtype) == 0) // string, omitempty
 	if isempty[3] {
 		fieldsInUse--
 	}
@@ -502,12 +502,12 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_da1be0b343e58527_6[3] {
-		// write "Vtype_zid03_u64"
-		err = en.Append(0xaf, 0x56, 0x74, 0x79, 0x70, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x75, 0x36, 0x34)
+		// write "Vtype_zid03_str"
+		err = en.Append(0xaf, 0x56, 0x74, 0x79, 0x70, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		err = en.WriteUint64(z.Vtype)
+		err = en.WriteString(z.Vtype)
 		if err != nil {
 			return
 		}
@@ -644,9 +644,9 @@ func (z *Leaf) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[3] {
-		// string "Vtype_zid03_u64"
-		o = append(o, 0xaf, 0x56, 0x74, 0x79, 0x70, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x75, 0x36, 0x34)
-		o = msgp.AppendUint64(o, z.Vtype)
+		// string "Vtype_zid03_str"
+		o = append(o, 0xaf, 0x56, 0x74, 0x79, 0x70, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.Vtype)
 	}
 
 	if !empty[4] {
@@ -796,9 +796,9 @@ doneWithStruct8zgensym_da1be0b343e58527_9:
 			if err != nil {
 				return
 			}
-		case "Vtype_zid03_u64":
+		case "Vtype_zid03_str":
 			found8zgensym_da1be0b343e58527_9[3] = true
-			z.Vtype, bts, err = nbs.ReadUint64Bytes(bts)
+			z.Vtype, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
@@ -882,13 +882,13 @@ doneWithStruct8zgensym_da1be0b343e58527_9:
 }
 
 // fields of Leaf
-var unmarshalMsgFieldOrder8zgensym_da1be0b343e58527_9 = []string{"Key_zid00_str", "Value_zid01_bin", "Version_zid02_i64", "Vtype_zid03_u64", "Leasor_zid04_str", "LeaseUntilTm_zid05_tim", "WriteRaftLogIndex_zid06_i64", "LeaseEpoch_zid07_i64", "AutoDelete_zid08_boo", "LeasorPeerID_zid09_str", "LeaseEpochT0_zid10_tim", "LeaseRenewalElap_zid11_dur"}
+var unmarshalMsgFieldOrder8zgensym_da1be0b343e58527_9 = []string{"Key_zid00_str", "Value_zid01_bin", "Version_zid02_i64", "Vtype_zid03_str", "Leasor_zid04_str", "LeaseUntilTm_zid05_tim", "WriteRaftLogIndex_zid06_i64", "LeaseEpoch_zid07_i64", "AutoDelete_zid08_boo", "LeasorPeerID_zid09_str", "LeaseEpochT0_zid10_tim", "LeaseRenewalElap_zid11_dur"}
 
 var unmarshalMsgFieldSkip8zgensym_da1be0b343e58527_9 = []bool{false, false, false, false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Leaf) Msgsize() (s int) {
-	s = 1 + 14 + msgp.StringPrefixSize + len(z.Key) + 16 + msgp.BytesPrefixSize + len(z.Value) + 18 + msgp.Int64Size + 16 + msgp.Uint64Size + 17 + msgp.StringPrefixSize + len(z.Leasor) + 23 + msgp.TimeSize + 28 + msgp.Int64Size + 21 + msgp.Int64Size + 21 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.LeasorPeerID) + 23 + msgp.TimeSize + 27 + msgp.DurationSize
+	s = 1 + 14 + msgp.StringPrefixSize + len(z.Key) + 16 + msgp.BytesPrefixSize + len(z.Value) + 18 + msgp.Int64Size + 16 + msgp.StringPrefixSize + len(z.Vtype) + 17 + msgp.StringPrefixSize + len(z.Leasor) + 23 + msgp.TimeSize + 28 + msgp.Int64Size + 21 + msgp.Int64Size + 21 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.LeasorPeerID) + 23 + msgp.TimeSize + 27 + msgp.DurationSize
 	return
 }
 func (z *Leaf) Gstring() (r string) {
@@ -896,7 +896,7 @@ func (z *Leaf) Gstring() (r string) {
 	r += fmt.Sprintf("              Key: \"%v\",\n", z.Key)
 	r += fmt.Sprintf("            Value: %v,\n", z.Value)
 	r += fmt.Sprintf("          Version: %v,\n", z.Version)
-	r += fmt.Sprintf("            Vtype: %v,\n", z.Vtype)
+	r += fmt.Sprintf("            Vtype: \"%v\",\n", z.Vtype)
 	r += fmt.Sprintf("           Leasor: \"%v\",\n", z.Leasor)
 	r += fmt.Sprintf("     LeaseUntilTm: %v,\n", z.LeaseUntilTm)
 	r += fmt.Sprintf("WriteRaftLogIndex: %v,\n", z.WriteRaftLogIndex)

@@ -15,7 +15,7 @@ import (
 	//rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/ipaddr"
 	"github.com/glycerine/rpc25519/tube"
-	"github.com/glycerine/rpc25519/tube/art"
+	"github.com/glycerine/rpc25519/tube/leased"
 )
 
 var sep = string(os.PathSeparator)
@@ -499,7 +499,7 @@ repl:
 					} else {
 						seen := 0
 						if isPrefixScanDescend {
-							for k, leaf := range art.Descend(tktRange.KeyValRangeScan, nil, nil) {
+							for k, leaf := range tktRange.KeyValRangeScan.Descend() {
 								var leaseInfo string
 								if leaf.Leasor != "" {
 									leaseInfo = leaseInfoFromLeaf(leaf)
@@ -508,7 +508,7 @@ repl:
 								seen++
 							}
 						} else {
-							for k, leaf := range art.Ascend(tktRange.KeyValRangeScan, nil, nil) {
+							for k, leaf := range tktRange.KeyValRangeScan.Ascend() {
 								var leaseInfo string
 								if leaf.Leasor != "" {
 									leaseInfo = leaseInfoFromLeaf(leaf)
@@ -539,7 +539,7 @@ repl:
 					} else {
 						seen := 0
 						if isRangeScanDescend {
-							for k, leaf := range art.Descend(tktRange.KeyValRangeScan, nil, nil) {
+							for k, leaf := range tktRange.KeyValRangeScan.Descend() {
 								var leaseInfo string
 								if leaf.Leasor != "" {
 									leaseInfo = leaseInfoFromLeaf(leaf)
@@ -549,7 +549,7 @@ repl:
 								seen++
 							}
 						} else {
-							for k, leaf := range art.Ascend(tktRange.KeyValRangeScan, nil, nil) {
+							for k, leaf := range tktRange.KeyValRangeScan.Ascend() {
 								var leaseInfo string
 								if leaf.Leasor != "" {
 									leaseInfo = leaseInfoFromLeaf(leaf)
@@ -615,7 +615,7 @@ repl:
 				} else {
 					sz = tkt.KeyValRangeScan.Size()
 					i := 0
-					for key := range art.Ascend(tkt.KeyValRangeScan, nil, nil) {
+					for key := range tkt.KeyValRangeScan.Ascend() {
 						str += fmt.Sprintf("[%02d] %v\n", i, string(key))
 						i++
 					}
@@ -652,7 +652,7 @@ repl:
 				readVal := tktR.Val
 				var leaseInfo string
 				if tktR.Leasor != "" {
-					leaf := &art.Leaf{
+					leaf := &leased.Leaf{
 						Leasor:       tktR.Leasor,
 						LeaseEpoch:   tktR.LeaseEpoch,
 						LeaseUntilTm: tktR.LeaseUntilTm,
@@ -682,7 +682,7 @@ func getLine(reader *bufio.Reader) (string, error) {
 	return string(line), nil
 }
 
-func leaseInfoFromLeaf(leaf *art.Leaf) string {
+func leaseInfoFromLeaf(leaf *leased.Leaf) string {
 	left := leaf.LeaseUntilTm.Sub(time.Now())
 	var lefts string
 	if left <= 0 {

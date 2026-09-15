@@ -8,7 +8,6 @@ import (
 	"time"
 
 	rpc "github.com/glycerine/rpc25519"
-	//"github.com/glycerine/rpc25519/tube/art"
 )
 
 func Test301_raftStatePersistorSaveLoad(t *testing.T) {
@@ -61,11 +60,6 @@ func Test301_raftStatePersistorSaveLoad(t *testing.T) {
 		// check it immediately, file first file handle still open.
 		saver2, st2, err := cfg.NewRaftStatePersistor(path, nil, false)
 		panicOn(err)
-
-		//vv("tree sz = len(st2.KVstore.m) = %v", len(st2.KVstore.m))
-		//for k, v := range st2.KVstore.m {
-		//	vv("st2.KVstore.m: key '%v' -> tree.Size='%v'", k, v.Tree.Size())
-		//}
 
 		v2, _, err2 := st2.KVStoreRead(&Ticket{}, "hello", "world")
 		panicOn(err2)

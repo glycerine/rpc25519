@@ -13,6 +13,7 @@ import (
 type raftStatePersistor struct {
 	name        string
 	path        string
+	kvPath      string
 	fd          *os.File
 	parentDirFd *os.File
 
@@ -23,6 +24,13 @@ type raftStatePersistor struct {
 	wpos int
 
 	nodisk bool
+}
+
+func raftStatePersistorKVPath(path string, node *TubeNode) string {
+	if node != nil && node.cfg.DataDir != "" {
+		return node.GetKVStorePath()
+	}
+	return path + ".yogadb"
 }
 
 func (cfg *TubeConfig) newRaftStatePersistor_NODISK(node *TubeNode) (s *raftStatePersistor, state *RaftState, error error) {
@@ -64,6 +72,7 @@ func (cfg *TubeConfig) NewRaftStatePersistor(path string, node *TubeNode, readOn
 	panicOn(fd.Close())
 	s = &raftStatePersistor{
 		path:      path,
+		kvPath:    raftStatePersistorKVPath(path, node),
 		checkEach: blake3.New(64, nil),
 	}
 	if node != nil {
@@ -87,13 +96,18 @@ func (cfg *TubeConfig) NewRaftStatePersistor(path string, node *TubeNode, readOn
 		err = nil
 	}
 	panicOn(err)
+	if state != nil && state.KVstore != nil {
+		panicOn(state.KVstore.Open(s.kvPath, false))
+	}
 	return
 }
 
 func (s *raftStatePersistor) close() (err error) {
 	// no path files are open between saves now.
 	// but the parent dir file handle is open.
-	s.parentDirFd.Close()
+	if s.parentDirFd != nil {
+		s.parentDirFd.Close()
+	}
 	return
 }
 
@@ -121,6 +135,9 @@ func (s *raftStatePersistor) save(state *RaftState) (nw int64, err error) {
 
 	if s.nodisk {
 		return 0, nil
+	}
+	if state.KVstore != nil && !state.KVstore.isPersistent() {
+		panicOn(state.KVstore.Attach(s.kvPath, false))
 	}
 	tmppath := s.path + ".pre_rename." + cryRand15B()
 	fd, err := os.Create(tmppath)

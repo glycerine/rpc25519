@@ -287,7 +287,7 @@ import (
 	"runtime/debug"
 
 	rpc "github.com/glycerine/rpc25519"
-	"github.com/glycerine/rpc25519/tube/art"
+	"github.com/glycerine/rpc25519/tube/leased"
 )
 
 //go:generate greenpack
@@ -3437,6 +3437,10 @@ func (s *TubeNode) GetPersistorPath() string {
 	return s.cfg.DataDir + sep + "persistor.raftstate.tube.msgp"
 }
 
+func (s *TubeNode) GetKVStorePath() string {
+	return s.cfg.DataDir + sep + "tube.yogadb"
+}
+
 func (s *TubeNode) preVoteDiagString() (r string) {
 	r = "\n  preVoteDiagnostics:\n"
 	r += fmt.Sprintf("    preVotePhase1Began = '%v'\n", nice(s.preVotePhase1Began))
@@ -4245,6 +4249,10 @@ func (s *TubeNode) CloseWithReason(reason error) {
 // should be internally only
 func (s *TubeNode) shutdown() {
 	//vv("%v shutdown; started=%v; cluster: '%v'", s.name, s.started, s.cfg.ClusterID)
+
+	if s.state != nil && s.state.KVstore != nil {
+		s.state.KVstore.Close()
+	}
 
 	for _, ckt := range s.cktall { // panic: concurrent map iteration & map write; called by :1167 in Start()
 		ckt.ckt.LpbFrom.Close()
@@ -5393,7 +5401,7 @@ type Ticket struct {
 	KeyEndx     Key  `zid:"60"`
 	ScanDescend bool `zid:"61"` // default ascending
 	// key range scan output
-	KeyValRangeScan *art.Tree `zid:"62"`
+	KeyValRangeScan *KVScan `zid:"62"`
 
 	UserDefinedOpCode int64 `zid:"63"`
 
@@ -9318,6 +9326,11 @@ func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
 		// might not have had anything on disk.
 		s.state.KVstore = newKVStore()
 	}
+	if !s.cfg.NoDisk {
+		panicOn(s.state.KVstore.Open(s.GetKVStorePath(), false))
+	} else if s.state.KVstore.db == nil {
+		panicOn(s.state.KVstore.Open("", true))
+	}
 
 	// raft does not require CommitIndex to be on disk,
 	// as it can be reconverged from network messages,
@@ -11910,8 +11923,9 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 			return
 		}
 	}
-	table, ok := s.state.KVstore.m[tkt.Table]
-	if !ok {
+
+	leaf, err := s.state.KVstore.GetLeaf(tkt.Table, tkt.Key, false)
+	if err == ErrKeyNotFound {
 		if tkt.OldVersionCAS > 0 || tkt.OldLeaseEpochCAS > 0 {
 			tkt.Err = ErrKeyNotFound
 			return
@@ -11925,19 +11939,8 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	leaf, _, found := table.Tree.Find(art.Exact, art.Key(tkt.Key))
-	if !found {
-		if tkt.OldVersionCAS > 0 || tkt.OldLeaseEpochCAS > 0 {
-			tkt.Err = ErrKeyNotFound
-			return
-		}
-		if len(tkt.OldVal) == 0 {
-			// request to start a key from scratch
-			s.kvstoreWrite(tkt, false, false)
-			tkt.CASwapped = (tkt.Err == nil)
-			return
-		}
-		tkt.Err = ErrKeyNotFound
+	if err != nil {
+		tkt.Err = err
 		return
 	}
 
@@ -12028,7 +12031,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	}
 }
 
-func (s *TubeNode) validLease(tkt *Ticket, leaf *art.Leaf) bool {
+func (s *TubeNode) validLease(tkt *Ticket, leaf *leased.Leaf) bool {
 	if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
 		return false
 	}
@@ -12043,7 +12046,7 @@ func (s *TubeNode) doReadKey(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	var leaf *art.Leaf
+	var leaf *leased.Leaf
 	leaf, tkt.Err = s.state.KVStoreReadLeaf(tkt, tkt.Table, tkt.Key)
 	if leaf == nil {
 		if tkt.Err == nil {
@@ -17671,12 +17674,26 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string, sendAck 
 	// is not a current concern.
 	//if state2.KVstore != nil {
 	//		// try to catch where our state is getting blown away in prod local/ test
-	//		if len(s.state.KVstore.m) > 0 && len(state2.KVstore.m) == 0 {
+	//		if s.state.KVstore.Len() > 0 && state2.KVstore.Len() == 0 {
 	//			panic(fmt.Sprintf("arg! why are we blowing away our KVstore in a snapshot application from caller '%v'\n new state2='%v'\n\nexisting state='%v'\n", caller, state2, s.state))
 	//		}
 	//}
-	// we do have to apply state2.KVstore though!
-	s.state.KVstore = state2.KVstore
+	// We do have to apply state2.KVstore though. Snapshot KVStores carry a
+	// portable row list; install it into this node's single live yogadb store.
+	if state2.KVstore != nil {
+		if s.state.KVstore != nil && s.state.KVstore != state2.KVstore {
+			s.state.KVstore.Close()
+		}
+		s.state.KVstore = state2.KVstore
+		kvPath := ""
+		if !s.cfg.NoDisk {
+			kvPath = s.GetKVStorePath()
+		}
+		panicOn(s.state.KVstore.Attach(kvPath, s.cfg.NoDisk))
+	} else if s.state.KVstore != nil {
+		s.state.KVstore.Close()
+		s.state.KVstore = nil
+	}
 
 	if state2.MC != nil {
 		s.state.MC = state2.MC
@@ -18701,12 +18718,8 @@ func (s *TubeNode) debugAddCzarLeaseEpoch(tkt *Ticket) {
 	if s == nil || s.state == nil || s.state.KVstore == nil {
 		return
 	}
-	table, ok := s.state.KVstore.m["hermes"]
-	if !ok {
-		return
-	}
-	leaf, _, found := table.Tree.Find(art.Exact, art.Key("czar"))
-	if !found {
+	leaf, err := s.state.KVstore.GetLeaf("hermes", "czar", false)
+	if err != nil {
 		return
 	}
 	tkt.Desc += leaf.MetaString()

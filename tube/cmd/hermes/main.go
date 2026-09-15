@@ -16,7 +16,6 @@ import (
 	//"github.com/glycerine/ipaddr"
 	"github.com/glycerine/rpc25519/tube"
 	"github.com/glycerine/rpc25519/tube/hermes"
-	//"github.com/glycerine/rpc25519/tube/art"
 )
 
 var _ = &hermes.HermesTicket{}

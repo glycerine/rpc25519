@@ -59,7 +59,7 @@ type Leaf struct {
 	Version int64 `zid:"2"`
 
 	// optional type/description of the type of Value.
-	Vtype uint64 `zid:"3"`
+	Vtype string `zid:"3"`
 
 	// optional metadata
 	Leasor            string    `zid:"4"`
@@ -117,7 +117,7 @@ func (z *Leaf) MetaString() (r string) {
 	return
 }
 
-func NewLeaf(key string, v []byte, vtype uint64) *Leaf {
+func NewLeaf(key string, v []byte, vtype string) *Leaf {
 	return &Leaf{
 		Key:   key,
 		Value: v,

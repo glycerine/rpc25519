@@ -1,17 +1,14 @@
 package tube
 
 import (
-	//"bytes"
 	//"errors"
+	"context"
 	"fmt"
-	"iter"
 	//"net"
 	//"sort"
-	"strings"
 
 	//"io"
 	//"os"
-	"context"
 	//"net/url"
 	//"math"
 	//"sort"
@@ -26,7 +23,7 @@ import (
 	//"github.com/glycerine/greenpack/msgp"
 	//"github.com/glycerine/blake3"
 	//"github.com/glycerine/idem"
-	"github.com/glycerine/rpc25519/tube/art"
+	"github.com/glycerine/rpc25519/tube/leased"
 )
 
 var ErrNeedNewSession = fmt.Errorf("need new session")
@@ -538,44 +535,29 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 	tktKey := tkt.Key
 	tktVal := tkt.Val
 
-	var surelyNoPrior bool
 	if st.KVstore == nil {
 		if dry {
 			return true
 		}
 		st.KVstore = newKVStore()
-		surelyNoPrior = true
-	}
-	if st.KVstore.m == nil {
-		if dry {
-			return true
-		}
-		st.KVstore.m = make(map[Key]*ArtTable)
-		surelyNoPrior = true
-	}
-	table, ok := st.KVstore.m[tktTable]
-	if !ok {
-		if dry {
-			return true
-		}
-		surelyNoPrior = true
-		table = newArtTable()
-		st.KVstore.m[tktTable] = table
 	}
 
-	key := art.Key(tktKey)
-	var leaf *art.Leaf
+	var leaf *leased.Leaf
 	var found bool
-	if !surelyNoPrior {
-		// is there a prior lease that must be respected?
-		leaf, _, found = table.Tree.Find(art.Exact, key)
+	var readErr error
+	leaf, readErr = st.KVstore.GetLeaf(tktTable, tktKey, false)
+	if readErr == nil {
+		found = true
+	} else if readErr != ErrKeyNotFound {
+		tkt.Err = readErr
+		return false
 	}
 
 	if !found {
 		if dry {
 			return true
 		}
-		leaf = art.NewLeaf(key, append([]byte{}, tktVal...), tkt.Vtype)
+		leaf = leased.NewLeaf(string(tktKey), append([]byte{}, tktVal...), tkt.Vtype)
 		leaf.Leasor = tkt.Leasor
 		leaf.LeasorPeerID = tkt.FromID
 		leaf.LeaseEpochT0 = tkt.RaftLogEntryTm
@@ -590,7 +572,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 		tkt.LeaseEpochT0 = leaf.LeaseEpochT0
 
-		table.Tree.InsertLeaf(leaf)
+		panicOn(st.KVstore.PutLeaf(tktTable, leaf))
 
 		//vv("%v wrote key '%v' (no prior key; leasor='%v' until '%v'); KVstore now len=%v; leaf.LeaseEpochT0='%v'", st.name, tktKey, leaf.Leasor, leaf.LeaseUntilTm, st.KVstore.Len(), nice(leaf.LeaseEpochT0))
 		return true
@@ -629,6 +611,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 		tkt.LeaseEpoch = leaf.LeaseEpoch
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 
+		panicOn(st.KVstore.PutLeaf(tktTable, leaf))
 		//vv("%v wrote key '%v' (no current lease); KVstore now len=%v", st.name, tktKey, st.KVstore.Len())
 		return true
 	}
@@ -678,6 +661,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 
 			tkt.LeaseEpoch = leaf.LeaseEpoch
 			tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
+			panicOn(st.KVstore.PutLeaf(tktTable, leaf))
 			//vv("%v wrote key '%v' extending current lease for '%v'; KVstore now len=%v", st.name, tktKey, tkt.Leasor, st.KVstore.Len())
 			return true
 		}
@@ -716,6 +700,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 
 		tkt.LeaseEpoch = leaf.LeaseEpoch
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
+		panicOn(st.KVstore.PutLeaf(tktTable, leaf))
 		//vv("%v wrote key '%v' updating to new leasor; KVstore now len=%v", st.name, tktKey, st.KVstore.Len())
 		return true
 	}
@@ -735,7 +720,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 	return false
 }
 
-func (s *TubeNode) writeFailedSetCurrentVal(tkt *Ticket, leaf *art.Leaf) {
+func (s *TubeNode) writeFailedSetCurrentVal(tkt *Ticket, leaf *leased.Leaf) {
 
 	// a copy would be safer, but consumes a whole
 	// lot of memory when we are just going to
@@ -760,254 +745,55 @@ func (s *TubeNode) writeFailedSetCurrentVal(tkt *Ticket, leaf *art.Leaf) {
 	tkt.LeaseAutoDel = leaf.AutoDelete
 }
 
-func (s *RaftState) kvstoreRangeScan(tkt *Ticket, tktTable, tktKey, tktKeyEndx Key, descend bool) (results *art.Tree, err error) {
-	table, ok := s.KVstore.m[tktTable]
-	if !ok {
-		return nil, ErrKeyNotFound
-	}
-
-	deadzone := s.ensureDeadzone()
-	now := time.Now()
-
-	//vv("%v kvstoreRangeScan table='%v', key='%v', keyEndx='%v'; descend=%v", s.name, tktTable, tktKey, tktKeyEndx, descend)
-	results = art.NewArtTree()
-	results.SkipLocking = true
-	if descend {
-		// note this is correct, the endx comes first in art.Descend.
-		for key, lf := range art.Descend(table.Tree, art.Key(tktKeyEndx), art.Key(tktKey)) {
-			_ = key
-			// implement AutoDelete
-			if lf.AutoDelete && tktTable != "dead" &&
-				lf.Leasor != "" &&
-				lf.LeaseUntilTm.Before(now) {
-
-				deadzone.Tree.InsertLeaf(lf)
-				table.Tree.Remove(art.Key(key))
-
-				//vv("Descend did auto-delete of table '%v'/key '%v'", tktTable, tktKey)
-				continue
-			}
-			//vv("Descend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
-			// make copies.
-			//key2 := append([]byte{}, key...)
-			//val2 := append([]byte{}, lf.Value...)
-			//results.Insert(key2, val2, lf.Vtype)
-			lf2 := lf.Clone()
-			results.InsertLeaf(lf2)
-		}
-	} else {
-		for key, lf := range art.Ascend(table.Tree, art.Key(tktKey), art.Key(tktKeyEndx)) {
-			_ = key
-			// implement AutoDelete
-			if lf.AutoDelete && tktTable != "dead" &&
-				lf.Leasor != "" &&
-				lf.LeaseUntilTm.Before(now) {
-
-				deadzone.Tree.InsertLeaf(lf)
-				table.Tree.Remove(art.Key(key))
-
-				continue
-			}
-			//vv("Ascend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
-			// make copies.
-			//key2 := append([]byte{}, key...)
-			//val2 := append([]byte{}, lf.Value...)
-			//results.Insert(key2, val2, lf.Vtype)
-			lf2 := lf.Clone()
-			results.InsertLeaf(lf2)
-		}
-	}
-	return
-}
-
-func (s *RaftState) ensureDeadzone() (deadzone *ArtTable) {
-	deadzone, ok := s.KVstore.m["dead"]
-	if !ok {
-		deadzone = newArtTable()
-		s.KVstore.m["dead"] = deadzone
-	}
-	return deadzone
-}
-
-func (s *RaftState) KVStoreRead(tkt *Ticket, tktTable, tktKey Key) ([]byte, string, error) {
-	table, ok := s.KVstore.m[tktTable]
-	if !ok {
-		return nil, "", ErrKeyNotFound
-	}
-	lf, _, ok := table.Tree.Find(art.Exact, art.Key(tktKey))
-	if ok {
-		// implement AutoDelete
-		if lf.AutoDelete && tktTable != "dead" &&
-			lf.Leasor != "" &&
-			lf.LeaseUntilTm.Before(time.Now()) {
-
-			deadzone := s.ensureDeadzone()
-			deadzone.Tree.InsertLeaf(lf)
-			table.Tree.Remove(art.Key(tktKey))
-
-			return nil, "", ErrKeyNotFound
-		}
-
-		return lf.Value, lf.Vtype, nil
-	}
-	return nil, "", ErrKeyNotFound
-}
-
-func (s *RaftState) KVStoreReadLeaf(tkt *Ticket, tktTable, tktKey Key) (*art.Leaf, error) {
-	table, ok := s.KVstore.m[tktTable]
-	if !ok {
-		return nil, ErrKeyNotFound
-	}
-	lf, _, ok := table.Tree.Find(art.Exact, art.Key(tktKey))
-	if ok {
-		// implement AutoDelete
-		if lf.AutoDelete && tktTable != "dead" &&
-			lf.Leasor != "" &&
-			lf.LeaseUntilTm.Before(time.Now()) {
-
-			deadzone := s.ensureDeadzone()
-			deadzone.Tree.InsertLeaf(lf)
-			table.Tree.Remove(art.Key(tktKey))
-
-			return nil, ErrKeyNotFound
-		}
-		return lf, nil
-	}
-	return nil, ErrKeyNotFound
-}
-
-func (s *KVStore) Len() int {
-	return len(s.m)
-}
-func (s *KVStore) All() iter.Seq2[Key, *ArtTable] {
-	return func(yield func(Key, *ArtTable) bool) {
-		for k, v := range s.m {
-			if !yield(k, v) {
-				return
-			}
-		}
-	}
-}
-
-func (s *ArtTable) Len() int {
-	return s.Tree.Size()
-}
-func (s *ArtTable) All() iter.Seq2[Key, *art.Leaf] {
-	return func(yield func(Key, *art.Leaf) bool) {
-		iter := s.Tree.Iter(nil, nil)
-		for iter.Next() {
-			if !yield(Key(iter.Key()), iter.Leaf()) {
-				return
-			}
-		}
-	}
-}
-
 func (s *TubeNode) doDeleteKey(tkt *Ticket) {
 	//vv("%v DELETE_KEY called on %v:%v", s.me(), tkt.Table, tkt.Key)
-	if s.state.KVstore != nil {
-		table, ok := s.state.KVstore.m[tkt.Table]
-		var doDelete bool
-		if ok {
-			// is key leased? cannot delete until lease is up,
-			// unless the requestor is also the Leasor.
-			var leaf *art.Leaf
-			leaf, tkt.Err = s.state.KVStoreReadLeaf(tkt, tkt.Table, tkt.Key)
-			if leaf != nil {
-				if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
-					// no current leasor, just put the delete through.
-					doDelete = true
-				} else {
-					// INVAR: leaf.Leasor != "" && leaf.LeaseUntilTm > 0
-					if leaf.Leasor == tkt.Leasor {
-						doDelete = true // allow current leasor to give up lease.
-					} else {
-						if tkt.RaftLogEntryTm.After(
-							leaf.LeaseUntilTm.Add(s.cfg.ClockDriftBound)) {
-							// lease has expired, allow delete.
-							doDelete = true
-						} else {
-							tkt.Err = fmt.Errorf("prior lease on key is not expired. table='%v'; key='%v'; Leasor='%v'; LeaseUntilTm='%v'", tkt.Table, tkt.Key, leaf.Leasor, nice(leaf.LeaseUntilTm))
-						}
-					}
-				}
-			}
-
-			if doDelete {
-				table.Tree.Remove(art.Key(tkt.Key))
-
-				const purgeEmptyTables = false // purge empty tables immediately?
-				if purgeEmptyTables {
-					if table.Tree.Size() == 0 {
-						delete(s.state.KVstore.m, tkt.Table)
-					}
-				}
-			}
+	if s.state.KVstore == nil {
+		return
+	}
+	var doDelete bool
+	var leaf *leased.Leaf
+	leaf, tkt.Err = s.state.KVStoreReadLeaf(tkt, tkt.Table, tkt.Key)
+	if leaf != nil {
+		if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
+			doDelete = true
+		} else if leaf.Leasor == tkt.Leasor {
+			doDelete = true
+		} else if tkt.RaftLogEntryTm.After(leaf.LeaseUntilTm.Add(s.cfg.ClockDriftBound)) {
+			doDelete = true
+		} else {
+			tkt.Err = fmt.Errorf("prior lease on key is not expired. table='%v'; key='%v'; Leasor='%v'; LeaseUntilTm='%v'", tkt.Table, tkt.Key, leaf.Leasor, nice(leaf.LeaseUntilTm))
 		}
 	}
-}
-
-func (s *ArtTable) String() (r string) {
-	iter := s.Tree.Iter(nil, nil)
-	for iter.Next() {
-		r += fmt.Sprintf("%v : %v\n", Key(iter.Key()), string(iter.Value()))
+	if doDelete {
+		tkt.Err = s.state.KVstore.DeleteLeaf(tkt.Table, tkt.Key)
 	}
-	return
 }
 
 func (s *TubeNode) doMakeTable(tkt *Ticket) {
 	if tkt.Table == "" {
 		return // noop
 	}
-	_, ok := s.state.KVstore.m[tkt.Table]
-	if ok {
-		return // already there
+	if s.state.KVstore == nil {
+		s.state.KVstore = newKVStore()
 	}
-	s.state.KVstore.m[tkt.Table] = newArtTable()
+	tkt.Err = s.state.KVstore.MakeTable(tkt.Table)
 }
 
 func (s *TubeNode) doDeleteTable(tkt *Ticket) {
 	//vv("%v doDeleteTable called on %v", s.me(), tkt.Table)
-	if len(s.state.KVstore.m) == 0 || tkt.Table == "" {
+	if s.state.KVstore == nil || tkt.Table == "" {
 		return // noop
 	}
-	_, ok := s.state.KVstore.m[tkt.Table]
-	if !ok {
-		return // does not exist; noop.
-	}
-	delete(s.state.KVstore.m, tkt.Table)
+	tkt.Err = s.state.KVstore.DeleteTable(tkt.Table)
 }
 
 func (s *TubeNode) doRenameTable(tkt *Ticket) {
 	//vv("%v doRenameTable called on %v:%v", s.me(), tkt.Table, tkt.NewTableName)
-
-	if len(s.state.KVstore.m) == 0 {
+	if s.state.KVstore == nil {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	if tkt.Table == "" {
-		tkt.Err = fmt.Errorf("error in rename table: no existing table name supplied.")
-		return
-	}
-	if tkt.NewTableName == "" {
-		tkt.Err = fmt.Errorf("error in rename table: no new table name supplied.")
-		return
-	}
-	if tkt.NewTableName == tkt.Table {
-		return // no-op, already done.
-	}
-	_, ok := s.state.KVstore.m[tkt.NewTableName]
-	if ok {
-		tkt.Err = fmt.Errorf("error in rename table: target new table '%v' already exists.", tkt.NewTableName)
-		return
-	}
-	tab, ok := s.state.KVstore.m[tkt.Table]
-	if !ok {
-		tkt.Err = fmt.Errorf("error in rename table: existing table '%v' not found.", tkt.Table)
-		return
-	}
-	s.state.KVstore.m[tkt.NewTableName] = tab
-	delete(s.state.KVstore.m, tkt.Table)
+	tkt.Err = s.state.KVstore.RenameTable(tkt.Table, tkt.NewTableName)
 }
 
 func (s *TubeNode) RenameTable(ctx context.Context, table, newTableName Key, waitForDur time.Duration, sess *Session) (tkt *Ticket, err error) {
@@ -1103,44 +889,7 @@ func (s *TubeNode) doShowKeys(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	if len(s.state.KVstore.m) == 0 {
-		tkt.Err = ErrKeyNotFound
-		return
-	}
-	results := art.NewArtTree()
-	results.SkipLocking = true
-	tkt.KeyValRangeScan = results
-
-	if tkt.Table == "" {
-		// request to list tables
-		for tableName := range s.state.KVstore.m {
-			results.Insert(art.Key(tableName), nil, "")
-		}
-		return
-	}
-	tktTable := tkt.Table
-	table, ok := s.state.KVstore.m[tktTable]
-	if !ok {
-		tkt.Err = ErrKeyNotFound
-		return
-	}
-	deadzone := s.state.ensureDeadzone()
-	now := time.Now()
-
-	for k, lf := range art.Ascend(table.Tree, nil, nil) {
-		// implement AutoDelete
-		if lf.AutoDelete && tktTable != "dead" &&
-			lf.Leasor != "" &&
-			lf.LeaseUntilTm.Before(now) {
-
-			deadzone.Tree.InsertLeaf(lf)
-			table.Tree.Remove(art.Key(k))
-
-			continue
-		}
-
-		results.Insert(art.Key(k), nil, "")
-	}
+	tkt.KeyValRangeScan, tkt.Err = s.state.KVstore.ShowKeys(tkt.Table)
 }
 
 // CAS is also known as Compare and Swap.
@@ -1343,79 +1092,3 @@ func (s *TubeNode) ReadPrefixRange(ctx context.Context, table, prefix Key, desce
 		return
 	}
 }
-
-func (s *RaftState) kvstorePrefixScan(tkt *Ticket, tktTable, tktPrefix Key, descend bool) (results *art.Tree, err error) {
-	table, ok := s.KVstore.m[tktTable]
-	if !ok {
-		return nil, ErrKeyNotFound
-	}
-	//vv("%v kvstorePrefixScan table='%v', key='%v'; descend=%v", s.name, tktTable, tktPrefix, descend)
-	results = art.NewArtTree()
-	results.SkipLocking = true
-
-	deadzone := s.ensureDeadzone()
-	now := time.Now()
-
-	if descend {
-		// the endx comes first in art.Descend.
-		for key, lf := range art.Descend(table.Tree, nil, art.Key(tktPrefix)) {
-			if !strings.HasPrefix(string(key), string(tktPrefix)) {
-				return
-			}
-			// implement AutoDelete
-			if lf.AutoDelete && tktTable != "dead" &&
-				lf.Leasor != "" &&
-				lf.LeaseUntilTm.Before(now) {
-
-				deadzone.Tree.InsertLeaf(lf)
-				table.Tree.Remove(art.Key(key))
-
-				continue
-			}
-			//vv("Descend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
-			lf2 := lf.Clone()
-			results.InsertLeaf(lf2)
-		}
-	} else {
-		for key, lf := range art.Ascend(table.Tree, art.Key(tktPrefix), nil) {
-			if !strings.HasPrefix(string(key), string(tktPrefix)) {
-				return
-			}
-			// implement AutoDelete
-			if lf.AutoDelete && tktTable != "dead" &&
-				lf.Leasor != "" &&
-				lf.LeaseUntilTm.Before(now) {
-
-				deadzone.Tree.InsertLeaf(lf)
-				table.Tree.Remove(art.Key(key))
-
-				continue
-			}
-			//vv("Ascend sees key '%v' -> lf.Value: '%v'", string(key), string(lf.Value))
-			lf2 := lf.Clone()
-			results.InsertLeaf(lf2)
-		}
-	}
-	return
-}
-
-/* old, think we can delete
-// return nil error if okay, else lease is still in force.
-func (cfg *TubeConfig) okayToWritePossiblyLeasedKey(leaf *art.Leaf, tkt *Ticket) error {
-	if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
-		// no current leasor
-		return nil
-	}
-	// INVAR: leaf.Leasor != "" && leaf.LeaseUntilTm > 0
-	if leaf.Leasor == tkt.Leasor {
-		// allow current leasor to give up lease/write new val.
-		return nil
-	}
-	if tkt.RaftLogEntryTm.After(
-		leaf.LeaseUntilTm.Add(cfg.ClockDriftBound)) {
-		// lease has expired, allow delete.
-		return nil
-	}
-	return fmt.Errorf("prior lease on key is not expired. table='%v'; key='%v'; Leasor='%v'; LeaseUntilTm='%v'", tkt.Table, tkt.Key, leaf.Leasor, nice(leaf.LeaseUntilTm))
-}
-*/

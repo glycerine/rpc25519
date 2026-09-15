@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/glycerine/greenpack/msgp"
-	"github.com/glycerine/rpc25519/tube/art"
 )
 
 // DecodeMsg implements msgp.Decodable
@@ -20612,7 +20611,7 @@ doneWithStruct272zgensym_8df0a91a1f250219_273:
 				// not Nil, we have something to read
 
 				if z.KeyValRangeScan == nil {
-					z.KeyValRangeScan = new(art.Tree)
+					z.KeyValRangeScan = new(KVScan)
 				}
 
 				err = z.KeyValRangeScan.DecodeMsg(dc)
@@ -23516,7 +23515,7 @@ doneWithStruct289zgensym_8df0a91a1f250219_290:
 					// not nbs.AlwaysNil and not IsNil(bts): have something to read
 
 					if z.KeyValRangeScan == nil {
-						z.KeyValRangeScan = new(art.Tree)
+						z.KeyValRangeScan = new(KVScan)
 					}
 
 					bts, err = z.KeyValRangeScan.UnmarshalMsg(bts)

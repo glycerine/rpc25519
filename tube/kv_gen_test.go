@@ -9,8 +9,8 @@ import (
 	"github.com/glycerine/greenpack/msgp"
 )
 
-func TestMarshalUnmarshalArtTable(t *testing.T) {
-	v := ArtTable{}
+func TestMarshalUnmarshalKVScan(t *testing.T) {
+	v := KVScan{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -32,8 +32,8 @@ func TestMarshalUnmarshalArtTable(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgArtTable(b *testing.B) {
-	v := ArtTable{}
+func BenchmarkMarshalMsgKVScan(b *testing.B) {
+	v := KVScan{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -41,8 +41,8 @@ func BenchmarkMarshalMsgArtTable(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgArtTable(b *testing.B) {
-	v := ArtTable{}
+func BenchmarkAppendMsgKVScan(b *testing.B) {
+	v := KVScan{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -53,8 +53,8 @@ func BenchmarkAppendMsgArtTable(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalArtTable(b *testing.B) {
-	v := ArtTable{}
+func BenchmarkUnmarshalKVScan(b *testing.B) {
+	v := KVScan{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -67,8 +67,8 @@ func BenchmarkUnmarshalArtTable(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodeArtTable(t *testing.T) {
-	v := ArtTable{}
+func TestEncodeDecodeKVScan(t *testing.T) {
+	v := KVScan{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -77,7 +77,7 @@ func TestEncodeDecodeArtTable(t *testing.T) {
 		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
 	}
 
-	vn := ArtTable{}
+	vn := KVScan{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -91,8 +91,8 @@ func TestEncodeDecodeArtTable(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodeArtTable(b *testing.B) {
-	v := ArtTable{}
+func BenchmarkEncodeKVScan(b *testing.B) {
+	v := KVScan{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -105,8 +105,8 @@ func BenchmarkEncodeArtTable(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodeArtTable(b *testing.B) {
-	v := ArtTable{}
+func BenchmarkDecodeKVScan(b *testing.B) {
+	v := KVScan{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
