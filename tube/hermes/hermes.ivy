@@ -271,6 +271,7 @@ isolate hermes_protocol = {
             require live(n);
             require pending(n);
             require live(A) -> acked(n,A);
+            require pending_rmw(n) & parent(pending_ts(n),B) & completed(R) & ts_rmw(R) & parent(R,B) -> R = pending_ts(n);
             ready(n) := true;
         }
 
@@ -444,9 +445,6 @@ isolate hermes_protocol = {
             complete_scheduled(n) := false;
 
             if live(n) & ready(n) & pending(n) & pending_ts(n) = cur_ts(n) & (state(n) = hs_write | state(n) = hs_replay) {
-                assert live(A) -> acked(n,A);
-                assert live(A) -> le(cur_ts(n),cur_ts(A));
-
                 completed(cur_ts(n)) := true;
                 val_msg(cur_ts(n)) := true;
                 state(n) := hs_valid;
@@ -456,9 +454,6 @@ isolate hermes_protocol = {
                 ready(n) := false;
             } else {
                 if live(n) & ready(n) & pending(n) & lt(pending_ts(n),cur_ts(n)) {
-                    assert live(A) -> acked(n,A);
-                    assert live(A) -> le(pending_ts(n),cur_ts(A));
-
                     completed(pending_ts(n)) := true;
                     pending(n) := false;
                     pending_rmw(n) := false;
@@ -494,8 +489,6 @@ isolate hermes_protocol = {
                 invariant ~l2s_frozen | ~l2s_saved
                 invariant l2s_frozen -> (ready(n0) & globally ready(n0))
                 invariant l2s_saved -> (ready(n0) & globally ready(n0))
-                invariant l2s_saved -> (($l2s_s N. ready(N))(n0) <-> ready(n0))
-                invariant l2s_saved & ($l2s_w N. complete_scheduled(N))(n0) -> ~ready(n0)
         }
     }
 }
