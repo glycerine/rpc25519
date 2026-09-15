@@ -21,6 +21,8 @@ that tactic are explicit trace hypotheses.
 -/
 
 set_option autoImplicit false
+set_option linter.unusedVariables false
+set_option linter.unusedSimpArgs false
 
 namespace HermesRmwO3
 
@@ -1475,6 +1477,209 @@ theorem core_init_invariant
         initTs initValue initEpoch) :=
   core_of_safety (init_safety hinit)
 
+structure AgreementInvariant
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    (ord : TotalOrder TS) (initTs : TS) (initValue : Value) (initEpoch : Epoch)
+    (st : State Node TS Value Epoch) : Prop where
+  ts_value_functional :
+    forall T V1 V2, st.tsValue T V1 -> st.tsValue T V2 -> V1 = V2
+  ts_value_seen :
+    forall T V, st.tsValue T V -> st.seenTs T
+  ts_rmw_seen :
+    forall T, st.tsRmw T -> st.seenTs T
+  rmw_conflict_seen :
+    forall T, st.rmwConflict T -> st.seenTs T
+  rmw_conflict_rmw :
+    forall T, st.rmwConflict T -> st.tsRmw T
+  inv_write_wf :
+    forall S T V, st.invWrite S T V -> st.seenTs T /\ st.tsValue T V /\ Not (st.tsRmw T)
+  inv_rmw_wf :
+    forall S T V, st.invRmw S T V -> st.seenTs T /\ st.tsValue T V /\ st.tsRmw T
+  ack_msg_seen :
+    forall A C T, st.ackMsg A C T -> st.seenTs T
+  ack_msg_advanced :
+    forall A C T, st.ackMsg A C T -> ord.le T (st.curTs A)
+  val_msg_completed :
+    forall T, st.valMsg T -> st.completed T
+  completed_seen :
+    forall T, st.completed T -> st.seenTs T
+  o3_quorum_live_ack :
+    forall N C T A, st.o3Quorum N C T -> st.live A -> st.ackMsg A C T
+  o3_quorum_seen :
+    forall N C T, st.o3Quorum N C T -> st.seenTs T
+  cur_value_seen :
+    forall N, st.tsValue (st.curTs N) (st.curValue N)
+  cur_rmw_ts :
+    forall N, st.curRmw N -> st.tsRmw (st.curTs N)
+  cur_non_rmw_ts :
+    forall N, Not (st.curRmw N) -> Not (st.tsRmw (st.curTs N))
+  pending_below_cur :
+    forall N, st.pending N -> ord.le (st.pendingTs N) (st.curTs N)
+  pending_acked_advanced :
+    forall N A, st.pending N -> st.acked N A -> ord.le (st.pendingTs N) (st.curTs A)
+  ready_pending :
+    forall N, st.ready N -> st.pending N
+  ready_live_acked :
+    forall N A, st.ready N -> st.live A -> st.acked N A
+  completed_live_advanced :
+    forall T N, st.completed T -> st.live N -> ord.le T (st.curTs N)
+  valid_completed :
+    forall N, st.state N = HState.hs_valid -> st.completed (st.curTs N)
+
+theorem agreement_of_safety
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    {st : State Node TS Value Epoch}
+    (h : Safety ord initTs initValue initEpoch st) :
+    AgreementInvariant ord initTs initValue initEpoch st where
+  ts_value_functional := h.ts_value_functional
+  ts_value_seen := h.ts_value_seen
+  ts_rmw_seen := h.ts_rmw_seen
+  rmw_conflict_seen := h.rmw_conflict_seen
+  rmw_conflict_rmw := h.rmw_conflict_rmw
+  inv_write_wf := h.inv_write_wf
+  inv_rmw_wf := h.inv_rmw_wf
+  ack_msg_seen := h.ack_msg_seen
+  ack_msg_advanced := h.ack_msg_advanced
+  val_msg_completed := h.val_msg_completed
+  completed_seen := h.completed_seen
+  o3_quorum_live_ack := h.o3_quorum_live_ack
+  o3_quorum_seen := h.o3_quorum_seen
+  cur_value_seen := h.cur_value_seen
+  cur_rmw_ts := h.cur_rmw_ts
+  cur_non_rmw_ts := h.cur_non_rmw_ts
+  pending_below_cur := h.pending_below_cur
+  pending_acked_advanced := h.pending_acked_advanced
+  ready_pending := h.ready_pending
+  ready_live_acked := h.ready_live_acked
+  completed_live_advanced := h.completed_live_advanced
+  valid_completed := h.valid_completed
+
+theorem agreement_init_invariant
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    (hinit : InitAssumptions ord initTs) :
+    AgreementInvariant ord initTs initValue initEpoch
+      (initState (Node := Node) (TS := TS) (Value := Value) (Epoch := Epoch)
+        initTs initValue initEpoch) :=
+  agreement_of_safety (init_safety hinit)
+
+set_option maxHeartbeats 400000 in
+theorem hrnext_preserves_agreement
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    {st st' : State Node TS Value Epoch} {lbl : HRLabel Node}
+    (hInv : AgreementInvariant ord initTs initValue initEpoch st)
+    (hStep : HRNext ord st lbl st') :
+    AgreementInvariant ord initTs initValue initEpoch st' := by
+  cases hInv
+  cases hStep with
+  | local_write =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [localWritePost, upd, add1, set1, set2FirstSelf, add3,
+        addTsValue, removeTs, addRmwConflicts] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | local_rmw =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [localRmwPost, upd, add1, set1, set2FirstSelf, add3,
+        addTsValue, removeTs, addRmwConflicts] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | receive_write_inv =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [receiveWriteInvPost, upd, add1, clear1, set1, add2, clear2First,
+        set2FirstSelf, add3, le_of_not_lt] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | receive_rmw_inv =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [receiveRmwInvPost, upd, add1, clear1, set1, add2, clear2First,
+        set2FirstSelf, add3, le_of_not_lt] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | receive_rmw_inv_completed_conflict =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [receiveRmwInvCompletedConflictPost, add3] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | receive_ack =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [receiveAckPost, add1, add2, set1] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | mark_ready =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [markReadyPost, upd, add1, clear1, set1] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | complete_current =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [completeCurrentPost, upd, add1, clear1, set1, clear2First,
+        addRmwConflicts] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | complete_overwritten =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [completeOverwrittenPost, upd, add1, clear1, set1, clear2First,
+        addRmwConflicts] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | complete_ready_current =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [completeCurrentPost, upd, add1, clear1, set1, clear2First,
+        addRmwConflicts] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | complete_ready_overwritten =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [completeOverwrittenPost, upd, add1, clear1, set1, clear2First,
+        addRmwConflicts] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | receive_validate =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [receiveValidatePost, upd, add1, clear1, set1, clear2First] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | replay_after_failure =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [replayAfterFailurePost, upd, add1, set1, set2FirstSelf, add3] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | fail =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [failPost, upd, add1, set1, clear2First] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | o3_observe_quorum =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [o3ObserveQuorumPost, add3] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+  | o3_complete =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;>
+      simp [o3CompletePost, upd, add1, clear1, set1, clear2First,
+        addRmwConflicts] at * <;>
+      grind [TotalOrder.trans, TotalOrder.antisymm]
+
 set_option maxHeartbeats 200000 in
 theorem local_write_preserves_core
     {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
@@ -1742,24 +1947,6 @@ theorem local_write_preserves_core
       intro N hTry
       exact hNoO3Try N hTry
   }
-
-set_option maxHeartbeats 50000 in
-theorem local_rmw_preserves_core_probe
-    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
-    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
-    {st : State Node TS Value Epoch} {n : Node} {t : TS} {v : Value}
-    (hCore : CoreInvariant ord initTs initValue initEpoch st)
-    (hLive : st.live n)
-    (hNotPending : Not (st.pending n))
-    (hState : st.state n = HState.hs_valid)
-    (hLt : lt ord (st.curTs n) t)
-    (hFresh : Not (st.seenTs t))
-    (hSpacing : forall W, st.parent W (st.curTs n) -> Not (st.tsRmw W) -> lt ord t W) :
-    CoreInvariant ord initTs initValue initEpoch (localRmwPost st n t v) := by
-  cases hCore
-  simp [CoreInvariant, localRmwPost, upd, add1, set1, set2FirstSelf,
-    add3, addTsValue, addParent, removeTs, addRmwConflicts, lt] at *
-  grind [TotalOrder.trans, TotalOrder.antisymm]
 
 end Operational
 
