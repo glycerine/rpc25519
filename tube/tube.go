@@ -3048,7 +3048,9 @@ PeerServiceName: %q,
 func (s *RaftState) clone() (clon *RaftState) {
 	cp := *s
 	clon = &cp
-	clon.KVstore = s.KVstore.clone()
+	if s.KVstore != nil {
+		clon.KVstore = s.KVstore.clone()
+	}
 
 	// ======== cluster config change support
 	// alot of pointers, we must Clone to avoid sharing.
@@ -4527,6 +4529,10 @@ func (s *TubeNode) viewCurLog() (err error) {
 func (s *TubeNode) newRaftState() *RaftState {
 
 	sn := atomic.AddInt64(&debugSerialRaftState, 1)
+	var kv *KVStore
+	if !s.isSimAeTest() {
+		kv = newKVStore()
+	}
 
 	a := &RaftState{
 		name:            s.name,
@@ -4535,7 +4541,7 @@ func (s *TubeNode) newRaftState() *RaftState {
 		PeerName:        s.name,
 		PeerServiceName: s.PeerServiceName,
 		ClusterID:       s.ClusterID,
-		KVstore:         newKVStore(),
+		KVstore:         kv,
 		SessTable:       make(map[string]*SessionTableEntry),
 
 		// try to prevent seg fault in 401
