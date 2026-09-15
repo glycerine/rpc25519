@@ -1,0 +1,642 @@
+#lang ivy1.7
+
+# Single-key Hermes protocol model with O3 broadcast-ACK completion,
+# including RMW O3 completion guarded by the RMW conflict rule.
+#
+# Hermes is per-key linearizable and composes across keys, so this model
+# intentionally verifies one key. The model includes normal writes, RMWs,
+# invalidations, acknowledgements, validations, write replay after membership
+# removal, and the "invalid_write" / overwritten local update state.
+
+module total_order(r) = {
+    axiom r(X,X)
+    axiom r(X,Y) & r(Y,Z) -> r(X,Z)
+    axiom r(X,Y) & r(Y,X) -> X = Y
+    axiom r(X,Y) | r(Y,X)
+}
+
+type ltask = {ready_finish, o3_finish}
+
+isolate hermes_protocol = {
+
+    type node
+    type ts
+    type value
+    type epoch
+
+    type hstate = {hs_valid, hs_invalid, hs_invalid_write, hs_write, hs_replay}
+
+    action local_write(n:node, t:ts, v:value)
+    action local_rmw(n:node, t:ts, v:value)
+    action receive_write_inv(n:node, s:node, t:ts, v:value)
+    action receive_rmw_inv(n:node, s:node, t:ts, v:value)
+    action receive_rmw_inv_completed_conflict(n:node, s:node, t:ts, v:value, b:ts, r:ts)
+    action receive_ack(n:node, a:node, t:ts)
+    action complete_current(n:node)
+    action complete_overwritten(n:node)
+    action complete_ready(n:node)
+    action o3_observe_quorum(n:node, c:node, t:ts)
+    action o3_complete(n:node, c:node, t:ts)
+    action mark_ready(n:node, e:epoch)
+    action receive_validate(n:node, t:ts)
+    action replay_after_failure(n:node)
+    action fail(n:node)
+
+    specification {
+
+        relation le(X:ts,Y:ts)
+        instantiate total_order(le)
+
+        relation lt(X:ts,Y:ts) = le(X,Y) & X ~= Y
+
+        individual ready_task:ltask
+        individual o3_task:ltask
+        individual init_ts:ts
+        individual init_value:value
+        individual init_epoch:epoch
+        axiom le(init_ts,T)
+
+        # Current per-node key metadata.
+        individual state(N:node):hstate
+        individual cur_ts(N:node):ts
+        individual cur_value(N:node):value
+        relation cur_rmw(N:node)
+        individual last_writer(N:node):node
+        relation live(N:node)
+
+        # Local pending operation metadata. A node may have an overwritten
+        # pending operation while its current key timestamp is already newer.
+        relation pending(N:node)
+        individual pending_ts(N:node):ts
+        relation pending_rmw(N:node)
+        relation acked(C:node,A:node)
+        relation ready(N:node)
+        individual ready_epoch(N:node):epoch
+        relation seen_epoch(E:epoch)
+        relation epoch_done(E:epoch)
+
+        # Timestamp metadata. `parent(T,B)` means update timestamp T was
+        # generated from base timestamp B.
+        relation seen_ts(T:ts)
+        relation parent(T:ts,B:ts)
+        individual parent_ts(T:ts):ts
+        relation ts_value(T:ts,V:value)
+        relation ts_rmw(T:ts)
+        relation rmw_conflict(T:ts)
+
+        # Persistent network buffers. Messages are never removed, matching the
+        # TLA model's duplicate/reordering tolerance.
+        relation inv_write(S:node,T:ts,V:value)
+        relation inv_rmw(S:node,T:ts,V:value)
+        relation ack_msg(A:node,C:node,T:ts)
+        relation val_msg(T:ts)
+        relation o3_quorum(N:node,C:node,T:ts)
+
+        relation complete_try(N:node)
+        relation o3_try(N:node)
+
+        # A timestamp is externally completed once its coordinator/replayer has
+        # gathered ACKs from all live members in the current membership.
+        relation completed(T:ts)
+
+        after init {
+            ready_task := ready_finish;
+            o3_task := o3_finish;
+            live(N) := true;
+            state(N) := hs_valid;
+            cur_ts(N) := init_ts;
+            cur_value(N) := init_value;
+            cur_rmw(N) := false;
+            last_writer(N) := N;
+
+            pending(N) := false;
+            pending_ts(N) := init_ts;
+            pending_rmw(N) := false;
+            acked(C,A) := false;
+            ready(N) := false;
+            ready_epoch(N) := init_epoch;
+            seen_epoch(E) := E = init_epoch;
+            epoch_done(E) := E = init_epoch;
+
+            seen_ts(T) := T = init_ts;
+            parent(T,B) := false;
+            parent_ts(T) := init_ts;
+            ts_value(T,V) := T = init_ts & V = init_value;
+            ts_rmw(T) := false;
+            rmw_conflict(T) := false;
+
+            inv_write(S,T,V) := false;
+            inv_rmw(S,T,V) := false;
+            ack_msg(A,C,T) := false;
+            val_msg(T) := T = init_ts;
+            o3_quorum(N,C,T) := false;
+            complete_try(N) := false;
+            o3_try(N) := false;
+            completed(T) := T = init_ts;
+        }
+
+        before local_write {
+            require live(n);
+            require ~pending(n);
+            require state(n) = hs_valid | state(n) = hs_invalid;
+            require lt(cur_ts(n),t);
+            require ~seen_ts(t);
+            assert seen_ts(cur_ts(n));
+            # Write/RMW timestamp spacing from HermesRMWs.tla: a write from
+            # base B must be greater than every concurrent RMW from B.
+            require parent(R,cur_ts(n)) & ts_rmw(R) -> lt(R,t);
+
+            seen_ts(t) := true;
+            parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
+            parent_ts(T) := cur_ts(n) if T = t else parent_ts(T);
+            ts_value(T,V) := ts_value(T,V) | (T = t & V = v);
+            ts_rmw(T) := ts_rmw(T) & T ~= t;
+            rmw_conflict(T) := rmw_conflict(T) & T ~= t;
+
+            cur_ts(n) := t;
+            cur_value(n) := v;
+            cur_rmw(n) := false;
+            last_writer(n) := n;
+            state(n) := hs_write;
+
+            pending(n) := true;
+            pending_ts(n) := t;
+            pending_rmw(n) := false;
+            acked(n,A) := A = n;
+            ready(n) := false;
+
+            inv_write(n,t,v) := true;
+        }
+
+        before local_rmw {
+            require live(n);
+            require ~pending(n);
+            require state(n) = hs_valid;
+            require lt(cur_ts(n),t);
+            require ~seen_ts(t);
+            assert seen_ts(cur_ts(n));
+            # RMW from base B must be lower than any concurrent write from B.
+            require parent(W,cur_ts(n)) & ~ts_rmw(W) -> lt(t,W);
+
+            seen_ts(t) := true;
+            parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
+            parent_ts(T) := cur_ts(n) if T = t else parent_ts(T);
+            ts_value(T,V) := ts_value(T,V) | (T = t & V = v);
+            ts_rmw(T) := ts_rmw(T) | T = t;
+            rmw_conflict(T) := rmw_conflict(T) & T ~= t;
+
+            cur_ts(n) := t;
+            cur_value(n) := v;
+            cur_rmw(n) := true;
+            last_writer(n) := n;
+            state(n) := hs_write;
+
+            pending(n) := true;
+            pending_ts(n) := t;
+            pending_rmw(n) := true;
+            acked(n,A) := A = n;
+            ready(n) := false;
+
+            inv_rmw(n,t,v) := true;
+        }
+
+        before receive_write_inv {
+            require live(n);
+            require n ~= s;
+            require inv_write(s,t,v);
+
+            # Non-RMW writes are always ACKed, even when stale.
+            ack_msg(n,s,t) := true;
+
+            if lt(cur_ts(n),t) {
+                if pending(n) & pending_rmw(n) {
+                    if ready(n) {
+                        epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    };
+                    pending(n) := false;
+                    pending_rmw(n) := false;
+                    acked(n,A) := false;
+                    ready(n) := false;
+                    state(n) := hs_invalid;
+                } else {
+                    if pending(n) {
+                        state(n) := hs_invalid_write;
+                    } else {
+                        state(n) := hs_invalid;
+                    }
+                };
+                cur_ts(n) := t;
+                cur_value(n) := v;
+                cur_rmw(n) := false;
+                last_writer(n) := s;
+            }
+        }
+
+        before receive_rmw_inv {
+            require live(n);
+            require n ~= s;
+            require inv_rmw(s,t,v);
+            require parent(t,B) & completed(R) & ts_rmw(R) & parent(R,B) -> R = t;
+
+            if lt(cur_ts(n),t) {
+                if pending(n) & pending_rmw(n) {
+                    if ready(n) {
+                        epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    };
+                    pending(n) := false;
+                    pending_rmw(n) := false;
+                    acked(n,A) := false;
+                    ready(n) := false;
+                    state(n) := hs_invalid;
+                } else {
+                    if pending(n) {
+                        state(n) := hs_invalid_write;
+                    } else {
+                        state(n) := hs_invalid;
+                    }
+                };
+                cur_ts(n) := t;
+                cur_value(n) := v;
+                cur_rmw(n) := true;
+                last_writer(n) := s;
+                ack_msg(n,s,t) := true;
+            } else {
+                if cur_ts(n) = t {
+                    ack_msg(n,s,t) := true;
+                } else {
+                    # Stale RMW invalidations are not ACKed. The receiver
+                    # replies with its local newer invalidation, which aborts
+                    # the stale RMW coordinator.
+                    if cur_rmw(n) {
+                        inv_rmw(n,cur_ts(n),cur_value(n)) := true;
+                    } else {
+                        inv_write(n,cur_ts(n),cur_value(n)) := true;
+                    }
+                }
+            }
+        }
+
+        before receive_rmw_inv_completed_conflict {
+            require live(n);
+            require n ~= s;
+            require inv_rmw(s,t,v);
+            require parent(t,b);
+            require completed(r);
+            require ts_rmw(r);
+            require parent(r,b);
+            require r ~= t;
+
+            # A different RMW from the same base has already completed. Do not
+            # ACK this invalidation; reply with the local state so the sender
+            # follows the normal abort path.
+            if cur_rmw(n) {
+                inv_rmw(n,cur_ts(n),cur_value(n)) := true;
+            } else {
+                inv_write(n,cur_ts(n),cur_value(n)) := true;
+            }
+        }
+
+        before receive_ack {
+            require live(n);
+            require pending(n);
+            require pending_ts(n) = t;
+            require ack_msg(a,n,t);
+            if ready(n) {
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            };
+            acked(n,a) := true;
+            ready(n) := false;
+        }
+
+        before mark_ready {
+            require live(n);
+            require pending(n);
+            require ~ready(n);
+            require ~seen_epoch(e);
+            require live(A) -> acked(n,A);
+            require pending_rmw(n) & parent(pending_ts(n),B) & completed(R) & ts_rmw(R) & parent(R,B) -> R = pending_ts(n);
+            seen_epoch(E) := seen_epoch(E) | E = e;
+            epoch_done(E) := epoch_done(E) & E ~= e;
+            ready_epoch(n) := e;
+            ready(n) := true;
+        }
+
+        before complete_current {
+            require live(n);
+            require pending(n);
+            require pending_ts(n) = cur_ts(n);
+            require state(n) = hs_write | state(n) = hs_replay;
+            require ready(n);
+            assert live(A) -> acked(n,A);
+            assert live(A) -> le(cur_ts(n),cur_ts(A));
+
+            completed(cur_ts(n)) := true;
+            rmw_conflict(T) := rmw_conflict(T) | (ts_rmw(cur_ts(n)) & ts_rmw(T) & T ~= cur_ts(n) & parent_ts(cur_ts(n)) = parent_ts(T));
+            val_msg(cur_ts(n)) := true;
+            state(n) := hs_valid;
+            epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            pending(n) := false;
+            pending_rmw(n) := false;
+            acked(n,A) := false;
+            ready(n) := false;
+        }
+
+        before complete_overwritten {
+            require live(n);
+            require pending(n);
+            require lt(pending_ts(n),cur_ts(n));
+            require ready(n);
+            assert live(A) -> acked(n,A);
+            assert live(A) -> le(pending_ts(n),cur_ts(A));
+
+            completed(pending_ts(n)) := true;
+            rmw_conflict(T) := rmw_conflict(T) | (ts_rmw(pending_ts(n)) & ts_rmw(T) & T ~= pending_ts(n) & parent_ts(pending_ts(n)) = parent_ts(T));
+            epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            pending(n) := false;
+            pending_rmw(n) := false;
+            acked(n,A) := false;
+            ready(n) := false;
+
+            if state(n) = hs_invalid_write {
+                state(n) := hs_invalid;
+            }
+        }
+
+        before receive_validate {
+            require live(n);
+            require val_msg(t);
+            if cur_ts(n) = t {
+                state(n) := hs_valid;
+                if pending(n) & pending_ts(n) = cur_ts(n) {
+                    if ready(n) {
+                        epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    };
+                    pending(n) := false;
+                    pending_rmw(n) := false;
+                    acked(n,A) := false;
+                    ready(n) := false;
+                }
+            }
+        }
+
+        before replay_after_failure {
+            require live(n);
+            require ~pending(n);
+            require state(n) = hs_invalid;
+            require ~live(last_writer(n));
+            require cur_rmw(n) & parent(cur_ts(n),B) & completed(R) & ts_rmw(R) & parent(R,B) -> R = cur_ts(n);
+
+            state(n) := hs_replay;
+            pending(n) := true;
+            pending_ts(n) := cur_ts(n);
+            pending_rmw(n) := cur_rmw(n);
+            acked(n,A) := A = n;
+            if ready(n) {
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            };
+            ready(n) := false;
+
+            if cur_rmw(n) {
+                inv_rmw(n,cur_ts(n),cur_value(n)) := true;
+            } else {
+                inv_write(n,cur_ts(n),cur_value(n)) := true;
+            }
+        }
+
+        before fail {
+            require live(n);
+            live(n) := false;
+            pending(n) := false;
+            pending_rmw(n) := false;
+            acked(n,A) := false;
+            if ready(n) {
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            };
+            ready(n) := false;
+        }
+
+        ################################################################################
+        # Safety invariants
+        ################################################################################
+
+        invariant seen_epoch(init_epoch)
+        invariant seen_ts(init_ts)
+        invariant completed(init_ts)
+        invariant ts_value(init_ts,init_value)
+
+        invariant ts_value(T,V1) & ts_value(T,V2) -> V1 = V2
+        invariant parent(T,B1) & parent(T,B2) -> B1 = B2
+        invariant parent(T,B) -> seen_ts(T) & seen_ts(B) & lt(B,T)
+        invariant ts_value(T,V) -> seen_ts(T)
+        invariant ts_rmw(T) -> seen_ts(T)
+        invariant rmw_conflict(T) -> seen_ts(T)
+        invariant rmw_conflict(T) -> ts_rmw(T)
+        invariant completed(R) & ts_rmw(R) & ts_rmw(T) & parent_ts(R) = parent_ts(T) & R ~= T -> rmw_conflict(T)
+        invariant inv_write(S,T,V) -> seen_ts(T) & ts_value(T,V) & ~ts_rmw(T)
+        invariant inv_rmw(S,T,V) -> seen_ts(T) & ts_value(T,V) & ts_rmw(T)
+        invariant ack_msg(A,C,T) -> seen_ts(T)
+        invariant ack_msg(A,C,T) -> le(T,cur_ts(A))
+        invariant val_msg(T) -> completed(T)
+        invariant completed(T) -> seen_ts(T)
+        invariant o3_quorum(N,C,T) & live(A) -> ack_msg(A,C,T)
+        invariant o3_quorum(N,C,T) -> seen_ts(T)
+        invariant seen_ts(cur_ts(N))
+        invariant ts_value(cur_ts(N),cur_value(N))
+        invariant cur_rmw(N) -> ts_rmw(cur_ts(N))
+        invariant ~cur_rmw(N) -> ~ts_rmw(cur_ts(N))
+        invariant pending(N) -> seen_ts(pending_ts(N))
+        invariant pending(N) -> acked(N,N)
+        invariant pending(N) -> le(pending_ts(N),cur_ts(N))
+        invariant pending(N) & pending_rmw(N) -> ts_rmw(pending_ts(N))
+        invariant pending(N) & ~pending_rmw(N) -> ~ts_rmw(pending_ts(N))
+        invariant pending(N) & pending_rmw(N) -> pending_ts(N) = cur_ts(N)
+        invariant pending(N) & pending_rmw(N) -> cur_rmw(N)
+        invariant pending(N) & acked(N,A) -> le(pending_ts(N),cur_ts(A))
+        invariant ready(N) -> pending(N)
+        invariant ready(N) & live(A) -> acked(N,A)
+        invariant ready(N) -> pending_ts(N) = cur_ts(N) | lt(pending_ts(N),cur_ts(N))
+        invariant ready(N) & pending_ts(N) = cur_ts(N) -> state(N) = hs_write | state(N) = hs_replay
+        invariant ready(N) & lt(pending_ts(N),cur_ts(N)) -> state(N) = hs_invalid_write | state(N) = hs_invalid | state(N) = hs_valid
+        invariant pending(N) & pending_ts(N) = cur_ts(N) -> state(N) = hs_write | state(N) = hs_replay
+        invariant pending(N) & lt(pending_ts(N),cur_ts(N)) -> state(N) = hs_invalid_write | state(N) = hs_invalid | state(N) = hs_valid
+        invariant ~pending(N) -> ~acked(N,A)
+        invariant ~pending(N) -> ~ready(N)
+
+        # Once a timestamp is completed, every live node has advanced to at
+        # least that timestamp. This is the key invariant behind valid/valid
+        # consistency.
+        invariant completed(T) & live(N) -> le(T,cur_ts(N))
+
+        invariant state(N) = hs_valid -> completed(cur_ts(N))
+
+        # Linearizability safety for the one modeled key: any two live replicas
+        # that can serve local reads agree on the timestamp and value.
+        invariant live(N1) & live(N2) & state(N1) = hs_valid & state(N2) = hs_valid -> cur_ts(N1) = cur_ts(N2)
+        invariant live(N1) & live(N2) & state(N1) = hs_valid & state(N2) = hs_valid -> cur_value(N1) = cur_value(N2)
+
+        # Write/RMW spacing: blind writes from the same base are above RMWs.
+        invariant parent(R,B) & parent(W,B) & ts_rmw(R) & ~ts_rmw(W) -> lt(R,W)
+
+        # A live node cannot be ready to complete an RMW from base B once a
+        # different RMW from that same base has completed. Two ready RMWs from
+        # the same base must be the same timestamp.
+        invariant live(N) & ready(N) & pending_rmw(N) & parent(pending_ts(N),B) & completed(R) & ts_rmw(R) & parent(R,B) -> pending_ts(N) = R
+        invariant live(N1) & ready(N1) & pending_rmw(N1) & parent(pending_ts(N1),B) & live(N2) & ready(N2) & pending_rmw(N2) & parent(pending_ts(N2),B) -> pending_ts(N1) = pending_ts(N2)
+
+        # RMW safety: at most one RMW derived from the same base timestamp can
+        # complete. Sequential RMWs have different parents.
+        invariant completed(R1) & completed(R2) & ts_rmw(R1) & ts_rmw(R2) & parent(R1,B) & parent(R2,B) -> R1 = R2
+
+        ################################################################################
+        # Liveness/progress obligation
+        ################################################################################
+
+        before complete_ready {
+            require ready(n);
+
+            if live(n) & ready(n) & pending(n) & pending_ts(n) = cur_ts(n) & (state(n) = hs_write | state(n) = hs_replay) {
+                completed(cur_ts(n)) := true;
+                rmw_conflict(T) := rmw_conflict(T) | (ts_rmw(cur_ts(n)) & ts_rmw(T) & T ~= cur_ts(n) & parent_ts(cur_ts(n)) = parent_ts(T));
+                val_msg(cur_ts(n)) := true;
+                state(n) := hs_valid;
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                pending(n) := false;
+                pending_rmw(n) := false;
+                acked(n,A) := false;
+                ready(n) := false;
+                complete_try(n) := true;
+                complete_try(N) := false;
+            } else {
+                if live(n) & ready(n) & pending(n) & lt(pending_ts(n),cur_ts(n)) {
+                    completed(pending_ts(n)) := true;
+                    rmw_conflict(T) := rmw_conflict(T) | (ts_rmw(pending_ts(n)) & ts_rmw(T) & T ~= pending_ts(n) & parent_ts(pending_ts(n)) = parent_ts(T));
+                    epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    pending(n) := false;
+                    pending_rmw(n) := false;
+                    acked(n,A) := false;
+                    ready(n) := false;
+                    complete_try(n) := true;
+                    complete_try(N) := false;
+
+                    if state(n) = hs_invalid_write {
+                        state(n) := hs_invalid;
+                    }
+                }
+            }
+        }
+
+        # O3 broadcast-ACK optimization. Followers broadcast ACKs, so a replica
+        # can remember that it has seen a full live ACK set even before its
+        # matching INV has arrived. For RMW timestamps, this is only a candidate:
+        # completion still has to re-check the completed-RMW conflict guard.
+        before o3_observe_quorum {
+            require live(n);
+            require live(A) -> ack_msg(A,c,t);
+
+            o3_quorum(n,c,t) := true;
+        }
+
+        # Once the matching INV has installed timestamp t locally, the remembered
+        # ACK quorum is enough to infer validity without waiting for VALIDATE.
+        before o3_complete {
+            require live(n);
+            require cur_ts(n) = t;
+            require state(n) ~= hs_valid;
+            require o3_quorum(n,c,t);
+            require ~rmw_conflict(t);
+            require ts_rmw(t) & parent(t,B) & completed(R) & ts_rmw(R) & parent(R,B) -> R = t;
+
+            completed(t) := true;
+            rmw_conflict(T) := rmw_conflict(T) | (ts_rmw(t) & ts_rmw(T) & T ~= t & parent_ts(t) = parent_ts(T));
+            state(n) := hs_valid;
+
+            if pending(n) & pending_ts(n) = t {
+                if ready(n) {
+                    epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                };
+                pending(n) := false;
+                pending_rmw(n) := false;
+                acked(n,A) := false;
+                ready(n) := false;
+            };
+
+            o3_try(n) := true;
+            o3_try(N) := false;
+        }
+
+        invariant ready(N) -> live(N)
+        invariant ready(N) -> seen_epoch(ready_epoch(N))
+        invariant ready(N) -> ready_epoch(N) ~= init_epoch
+        invariant epoch_done(E) -> seen_epoch(E)
+        invariant ~complete_try(N)
+        invariant ~o3_try(N)
+        invariant ready_task = ready_finish
+        invariant o3_task = o3_finish
+
+        explicit temporal property [ready_epochs_eventually_finish]
+        forall N,E. (globally eventually complete_try(N)) -> (globally ~(ready(N) & ready_epoch(N) = E & globally ~epoch_done(E)))
+        proof {
+            tactic skolemize;
+            tactic l2s_auto5 with {
+                definition work_created(T) = T = ready_task
+                definition work_needed(T) = T = ready_task & ready(_N) & ready_epoch(_N) = _E & ~epoch_done(_E)
+                definition work_done(T) = T = ready_task & epoch_done(_E)
+                definition work_invar = ready(_N) & ready_epoch(_N) = _E & ~epoch_done(_E)
+                definition work_start = ready(_N) & ready_epoch(_N) = _E & globally ~epoch_done(_E)
+                definition work_progress = complete_try(_N)
+                definition work_helpful = ready(_N) & ready_epoch(_N) = _E & ~epoch_done(_E)
+                invariant l2s_saved & ($l2s_s . ready(_N) & ready_epoch(_N) = _E) & ~epoch_done(_E) -> ready(_N) & ready_epoch(_N) = _E
+            }
+        }
+
+        explicit temporal property [o3_ack_quorums_eventually_finish_or_conflict]
+        forall N,C,T. (globally eventually o3_try(N)) ->
+            globally ~(o3_quorum(N,C,T) & cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & ~rmw_conflict(T) & globally (cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & ~rmw_conflict(T)))
+        proof {
+            tactic skolemize;
+            tactic l2s_auto5 with {
+                definition work_created(Q) = Q = o3_task
+                definition work_needed(Q) = Q = o3_task & o3_quorum(_N,_C,_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T)
+                definition work_done(Q) = Q = o3_task & (completed(_T) | state(_N) = hs_valid | cur_ts(_N) ~= _T | rmw_conflict(_T))
+                definition work_invar = o3_quorum(_N,_C,_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T)
+                definition work_start = o3_quorum(_N,_C,_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T) & globally (cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T))
+                definition work_progress = o3_try(_N)
+                definition work_helpful = o3_quorum(_N,_C,_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T)
+                invariant l2s_saved & ($l2s_s . cur_ts(_N) = _T & state(_N) ~= hs_valid) & ~completed(_T) -> cur_ts(_N) = _T & state(_N) ~= hs_valid
+            }
+        }
+
+        explicit temporal property [o3_rmw_ack_quorums_eventually_finish_or_conflict]
+        forall N,C,T. (globally eventually o3_try(N)) ->
+            globally ~(o3_quorum(N,C,T) & ts_rmw(T) & cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & ~rmw_conflict(T) & globally (cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & ~rmw_conflict(T)))
+        proof {
+            tactic skolemize;
+            tactic l2s_auto5 with {
+                definition work_created(Q) = Q = o3_task
+                definition work_needed(Q) = Q = o3_task & o3_quorum(_N,_C,_T) & ts_rmw(_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T)
+                definition work_done(Q) = Q = o3_task & (completed(_T) | state(_N) = hs_valid | cur_ts(_N) ~= _T | rmw_conflict(_T))
+                definition work_invar = o3_quorum(_N,_C,_T) & ts_rmw(_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T)
+                definition work_start = o3_quorum(_N,_C,_T) & ts_rmw(_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T) & globally (cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T))
+                definition work_progress = o3_try(_N)
+                definition work_helpful = o3_quorum(_N,_C,_T) & ts_rmw(_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T)
+                invariant l2s_saved & ($l2s_s . cur_ts(_N) = _T & state(_N) ~= hs_valid) & ~completed(_T) -> cur_ts(_N) = _T & state(_N) ~= hs_valid
+            }
+        }
+    }
+}
+
+export hermes_protocol.local_write
+export hermes_protocol.local_rmw
+export hermes_protocol.receive_write_inv
+export hermes_protocol.receive_rmw_inv
+export hermes_protocol.receive_rmw_inv_completed_conflict
+export hermes_protocol.receive_ack
+export hermes_protocol.mark_ready
+export hermes_protocol.complete_current
+export hermes_protocol.complete_overwritten
+export hermes_protocol.complete_ready
+export hermes_protocol.o3_observe_quorum
+export hermes_protocol.o3_complete
+export hermes_protocol.receive_validate
+export hermes_protocol.replay_after_failure
+export hermes_protocol.fail
