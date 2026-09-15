@@ -30,6 +30,7 @@ isolate hermes_protocol = {
     action receive_ack(n:node, a:node, t:ts)
     action complete_current(n:node)
     action complete_overwritten(n:node)
+    action complete_ready(n:node)
     action mark_ready(n:node)
     action receive_validate(n:node, t:ts)
     action replay_after_failure(n:node)
@@ -348,6 +349,10 @@ isolate hermes_protocol = {
         before fail {
             require live(n);
             live(n) := false;
+            pending(n) := false;
+            pending_rmw(n) := false;
+            acked(n,A) := false;
+            ready(n) := false;
         }
 
         ################################################################################
@@ -434,7 +439,44 @@ isolate hermes_protocol = {
             complete_scheduled(n) := false;
         }
 
+        before complete_ready {
+            complete_scheduled(n) := true;
+            complete_scheduled(n) := false;
+
+            if live(n) & ready(n) & pending(n) & pending_ts(n) = cur_ts(n) & (state(n) = hs_write | state(n) = hs_replay) {
+                assert live(A) -> acked(n,A);
+                assert live(A) -> le(cur_ts(n),cur_ts(A));
+
+                completed(cur_ts(n)) := true;
+                val_msg(cur_ts(n)) := true;
+                state(n) := hs_valid;
+                pending(n) := false;
+                pending_rmw(n) := false;
+                acked(n,A) := false;
+                ready(n) := false;
+            } else {
+                if live(n) & ready(n) & pending(n) & lt(pending_ts(n),cur_ts(n)) {
+                    assert live(A) -> acked(n,A);
+                    assert live(A) -> le(pending_ts(n),cur_ts(A));
+
+                    completed(pending_ts(n)) := true;
+                    pending(n) := false;
+                    pending_rmw(n) := false;
+                    acked(n,A) := false;
+                    ready(n) := false;
+
+                    if state(n) = hs_invalid_write {
+                        state(n) := hs_invalid;
+                    }
+                }
+            }
+        }
+
+        individual n0:node
+
         temporal property [all_acked_updates_do_not_stutter_forever] (
+            ((exists N0. ~(globally ~(ready(N0) & globally ready(N0)))) -> ~(globally ~(ready(n0) & globally ready(n0))))
+        ) -> (
             (forall N. globally eventually complete_scheduled(N))
         ) -> (
             forall N. globally ~(ready(N) & globally ready(N))
@@ -443,11 +485,17 @@ isolate hermes_protocol = {
             tactic l2s with
                 invariant ~complete_scheduled(N)
                 invariant globally eventually complete_scheduled(N)
+                invariant eventually (ready(n0) & globally ready(n0))
+                invariant ~($l2s_w. (ready(n0) & globally ready(n0))) <-> (ready(n0) & globally ready(n0))
                 invariant ready(N) -> pending(N)
                 invariant l2s_waiting | l2s_frozen | l2s_saved
                 invariant ~l2s_waiting | ~l2s_frozen
                 invariant ~l2s_waiting | ~l2s_saved
                 invariant ~l2s_frozen | ~l2s_saved
+                invariant l2s_frozen -> (ready(n0) & globally ready(n0))
+                invariant l2s_saved -> (ready(n0) & globally ready(n0))
+                invariant l2s_saved -> (($l2s_s N. ready(N))(n0) <-> ready(n0))
+                invariant l2s_saved & ($l2s_w N. complete_scheduled(N))(n0) -> ~ready(n0)
         }
     }
 }
@@ -461,6 +509,7 @@ export hermes_protocol.receive_ack
 export hermes_protocol.mark_ready
 export hermes_protocol.complete_current
 export hermes_protocol.complete_overwritten
+export hermes_protocol.complete_ready
 export hermes_protocol.receive_validate
 export hermes_protocol.replay_after_failure
 export hermes_protocol.fail
