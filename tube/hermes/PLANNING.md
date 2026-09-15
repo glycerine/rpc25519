@@ -8,7 +8,8 @@ spells out the protocol transitions we should implement. It is based on:
 - `hermes/original-reference/Hermes/tla/protocol-actions.png`
 - `hermes/original-reference/Hermes/src/hermes/hermesKV.c`
 - `hermes/original-reference/Hermes/src/hermes/hermes_worker.c`
-- the checked Ivy models in `hermes/hermes.ivy` and `hermes/hermes_o3.ivy`
+- the checked Ivy models in `hermes/hermes.ivy`, `hermes/hermes_o3.ivy`, and
+  `hermes/hermes_rmw_o3.ivy`
 - the current Go implementation in `hermes/` and `cmd/hermes/`
 
 The TLA specs are the primary safety reference. The original C code is useful
@@ -127,14 +128,18 @@ reordering. Messages with a stale or future membership epoch are dropped.
 
 `hermes/hermes.ivy` verifies the base single-key protocol with Ivy 1.7.
 `hermes/hermes_o3.ivy` verifies the same protocol plus the proved non-RMW O3
-broadcast-ACK path:
+broadcast-ACK path. `hermes/hermes_rmw_o3.ivy` extends O3 to RMW timestamps:
+RMW O3 completion must re-check the completed-RMW conflict guard, and RMW O3
+liveness is "finish or observe a conflicting completed RMW" rather than
+unconditional finish.
 
 ```bash
 ivy_check hermes/hermes.ivy
 ivy_check hermes/hermes_o3.ivy
+ivy_check hermes/hermes_rmw_o3.ivy
 ```
 
-The current checked result for both files is `OK`. The models prove:
+The current checked result for all three files is `OK`. The models prove:
 
 - Safety: any two live replicas in `hs_valid` have the same timestamp and value.
 - Safety: once a timestamp is completed, every live node has advanced to at
@@ -146,6 +151,11 @@ The current checked result for both files is `OK`. The models prove:
 - O3 liveness in `hermes_o3.ivy`: if `o3_complete(n)` is attempted fairly, a
   recorded non-RMW O3 quorum for an installed invalid timestamp cannot remain
   unfinished forever.
+- RMW O3 liveness in `hermes_rmw_o3.ivy`: if `o3_complete(n)` is attempted
+  fairly, a recorded RMW O3 quorum for an installed invalid timestamp cannot
+  remain unfinished forever while the RMW conflict marker is clear. It either
+  completes, stops matching the installed timestamp, becomes valid by another
+  path, or is marked conflicted by a completed sibling RMW.
 
 The liveness theorem is written in "no permanent bad suffix" form:
 
@@ -192,10 +202,10 @@ The proof also makes these implementation obligations explicit:
   in the current membership.
 - The base proof in `hermes.ivy` models `INV -> ACK -> VALIDATE`.
   `hermes_o3.ivy` separately models the O3 broadcast-ACK optimization for
-  non-RMW writes/replays: followers may collect broadcast ACKs in a pseudo-ticket
-  before the matching `INV`, and after installing that non-RMW timestamp they
-  may transition to `sValid` without waiting for `VALIDATE`. O3 for RMW
-  timestamps remains outside the proved protocol and should stay disabled.
+  non-RMW writes/replays. `hermes_rmw_o3.ivy` adds RMW O3 by recording the
+  timestamp parent in `parent_ts`, marking sibling RMW conflict through
+  `rmw_conflict`, and requiring `o3_complete` to re-check both
+  `~rmw_conflict(t)` and the original completed-RMW conflict guard.
 
 ## `hermes_o3.ivy` action traceability
 
@@ -210,9 +220,11 @@ Implementation-critical invariant groups:
 - Initialization and metadata shape: lines 99-130 define one initial valid
   timestamp, no pending operation, no ACKs, no O3 quorums, and the initial
   timestamp completed. New Go state should start in this shape for every key.
-- Timestamp/message well-formedness: lines 411-430 require each timestamp to
-  have one value/parent meaning, require INV/ACK/VALIDATE/O3 records to imply
-  known timestamps, and require every O3 quorum to be non-RMW.
+- Timestamp/message well-formedness in `hermes_o3.ivy`: lines 411-430 require
+  each timestamp to have one value/parent meaning, require INV/ACK/VALIDATE/O3
+  records to imply known timestamps, and restrict this proof's O3 quorums to
+  non-RMW timestamps. The RMW extension below removes that restriction and adds
+  conflict bookkeeping.
 - Pending and ready metadata: lines 432-452 require pending metadata to remain
   separate from the key's current timestamp, require self-ACK on pending work,
   and require ready certificates to imply full live ACK coverage.
@@ -246,6 +258,14 @@ Action-to-implementation mapping:
 | `complete_ready` | 483-513 | Fair event-loop completion driver. This is the liveness-facing implementation helper. It performs the same two cases as `complete_current` and `complete_overwritten`, and must be attempted whenever ready work may exist. |
 | `o3_observe_quorum` | 515-524 | O3 pseudo-ticket observation. For a live node, record a pseudo-ticket only after ACKs from every currently live member are visible for a non-RMW timestamp. Do not mutate key state here. |
 | `o3_complete` | 526-550 | O3 follower completion. Wait until the matching non-RMW timestamp is already installed locally (`KeyMeta.TS == T`), the key is not valid, and the O3 pseudo-ticket has all live ACKs. Then mark completed, set `sValid`, and clear same-timestamp pending metadata without broadcasting `VALIDATE`. |
+
+`hermes_rmw_o3.ivy` extends those O3 rows to RMW timestamps. It records
+`parent_ts` and `rmw_conflict` at lines 82-85 and 123-126, records parent
+metadata for local writes/RMWs at lines 151-186, marks sibling RMW conflicts
+when timestamps complete at lines 334-353, 498-511, and 549, and requires
+`o3_complete` to see `~rmw_conflict(t)` plus the original completed-RMW conflict
+guard at lines 540-549. Its temporal properties at lines 591-621 prove O3
+quorums finish or become conflicted.
 
 Ordering notes that must not be loosened:
 
@@ -588,9 +608,10 @@ Common rules:
 - Under O3, ACKs may be broadcast to all replicas, so a node may need a
   pseudo-ticket to accumulate ACKs before the corresponding `INV` arrives.
 - In the base protocol, ignore O3 pseudo-tickets and count ACKs only for local
-  pending operations. In the `hermes_o3.ivy` protocol, retain non-RMW
-  pseudo-tickets and complete them only through the `o3_observe_quorum` and
-  `o3_complete` sequence.
+  pending operations. In the O3 protocols, retain pseudo-tickets and complete
+  them only through the `o3_observe_quorum` and `o3_complete` sequence. For RMW
+  pseudo-tickets, also track parent/conflict state and treat a completed sibling
+  RMW as a terminal conflict outcome.
 
 When the ACK set covers every live member in the current membership:
 
@@ -607,16 +628,17 @@ By current key state when the ACK completes the live membership set:
   - If `LocalWriteTS == key.TS`, `complete_ready` transitions to `sValid`.
   - Complete the local write or RMW ticket.
   - Broadcast `VALIDATE` in the base protocol.
-  - Under O3, a non-RMW write/replay may skip `VALIDATE` only if every live
-    replica can independently infer validity from the broadcast ACK set. Do not
-    use this optimization for RMW timestamps.
+  - Under O3, a write/replay may skip `VALIDATE` only if every live replica can
+    independently infer validity from the broadcast ACK set. For RMW timestamps,
+    the RMW conflict guard must also remain clear.
 
 - `sReplay`:
   - If `LocalWriteTS == key.TS`, `complete_ready` transitions to `sValid`.
   - Restart or complete the blocked read that triggered replay.
   - Broadcast `VALIDATE` in the base protocol.
-  - Under O3, a non-RMW replay may skip `VALIDATE` under the same all-ACK
-    visibility condition. RMW replay still uses the base path.
+  - Under O3, replay may skip `VALIDATE` under the same all-ACK visibility
+    condition. RMW replay additionally requires the conflict guard to remain
+    clear.
 
 - `sInvalidWR`:
   - The ACK completion is for a lower timestamp local write or replay.
@@ -633,9 +655,11 @@ By current key state when the ACK completes the live membership set:
 - `sValid` or `sInvalid`:
   - Normally ignore. This can happen for stale ACKs or because O3 collected a
     pseudo-ticket out of order.
-  - Under the proved O3 variant, if pseudo-ticket collection proves that the
-    current non-RMW timestamp has all live ACKs and the value is installed
-    locally, transition `sInvalid -> sValid` and unblock reads.
+  - Under the proved O3 variants, if pseudo-ticket collection proves that the
+    current timestamp has all live ACKs and the value is installed locally,
+    transition `sInvalid -> sValid` and unblock reads. For an RMW timestamp, do
+    this only while the conflict marker is clear; a completed sibling RMW is a
+    terminal conflict outcome for that pseudo-ticket.
 
 ### Receiving VALIDATE
 
@@ -708,10 +732,11 @@ Rules:
      completion lines 334-352, fair completion lines 483-513, validation lines
      354-369.
    - Keep O3 disabled until the implementation matches `hermes_o3.ivy` lines
-     515-550.
-   - Once enabled, O3 pseudo-ticket completion is allowed only for non-RMW
-     timestamps with all live ACKs observed and the matching value installed.
-   - Keep O3 disabled for RMW timestamps.
+     515-550 for non-RMW and `hermes_rmw_o3.ivy` lines 531-549 for RMW.
+   - Once enabled, O3 pseudo-ticket completion is allowed only for timestamps
+     with all live ACKs observed and the matching value installed.
+   - For RMW timestamps, also require the conflict marker to be clear and
+     re-check the completed-RMW conflict guard before completing.
    - Keep `VALIDATE` broadcasts on current timestamp write/replay completion.
 
 2. Make membership and leases first-class in Hermes.
@@ -812,16 +837,22 @@ Rules:
      merely because a deadline expired.
 
 10. Implement the proved O3 path only after the base/RMW/membership work above.
-   - Proof anchors: O3 quorum observation lines 515-524, O3 completion lines
-     526-550, O3 invariants lines 428-430, and O3 liveness theorem lines
-     577-592.
+   - Proof anchors: non-RMW O3 quorum observation lines 515-524 and completion
+     lines 526-550 in `hermes_o3.ivy`; RMW O3 quorum observation lines 531-535,
+     guarded completion lines 540-549, conflict bookkeeping lines 82-85,
+     123-126, 151-186, 334-353, 498-511, and liveness lines 591-621 in
+     `hermes_rmw_o3.ivy`.
    - Absolutely wait before enabling this by default until the implementation
      has pseudo-tickets keyed by `(key, coordinator, timestamp)`, can prove all
-     current live members ACKed, and can prove the matching non-RMW value is
-     installed locally.
+     current live members ACKed, and can prove the matching value is installed
+     locally.
    - Do not complete from a pseudo-ticket if `KeyMeta.TS != ticket.TS`, if the
-     key is already valid, if the timestamp is RMW, or if the membership epoch
-     changed without recomputing the ACK requirement.
+     key is already valid, or if the membership epoch changed without
+     recomputing the ACK requirement.
+   - For RMW pseudo-tickets, do not complete if a sibling RMW from the same
+     parent has completed. The implementation needs the equivalent of
+     `rmw_conflict` and must treat conflict as a terminal O3 outcome for that
+     candidate, not as an O3 success.
    - O3 completion sets `sValid` and may clear same-timestamp pending metadata,
      but it does not broadcast `VALIDATE`.
 
