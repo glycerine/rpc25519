@@ -5,9 +5,13 @@ import (
 	"time"
 
 	"github.com/glycerine/rpc25519/tube/art"
+	"github.com/glycerine/yogadb"
 )
 
 //go:generate greenpack
+
+// placeholder, just to update go.mod
+var yogadb *yogadb.FlexDB
 
 type ArtTable struct {
 	Tree *art.Tree `zid:"0"`

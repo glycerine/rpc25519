@@ -220,111 +220,6 @@ func (z ByteSliceValue) Msgsize() (s int) {
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
-func (z *Key) DecodeMsg(dc *msgp.Reader) (err error) {
-	var sawTopNil bool
-	if dc.IsNil() {
-		sawTopNil = true
-		err = dc.ReadNil()
-		if err != nil {
-			return
-		}
-		dc.PushAlwaysNil()
-	}
-
-	{
-		var zgensym_da1be0b343e58527_4 []byte
-		zgensym_da1be0b343e58527_4, err = dc.ReadBytes([]byte((*z)))
-		(*z) = Key(zgensym_da1be0b343e58527_4)
-	}
-	if err != nil {
-		return
-	}
-	if sawTopNil {
-		dc.PopAlwaysNil()
-	}
-
-	if p, ok := interface{}(z).(msgp.PostLoad); ok {
-		p.PostLoadHook()
-	}
-
-	return
-}
-
-// EncodeMsg implements msgp.Encodable
-func (z Key) EncodeMsg(en *msgp.Writer) (err error) {
-	if p, ok := interface{}(z).(msgp.PreSave); ok {
-		p.PreSaveHook()
-	}
-
-	err = en.WriteBytes([]byte(z))
-	if err != nil {
-		return
-	}
-	return
-}
-
-// MarshalMsg implements msgp.Marshaler
-func (z Key) MarshalMsg(b []byte) (o []byte, err error) {
-	if p, ok := interface{}(z).(msgp.PreSave); ok {
-		p.PreSaveHook()
-	}
-
-	o = msgp.Require(b, z.Msgsize())
-	o = msgp.AppendBytes(o, []byte(z))
-	return
-}
-
-// UnmarshalMsg implements msgp.Unmarshaler
-func (z *Key) UnmarshalMsg(bts []byte) (o []byte, err error) {
-	return z.UnmarshalMsgWithCfg(bts, nil)
-}
-func (z *Key) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
-	var nbs msgp.NilBitsStack
-	nbs.Init(cfg)
-	var sawTopNil bool
-	if msgp.IsNil(bts) {
-		sawTopNil = true
-		bts = nbs.PushAlwaysNil(bts[1:])
-	}
-
-	{
-		var zgensym_da1be0b343e58527_5 []byte
-		if nbs.AlwaysNil || msgp.IsNil(bts) {
-			if !nbs.AlwaysNil {
-				bts = bts[1:]
-			}
-			zgensym_da1be0b343e58527_5 = zgensym_da1be0b343e58527_5[:0]
-		} else {
-			zgensym_da1be0b343e58527_5, bts, err = nbs.ReadBytesBytes(bts, []byte((*z)))
-
-			if err != nil {
-				return
-			}
-		}
-		if err != nil {
-			return
-		}
-		(*z) = Key(zgensym_da1be0b343e58527_5)
-	}
-	if sawTopNil {
-		bts = nbs.PopAlwaysNil()
-	}
-	o = bts
-	if p, ok := interface{}(z).(msgp.PostLoad); ok {
-		p.PostLoadHook()
-	}
-
-	return
-}
-
-// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z Key) Msgsize() (s int) {
-	s = msgp.BytesPrefixSize + len([]byte(z))
-	return
-}
-
-// DecodeMsg implements msgp.Decodable
-// We treat empty fields as if we read a Nil from the wire.
 func (z *Leaf) DecodeMsg(dc *msgp.Reader) (err error) {
 	var sawTopNil bool
 	if dc.IsNil() {
@@ -338,127 +233,123 @@ func (z *Leaf) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields6zgensym_da1be0b343e58527_7 = 12
+	const maxFields4zgensym_da1be0b343e58527_5 = 12
 
 	// -- templateDecodeMsg starts here--
-	var totalEncodedFields6zgensym_da1be0b343e58527_7 uint32
-	totalEncodedFields6zgensym_da1be0b343e58527_7, err = dc.ReadMapHeader()
+	var totalEncodedFields4zgensym_da1be0b343e58527_5 uint32
+	totalEncodedFields4zgensym_da1be0b343e58527_5, err = dc.ReadMapHeader()
 	if err != nil {
 		return
 	}
-	encodedFieldsLeft6zgensym_da1be0b343e58527_7 := totalEncodedFields6zgensym_da1be0b343e58527_7
-	missingFieldsLeft6zgensym_da1be0b343e58527_7 := maxFields6zgensym_da1be0b343e58527_7 - totalEncodedFields6zgensym_da1be0b343e58527_7
+	encodedFieldsLeft4zgensym_da1be0b343e58527_5 := totalEncodedFields4zgensym_da1be0b343e58527_5
+	missingFieldsLeft4zgensym_da1be0b343e58527_5 := maxFields4zgensym_da1be0b343e58527_5 - totalEncodedFields4zgensym_da1be0b343e58527_5
 
-	var nextMiss6zgensym_da1be0b343e58527_7 int32 = -1
-	var found6zgensym_da1be0b343e58527_7 [maxFields6zgensym_da1be0b343e58527_7]bool
-	var curField6zgensym_da1be0b343e58527_7 string
+	var nextMiss4zgensym_da1be0b343e58527_5 int32 = -1
+	var found4zgensym_da1be0b343e58527_5 [maxFields4zgensym_da1be0b343e58527_5]bool
+	var curField4zgensym_da1be0b343e58527_5 string
 
-doneWithStruct6zgensym_da1be0b343e58527_7:
+doneWithStruct4zgensym_da1be0b343e58527_5:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
-	for encodedFieldsLeft6zgensym_da1be0b343e58527_7 > 0 || missingFieldsLeft6zgensym_da1be0b343e58527_7 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft6zgensym_da1be0b343e58527_7, missingFieldsLeft6zgensym_da1be0b343e58527_7, msgp.ShowFound(found6zgensym_da1be0b343e58527_7[:]), decodeMsgFieldOrder6zgensym_da1be0b343e58527_7)
-		if encodedFieldsLeft6zgensym_da1be0b343e58527_7 > 0 {
-			encodedFieldsLeft6zgensym_da1be0b343e58527_7--
+	for encodedFieldsLeft4zgensym_da1be0b343e58527_5 > 0 || missingFieldsLeft4zgensym_da1be0b343e58527_5 > 0 {
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft4zgensym_da1be0b343e58527_5, missingFieldsLeft4zgensym_da1be0b343e58527_5, msgp.ShowFound(found4zgensym_da1be0b343e58527_5[:]), decodeMsgFieldOrder4zgensym_da1be0b343e58527_5)
+		if encodedFieldsLeft4zgensym_da1be0b343e58527_5 > 0 {
+			encodedFieldsLeft4zgensym_da1be0b343e58527_5--
 			field, err = dc.ReadMapKeyPtr()
 			if err != nil {
 				return
 			}
-			curField6zgensym_da1be0b343e58527_7 = msgp.UnsafeString(field)
+			curField4zgensym_da1be0b343e58527_5 = msgp.UnsafeString(field)
 		} else {
 			//missing fields need handling
-			if nextMiss6zgensym_da1be0b343e58527_7 < 0 {
+			if nextMiss4zgensym_da1be0b343e58527_5 < 0 {
 				// tell the reader to only give us Nils
 				// until further notice.
 				dc.PushAlwaysNil()
-				nextMiss6zgensym_da1be0b343e58527_7 = 0
+				nextMiss4zgensym_da1be0b343e58527_5 = 0
 			}
-			for nextMiss6zgensym_da1be0b343e58527_7 < maxFields6zgensym_da1be0b343e58527_7 && (found6zgensym_da1be0b343e58527_7[nextMiss6zgensym_da1be0b343e58527_7] || decodeMsgFieldSkip6zgensym_da1be0b343e58527_7[nextMiss6zgensym_da1be0b343e58527_7]) {
-				nextMiss6zgensym_da1be0b343e58527_7++
+			for nextMiss4zgensym_da1be0b343e58527_5 < maxFields4zgensym_da1be0b343e58527_5 && (found4zgensym_da1be0b343e58527_5[nextMiss4zgensym_da1be0b343e58527_5] || decodeMsgFieldSkip4zgensym_da1be0b343e58527_5[nextMiss4zgensym_da1be0b343e58527_5]) {
+				nextMiss4zgensym_da1be0b343e58527_5++
 			}
-			if nextMiss6zgensym_da1be0b343e58527_7 == maxFields6zgensym_da1be0b343e58527_7 {
+			if nextMiss4zgensym_da1be0b343e58527_5 == maxFields4zgensym_da1be0b343e58527_5 {
 				// filled all the empty fields!
-				break doneWithStruct6zgensym_da1be0b343e58527_7
+				break doneWithStruct4zgensym_da1be0b343e58527_5
 			}
-			missingFieldsLeft6zgensym_da1be0b343e58527_7--
-			curField6zgensym_da1be0b343e58527_7 = decodeMsgFieldOrder6zgensym_da1be0b343e58527_7[nextMiss6zgensym_da1be0b343e58527_7]
+			missingFieldsLeft4zgensym_da1be0b343e58527_5--
+			curField4zgensym_da1be0b343e58527_5 = decodeMsgFieldOrder4zgensym_da1be0b343e58527_5[nextMiss4zgensym_da1be0b343e58527_5]
 		}
-		//fmt.Printf("switching on curField: '%v'\n", curField6zgensym_da1be0b343e58527_7)
-		switch curField6zgensym_da1be0b343e58527_7 {
+		//fmt.Printf("switching on curField: '%v'\n", curField4zgensym_da1be0b343e58527_5)
+		switch curField4zgensym_da1be0b343e58527_5 {
 		// -- templateDecodeMsg ends here --
 
-		case "Key_zid00_rct":
-			found6zgensym_da1be0b343e58527_7[0] = true
-			{
-				var zgensym_da1be0b343e58527_8 []byte
-				zgensym_da1be0b343e58527_8, err = dc.ReadBytes([]byte(z.Key))
-				z.Key = Key(zgensym_da1be0b343e58527_8)
-			}
+		case "Key_zid00_str":
+			found4zgensym_da1be0b343e58527_5[0] = true
+			z.Key, err = dc.ReadString()
 			if err != nil {
 				return
 			}
 		case "Value_zid01_bin":
-			found6zgensym_da1be0b343e58527_7[1] = true
+			found4zgensym_da1be0b343e58527_5[1] = true
 			z.Value, err = dc.ReadBytes(z.Value)
 			if err != nil {
 				return
 			}
 		case "Version_zid02_i64":
-			found6zgensym_da1be0b343e58527_7[2] = true
+			found4zgensym_da1be0b343e58527_5[2] = true
 			z.Version, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
 		case "Vtype_zid03_u64":
-			found6zgensym_da1be0b343e58527_7[3] = true
+			found4zgensym_da1be0b343e58527_5[3] = true
 			z.Vtype, err = dc.ReadUint64()
 			if err != nil {
 				return
 			}
 		case "Leasor_zid04_str":
-			found6zgensym_da1be0b343e58527_7[4] = true
+			found4zgensym_da1be0b343e58527_5[4] = true
 			z.Leasor, err = dc.ReadString()
 			if err != nil {
 				return
 			}
 		case "LeaseUntilTm_zid05_tim":
-			found6zgensym_da1be0b343e58527_7[5] = true
+			found4zgensym_da1be0b343e58527_5[5] = true
 			z.LeaseUntilTm, err = dc.ReadTime()
 			if err != nil {
 				return
 			}
 		case "WriteRaftLogIndex_zid06_i64":
-			found6zgensym_da1be0b343e58527_7[6] = true
+			found4zgensym_da1be0b343e58527_5[6] = true
 			z.WriteRaftLogIndex, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
 		case "LeaseEpoch_zid07_i64":
-			found6zgensym_da1be0b343e58527_7[7] = true
+			found4zgensym_da1be0b343e58527_5[7] = true
 			z.LeaseEpoch, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
 		case "AutoDelete_zid08_boo":
-			found6zgensym_da1be0b343e58527_7[8] = true
+			found4zgensym_da1be0b343e58527_5[8] = true
 			z.AutoDelete, err = dc.ReadBool()
 			if err != nil {
 				return
 			}
 		case "LeasorPeerID_zid09_str":
-			found6zgensym_da1be0b343e58527_7[9] = true
+			found4zgensym_da1be0b343e58527_5[9] = true
 			z.LeasorPeerID, err = dc.ReadString()
 			if err != nil {
 				return
 			}
 		case "LeaseEpochT0_zid10_tim":
-			found6zgensym_da1be0b343e58527_7[10] = true
+			found4zgensym_da1be0b343e58527_5[10] = true
 			z.LeaseEpochT0, err = dc.ReadTime()
 			if err != nil {
 				return
 			}
 		case "LeaseRenewalElap_zid11_dur":
-			found6zgensym_da1be0b343e58527_7[11] = true
+			found4zgensym_da1be0b343e58527_5[11] = true
 			z.LeaseRenewalElap, err = dc.ReadDuration()
 			if err != nil {
 				return
@@ -470,7 +361,7 @@ doneWithStruct6zgensym_da1be0b343e58527_7:
 			}
 		}
 	}
-	if nextMiss6zgensym_da1be0b343e58527_7 != -1 {
+	if nextMiss4zgensym_da1be0b343e58527_5 != -1 {
 		dc.PopAlwaysNil()
 	}
 
@@ -486,9 +377,9 @@ doneWithStruct6zgensym_da1be0b343e58527_7:
 }
 
 // fields of Leaf
-var decodeMsgFieldOrder6zgensym_da1be0b343e58527_7 = []string{"Key_zid00_rct", "Value_zid01_bin", "Version_zid02_i64", "Vtype_zid03_u64", "Leasor_zid04_str", "LeaseUntilTm_zid05_tim", "WriteRaftLogIndex_zid06_i64", "LeaseEpoch_zid07_i64", "AutoDelete_zid08_boo", "LeasorPeerID_zid09_str", "LeaseEpochT0_zid10_tim", "LeaseRenewalElap_zid11_dur"}
+var decodeMsgFieldOrder4zgensym_da1be0b343e58527_5 = []string{"Key_zid00_str", "Value_zid01_bin", "Version_zid02_i64", "Vtype_zid03_u64", "Leasor_zid04_str", "LeaseUntilTm_zid05_tim", "WriteRaftLogIndex_zid06_i64", "LeaseEpoch_zid07_i64", "AutoDelete_zid08_boo", "LeasorPeerID_zid09_str", "LeaseEpochT0_zid10_tim", "LeaseRenewalElap_zid11_dur"}
 
-var decodeMsgFieldSkip6zgensym_da1be0b343e58527_7 = []bool{false, false, false, false, false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip4zgensym_da1be0b343e58527_5 = []bool{false, false, false, false, false, false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Leaf) fieldsNotEmpty(isempty []bool) uint32 {
@@ -555,11 +446,11 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_da1be0b343e58527_9 [12]bool
-	fieldsInUse_zgensym_da1be0b343e58527_10 := z.fieldsNotEmpty(empty_zgensym_da1be0b343e58527_9[:])
+	var empty_zgensym_da1be0b343e58527_6 [12]bool
+	fieldsInUse_zgensym_da1be0b343e58527_7 := z.fieldsNotEmpty(empty_zgensym_da1be0b343e58527_6[:])
 
 	// map header
-	err = en.WriteMapHeader(fieldsInUse_zgensym_da1be0b343e58527_10 + 1)
+	err = en.WriteMapHeader(fieldsInUse_zgensym_da1be0b343e58527_7 + 1)
 	if err != nil {
 		return err
 	}
@@ -574,19 +465,19 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		return err
 	}
 
-	if !empty_zgensym_da1be0b343e58527_9[0] {
-		// write "Key_zid00_rct"
-		err = en.Append(0xad, 0x4b, 0x65, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x72, 0x63, 0x74)
+	if !empty_zgensym_da1be0b343e58527_6[0] {
+		// write "Key_zid00_str"
+		err = en.Append(0xad, 0x4b, 0x65, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		err = en.WriteBytes([]byte(z.Key))
+		err = en.WriteString(z.Key)
 		if err != nil {
 			return
 		}
 	}
 
-	if !empty_zgensym_da1be0b343e58527_9[1] {
+	if !empty_zgensym_da1be0b343e58527_6[1] {
 		// write "Value_zid01_bin"
 		err = en.Append(0xaf, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x62, 0x69, 0x6e)
 		if err != nil {
@@ -598,7 +489,7 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_da1be0b343e58527_9[2] {
+	if !empty_zgensym_da1be0b343e58527_6[2] {
 		// write "Version_zid02_i64"
 		err = en.Append(0xb1, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
@@ -610,7 +501,7 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_da1be0b343e58527_9[3] {
+	if !empty_zgensym_da1be0b343e58527_6[3] {
 		// write "Vtype_zid03_u64"
 		err = en.Append(0xaf, 0x56, 0x74, 0x79, 0x70, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x75, 0x36, 0x34)
 		if err != nil {
@@ -622,7 +513,7 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_da1be0b343e58527_9[4] {
+	if !empty_zgensym_da1be0b343e58527_6[4] {
 		// write "Leasor_zid04_str"
 		err = en.Append(0xb0, 0x4c, 0x65, 0x61, 0x73, 0x6f, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
@@ -634,7 +525,7 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_da1be0b343e58527_9[5] {
+	if !empty_zgensym_da1be0b343e58527_6[5] {
 		// write "LeaseUntilTm_zid05_tim"
 		err = en.Append(0xb6, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x55, 0x6e, 0x74, 0x69, 0x6c, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x74, 0x69, 0x6d)
 		if err != nil {
@@ -646,7 +537,7 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_da1be0b343e58527_9[6] {
+	if !empty_zgensym_da1be0b343e58527_6[6] {
 		// write "WriteRaftLogIndex_zid06_i64"
 		err = en.Append(0xbb, 0x57, 0x72, 0x69, 0x74, 0x65, 0x52, 0x61, 0x66, 0x74, 0x4c, 0x6f, 0x67, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
@@ -658,7 +549,7 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_da1be0b343e58527_9[7] {
+	if !empty_zgensym_da1be0b343e58527_6[7] {
 		// write "LeaseEpoch_zid07_i64"
 		err = en.Append(0xb4, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x45, 0x70, 0x6f, 0x63, 0x68, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
@@ -670,7 +561,7 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_da1be0b343e58527_9[8] {
+	if !empty_zgensym_da1be0b343e58527_6[8] {
 		// write "AutoDelete_zid08_boo"
 		err = en.Append(0xb4, 0x41, 0x75, 0x74, 0x6f, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x62, 0x6f, 0x6f)
 		if err != nil {
@@ -682,7 +573,7 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_da1be0b343e58527_9[9] {
+	if !empty_zgensym_da1be0b343e58527_6[9] {
 		// write "LeasorPeerID_zid09_str"
 		err = en.Append(0xb6, 0x4c, 0x65, 0x61, 0x73, 0x6f, 0x72, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
@@ -694,7 +585,7 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_da1be0b343e58527_9[10] {
+	if !empty_zgensym_da1be0b343e58527_6[10] {
 		// write "LeaseEpochT0_zid10_tim"
 		err = en.Append(0xb6, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x45, 0x70, 0x6f, 0x63, 0x68, 0x54, 0x30, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x74, 0x69, 0x6d)
 		if err != nil {
@@ -706,7 +597,7 @@ func (z *Leaf) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_da1be0b343e58527_9[11] {
+	if !empty_zgensym_da1be0b343e58527_6[11] {
 		// write "LeaseRenewalElap_zid11_dur"
 		err = en.Append(0xba, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x52, 0x65, 0x6e, 0x65, 0x77, 0x61, 0x6c, 0x45, 0x6c, 0x61, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x64, 0x75, 0x72)
 		if err != nil {
@@ -735,9 +626,9 @@ func (z *Leaf) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "Key_zid00_rct"
-		o = append(o, 0xad, 0x4b, 0x65, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x72, 0x63, 0x74)
-		o = msgp.AppendBytes(o, []byte(z.Key))
+		// string "Key_zid00_str"
+		o = append(o, 0xad, 0x4b, 0x65, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.Key)
 	}
 
 	if !empty[1] {
@@ -824,79 +715,65 @@ func (z *Leaf) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byt
 
 	var field []byte
 	_ = field
-	const maxFields11zgensym_da1be0b343e58527_12 = 12
+	const maxFields8zgensym_da1be0b343e58527_9 = 12
 
 	// -- templateUnmarshalMsg starts here--
-	var totalEncodedFields11zgensym_da1be0b343e58527_12 uint32
+	var totalEncodedFields8zgensym_da1be0b343e58527_9 uint32
 	if !nbs.AlwaysNil {
-		totalEncodedFields11zgensym_da1be0b343e58527_12, bts, err = nbs.ReadMapHeaderBytes(bts)
+		totalEncodedFields8zgensym_da1be0b343e58527_9, bts, err = nbs.ReadMapHeaderBytes(bts)
 		if err != nil {
 			return
 		}
 	}
-	encodedFieldsLeft11zgensym_da1be0b343e58527_12 := totalEncodedFields11zgensym_da1be0b343e58527_12
-	missingFieldsLeft11zgensym_da1be0b343e58527_12 := maxFields11zgensym_da1be0b343e58527_12 - totalEncodedFields11zgensym_da1be0b343e58527_12
+	encodedFieldsLeft8zgensym_da1be0b343e58527_9 := totalEncodedFields8zgensym_da1be0b343e58527_9
+	missingFieldsLeft8zgensym_da1be0b343e58527_9 := maxFields8zgensym_da1be0b343e58527_9 - totalEncodedFields8zgensym_da1be0b343e58527_9
 
-	var nextMiss11zgensym_da1be0b343e58527_12 int32 = -1
-	var found11zgensym_da1be0b343e58527_12 [maxFields11zgensym_da1be0b343e58527_12]bool
-	var curField11zgensym_da1be0b343e58527_12 string
+	var nextMiss8zgensym_da1be0b343e58527_9 int32 = -1
+	var found8zgensym_da1be0b343e58527_9 [maxFields8zgensym_da1be0b343e58527_9]bool
+	var curField8zgensym_da1be0b343e58527_9 string
 
-doneWithStruct11zgensym_da1be0b343e58527_12:
+doneWithStruct8zgensym_da1be0b343e58527_9:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
-	for encodedFieldsLeft11zgensym_da1be0b343e58527_12 > 0 || missingFieldsLeft11zgensym_da1be0b343e58527_12 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft11zgensym_da1be0b343e58527_12, missingFieldsLeft11zgensym_da1be0b343e58527_12, msgp.ShowFound(found11zgensym_da1be0b343e58527_12[:]), unmarshalMsgFieldOrder11zgensym_da1be0b343e58527_12)
-		if encodedFieldsLeft11zgensym_da1be0b343e58527_12 > 0 {
-			encodedFieldsLeft11zgensym_da1be0b343e58527_12--
+	for encodedFieldsLeft8zgensym_da1be0b343e58527_9 > 0 || missingFieldsLeft8zgensym_da1be0b343e58527_9 > 0 {
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft8zgensym_da1be0b343e58527_9, missingFieldsLeft8zgensym_da1be0b343e58527_9, msgp.ShowFound(found8zgensym_da1be0b343e58527_9[:]), unmarshalMsgFieldOrder8zgensym_da1be0b343e58527_9)
+		if encodedFieldsLeft8zgensym_da1be0b343e58527_9 > 0 {
+			encodedFieldsLeft8zgensym_da1be0b343e58527_9--
 			field, bts, err = nbs.ReadMapKeyZC(bts)
 			if err != nil {
 				return
 			}
-			curField11zgensym_da1be0b343e58527_12 = msgp.UnsafeString(field)
+			curField8zgensym_da1be0b343e58527_9 = msgp.UnsafeString(field)
 		} else {
 			//missing fields need handling
-			if nextMiss11zgensym_da1be0b343e58527_12 < 0 {
+			if nextMiss8zgensym_da1be0b343e58527_9 < 0 {
 				// set bts to contain just mnil (0xc0)
 				bts = nbs.PushAlwaysNil(bts)
-				nextMiss11zgensym_da1be0b343e58527_12 = 0
+				nextMiss8zgensym_da1be0b343e58527_9 = 0
 			}
-			for nextMiss11zgensym_da1be0b343e58527_12 < maxFields11zgensym_da1be0b343e58527_12 && (found11zgensym_da1be0b343e58527_12[nextMiss11zgensym_da1be0b343e58527_12] || unmarshalMsgFieldSkip11zgensym_da1be0b343e58527_12[nextMiss11zgensym_da1be0b343e58527_12]) {
-				nextMiss11zgensym_da1be0b343e58527_12++
+			for nextMiss8zgensym_da1be0b343e58527_9 < maxFields8zgensym_da1be0b343e58527_9 && (found8zgensym_da1be0b343e58527_9[nextMiss8zgensym_da1be0b343e58527_9] || unmarshalMsgFieldSkip8zgensym_da1be0b343e58527_9[nextMiss8zgensym_da1be0b343e58527_9]) {
+				nextMiss8zgensym_da1be0b343e58527_9++
 			}
-			if nextMiss11zgensym_da1be0b343e58527_12 == maxFields11zgensym_da1be0b343e58527_12 {
+			if nextMiss8zgensym_da1be0b343e58527_9 == maxFields8zgensym_da1be0b343e58527_9 {
 				// filled all the empty fields!
-				break doneWithStruct11zgensym_da1be0b343e58527_12
+				break doneWithStruct8zgensym_da1be0b343e58527_9
 			}
-			missingFieldsLeft11zgensym_da1be0b343e58527_12--
-			curField11zgensym_da1be0b343e58527_12 = unmarshalMsgFieldOrder11zgensym_da1be0b343e58527_12[nextMiss11zgensym_da1be0b343e58527_12]
+			missingFieldsLeft8zgensym_da1be0b343e58527_9--
+			curField8zgensym_da1be0b343e58527_9 = unmarshalMsgFieldOrder8zgensym_da1be0b343e58527_9[nextMiss8zgensym_da1be0b343e58527_9]
 		}
-		//fmt.Printf("switching on curField: '%v'\n", curField11zgensym_da1be0b343e58527_12)
-		switch curField11zgensym_da1be0b343e58527_12 {
+		//fmt.Printf("switching on curField: '%v'\n", curField8zgensym_da1be0b343e58527_9)
+		switch curField8zgensym_da1be0b343e58527_9 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "Key_zid00_rct":
-			found11zgensym_da1be0b343e58527_12[0] = true
-			{
-				var zgensym_da1be0b343e58527_13 []byte
-				if nbs.AlwaysNil || msgp.IsNil(bts) {
-					if !nbs.AlwaysNil {
-						bts = bts[1:]
-					}
-					zgensym_da1be0b343e58527_13 = zgensym_da1be0b343e58527_13[:0]
-				} else {
-					zgensym_da1be0b343e58527_13, bts, err = nbs.ReadBytesBytes(bts, []byte(z.Key))
+		case "Key_zid00_str":
+			found8zgensym_da1be0b343e58527_9[0] = true
+			z.Key, bts, err = nbs.ReadStringBytes(bts)
 
-					if err != nil {
-						return
-					}
-				}
-				if err != nil {
-					return
-				}
-				z.Key = Key(zgensym_da1be0b343e58527_13)
+			if err != nil {
+				return
 			}
 		case "Value_zid01_bin":
-			found11zgensym_da1be0b343e58527_12[1] = true
+			found8zgensym_da1be0b343e58527_9[1] = true
 			if nbs.AlwaysNil || msgp.IsNil(bts) {
 				if !nbs.AlwaysNil {
 					bts = bts[1:]
@@ -913,70 +790,70 @@ doneWithStruct11zgensym_da1be0b343e58527_12:
 				return
 			}
 		case "Version_zid02_i64":
-			found11zgensym_da1be0b343e58527_12[2] = true
+			found8zgensym_da1be0b343e58527_9[2] = true
 			z.Version, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
 		case "Vtype_zid03_u64":
-			found11zgensym_da1be0b343e58527_12[3] = true
+			found8zgensym_da1be0b343e58527_9[3] = true
 			z.Vtype, bts, err = nbs.ReadUint64Bytes(bts)
 
 			if err != nil {
 				return
 			}
 		case "Leasor_zid04_str":
-			found11zgensym_da1be0b343e58527_12[4] = true
+			found8zgensym_da1be0b343e58527_9[4] = true
 			z.Leasor, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
 		case "LeaseUntilTm_zid05_tim":
-			found11zgensym_da1be0b343e58527_12[5] = true
+			found8zgensym_da1be0b343e58527_9[5] = true
 			z.LeaseUntilTm, bts, err = nbs.ReadTimeBytes(bts)
 
 			if err != nil {
 				return
 			}
 		case "WriteRaftLogIndex_zid06_i64":
-			found11zgensym_da1be0b343e58527_12[6] = true
+			found8zgensym_da1be0b343e58527_9[6] = true
 			z.WriteRaftLogIndex, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
 		case "LeaseEpoch_zid07_i64":
-			found11zgensym_da1be0b343e58527_12[7] = true
+			found8zgensym_da1be0b343e58527_9[7] = true
 			z.LeaseEpoch, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
 		case "AutoDelete_zid08_boo":
-			found11zgensym_da1be0b343e58527_12[8] = true
+			found8zgensym_da1be0b343e58527_9[8] = true
 			z.AutoDelete, bts, err = nbs.ReadBoolBytes(bts)
 
 			if err != nil {
 				return
 			}
 		case "LeasorPeerID_zid09_str":
-			found11zgensym_da1be0b343e58527_12[9] = true
+			found8zgensym_da1be0b343e58527_9[9] = true
 			z.LeasorPeerID, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
 		case "LeaseEpochT0_zid10_tim":
-			found11zgensym_da1be0b343e58527_12[10] = true
+			found8zgensym_da1be0b343e58527_9[10] = true
 			z.LeaseEpochT0, bts, err = nbs.ReadTimeBytes(bts)
 
 			if err != nil {
 				return
 			}
 		case "LeaseRenewalElap_zid11_dur":
-			found11zgensym_da1be0b343e58527_12[11] = true
+			found8zgensym_da1be0b343e58527_9[11] = true
 			z.LeaseRenewalElap, bts, err = nbs.ReadDurationBytes(bts)
 
 			if err != nil {
@@ -989,7 +866,7 @@ doneWithStruct11zgensym_da1be0b343e58527_12:
 			}
 		}
 	}
-	if nextMiss11zgensym_da1be0b343e58527_12 != -1 {
+	if nextMiss8zgensym_da1be0b343e58527_9 != -1 {
 		bts = nbs.PopAlwaysNil()
 	}
 
@@ -1005,18 +882,18 @@ doneWithStruct11zgensym_da1be0b343e58527_12:
 }
 
 // fields of Leaf
-var unmarshalMsgFieldOrder11zgensym_da1be0b343e58527_12 = []string{"Key_zid00_rct", "Value_zid01_bin", "Version_zid02_i64", "Vtype_zid03_u64", "Leasor_zid04_str", "LeaseUntilTm_zid05_tim", "WriteRaftLogIndex_zid06_i64", "LeaseEpoch_zid07_i64", "AutoDelete_zid08_boo", "LeasorPeerID_zid09_str", "LeaseEpochT0_zid10_tim", "LeaseRenewalElap_zid11_dur"}
+var unmarshalMsgFieldOrder8zgensym_da1be0b343e58527_9 = []string{"Key_zid00_str", "Value_zid01_bin", "Version_zid02_i64", "Vtype_zid03_u64", "Leasor_zid04_str", "LeaseUntilTm_zid05_tim", "WriteRaftLogIndex_zid06_i64", "LeaseEpoch_zid07_i64", "AutoDelete_zid08_boo", "LeasorPeerID_zid09_str", "LeaseEpochT0_zid10_tim", "LeaseRenewalElap_zid11_dur"}
 
-var unmarshalMsgFieldSkip11zgensym_da1be0b343e58527_12 = []bool{false, false, false, false, false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip8zgensym_da1be0b343e58527_9 = []bool{false, false, false, false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Leaf) Msgsize() (s int) {
-	s = 1 + 14 + msgp.BytesPrefixSize + len([]byte(z.Key)) + 16 + msgp.BytesPrefixSize + len(z.Value) + 18 + msgp.Int64Size + 16 + msgp.Uint64Size + 17 + msgp.StringPrefixSize + len(z.Leasor) + 23 + msgp.TimeSize + 28 + msgp.Int64Size + 21 + msgp.Int64Size + 21 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.LeasorPeerID) + 23 + msgp.TimeSize + 27 + msgp.DurationSize
+	s = 1 + 14 + msgp.StringPrefixSize + len(z.Key) + 16 + msgp.BytesPrefixSize + len(z.Value) + 18 + msgp.Int64Size + 16 + msgp.Uint64Size + 17 + msgp.StringPrefixSize + len(z.Leasor) + 23 + msgp.TimeSize + 28 + msgp.Int64Size + 21 + msgp.Int64Size + 21 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.LeasorPeerID) + 23 + msgp.TimeSize + 27 + msgp.DurationSize
 	return
 }
 func (z *Leaf) Gstring() (r string) {
 	r = "&Leaf{\n"
-	r += fmt.Sprintf("              Key: %v,\n", z.Key)
+	r += fmt.Sprintf("              Key: \"%v\",\n", z.Key)
 	r += fmt.Sprintf("            Value: %v,\n", z.Value)
 	r += fmt.Sprintf("          Version: %v,\n", z.Version)
 	r += fmt.Sprintf("            Vtype: %v,\n", z.Vtype)
@@ -1047,57 +924,57 @@ func (z *TestBytes) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields14zgensym_da1be0b343e58527_15 = 1
+	const maxFields10zgensym_da1be0b343e58527_11 = 1
 
 	// -- templateDecodeMsg starts here--
-	var totalEncodedFields14zgensym_da1be0b343e58527_15 uint32
-	totalEncodedFields14zgensym_da1be0b343e58527_15, err = dc.ReadMapHeader()
+	var totalEncodedFields10zgensym_da1be0b343e58527_11 uint32
+	totalEncodedFields10zgensym_da1be0b343e58527_11, err = dc.ReadMapHeader()
 	if err != nil {
 		return
 	}
-	encodedFieldsLeft14zgensym_da1be0b343e58527_15 := totalEncodedFields14zgensym_da1be0b343e58527_15
-	missingFieldsLeft14zgensym_da1be0b343e58527_15 := maxFields14zgensym_da1be0b343e58527_15 - totalEncodedFields14zgensym_da1be0b343e58527_15
+	encodedFieldsLeft10zgensym_da1be0b343e58527_11 := totalEncodedFields10zgensym_da1be0b343e58527_11
+	missingFieldsLeft10zgensym_da1be0b343e58527_11 := maxFields10zgensym_da1be0b343e58527_11 - totalEncodedFields10zgensym_da1be0b343e58527_11
 
-	var nextMiss14zgensym_da1be0b343e58527_15 int32 = -1
-	var found14zgensym_da1be0b343e58527_15 [maxFields14zgensym_da1be0b343e58527_15]bool
-	var curField14zgensym_da1be0b343e58527_15 string
+	var nextMiss10zgensym_da1be0b343e58527_11 int32 = -1
+	var found10zgensym_da1be0b343e58527_11 [maxFields10zgensym_da1be0b343e58527_11]bool
+	var curField10zgensym_da1be0b343e58527_11 string
 
-doneWithStruct14zgensym_da1be0b343e58527_15:
+doneWithStruct10zgensym_da1be0b343e58527_11:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
-	for encodedFieldsLeft14zgensym_da1be0b343e58527_15 > 0 || missingFieldsLeft14zgensym_da1be0b343e58527_15 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft14zgensym_da1be0b343e58527_15, missingFieldsLeft14zgensym_da1be0b343e58527_15, msgp.ShowFound(found14zgensym_da1be0b343e58527_15[:]), decodeMsgFieldOrder14zgensym_da1be0b343e58527_15)
-		if encodedFieldsLeft14zgensym_da1be0b343e58527_15 > 0 {
-			encodedFieldsLeft14zgensym_da1be0b343e58527_15--
+	for encodedFieldsLeft10zgensym_da1be0b343e58527_11 > 0 || missingFieldsLeft10zgensym_da1be0b343e58527_11 > 0 {
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft10zgensym_da1be0b343e58527_11, missingFieldsLeft10zgensym_da1be0b343e58527_11, msgp.ShowFound(found10zgensym_da1be0b343e58527_11[:]), decodeMsgFieldOrder10zgensym_da1be0b343e58527_11)
+		if encodedFieldsLeft10zgensym_da1be0b343e58527_11 > 0 {
+			encodedFieldsLeft10zgensym_da1be0b343e58527_11--
 			field, err = dc.ReadMapKeyPtr()
 			if err != nil {
 				return
 			}
-			curField14zgensym_da1be0b343e58527_15 = msgp.UnsafeString(field)
+			curField10zgensym_da1be0b343e58527_11 = msgp.UnsafeString(field)
 		} else {
 			//missing fields need handling
-			if nextMiss14zgensym_da1be0b343e58527_15 < 0 {
+			if nextMiss10zgensym_da1be0b343e58527_11 < 0 {
 				// tell the reader to only give us Nils
 				// until further notice.
 				dc.PushAlwaysNil()
-				nextMiss14zgensym_da1be0b343e58527_15 = 0
+				nextMiss10zgensym_da1be0b343e58527_11 = 0
 			}
-			for nextMiss14zgensym_da1be0b343e58527_15 < maxFields14zgensym_da1be0b343e58527_15 && (found14zgensym_da1be0b343e58527_15[nextMiss14zgensym_da1be0b343e58527_15] || decodeMsgFieldSkip14zgensym_da1be0b343e58527_15[nextMiss14zgensym_da1be0b343e58527_15]) {
-				nextMiss14zgensym_da1be0b343e58527_15++
+			for nextMiss10zgensym_da1be0b343e58527_11 < maxFields10zgensym_da1be0b343e58527_11 && (found10zgensym_da1be0b343e58527_11[nextMiss10zgensym_da1be0b343e58527_11] || decodeMsgFieldSkip10zgensym_da1be0b343e58527_11[nextMiss10zgensym_da1be0b343e58527_11]) {
+				nextMiss10zgensym_da1be0b343e58527_11++
 			}
-			if nextMiss14zgensym_da1be0b343e58527_15 == maxFields14zgensym_da1be0b343e58527_15 {
+			if nextMiss10zgensym_da1be0b343e58527_11 == maxFields10zgensym_da1be0b343e58527_11 {
 				// filled all the empty fields!
-				break doneWithStruct14zgensym_da1be0b343e58527_15
+				break doneWithStruct10zgensym_da1be0b343e58527_11
 			}
-			missingFieldsLeft14zgensym_da1be0b343e58527_15--
-			curField14zgensym_da1be0b343e58527_15 = decodeMsgFieldOrder14zgensym_da1be0b343e58527_15[nextMiss14zgensym_da1be0b343e58527_15]
+			missingFieldsLeft10zgensym_da1be0b343e58527_11--
+			curField10zgensym_da1be0b343e58527_11 = decodeMsgFieldOrder10zgensym_da1be0b343e58527_11[nextMiss10zgensym_da1be0b343e58527_11]
 		}
-		//fmt.Printf("switching on curField: '%v'\n", curField14zgensym_da1be0b343e58527_15)
-		switch curField14zgensym_da1be0b343e58527_15 {
+		//fmt.Printf("switching on curField: '%v'\n", curField10zgensym_da1be0b343e58527_11)
+		switch curField10zgensym_da1be0b343e58527_11 {
 		// -- templateDecodeMsg ends here --
 
 		case "Slc_zid00_bin":
-			found14zgensym_da1be0b343e58527_15[0] = true
+			found10zgensym_da1be0b343e58527_11[0] = true
 			z.Slc, err = dc.ReadBytes(z.Slc)
 			if err != nil {
 				return
@@ -1109,7 +986,7 @@ doneWithStruct14zgensym_da1be0b343e58527_15:
 			}
 		}
 	}
-	if nextMiss14zgensym_da1be0b343e58527_15 != -1 {
+	if nextMiss10zgensym_da1be0b343e58527_11 != -1 {
 		dc.PopAlwaysNil()
 	}
 
@@ -1125,9 +1002,9 @@ doneWithStruct14zgensym_da1be0b343e58527_15:
 }
 
 // fields of TestBytes
-var decodeMsgFieldOrder14zgensym_da1be0b343e58527_15 = []string{"Slc_zid00_bin"}
+var decodeMsgFieldOrder10zgensym_da1be0b343e58527_11 = []string{"Slc_zid00_bin"}
 
-var decodeMsgFieldSkip14zgensym_da1be0b343e58527_15 = []bool{false}
+var decodeMsgFieldSkip10zgensym_da1be0b343e58527_11 = []bool{false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *TestBytes) fieldsNotEmpty(isempty []bool) uint32 {
@@ -1150,11 +1027,11 @@ func (z *TestBytes) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_da1be0b343e58527_16 [1]bool
-	fieldsInUse_zgensym_da1be0b343e58527_17 := z.fieldsNotEmpty(empty_zgensym_da1be0b343e58527_16[:])
+	var empty_zgensym_da1be0b343e58527_12 [1]bool
+	fieldsInUse_zgensym_da1be0b343e58527_13 := z.fieldsNotEmpty(empty_zgensym_da1be0b343e58527_12[:])
 
 	// map header
-	err = en.WriteMapHeader(fieldsInUse_zgensym_da1be0b343e58527_17 + 1)
+	err = en.WriteMapHeader(fieldsInUse_zgensym_da1be0b343e58527_13 + 1)
 	if err != nil {
 		return err
 	}
@@ -1169,7 +1046,7 @@ func (z *TestBytes) EncodeMsg(en *msgp.Writer) (err error) {
 		return err
 	}
 
-	if !empty_zgensym_da1be0b343e58527_16[0] {
+	if !empty_zgensym_da1be0b343e58527_12[0] {
 		// write "Slc_zid00_bin"
 		err = en.Append(0xad, 0x53, 0x6c, 0x63, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x62, 0x69, 0x6e)
 		if err != nil {
@@ -1221,58 +1098,58 @@ func (z *TestBytes) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o 
 
 	var field []byte
 	_ = field
-	const maxFields18zgensym_da1be0b343e58527_19 = 1
+	const maxFields14zgensym_da1be0b343e58527_15 = 1
 
 	// -- templateUnmarshalMsg starts here--
-	var totalEncodedFields18zgensym_da1be0b343e58527_19 uint32
+	var totalEncodedFields14zgensym_da1be0b343e58527_15 uint32
 	if !nbs.AlwaysNil {
-		totalEncodedFields18zgensym_da1be0b343e58527_19, bts, err = nbs.ReadMapHeaderBytes(bts)
+		totalEncodedFields14zgensym_da1be0b343e58527_15, bts, err = nbs.ReadMapHeaderBytes(bts)
 		if err != nil {
 			return
 		}
 	}
-	encodedFieldsLeft18zgensym_da1be0b343e58527_19 := totalEncodedFields18zgensym_da1be0b343e58527_19
-	missingFieldsLeft18zgensym_da1be0b343e58527_19 := maxFields18zgensym_da1be0b343e58527_19 - totalEncodedFields18zgensym_da1be0b343e58527_19
+	encodedFieldsLeft14zgensym_da1be0b343e58527_15 := totalEncodedFields14zgensym_da1be0b343e58527_15
+	missingFieldsLeft14zgensym_da1be0b343e58527_15 := maxFields14zgensym_da1be0b343e58527_15 - totalEncodedFields14zgensym_da1be0b343e58527_15
 
-	var nextMiss18zgensym_da1be0b343e58527_19 int32 = -1
-	var found18zgensym_da1be0b343e58527_19 [maxFields18zgensym_da1be0b343e58527_19]bool
-	var curField18zgensym_da1be0b343e58527_19 string
+	var nextMiss14zgensym_da1be0b343e58527_15 int32 = -1
+	var found14zgensym_da1be0b343e58527_15 [maxFields14zgensym_da1be0b343e58527_15]bool
+	var curField14zgensym_da1be0b343e58527_15 string
 
-doneWithStruct18zgensym_da1be0b343e58527_19:
+doneWithStruct14zgensym_da1be0b343e58527_15:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
-	for encodedFieldsLeft18zgensym_da1be0b343e58527_19 > 0 || missingFieldsLeft18zgensym_da1be0b343e58527_19 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft18zgensym_da1be0b343e58527_19, missingFieldsLeft18zgensym_da1be0b343e58527_19, msgp.ShowFound(found18zgensym_da1be0b343e58527_19[:]), unmarshalMsgFieldOrder18zgensym_da1be0b343e58527_19)
-		if encodedFieldsLeft18zgensym_da1be0b343e58527_19 > 0 {
-			encodedFieldsLeft18zgensym_da1be0b343e58527_19--
+	for encodedFieldsLeft14zgensym_da1be0b343e58527_15 > 0 || missingFieldsLeft14zgensym_da1be0b343e58527_15 > 0 {
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft14zgensym_da1be0b343e58527_15, missingFieldsLeft14zgensym_da1be0b343e58527_15, msgp.ShowFound(found14zgensym_da1be0b343e58527_15[:]), unmarshalMsgFieldOrder14zgensym_da1be0b343e58527_15)
+		if encodedFieldsLeft14zgensym_da1be0b343e58527_15 > 0 {
+			encodedFieldsLeft14zgensym_da1be0b343e58527_15--
 			field, bts, err = nbs.ReadMapKeyZC(bts)
 			if err != nil {
 				return
 			}
-			curField18zgensym_da1be0b343e58527_19 = msgp.UnsafeString(field)
+			curField14zgensym_da1be0b343e58527_15 = msgp.UnsafeString(field)
 		} else {
 			//missing fields need handling
-			if nextMiss18zgensym_da1be0b343e58527_19 < 0 {
+			if nextMiss14zgensym_da1be0b343e58527_15 < 0 {
 				// set bts to contain just mnil (0xc0)
 				bts = nbs.PushAlwaysNil(bts)
-				nextMiss18zgensym_da1be0b343e58527_19 = 0
+				nextMiss14zgensym_da1be0b343e58527_15 = 0
 			}
-			for nextMiss18zgensym_da1be0b343e58527_19 < maxFields18zgensym_da1be0b343e58527_19 && (found18zgensym_da1be0b343e58527_19[nextMiss18zgensym_da1be0b343e58527_19] || unmarshalMsgFieldSkip18zgensym_da1be0b343e58527_19[nextMiss18zgensym_da1be0b343e58527_19]) {
-				nextMiss18zgensym_da1be0b343e58527_19++
+			for nextMiss14zgensym_da1be0b343e58527_15 < maxFields14zgensym_da1be0b343e58527_15 && (found14zgensym_da1be0b343e58527_15[nextMiss14zgensym_da1be0b343e58527_15] || unmarshalMsgFieldSkip14zgensym_da1be0b343e58527_15[nextMiss14zgensym_da1be0b343e58527_15]) {
+				nextMiss14zgensym_da1be0b343e58527_15++
 			}
-			if nextMiss18zgensym_da1be0b343e58527_19 == maxFields18zgensym_da1be0b343e58527_19 {
+			if nextMiss14zgensym_da1be0b343e58527_15 == maxFields14zgensym_da1be0b343e58527_15 {
 				// filled all the empty fields!
-				break doneWithStruct18zgensym_da1be0b343e58527_19
+				break doneWithStruct14zgensym_da1be0b343e58527_15
 			}
-			missingFieldsLeft18zgensym_da1be0b343e58527_19--
-			curField18zgensym_da1be0b343e58527_19 = unmarshalMsgFieldOrder18zgensym_da1be0b343e58527_19[nextMiss18zgensym_da1be0b343e58527_19]
+			missingFieldsLeft14zgensym_da1be0b343e58527_15--
+			curField14zgensym_da1be0b343e58527_15 = unmarshalMsgFieldOrder14zgensym_da1be0b343e58527_15[nextMiss14zgensym_da1be0b343e58527_15]
 		}
-		//fmt.Printf("switching on curField: '%v'\n", curField18zgensym_da1be0b343e58527_19)
-		switch curField18zgensym_da1be0b343e58527_19 {
+		//fmt.Printf("switching on curField: '%v'\n", curField14zgensym_da1be0b343e58527_15)
+		switch curField14zgensym_da1be0b343e58527_15 {
 		// -- templateUnmarshalMsg ends here --
 
 		case "Slc_zid00_bin":
-			found18zgensym_da1be0b343e58527_19[0] = true
+			found14zgensym_da1be0b343e58527_15[0] = true
 			if nbs.AlwaysNil || msgp.IsNil(bts) {
 				if !nbs.AlwaysNil {
 					bts = bts[1:]
@@ -1295,7 +1172,7 @@ doneWithStruct18zgensym_da1be0b343e58527_19:
 			}
 		}
 	}
-	if nextMiss18zgensym_da1be0b343e58527_19 != -1 {
+	if nextMiss14zgensym_da1be0b343e58527_15 != -1 {
 		bts = nbs.PopAlwaysNil()
 	}
 
@@ -1311,9 +1188,9 @@ doneWithStruct18zgensym_da1be0b343e58527_19:
 }
 
 // fields of TestBytes
-var unmarshalMsgFieldOrder18zgensym_da1be0b343e58527_19 = []string{"Slc_zid00_bin"}
+var unmarshalMsgFieldOrder14zgensym_da1be0b343e58527_15 = []string{"Slc_zid00_bin"}
 
-var unmarshalMsgFieldSkip18zgensym_da1be0b343e58527_19 = []bool{false}
+var unmarshalMsgFieldSkip14zgensym_da1be0b343e58527_15 = []bool{false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *TestBytes) Msgsize() (s int) {

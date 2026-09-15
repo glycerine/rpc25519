@@ -1,7 +1,6 @@
 package leased
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
 	"time"
@@ -31,16 +30,6 @@ type TestBytes struct {
 // with length knowledge up front.
 type ByteSlice []byte
 
-// Key is the []byte which the tree
-// sorts in lexicographic (shortlex) order,
-// which means that shorter keys sort
-// before longer keys with the same prefix.
-//
-// Key is an arbitrary string of bytes, and
-// in particular can contain the 0 byte
-// anywhere in the slice.
-type Key []byte
-
 // Leaf holds a Key and a Value together,
 // and is stored in the Tree.
 //
@@ -63,7 +52,7 @@ type Key []byte
 // an insert to update a Key's value
 // if the leaf is already in hand.
 type Leaf struct {
-	Key   Key    `zid:"0"`
+	Key   string `zid:"0"`
 	Value []byte `zid:"1"`
 
 	// version for CAS on version support
@@ -94,7 +83,7 @@ type Leaf struct {
 
 func (s *Leaf) Clone() (r *Leaf) {
 	r = &Leaf{
-		Key:               append([]byte{}, s.Key...),
+		Key:               s.Key,
 		Value:             append([]byte{}, s.Value...),
 		Version:           s.Version,
 		Vtype:             s.Vtype,
@@ -128,7 +117,7 @@ func (z *Leaf) MetaString() (r string) {
 	return
 }
 
-func NewLeaf(key Key, v []byte, vtype uint64) *Leaf {
+func NewLeaf(key string, v []byte, vtype uint64) *Leaf {
 	return &Leaf{
 		Key:   key,
 		Value: v,
@@ -139,11 +128,6 @@ func NewLeaf(key Key, v []byte, vtype uint64) *Leaf {
 func (lf *Leaf) String() string {
 	//return fmt.Sprintf("leaf[%q]", string(lf.Key))
 	return lf.FlatString(0, 0)
-}
-
-// used by get
-func (lf *Leaf) equal(other []byte) (equal bool) {
-	return bytes.Compare(lf.Key, other) == 0
 }
 
 func (n *Leaf) FlatString(depth int, recurse int) (s string) {
