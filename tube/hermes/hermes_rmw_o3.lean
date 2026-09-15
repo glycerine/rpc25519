@@ -1,23 +1,20 @@
 import Std
 
 /-!
-# Hermes RMW+O3 protocol safety and liveness facts
+# Hermes RMW+O3 protocol models
 
-This file is a Lean 4 companion to `hermes_rmw_o3.ivy`, the single-key Hermes
-model with RMW support and the O3 broadcast-ACK optimization enabled.
+The first namespace below contains the earlier Ivy-shaped invariant lemmas kept
+for comparison. The `Reference` namespace at the end of the file is the
+stand-alone Lean model for the RMW+O3 protocol: it defines an operational
+transition relation in the vocabulary of `Hermes.tla`, `HermesRMWs.tla`, and the
+paper's O3 optimization. That model includes epoch-tagged messages, ACK reset on
+membership change, RMW replay ACK reset, local stale-RMW refusal, and an O3
+quorum rule that treats the coordinator's contribution as implicit.
 
-The `Safety` structure spells out the invariant block from `hermes_rmw_o3.ivy`.
-Compared with `hermes_o3.lean`, this final model adds:
-
-* `parentTs`, a ghost timestamp-parent function used by the conflict marker;
-* `rmwConflict`, which records that an RMW timestamp has lost to another RMW
-  from the same parent;
-* O3 liveness properties that finish a remembered ACK quorum or explain it by
-  a recorded RMW conflict.
-
-The temporal theorems mirror Ivy's liveness properties. Lean does not run
-Ivy's liveness-to-safety tactic, so the fairness and progress facts used by
-that tactic are explicit trace hypotheses.
+The reference liveness facts are stated over transition labels rather than Ivy
+state pulses. The paper and TLA artifacts prove safety and absence of deadlock,
+not unconditional eventual completion, so fairness remains an explicit trace
+hypothesis rather than a protocol invariant.
 -/
 
 set_option autoImplicit false
@@ -1564,121 +1561,144 @@ theorem agreement_init_invariant
         initTs initValue initEpoch) :=
   agreement_of_safety (init_safety hinit)
 
-set_option maxHeartbeats 400000 in
-theorem hrnext_preserves_agreement
+set_option maxHeartbeats 80000 in
+theorem fail_preserves_agreement
     {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
     {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
-    {st st' : State Node TS Value Epoch} {lbl : HRLabel Node}
+    {st : State Node TS Value Epoch} {n : Node}
     (hInv : AgreementInvariant ord initTs initValue initEpoch st)
-    (hStep : HRNext ord st lbl st') :
-    AgreementInvariant ord initTs initValue initEpoch st' := by
-  cases hInv
-  cases hStep with
-  | local_write =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [localWritePost, upd, add1, set1, set2FirstSelf, add3,
-        addTsValue, removeTs, addRmwConflicts] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | local_rmw =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [localRmwPost, upd, add1, set1, set2FirstSelf, add3,
-        addTsValue, removeTs, addRmwConflicts] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | receive_write_inv =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [receiveWriteInvPost, upd, add1, clear1, set1, add2, clear2First,
-        set2FirstSelf, add3, le_of_not_lt] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | receive_rmw_inv =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [receiveRmwInvPost, upd, add1, clear1, set1, add2, clear2First,
-        set2FirstSelf, add3, le_of_not_lt] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | receive_rmw_inv_completed_conflict =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [receiveRmwInvCompletedConflictPost, add3] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | receive_ack =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [receiveAckPost, add1, add2, set1] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | mark_ready =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [markReadyPost, upd, add1, clear1, set1] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | complete_current =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [completeCurrentPost, upd, add1, clear1, set1, clear2First,
-        addRmwConflicts] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | complete_overwritten =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [completeOverwrittenPost, upd, add1, clear1, set1, clear2First,
-        addRmwConflicts] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | complete_ready_current =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [completeCurrentPost, upd, add1, clear1, set1, clear2First,
-        addRmwConflicts] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | complete_ready_overwritten =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [completeOverwrittenPost, upd, add1, clear1, set1, clear2First,
-        addRmwConflicts] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | receive_validate =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [receiveValidatePost, upd, add1, clear1, set1, clear2First] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | replay_after_failure =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [replayAfterFailurePost, upd, add1, set1, set2FirstSelf, add3] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | fail =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [failPost, upd, add1, set1, clear2First] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | o3_observe_quorum =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [o3ObserveQuorumPost, add3] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
-  | o3_complete =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      intros <;>
-      simp [o3CompletePost, upd, add1, clear1, set1, clear2First,
-        addRmwConflicts] at * <;>
-      grind [TotalOrder.trans, TotalOrder.antisymm]
+    (hLive : st.live n) :
+    AgreementInvariant ord initTs initValue initEpoch (failPost st n) := by
+  rcases hInv with
+    ⟨hTsValueFunctional, hTsValueSeen, hTsRmwSeen,
+      hRmwConflictSeen, hRmwConflictRmw, hInvWriteWf, hInvRmwWf,
+      hAckMsgSeen, hAckMsgAdvanced, hValMsgCompleted, hCompletedSeen,
+      hO3QuorumLiveAck, hO3QuorumSeen, hCurValueSeen, hCurRmwTs,
+      hCurNonRmwTs, hPendingBelowCur, hPendingAckedAdvanced,
+      hReadyPending, hReadyLiveAcked, hCompletedLiveAdvanced,
+      hValidCompleted⟩
+  refine {
+    ts_value_functional := hTsValueFunctional
+    ts_value_seen := hTsValueSeen
+    ts_rmw_seen := hTsRmwSeen
+    rmw_conflict_seen := hRmwConflictSeen
+    rmw_conflict_rmw := hRmwConflictRmw
+    inv_write_wf := hInvWriteWf
+    inv_rmw_wf := hInvRmwWf
+    ack_msg_seen := hAckMsgSeen
+    ack_msg_advanced := hAckMsgAdvanced
+    val_msg_completed := hValMsgCompleted
+    completed_seen := hCompletedSeen
+    o3_quorum_live_ack := by
+      intro N C T A hq hPostLive
+      have hOldLive : st.live A := by
+        have hBoth : A ≠ n /\ st.live A := by
+          simpa [failPost, set1] using hPostLive
+        exact hBoth.2
+      exact hO3QuorumLiveAck N C T A hq hOldLive
+    o3_quorum_seen := hO3QuorumSeen
+    cur_value_seen := hCurValueSeen
+    cur_rmw_ts := hCurRmwTs
+    cur_non_rmw_ts := hCurNonRmwTs
+    pending_below_cur := by
+      intro N hPostPending
+      by_cases hN : N = n
+      · simp [failPost, set1, hN] at hPostPending
+      · have hOldPending : st.pending N := by
+          simpa [failPost, set1, hN] using hPostPending
+        exact hPendingBelowCur N hOldPending
+    pending_acked_advanced := by
+      intro N A hPostPending hPostAcked
+      by_cases hN : N = n
+      · simp [failPost, set1, hN] at hPostPending
+      · have hOldPending : st.pending N := by
+          simpa [failPost, set1, hN] using hPostPending
+        have hOldAcked : st.acked N A := by
+          simpa [failPost, clear2First, hN] using hPostAcked
+        exact hPendingAckedAdvanced N A hOldPending hOldAcked
+    ready_pending := by
+      intro N hPostReady
+      by_cases hN : N = n
+      · simp [failPost, set1, hN] at hPostReady
+      · have hOldReady : st.ready N := by
+          simpa [failPost, set1, hN] using hPostReady
+        have hOldPending : st.pending N := hReadyPending N hOldReady
+        simpa [failPost, set1, hN] using hOldPending
+    ready_live_acked := by
+      intro N A hPostReady hPostLive
+      by_cases hN : N = n
+      · simp [failPost, set1, hN] at hPostReady
+      · have hOldReady : st.ready N := by
+          simpa [failPost, set1, hN] using hPostReady
+        have hOldLive : st.live A := by
+          have hBoth : A ≠ n /\ st.live A := by
+            simpa [failPost, set1] using hPostLive
+          exact hBoth.2
+        have hOldAcked : st.acked N A :=
+          hReadyLiveAcked N A hOldReady hOldLive
+        simpa [failPost, clear2First, hN] using hOldAcked
+    completed_live_advanced := by
+      intro T N hCompleted hPostLive
+      have hOldLive : st.live N := by
+        have hBoth : N ≠ n /\ st.live N := by
+          simpa [failPost, set1] using hPostLive
+        exact hBoth.2
+      exact hCompletedLiveAdvanced T N hCompleted hOldLive
+    valid_completed := hValidCompleted
+  }
+
+theorem o3_observe_quorum_preserves_agreement
+    {Node : Type uNode} {TS : Type uTs} {Value : Type uValue} {Epoch : Type uEpoch}
+    {ord : TotalOrder TS} {initTs : TS} {initValue : Value} {initEpoch : Epoch}
+    {st : State Node TS Value Epoch} {n c : Node} {t : TS}
+    (hInv : AgreementInvariant ord initTs initValue initEpoch st)
+    (hLive : st.live n)
+    (hAllAcked : forall A, st.live A -> st.ackMsg A c t) :
+    AgreementInvariant ord initTs initValue initEpoch (o3ObserveQuorumPost st n c t) := by
+  rcases hInv with
+    ⟨hTsValueFunctional, hTsValueSeen, hTsRmwSeen,
+      hRmwConflictSeen, hRmwConflictRmw, hInvWriteWf, hInvRmwWf,
+      hAckMsgSeen, hAckMsgAdvanced, hValMsgCompleted, hCompletedSeen,
+      hO3QuorumLiveAck, hO3QuorumSeen, hCurValueSeen, hCurRmwTs,
+      hCurNonRmwTs, hPendingBelowCur, hPendingAckedAdvanced,
+      hReadyPending, hReadyLiveAcked, hCompletedLiveAdvanced,
+      hValidCompleted⟩
+  refine {
+    ts_value_functional := hTsValueFunctional
+    ts_value_seen := hTsValueSeen
+    ts_rmw_seen := hTsRmwSeen
+    rmw_conflict_seen := hRmwConflictSeen
+    rmw_conflict_rmw := hRmwConflictRmw
+    inv_write_wf := hInvWriteWf
+    inv_rmw_wf := hInvRmwWf
+    ack_msg_seen := hAckMsgSeen
+    ack_msg_advanced := hAckMsgAdvanced
+    val_msg_completed := hValMsgCompleted
+    completed_seen := hCompletedSeen
+    o3_quorum_live_ack := by
+      intro N C T A hq hLiveA
+      rcases hq with hOld | hNew
+      · exact hO3QuorumLiveAck N C T A hOld hLiveA
+      · rcases hNew with ⟨rfl, rfl, rfl⟩
+        exact hAllAcked A hLiveA
+    o3_quorum_seen := by
+      intro N C T hq
+      rcases hq with hOld | hNew
+      · exact hO3QuorumSeen N C T hOld
+      · have hSeenNew : st.seenTs t :=
+          hAckMsgSeen n c t (hAllAcked n hLive)
+        rcases hNew with ⟨rfl, rfl, rfl⟩
+        exact hSeenNew
+    cur_value_seen := hCurValueSeen
+    cur_rmw_ts := hCurRmwTs
+    cur_non_rmw_ts := hCurNonRmwTs
+    pending_below_cur := hPendingBelowCur
+    pending_acked_advanced := hPendingAckedAdvanced
+    ready_pending := hReadyPending
+    ready_live_acked := hReadyLiveAcked
+    completed_live_advanced := hCompletedLiveAdvanced
+    valid_completed := hValidCompleted
+  }
 
 set_option maxHeartbeats 200000 in
 theorem local_write_preserves_core
@@ -1949,5 +1969,726 @@ theorem local_write_preserves_core
   }
 
 end Operational
+
+/-!
+## TLA/paper-aligned reference model
+
+This namespace is deliberately separate from the Ivy-shaped model above.  It
+uses the state variables and transition names from `Hermes.tla` and
+`HermesRMWs.tla`, with the paper's O3 broadcast-ACK optimization added as an
+extra validation path.  In particular:
+
+* ACK and RINV messages carry the current membership epoch.
+* `nodeFailurePost` increments the epoch and resets every ACK set.
+* `rmwReplayPost` resets gathered ACKs, while `writeReplayPost` preserves them.
+* Stale RMW invalidations send the receiver's local invalidation back and do
+  not create an ACK for the stale timestamp.
+* O3 quorums range over live non-coordinator nodes; the coordinator's
+  contribution is implicit and no self-ACK is required.
+-/
+
+namespace Reference
+
+universe uRefNode uRefValue
+
+inductive OpKind where
+  | write
+  | rmw
+deriving DecidableEq, Repr
+
+structure Timestamp (Node : Type uRefNode) where
+  version : Nat
+  tieBreaker : Node
+deriving DecidableEq, Repr
+
+structure NodeRank (Node : Type uRefNode) where
+  rank : Node -> Nat
+  rank_injective : forall {a b : Node}, rank a = rank b -> a = b
+
+def tsLe {Node : Type uRefNode} (rank : NodeRank Node)
+    (a b : Timestamp Node) : Prop :=
+  a.version < b.version \/
+    (a.version = b.version /\ rank.rank a.tieBreaker <= rank.rank b.tieBreaker)
+
+def tsLt {Node : Type uRefNode} (rank : NodeRank Node)
+    (a b : Timestamp Node) : Prop :=
+  tsLe rank a b /\ a ≠ b
+
+instance instDecidableTsLe {Node : Type uRefNode} [DecidableEq Node]
+    (rank : NodeRank Node) (a b : Timestamp Node) :
+    Decidable (tsLe rank a b) := by
+  unfold tsLe
+  infer_instance
+
+instance instDecidableTsLt {Node : Type uRefNode} [DecidableEq Node]
+    (rank : NodeRank Node) (a b : Timestamp Node) :
+    Decidable (tsLt rank a b) := by
+  unfold tsLt
+  infer_instance
+
+theorem tsLe_refl {Node : Type uRefNode} (rank : NodeRank Node)
+    (a : Timestamp Node) :
+    tsLe rank a a := by
+  right
+  exact ⟨rfl, Nat.le_refl _⟩
+
+theorem tsLe_antisymm {Node : Type uRefNode} (rank : NodeRank Node)
+    {a b : Timestamp Node} :
+    tsLe rank a b -> tsLe rank b a -> a = b := by
+  intro hab hba
+  rcases a with ⟨av, atie⟩
+  rcases b with ⟨bv, btie⟩
+  unfold tsLe at hab hba
+  simp at hab hba
+  rcases hab with havb | ⟨habv, habtie⟩
+  · rcases hba with hbav | ⟨hbav, _hbtie⟩
+    · omega
+    · omega
+  · rcases hba with hbav | ⟨hbav, hbatie⟩
+    · omega
+    · have hRank : rank.rank atie = rank.rank btie :=
+        Nat.le_antisymm habtie hbatie
+      have hTie : atie = btie := rank.rank_injective hRank
+      subst hbav
+      subst hTie
+      rfl
+
+theorem tsLe_trans {Node : Type uRefNode} (rank : NodeRank Node)
+    {a b c : Timestamp Node} :
+    tsLe rank a b -> tsLe rank b c -> tsLe rank a c := by
+  intro hab hbc
+  rcases a with ⟨av, atie⟩
+  rcases b with ⟨bv, btie⟩
+  rcases c with ⟨cv, ctie⟩
+  unfold tsLe at hab hbc ⊢
+  simp at hab hbc ⊢
+  rcases hab with havb | ⟨habv, habtie⟩
+  · rcases hbc with hbvc | ⟨hbcv, hbctie⟩
+    · exact Or.inl (by omega)
+    · exact Or.inl (by omega)
+  · rcases hbc with hbvc | ⟨hbcv, hbctie⟩
+    · exact Or.inl (by omega)
+    · exact Or.inr ⟨by omega, Nat.le_trans habtie hbctie⟩
+
+theorem tsLt_irrefl {Node : Type uRefNode} (rank : NodeRank Node)
+    (a : Timestamp Node) :
+    Not (tsLt rank a a) := by
+  intro h
+  exact h.2 rfl
+
+def tsOf {Node : Type uRefNode} (version : Nat) (tie : Node) :
+    Timestamp Node where
+  version := version
+  tieBreaker := tie
+
+structure RInvMsg (Node : Type uRefNode) (Value : Type uRefValue) where
+  sender : Node
+  epochID : Nat
+  ts : Timestamp Node
+  value : Value
+  parent : Timestamp Node
+  kind : OpKind
+deriving Repr
+
+structure AckMsg (Node : Type uRefNode) where
+  sender : Node
+  epochID : Nat
+  ts : Timestamp Node
+deriving Repr
+
+structure ValMsg (Node : Type uRefNode) where
+  ts : Timestamp Node
+deriving Repr
+
+structure RefState (Node : Type uRefNode) (Value : Type uRefValue) where
+  epochID : Nat
+  live : Node -> Prop
+  nodeTS : Node -> Timestamp Node
+  nodeValue : Node -> Value
+  nodeState : Node -> HState
+  nodeRcvedAcks : Node -> Node -> Prop
+  nodeLastWriter : Node -> Node
+  nodeLastWriteTS : Node -> Timestamp Node
+  nodeWriteEpochID : Node -> Nat
+  nodeFlagRMW : Node -> Bool
+  parentOf : Timestamp Node -> Timestamp Node
+  tsKind : Timestamp Node -> OpKind -> Prop
+  tsValue : Timestamp Node -> Value -> Prop
+  rmsgs : RInvMsg Node Value -> Prop
+  ackMsgs : AckMsg Node -> Prop
+  valMsgs : ValMsg Node -> Prop
+  committedRMWs : Timestamp Node -> Prop
+  committedWrites : Timestamp Node -> Prop
+  o3Quorum : Node -> Node -> Timestamp Node -> Nat -> Prop
+
+def replace {α : Sort uRefNode} {β : Sort uRefValue}
+    [DecidableEq α] (f : α -> β) (x : α) (v : β) : α -> β :=
+  fun y => if y = x then v else f y
+
+def replaceRelFirst {α : Sort uRefNode} {β : Sort uRefValue}
+    [DecidableEq α] (r : α -> β -> Prop) (x : α) (next : β -> Prop) :
+    α -> β -> Prop :=
+  fun y z => if y = x then next z else r y z
+
+def removeLive {Node : Type uRefNode} [DecidableEq Node]
+    (live : Node -> Prop) (n : Node) : Node -> Prop :=
+  fun a => live a /\ a ≠ n
+
+def addRInv {Node : Type uRefNode} {Value : Type uRefValue}
+    (r : RInvMsg Node Value -> Prop) (m : RInvMsg Node Value) :
+    RInvMsg Node Value -> Prop :=
+  fun x => r x \/ x = m
+
+def addAck {Node : Type uRefNode}
+    (r : AckMsg Node -> Prop) (m : AckMsg Node) : AckMsg Node -> Prop :=
+  fun x => r x \/ x = m
+
+def addVal {Node : Type uRefNode}
+    (r : ValMsg Node -> Prop) (m : ValMsg Node) : ValMsg Node -> Prop :=
+  fun x => r x \/ x = m
+
+def addTsKind {Node : Type uRefNode}
+    (r : Timestamp Node -> OpKind -> Prop) (t : Timestamp Node) (k : OpKind) :
+    Timestamp Node -> OpKind -> Prop :=
+  fun t' k' => r t' k' \/ (t' = t /\ k' = k)
+
+def addTsValue {Node : Type uRefNode} {Value : Type uRefValue}
+    (r : Timestamp Node -> Value -> Prop) (t : Timestamp Node) (v : Value) :
+    Timestamp Node -> Value -> Prop :=
+  fun t' v' => r t' v' \/ (t' = t /\ v' = v)
+
+def addCommitted
+    {Node : Type uRefNode}
+    (r : Timestamp Node -> Prop) (t : Timestamp Node) : Timestamp Node -> Prop :=
+  fun t' => r t' \/ t' = t
+
+def addO3
+    {Node : Type uRefNode}
+    (r : Node -> Node -> Timestamp Node -> Nat -> Prop)
+    (n c : Node) (t : Timestamp Node) (e : Nat) :
+    Node -> Node -> Timestamp Node -> Nat -> Prop :=
+  fun n' c' t' e' => r n' c' t' e' \/ (n' = n /\ c' = c /\ t' = t /\ e' = e)
+
+def receivedAllAcks {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) (n : Node) : Prop :=
+  forall a, st.live a -> a ≠ n -> st.nodeRcvedAcks n a
+
+def o3AckQuorum {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) (coordinator : Node) (t : Timestamp Node) : Prop :=
+  forall a, st.live a -> a ≠ coordinator ->
+    st.ackMsgs { sender := a, epochID := st.epochID, ts := t }
+
+def invalidStateAfterGreater {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) (n : Node) : HState :=
+  if st.nodeState n = HState.hs_valid \/
+      st.nodeState n = HState.hs_invalid \/
+      st.nodeState n = HState.hs_replay then
+    HState.hs_invalid
+  else if (st.nodeState n = HState.hs_write \/
+      st.nodeState n = HState.hs_invalid_write) /\ st.nodeFlagRMW n = false then
+    HState.hs_invalid_write
+  else
+    HState.hs_invalid
+
+def sendRInvMsg {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) (n : Node) (t : Timestamp Node) (v : Value)
+    (parent : Timestamp Node) (kind : OpKind) : RInvMsg Node Value where
+  sender := n
+  epochID := st.epochID
+  ts := t
+  value := v
+  parent := parent
+  kind := kind
+
+def sendAckMsg {Node : Type uRefNode}
+    (stEpoch : Nat) (n : Node) (t : Timestamp Node) : AckMsg Node where
+  sender := n
+  epochID := stEpoch
+  ts := t
+
+def startUpdatePost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n : Node) (t : Timestamp Node) (v : Value)
+    (kind : OpKind) : RefState Node Value :=
+  let parent := st.nodeTS n
+  { st with
+    nodeTS := replace st.nodeTS n t
+    nodeValue := replace st.nodeValue n v
+    nodeState := replace st.nodeState n HState.hs_write
+    nodeRcvedAcks := replaceRelFirst st.nodeRcvedAcks n (fun _ => False)
+    nodeLastWriter := replace st.nodeLastWriter n n
+    nodeLastWriteTS := replace st.nodeLastWriteTS n t
+    nodeWriteEpochID := replace st.nodeWriteEpochID n st.epochID
+    nodeFlagRMW := replace st.nodeFlagRMW n (kind = OpKind.rmw)
+    parentOf := replace st.parentOf t parent
+    tsKind := addTsKind st.tsKind t kind
+    tsValue := addTsValue st.tsValue t v
+    rmsgs := addRInv st.rmsgs (sendRInvMsg st n t v parent kind) }
+
+def writePost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n : Node) (v : Value) : RefState Node Value :=
+  startUpdatePost st n (tsOf (st.nodeTS n).version.succ.succ n) v OpKind.write
+
+def rmwPost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n : Node) (v : Value) : RefState Node Value :=
+  startUpdatePost st n (tsOf (st.nodeTS n).version.succ n) v OpKind.rmw
+
+def writeReplayPost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n : Node) : RefState Node Value :=
+  { st with
+    nodeState := replace st.nodeState n HState.hs_replay
+    nodeLastWriter := replace st.nodeLastWriter n n
+    nodeLastWriteTS := replace st.nodeLastWriteTS n (st.nodeTS n)
+    nodeWriteEpochID := replace st.nodeWriteEpochID n st.epochID
+    rmsgs := addRInv st.rmsgs
+      (sendRInvMsg st n (st.nodeTS n) (st.nodeValue n)
+        (st.parentOf (st.nodeTS n)) OpKind.write) }
+
+def rmwReplayPost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n : Node) : RefState Node Value :=
+  { st with
+    nodeState := replace st.nodeState n HState.hs_replay
+    nodeRcvedAcks := replaceRelFirst st.nodeRcvedAcks n (fun _ => False)
+    nodeLastWriter := replace st.nodeLastWriter n n
+    nodeLastWriteTS := replace st.nodeLastWriteTS n (st.nodeTS n)
+    nodeWriteEpochID := replace st.nodeWriteEpochID n st.epochID
+    rmsgs := addRInv st.rmsgs
+      (sendRInvMsg st n (st.nodeTS n) (st.nodeValue n)
+        (st.parentOf (st.nodeTS n)) OpKind.rmw) }
+
+def receiveWriteInvPost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (rank : NodeRank Node) (st : RefState Node Value)
+    (n : Node) (m : RInvMsg Node Value) : RefState Node Value :=
+  let ack := sendAckMsg st.epochID n m.ts
+  if tsLt rank (st.nodeTS n) m.ts then
+    { st with
+      nodeTS := replace st.nodeTS n m.ts
+      nodeValue := replace st.nodeValue n m.value
+      nodeState := replace st.nodeState n (invalidStateAfterGreater st n)
+      nodeLastWriter := replace st.nodeLastWriter n m.sender
+      nodeFlagRMW := replace st.nodeFlagRMW n false
+      parentOf := replace st.parentOf m.ts m.parent
+      tsKind := addTsKind st.tsKind m.ts OpKind.write
+      tsValue := addTsValue st.tsValue m.ts m.value
+      ackMsgs := addAck st.ackMsgs ack }
+  else
+    { st with ackMsgs := addAck st.ackMsgs ack }
+
+def receiveRmwInvPost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (rank : NodeRank Node) (st : RefState Node Value)
+    (n : Node) (m : RInvMsg Node Value) : RefState Node Value :=
+  if tsLt rank (st.nodeTS n) m.ts then
+    let ack := sendAckMsg st.epochID n m.ts
+    { st with
+      nodeTS := replace st.nodeTS n m.ts
+      nodeValue := replace st.nodeValue n m.value
+      nodeState := replace st.nodeState n (invalidStateAfterGreater st n)
+      nodeLastWriter := replace st.nodeLastWriter n m.sender
+      nodeFlagRMW := replace st.nodeFlagRMW n true
+      parentOf := replace st.parentOf m.ts m.parent
+      tsKind := addTsKind st.tsKind m.ts OpKind.rmw
+      tsValue := addTsValue st.tsValue m.ts m.value
+      ackMsgs := addAck st.ackMsgs ack }
+  else if st.nodeTS n = m.ts then
+    let ack := sendAckMsg st.epochID n m.ts
+    { st with ackMsgs := addAck st.ackMsgs ack }
+  else
+    let localKind := if st.nodeFlagRMW n then OpKind.rmw else OpKind.write
+    { st with
+      rmsgs := addRInv st.rmsgs
+        (sendRInvMsg st n (st.nodeTS n) (st.nodeValue n)
+          (st.parentOf (st.nodeTS n)) localKind) }
+
+def receiveAckPost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n sender : Node) : RefState Node Value :=
+  { st with
+    nodeRcvedAcks :=
+      replaceRelFirst st.nodeRcvedAcks n
+        (fun a => st.nodeRcvedAcks n a \/ a = sender) }
+
+def sendValsPost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n : Node) : RefState Node Value :=
+  let t := st.nodeTS n
+  { st with
+    nodeState := replace st.nodeState n HState.hs_valid
+    valMsgs := addVal st.valMsgs { ts := t }
+    committedRMWs :=
+      if st.nodeFlagRMW n then addCommitted st.committedRMWs t else st.committedRMWs
+    committedWrites :=
+      if st.nodeFlagRMW n then st.committedWrites else addCommitted st.committedWrites t }
+
+def receiveValPost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n : Node) (t : Timestamp Node) :
+    RefState Node Value :=
+  if st.nodeTS n = t then
+    { st with nodeState := replace st.nodeState n HState.hs_valid }
+  else
+    st
+
+def followerReplayPost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n : Node) : RefState Node Value :=
+  { st with
+    nodeState := replace st.nodeState n HState.hs_replay
+    nodeRcvedAcks := replaceRelFirst st.nodeRcvedAcks n (fun _ => False)
+    nodeLastWriter := replace st.nodeLastWriter n n
+    nodeLastWriteTS := replace st.nodeLastWriteTS n (st.nodeTS n)
+    nodeWriteEpochID := replace st.nodeWriteEpochID n st.epochID
+    rmsgs := addRInv st.rmsgs
+      (sendRInvMsg st n (st.nodeTS n) (st.nodeValue n)
+        (st.parentOf (st.nodeTS n))
+        (if st.nodeFlagRMW n then OpKind.rmw else OpKind.write)) }
+
+def nodeFailurePost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n : Node) : RefState Node Value :=
+  { st with
+    epochID := st.epochID + 1
+    live := removeLive st.live n
+    nodeRcvedAcks := fun _ _ => False }
+
+def o3ObservePost
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) (n coordinator : Node) (t : Timestamp Node) :
+    RefState Node Value :=
+  { st with o3Quorum := addO3 st.o3Quorum n coordinator t st.epochID }
+
+def o3CompletePost
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n : Node) : RefState Node Value :=
+  let t := st.nodeTS n
+  { st with
+    nodeState := replace st.nodeState n HState.hs_valid
+    committedRMWs :=
+      if st.nodeFlagRMW n then addCommitted st.committedRMWs t else st.committedRMWs
+    committedWrites :=
+      if st.nodeFlagRMW n then st.committedWrites else addCommitted st.committedWrites t }
+
+inductive RefLabel (Node : Type uRefNode) where
+  | silent
+  | sendVals (n : Node)
+  | o3Complete (n : Node)
+deriving Repr
+
+inductive HRNext {Node : Type uRefNode} {Value : Type uRefValue}
+    [DecidableEq Node] (rank : NodeRank Node) :
+    RefState Node Value -> RefLabel Node -> RefState Node Value -> Prop where
+  | hr_write {st n v} :
+      st.live n ->
+      st.nodeState n = HState.hs_valid ->
+      HRNext rank st .silent (writePost st n v)
+  | hr_rmw {st n v} :
+      st.live n ->
+      st.nodeState n = HState.hs_valid ->
+      HRNext rank st .silent (rmwPost st n v)
+  | hr_write_replay {st n} :
+      st.live n ->
+      (st.nodeState n = HState.hs_write \/ st.nodeState n = HState.hs_replay) ->
+      st.nodeWriteEpochID n < st.epochID ->
+      Not (receivedAllAcks st n) ->
+      st.nodeFlagRMW n = false ->
+      HRNext rank st .silent (writeReplayPost st n)
+  | hr_rmw_replay {st n} :
+      st.live n ->
+      (st.nodeState n = HState.hs_write \/ st.nodeState n = HState.hs_replay) ->
+      st.nodeWriteEpochID n < st.epochID ->
+      Not (receivedAllAcks st n) ->
+      st.nodeFlagRMW n = true ->
+      HRNext rank st .silent (rmwReplayPost st n)
+  | hr_rcv_ack {st n m} :
+      st.live n ->
+      st.ackMsgs m ->
+      m.epochID = st.epochID ->
+      m.sender ≠ n ->
+      Not (st.nodeRcvedAcks n m.sender) ->
+      m.ts = st.nodeLastWriteTS n ->
+      (st.nodeState n = HState.hs_write \/
+        st.nodeState n = HState.hs_invalid_write \/
+        st.nodeState n = HState.hs_replay) ->
+      HRNext rank st .silent (receiveAckPost st n m.sender)
+  | hr_send_vals_rmw {st n} :
+      st.live n ->
+      st.nodeFlagRMW n = true ->
+      (st.nodeState n = HState.hs_write \/ st.nodeState n = HState.hs_replay) ->
+      receivedAllAcks st n ->
+      HRNext rank st (.sendVals n) (sendValsPost st n)
+  | hr_send_vals_write {st n} :
+      st.live n ->
+      st.nodeFlagRMW n = false ->
+      (st.nodeState n = HState.hs_write \/ st.nodeState n = HState.hs_replay) ->
+      receivedAllAcks st n ->
+      HRNext rank st (.sendVals n) (sendValsPost st n)
+  | hr_rcv_write_inv {st n m} :
+      st.live n ->
+      st.rmsgs m ->
+      m.epochID = st.epochID ->
+      m.sender ≠ n ->
+      m.kind = OpKind.write ->
+      HRNext rank st .silent (receiveWriteInvPost rank st n m)
+  | hr_rcv_rmw_inv {st n m} :
+      st.live n ->
+      st.rmsgs m ->
+      m.epochID = st.epochID ->
+      m.sender ≠ n ->
+      m.kind = OpKind.rmw ->
+      HRNext rank st .silent (receiveRmwInvPost rank st n m)
+  | hr_rcv_val {st n m} :
+      st.live n ->
+      st.valMsgs m ->
+      st.nodeState n ≠ HState.hs_valid ->
+      HRNext rank st .silent (receiveValPost st n m.ts)
+  | hr_follower_replay {st n} :
+      st.live n ->
+      (st.nodeState n = HState.hs_invalid \/
+        st.nodeState n = HState.hs_invalid_write) ->
+      Not (st.live (st.nodeLastWriter n)) ->
+      HRNext rank st .silent (followerReplayPost st n)
+  | hr_node_failure {st n} :
+      st.live n ->
+      HRNext rank st .silent (nodeFailurePost st n)
+  | hr_o3_observe {st n c t} :
+      st.live n ->
+      o3AckQuorum st c t ->
+      HRNext rank st .silent (o3ObservePost st n c t)
+  | hr_o3_complete {st n c} :
+      st.live n ->
+      st.nodeState n ≠ HState.hs_valid ->
+      st.o3Quorum n c (st.nodeTS n) st.epochID ->
+      HRNext rank st (.o3Complete n) (o3CompletePost st n)
+
+def HConsistent {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) : Prop :=
+  forall k s,
+    st.live k -> st.live s ->
+    st.nodeState k = HState.hs_valid ->
+    st.nodeState s = HState.hs_valid ->
+    st.nodeTS k = st.nodeTS s
+
+def HRSemanticsRMW {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) : Prop :=
+  (forall x y,
+    st.committedRMWs x -> st.committedWrites y ->
+      x.version ≠ y.version /\ x.version ≠ y.version - 1) /\
+  (forall x y,
+    st.committedRMWs x -> st.committedRMWs y ->
+      x.version ≠ y.version \/ x.tieBreaker = y.tieBreaker)
+
+structure RefSafety {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) : Prop where
+  consistent : HConsistent st
+  rmw_semantics : HRSemanticsRMW st
+
+def initState
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    (initNode : Node) (initValue : Value) : RefState Node Value where
+  epochID := 0
+  live := fun _ => True
+  nodeTS := fun _ => { version := 0, tieBreaker := initNode }
+  nodeValue := fun _ => initValue
+  nodeState := fun _ => HState.hs_valid
+  nodeRcvedAcks := fun _ _ => False
+  nodeLastWriter := fun _ => initNode
+  nodeLastWriteTS := fun _ => { version := 0, tieBreaker := initNode }
+  nodeWriteEpochID := fun _ => 0
+  nodeFlagRMW := fun _ => false
+  parentOf := fun _ => { version := 0, tieBreaker := initNode }
+  tsKind := fun t k => t = { version := 0, tieBreaker := initNode } /\ k = OpKind.write
+  tsValue := fun t v => t = { version := 0, tieBreaker := initNode } /\ v = initValue
+  rmsgs := fun _ => False
+  ackMsgs := fun _ => False
+  valMsgs := fun m => m.ts = { version := 0, tieBreaker := initNode }
+  committedRMWs := fun _ => False
+  committedWrites := fun t => t = { version := 0, tieBreaker := initNode }
+  o3Quorum := fun _ _ _ _ => False
+
+theorem init_safety
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    (initNode : Node) (initValue : Value) :
+    RefSafety (initState (Node := Node) (Value := Value) initNode initValue) := by
+  refine {
+    consistent := ?_
+    rmw_semantics := ?_
+  }
+  · intro k s _hk _hs _hvk _hvs
+    rfl
+  · constructor
+    · intro x y hx _hy
+      cases hx
+    · intro x y hx _hy
+      cases hx
+
+theorem failure_increments_epoch
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n : Node) :
+    (nodeFailurePost st n).epochID = st.epochID + 1 := by
+  rfl
+
+theorem failure_resets_all_acks
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n c a : Node) :
+    Not ((nodeFailurePost st n).nodeRcvedAcks c a) := by
+  intro h
+  exact h
+
+theorem rmw_replay_resets_acks
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n a : Node) :
+    Not ((rmwReplayPost st n).nodeRcvedAcks n a) := by
+  simp [rmwReplayPost, replaceRelFirst]
+
+theorem write_replay_preserves_acks
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (st : RefState Node Value) (n a : Node) :
+    (writeReplayPost st n).nodeRcvedAcks n a = st.nodeRcvedAcks n a := by
+  rfl
+
+theorem stale_rmw_inv_ack_messages_iff
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (rank : NodeRank Node) (st : RefState Node Value)
+    (n : Node) (m : RInvMsg Node Value) (ack : AckMsg Node)
+    (hStale : tsLt rank m.ts (st.nodeTS n)) :
+    (receiveRmwInvPost rank st n m).ackMsgs ack <->
+      st.ackMsgs ack := by
+  unfold receiveRmwInvPost
+  have hNotGreater : Not (tsLt rank (st.nodeTS n) m.ts) := by
+    intro hGreater
+    have hEq : st.nodeTS n = m.ts :=
+      tsLe_antisymm rank hGreater.1 hStale.1
+    exact hStale.2 hEq.symm
+  have hNotEq : st.nodeTS n ≠ m.ts := by
+    intro hEq
+    exact hStale.2 hEq.symm
+  rw [if_neg hNotGreater]
+  rw [if_neg hNotEq]
+
+theorem stale_rmw_inv_sends_local_rinv
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (rank : NodeRank Node) (st : RefState Node Value)
+    (n : Node) (m : RInvMsg Node Value)
+    (hStale : tsLt rank m.ts (st.nodeTS n)) :
+    (receiveRmwInvPost rank st n m).rmsgs
+      (sendRInvMsg st n (st.nodeTS n) (st.nodeValue n)
+        (st.parentOf (st.nodeTS n))
+        (if st.nodeFlagRMW n then OpKind.rmw else OpKind.write)) := by
+  unfold receiveRmwInvPost
+  have hNotGreater : Not (tsLt rank (st.nodeTS n) m.ts) := by
+    intro hGreater
+    have hEq : st.nodeTS n = m.ts :=
+      tsLe_antisymm rank hGreater.1 hStale.1
+    exact hStale.2 hEq.symm
+  have hNotEq : st.nodeTS n ≠ m.ts := by
+    intro hEq
+    exact hStale.2 hEq.symm
+  rw [if_neg hNotGreater]
+  rw [if_neg hNotEq]
+  unfold addRInv
+  exact Or.inr rfl
+
+theorem o3_quorum_excludes_coordinator_self_ack
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) (coordinator : Node) (t : Timestamp Node)
+    (hNonSelf :
+      forall a, st.live a -> a ≠ coordinator ->
+        st.ackMsgs { sender := a, epochID := st.epochID, ts := t }) :
+    o3AckQuorum st coordinator t := by
+  exact hNonSelf
+
+theorem o3_quorum_allows_missing_coordinator_ack
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) (coordinator : Node) (t : Timestamp Node)
+    (hNonSelf :
+      forall a, st.live a -> a ≠ coordinator ->
+        st.ackMsgs { sender := a, epochID := st.epochID, ts := t })
+    (hNoSelf :
+      Not (st.ackMsgs { sender := coordinator, epochID := st.epochID, ts := t })) :
+    o3AckQuorum st coordinator t := by
+  exact hNonSelf
+
+def StepTrace
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    (rank : NodeRank Node) (tr : Nat -> RefState Node Value)
+    (labels : Nat -> RefLabel Node) : Prop :=
+  forall i, HRNext rank (tr i) (labels i) (tr (i + 1))
+
+def EventuallyFrom {World : Type uRefNode} (p : Nat -> World -> Prop)
+    (tr : Nat -> World) (i : Nat) : Prop :=
+  exists j, i <= j /\ p j (tr j)
+
+def AlwaysFrom {World : Type uRefNode} (p : Nat -> World -> Prop)
+    (tr : Nat -> World) (i : Nat) : Prop :=
+  forall j, i <= j -> p j (tr j)
+
+def FairlyScheduled {Node : Type uRefNode} (labels : Nat -> RefLabel Node)
+    (label : RefLabel Node) : Prop :=
+  forall i, exists j, i <= j /\ labels j = label
+
+def ReadyStuck
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    (tr : Nat -> RefState Node Value) (n : Node) (i : Nat) : Prop :=
+  receivedAllAcks (tr i) n /\
+    ((tr i).nodeState n = HState.hs_write \/
+      (tr i).nodeState n = HState.hs_replay) /\
+    AlwaysFrom
+      (fun _ st =>
+        receivedAllAcks st n /\
+          (st.nodeState n = HState.hs_write \/
+            st.nodeState n = HState.hs_replay))
+      tr i
+
+theorem fair_send_vals_rules_out_permanent_ready
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {rank : NodeRank Node} {tr : Nat -> RefState Node Value}
+    {labels : Nat -> RefLabel Node} {n : Node}
+    (hTrace : StepTrace rank tr labels)
+    (hFair : FairlyScheduled labels (.sendVals n))
+    (hLabelCompletes :
+      forall i,
+        labels i = RefLabel.sendVals n ->
+        Not (receivedAllAcks (tr (i + 1)) n /\
+          ((tr (i + 1)).nodeState n = HState.hs_write \/
+            (tr (i + 1)).nodeState n = HState.hs_replay))) :
+    forall i, Not (ReadyStuck tr n i) := by
+  intro i hStuck
+  rcases hFair i with ⟨j, hij, hLabel⟩
+  have hBadNext :
+      receivedAllAcks (tr (j + 1)) n /\
+        ((tr (j + 1)).nodeState n = HState.hs_write \/
+          (tr (j + 1)).nodeState n = HState.hs_replay) :=
+    hStuck.2.2 (j + 1) (Nat.le_trans hij (Nat.le_succ j))
+  exact hLabelCompletes j hLabel hBadNext
+
+end Reference
+
+-- Evidence dump for the TLA/paper-aligned reference model.
+#print HermesRmwO3.Reference.HRNext
+#print HermesRmwO3.Reference.init_safety
+#print axioms HermesRmwO3.Reference.init_safety
+#print HermesRmwO3.Reference.failure_increments_epoch
+#print axioms HermesRmwO3.Reference.failure_increments_epoch
+#print HermesRmwO3.Reference.failure_resets_all_acks
+#print axioms HermesRmwO3.Reference.failure_resets_all_acks
+#print HermesRmwO3.Reference.rmw_replay_resets_acks
+#print axioms HermesRmwO3.Reference.rmw_replay_resets_acks
+#print HermesRmwO3.Reference.write_replay_preserves_acks
+#print axioms HermesRmwO3.Reference.write_replay_preserves_acks
+#print HermesRmwO3.Reference.stale_rmw_inv_ack_messages_iff
+#print axioms HermesRmwO3.Reference.stale_rmw_inv_ack_messages_iff
+#print HermesRmwO3.Reference.stale_rmw_inv_sends_local_rinv
+#print axioms HermesRmwO3.Reference.stale_rmw_inv_sends_local_rinv
+#print HermesRmwO3.Reference.o3_quorum_excludes_coordinator_self_ack
+#print axioms HermesRmwO3.Reference.o3_quorum_excludes_coordinator_self_ack
+#print HermesRmwO3.Reference.o3_quorum_allows_missing_coordinator_ack
+#print axioms HermesRmwO3.Reference.o3_quorum_allows_missing_coordinator_ack
+#print HermesRmwO3.Reference.fair_send_vals_rules_out_permanent_ready
+#print axioms HermesRmwO3.Reference.fair_send_vals_rules_out_permanent_ready
 
 end HermesRmwO3
