@@ -3216,6 +3216,206 @@ theorem step_committed_live_advanced
           · subst hNew
             exact hInv.o3_current_quorum_advanced n c (st.nodeTS n) hQuorum a hLivePost
 
+theorem invalidStateAfterGreater_not_valid
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) (n : Node) :
+    invalidStateAfterGreater st n ≠ HState.hs_valid := by
+  unfold invalidStateAfterGreater
+  split
+  · simp
+  · split <;> simp
+
+theorem step_valid_committed
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {rank : NodeRank Node} {initTs : Timestamp Node}
+    {st st' : RefState Node Value} {label : RefLabel Node}
+    (hInv : RefAgreementInvariant rank initTs st)
+    (hStep : HRNext rank st label st') :
+    forall a, st'.nodeState a = HState.hs_valid ->
+      RefCommitted initTs st' (st'.nodeTS a) := by
+  intro a hValidPost
+  cases hStep with
+  | hr_write hLive hState =>
+      rename_i n v
+      by_cases hA : a = n
+      · simp [writePost, startUpdatePost, replace, hA] at hValidPost
+      · have hOldValid : st.nodeState a = HState.hs_valid := by
+          simpa [writePost, startUpdatePost, replace, hA] using hValidPost
+        simpa [writePost, startUpdatePost, replace, hA] using
+          step_committed_mono (initTs := initTs) (rank := rank)
+            (HRNext.hr_write hLive hState) (st.nodeTS a)
+            (hInv.valid_committed a hOldValid)
+  | hr_rmw hLive hState =>
+      rename_i n v
+      by_cases hA : a = n
+      · simp [rmwPost, startUpdatePost, replace, hA] at hValidPost
+      · have hOldValid : st.nodeState a = HState.hs_valid := by
+          simpa [rmwPost, startUpdatePost, replace, hA] using hValidPost
+        simpa [rmwPost, startUpdatePost, replace, hA] using
+          step_committed_mono (initTs := initTs) (rank := rank)
+            (HRNext.hr_rmw hLive hState) (st.nodeTS a)
+            (hInv.valid_committed a hOldValid)
+  | hr_write_replay hLive hState hEpoch hMissing hFlag =>
+      rename_i n
+      by_cases hA : a = n
+      · simp [writeReplayPost, replace, hA] at hValidPost
+      · have hOldValid : st.nodeState a = HState.hs_valid := by
+          simpa [writeReplayPost, replace, hA] using hValidPost
+        simpa [writeReplayPost, replace, hA] using
+          step_committed_mono (initTs := initTs) (rank := rank)
+            (HRNext.hr_write_replay hLive hState hEpoch hMissing hFlag)
+            (st.nodeTS a) (hInv.valid_committed a hOldValid)
+  | hr_rmw_replay hLive hState hEpoch hMissing hFlag =>
+      rename_i n
+      by_cases hA : a = n
+      · simp [rmwReplayPost, replace, hA] at hValidPost
+      · have hOldValid : st.nodeState a = HState.hs_valid := by
+          simpa [rmwReplayPost, replace, hA] using hValidPost
+        simpa [rmwReplayPost, replace, hA] using
+          step_committed_mono (initTs := initTs) (rank := rank)
+            (HRNext.hr_rmw_replay hLive hState hEpoch hMissing hFlag)
+            (st.nodeTS a) (hInv.valid_committed a hOldValid)
+  | hr_rcv_ack hLive hMsg hEpoch hSender hFresh hTs hState =>
+      have hOldValid : st.nodeState a = HState.hs_valid := by
+        simpa [receiveAckPost] using hValidPost
+      simpa [receiveAckPost] using
+        step_committed_mono (initTs := initTs) (rank := rank)
+          (HRNext.hr_rcv_ack hLive hMsg hEpoch hSender hFresh hTs hState)
+          (st.nodeTS a) (hInv.valid_committed a hOldValid)
+  | hr_send_vals_rmw hLive hFlag hState hAll =>
+      rename_i n
+      by_cases hA : a = n
+      · subst a
+        right
+        left
+        simp [sendValsPost, hFlag, addCommitted]
+      · have hOldValid : st.nodeState a = HState.hs_valid := by
+          simpa [sendValsPost, replace, hA] using hValidPost
+        simpa [sendValsPost, replace, hA, hFlag] using
+          step_committed_mono (initTs := initTs) (rank := rank)
+            (HRNext.hr_send_vals_rmw hLive hFlag hState hAll)
+            (st.nodeTS a) (hInv.valid_committed a hOldValid)
+  | hr_send_vals_write hLive hFlag hState hAll =>
+      rename_i n
+      by_cases hA : a = n
+      · subst a
+        right
+        right
+        simp [sendValsPost, hFlag, addCommitted]
+      · have hOldValid : st.nodeState a = HState.hs_valid := by
+          simpa [sendValsPost, replace, hA] using hValidPost
+        simpa [sendValsPost, replace, hA, hFlag] using
+          step_committed_mono (initTs := initTs) (rank := rank)
+            (HRNext.hr_send_vals_write hLive hFlag hState hAll)
+            (st.nodeTS a) (hInv.valid_committed a hOldValid)
+  | hr_rcv_write_inv hLive hMsg hEpoch hSender hKind =>
+      rename_i n m
+      unfold receiveWriteInvPost at hValidPost ⊢
+      split
+      · by_cases hA : a = n
+        · rename_i hGreater
+          simp [hGreater] at hValidPost
+          have hBad : invalidStateAfterGreater st n = HState.hs_valid := by
+            simpa [replace, hA] using hValidPost
+          exact False.elim ((invalidStateAfterGreater_not_valid st n) hBad)
+        · rename_i hGreater
+          simp [hGreater] at hValidPost
+          have hOldValid : st.nodeState a = HState.hs_valid := by
+            simpa [replace, hA] using hValidPost
+          simpa [RefCommitted, replace, hA] using
+            hInv.valid_committed a hOldValid
+      · rename_i hNotGreater
+        simp [hNotGreater] at hValidPost
+        have hOldValid : st.nodeState a = HState.hs_valid := by
+          simpa using hValidPost
+        simpa [RefCommitted] using hInv.valid_committed a hOldValid
+  | hr_rcv_rmw_inv hLive hMsg hEpoch hSender hKind =>
+      rename_i n m
+      unfold receiveRmwInvPost at hValidPost ⊢
+      split
+      · by_cases hA : a = n
+        · rename_i hGreater
+          simp [hGreater] at hValidPost
+          have hBad : invalidStateAfterGreater st n = HState.hs_valid := by
+            simpa [replace, hA] using hValidPost
+          exact False.elim ((invalidStateAfterGreater_not_valid st n) hBad)
+        · rename_i hGreater
+          simp [hGreater] at hValidPost
+          have hOldValid : st.nodeState a = HState.hs_valid := by
+            simpa [replace, hA] using hValidPost
+          simpa [RefCommitted, replace, hA] using
+            hInv.valid_committed a hOldValid
+      · split
+        · rename_i hNotGreater hEq
+          simp [hNotGreater, hEq] at hValidPost
+          have hOldValid : st.nodeState a = HState.hs_valid := by
+            simpa using hValidPost
+          simpa [RefCommitted] using hInv.valid_committed a hOldValid
+        · rename_i hNotGreater hEq
+          simp [hNotGreater, hEq] at hValidPost
+          have hOldValid : st.nodeState a = HState.hs_valid := by
+            simpa using hValidPost
+          simpa [RefCommitted] using hInv.valid_committed a hOldValid
+  | hr_rcv_val hLive hVal hState =>
+      rename_i n m
+      unfold receiveValPost at hValidPost ⊢
+      by_cases hEq : st.nodeTS n = m.ts
+      · simp [hEq, replace] at hValidPost ⊢
+        by_cases hA : a = n
+        · subst a
+          simpa [RefCommitted, hEq] using hInv.val_msg_committed m hVal
+        · have hOldValid : st.nodeState a = HState.hs_valid := by
+            simpa [hA] using hValidPost
+          simpa [RefCommitted, hA] using hInv.valid_committed a hOldValid
+      · simp [hEq] at hValidPost ⊢
+        simpa [RefCommitted] using hInv.valid_committed a hValidPost
+  | hr_follower_replay hLive hState hDead =>
+      rename_i n
+      by_cases hA : a = n
+      · simp [followerReplayPost, replace, hA] at hValidPost
+      · have hOldValid : st.nodeState a = HState.hs_valid := by
+          simpa [followerReplayPost, replace, hA] using hValidPost
+        simpa [followerReplayPost, replace, hA] using
+          step_committed_mono (initTs := initTs) (rank := rank)
+            (HRNext.hr_follower_replay hLive hState hDead)
+            (st.nodeTS a) (hInv.valid_committed a hOldValid)
+  | hr_node_failure hLive =>
+      have hOldValid : st.nodeState a = HState.hs_valid := by
+        simpa [nodeFailurePost] using hValidPost
+      simpa [nodeFailurePost] using
+        step_committed_mono (initTs := initTs) (rank := rank)
+          (HRNext.hr_node_failure hLive)
+          (st.nodeTS a) (hInv.valid_committed a hOldValid)
+  | hr_o3_observe hLive hQuorum =>
+      have hOldValid : st.nodeState a = HState.hs_valid := by
+        simpa [o3ObservePost] using hValidPost
+      simpa [o3ObservePost] using
+        step_committed_mono (initTs := initTs) (rank := rank)
+          (HRNext.hr_o3_observe hLive hQuorum)
+          (st.nodeTS a) (hInv.valid_committed a hOldValid)
+  | hr_o3_complete hLive hState hQuorum =>
+      rename_i n c
+      by_cases hA : a = n
+      · subst a
+        by_cases hFlag : st.nodeFlagRMW n
+        · right
+          left
+          simp [o3CompletePost, hFlag, addCommitted]
+        · right
+          right
+          simp [o3CompletePost, hFlag, addCommitted]
+      · have hOldValid : st.nodeState a = HState.hs_valid := by
+          simpa [o3CompletePost, replace, hA] using hValidPost
+        by_cases hFlag : st.nodeFlagRMW n
+        · simpa [o3CompletePost, replace, hA, hFlag] using
+            step_committed_mono (initTs := initTs) (rank := rank)
+              (HRNext.hr_o3_complete hLive hState hQuorum)
+              (st.nodeTS a) (hInv.valid_committed a hOldValid)
+        · simpa [o3CompletePost, replace, hA, hFlag] using
+            step_committed_mono (initTs := initTs) (rank := rank)
+              (HRNext.hr_o3_complete hLive hState hQuorum)
+              (st.nodeTS a) (hInv.valid_committed a hOldValid)
+
 def HConsistent {Node : Type uRefNode} {Value : Type uRefValue}
     (st : RefState Node Value) : Prop :=
   forall k s,
