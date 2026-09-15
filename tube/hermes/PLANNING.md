@@ -188,6 +188,18 @@ after every ACK, membership change, replay start, validation, timeout wakeup,
 and before blocking on the next select. A ready ticket must not depend on an
 external client retry to finish.
 
+Important Ivy 1.7 detail: `complete_try` and `o3_try` are justice-condition
+pulses, not durable state bits. They are intentionally set and then cleared in
+the same action (`complete_ready` lines 553-598, `o3_complete` lines 624-646),
+and the invariants at lines 654-655 intentionally prove they are false between
+actions. This matches the Apple liveness examples in
+`/home/jaten/ivy/ivy-lang-examples/doc/examples/apple/ord_live2.ivy`, where
+fairness predicates are raised and lowered in one action, used in
+`globally eventually` temporal assumptions, and proved false between actions
+(see its lines 501-502, 597-610, 1824-1864, and 2046-2064). Operationally,
+the Go implementation should treat these predicates as event-loop scheduling
+attempts, not as stored protocol state.
+
 The O3 liveness obligations have the same shape: with fair `o3_complete`
 attempts, an ACK quorum cannot remain installed and invalid forever. For RMW
 timestamps the proved terminal outcomes are success, loss of the installed
