@@ -472,9 +472,7 @@ isolate hermes_protocol = {
         temporal property [all_acked_updates_do_not_stutter_forever] (
             ((exists N0. ~(globally ~(ready(N0) & globally ready(N0)))) -> ~(globally ~(ready(n0) & globally ready(n0))))
         ) -> (
-            (forall N. globally eventually complete_scheduled(N))
-        ) -> (
-            forall N. globally ~(ready(N) & globally ready(N))
+            (forall N. globally eventually complete_scheduled(N)) -> (forall N. globally ~(ready(N) & globally ready(N)))
         )
         proof {
             tactic l2s with
