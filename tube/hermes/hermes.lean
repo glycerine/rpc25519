@@ -558,3 +558,15 @@ theorem ready_epochs_eventually_finish
   exact never_done j ij done_j
 
 end Hermes
+
+-- Evidence dump: print the checked theorem bodies and their axiom dependencies.
+#print Hermes.valid_read_timestamps_agree_from_core
+#print axioms Hermes.valid_read_timestamps_agree_from_core
+#print Hermes.valid_read_values_agree_from_core
+#print axioms Hermes.valid_read_values_agree_from_core
+#print Hermes.completed_rmw_unique_per_base
+#print axioms Hermes.completed_rmw_unique_per_base
+#print Hermes.init_safety
+#print axioms Hermes.init_safety
+#print Hermes.ready_epochs_eventually_finish
+#print axioms Hermes.ready_epochs_eventually_finish
