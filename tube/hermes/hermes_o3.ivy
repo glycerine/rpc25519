@@ -1,6 +1,6 @@
 #lang ivy1.7
 
-# Single-key Hermes protocol model.
+# Single-key Hermes protocol model with O3 broadcast-ACK completion.
 #
 # Hermes is per-key linearizable and composes across keys, so this model
 # intentionally verifies one key. The model includes normal writes, RMWs,
@@ -14,7 +14,7 @@ module total_order(r) = {
     axiom r(X,Y) | r(Y,X)
 }
 
-type ltask = {ready_finish}
+type ltask = {ready_finish, o3_finish}
 
 isolate hermes_protocol = {
 
@@ -34,6 +34,8 @@ isolate hermes_protocol = {
     action complete_current(n:node)
     action complete_overwritten(n:node)
     action complete_ready(n:node)
+    action o3_observe_quorum(n:node, c:node, t:ts)
+    action o3_complete(n:node, c:node, t:ts)
     action mark_ready(n:node, e:epoch)
     action receive_validate(n:node, t:ts)
     action replay_after_failure(n:node)
@@ -47,6 +49,7 @@ isolate hermes_protocol = {
         relation lt(X:ts,Y:ts) = le(X,Y) & X ~= Y
 
         individual ready_task:ltask
+        individual o3_task:ltask
         individual init_ts:ts
         individual init_value:value
         individual init_epoch:epoch
@@ -84,8 +87,10 @@ isolate hermes_protocol = {
         relation inv_rmw(S:node,T:ts,V:value)
         relation ack_msg(A:node,C:node,T:ts)
         relation val_msg(T:ts)
+        relation o3_quorum(N:node,C:node,T:ts)
 
         relation complete_try(N:node)
+        relation o3_try(N:node)
 
         # A timestamp is externally completed once its coordinator/replayer has
         # gathered ACKs from all live members in the current membership.
@@ -93,6 +98,7 @@ isolate hermes_protocol = {
 
         after init {
             ready_task := ready_finish;
+            o3_task := o3_finish;
             live(N) := true;
             state(N) := hs_valid;
             cur_ts(N) := init_ts;
@@ -118,7 +124,9 @@ isolate hermes_protocol = {
             inv_rmw(S,T,V) := false;
             ack_msg(A,C,T) := false;
             val_msg(T) := T = init_ts;
+            o3_quorum(N,C,T) := false;
             complete_try(N) := false;
+            o3_try(N) := false;
             completed(T) := T = init_ts;
         }
 
@@ -501,12 +509,50 @@ isolate hermes_protocol = {
             }
         }
 
+        # O3 broadcast-ACK optimization. Followers broadcast ACKs, so a replica
+        # can remember that it has seen a full live ACK set even before its
+        # matching INV has arrived.
+        before o3_observe_quorum {
+            require live(n);
+            require live(A) -> ack_msg(A,c,t);
+
+            o3_quorum(n,c,t) := true;
+        }
+
+        # Once the matching INV has installed timestamp t locally, the remembered
+        # ACK quorum is enough to infer validity without waiting for VALIDATE.
+        before o3_complete {
+            require live(n);
+            require cur_ts(n) = t;
+            require state(n) ~= hs_valid;
+            require o3_quorum(n,c,t);
+            require ts_rmw(t) & parent(t,B) & completed(R) & ts_rmw(R) & parent(R,B) -> R = t;
+
+            completed(t) := true;
+            state(n) := hs_valid;
+
+            if pending(n) & pending_ts(n) = t {
+                if ready(n) {
+                    epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                };
+                pending(n) := false;
+                pending_rmw(n) := false;
+                acked(n,A) := false;
+                ready(n) := false;
+            };
+
+            o3_try(n) := true;
+            o3_try(N) := false;
+        }
+
         invariant ready(N) -> live(N)
         invariant ready(N) -> seen_epoch(ready_epoch(N))
         invariant ready(N) -> ready_epoch(N) ~= init_epoch
         invariant epoch_done(E) -> seen_epoch(E)
         invariant ~complete_try(N)
+        invariant ~o3_try(N)
         invariant ready_task = ready_finish
+        invariant o3_task = o3_finish
 
         explicit temporal property [ready_epochs_eventually_finish]
         forall N,E. (globally eventually complete_try(N)) -> (globally ~(ready(N) & ready_epoch(N) = E & globally ~epoch_done(E)))
@@ -523,6 +569,23 @@ isolate hermes_protocol = {
                 invariant l2s_saved & ($l2s_s . ready(_N) & ready_epoch(_N) = _E) & ~epoch_done(_E) -> ready(_N) & ready_epoch(_N) = _E
             }
         }
+
+        explicit temporal property [o3_ack_quorums_eventually_finish]
+        forall N,C,T. (globally eventually o3_try(N)) ->
+            globally ~(o3_enabled(N,C,T) & globally (cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & all_acked(C,T) & rmw_conflict_clear(T)))
+        proof {
+            tactic skolemize;
+            tactic l2s_auto5 with {
+                definition work_created(Q) = Q = o3_task
+                definition work_needed(Q) = Q = o3_task & o3_enabled(_N,_C,_T) & ~completed(_T)
+                definition work_done(Q) = Q = o3_task & (completed(_T) | state(_N) = hs_valid | cur_ts(_N) ~= _T | ~all_acked(_C,_T) | ~rmw_conflict_clear(_T))
+                definition work_invar = cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & all_acked(_C,_T) & rmw_conflict_clear(_T)
+                definition work_start = o3_enabled(_N,_C,_T) & globally (cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & all_acked(_C,_T) & rmw_conflict_clear(_T))
+                definition work_progress = o3_try(_N)
+                definition work_helpful = cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & all_acked(_C,_T) & rmw_conflict_clear(_T)
+                invariant l2s_saved & ($l2s_s . cur_ts(_N) = _T & state(_N) ~= hs_valid) & ~completed(_T) -> cur_ts(_N) = _T & state(_N) ~= hs_valid
+            }
+        }
     }
 }
 
@@ -536,6 +599,7 @@ export hermes_protocol.mark_ready
 export hermes_protocol.complete_current
 export hermes_protocol.complete_overwritten
 export hermes_protocol.complete_ready
+export hermes_protocol.o3_complete
 export hermes_protocol.receive_validate
 export hermes_protocol.replay_after_failure
 export hermes_protocol.fail
