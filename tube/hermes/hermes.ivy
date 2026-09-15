@@ -20,14 +20,17 @@ module signal1(data) = {
     specification {
         relation now
         individual value:data
+
         after init {
             now := false;
         }
+
         before raise {
             value := val;
             now := true;
             now := false;
         }
+
         invariant ~now
     }
 }
@@ -37,6 +40,7 @@ isolate hermes_protocol = {
     type node
     type ts
     type value
+    type epoch
 
     type hstate = {hs_valid, hs_invalid, hs_invalid_write, hs_write, hs_replay}
 
@@ -49,7 +53,7 @@ isolate hermes_protocol = {
     action complete_current(n:node)
     action complete_overwritten(n:node)
     action complete_ready(n:node)
-    action mark_ready(n:node)
+    action mark_ready(n:node, e:epoch)
     action receive_validate(n:node, t:ts)
     action replay_after_failure(n:node)
     action fail(n:node)
@@ -63,6 +67,7 @@ isolate hermes_protocol = {
 
         individual init_ts:ts
         individual init_value:value
+        individual init_epoch:epoch
         axiom le(init_ts,T)
 
         # Current per-node key metadata.
@@ -80,6 +85,9 @@ isolate hermes_protocol = {
         relation pending_rmw(N:node)
         relation acked(C:node,A:node)
         relation ready(N:node)
+        individual ready_epoch(N:node):epoch
+        relation seen_epoch(E:epoch)
+        relation epoch_done(E:epoch)
 
         # Timestamp metadata. `parent(T,B)` means update timestamp T was
         # generated from base timestamp B.
@@ -94,6 +102,8 @@ isolate hermes_protocol = {
         relation inv_rmw(S:node,T:ts,V:value)
         relation ack_msg(A:node,C:node,T:ts)
         relation val_msg(T:ts)
+
+        instance complete_try : signal1(node)
 
         # A timestamp is externally completed once its coordinator/replayer has
         # gathered ACKs from all live members in the current membership.
@@ -112,6 +122,9 @@ isolate hermes_protocol = {
             pending_rmw(N) := false;
             acked(C,A) := false;
             ready(N) := false;
+            ready_epoch(N) := init_epoch;
+            seen_epoch(E) := E = init_epoch;
+            epoch_done(E) := E = init_epoch;
 
             seen_ts(T) := T = init_ts;
             parent(T,B) := false;
@@ -196,6 +209,9 @@ isolate hermes_protocol = {
 
             if lt(cur_ts(n),t) {
                 if pending(n) & pending_rmw(n) {
+                    if ready(n) {
+                        epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    };
                     pending(n) := false;
                     pending_rmw(n) := false;
                     acked(n,A) := false;
@@ -223,6 +239,9 @@ isolate hermes_protocol = {
 
             if lt(cur_ts(n),t) {
                 if pending(n) & pending_rmw(n) {
+                    if ready(n) {
+                        epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    };
                     pending(n) := false;
                     pending_rmw(n) := false;
                     acked(n,A) := false;
@@ -281,6 +300,9 @@ isolate hermes_protocol = {
             require pending(n);
             require pending_ts(n) = t;
             require ack_msg(a,n,t);
+            if ready(n) {
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            };
             acked(n,a) := true;
             ready(n) := false;
         }
@@ -288,8 +310,13 @@ isolate hermes_protocol = {
         before mark_ready {
             require live(n);
             require pending(n);
+            require ~ready(n);
+            require ~seen_epoch(e);
             require live(A) -> acked(n,A);
             require pending_rmw(n) & parent(pending_ts(n),B) & completed(R) & ts_rmw(R) & parent(R,B) -> R = pending_ts(n);
+            seen_epoch(E) := seen_epoch(E) | E = e;
+            epoch_done(E) := epoch_done(E) & E ~= e;
+            ready_epoch(n) := e;
             ready(n) := true;
         }
 
@@ -305,6 +332,7 @@ isolate hermes_protocol = {
             completed(cur_ts(n)) := true;
             val_msg(cur_ts(n)) := true;
             state(n) := hs_valid;
+            epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
             pending(n) := false;
             pending_rmw(n) := false;
             acked(n,A) := false;
@@ -320,6 +348,7 @@ isolate hermes_protocol = {
             assert live(A) -> le(pending_ts(n),cur_ts(A));
 
             completed(pending_ts(n)) := true;
+            epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
             pending(n) := false;
             pending_rmw(n) := false;
             acked(n,A) := false;
@@ -336,6 +365,9 @@ isolate hermes_protocol = {
             if cur_ts(n) = t {
                 state(n) := hs_valid;
                 if pending(n) & pending_ts(n) = cur_ts(n) {
+                    if ready(n) {
+                        epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    };
                     pending(n) := false;
                     pending_rmw(n) := false;
                     acked(n,A) := false;
@@ -356,6 +388,9 @@ isolate hermes_protocol = {
             pending_ts(n) := cur_ts(n);
             pending_rmw(n) := cur_rmw(n);
             acked(n,A) := A = n;
+            if ready(n) {
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            };
             ready(n) := false;
 
             if cur_rmw(n) {
@@ -371,6 +406,9 @@ isolate hermes_protocol = {
             pending(n) := false;
             pending_rmw(n) := false;
             acked(n,A) := false;
+            if ready(n) {
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            };
             ready(n) := false;
         }
 
@@ -378,6 +416,7 @@ isolate hermes_protocol = {
         # Safety invariants
         ################################################################################
 
+        invariant seen_epoch(init_epoch)
         invariant seen_ts(init_ts)
         invariant completed(init_ts)
         invariant ts_value(init_ts,init_value)
@@ -409,6 +448,9 @@ isolate hermes_protocol = {
         invariant pending(N) & acked(N,A) -> le(pending_ts(N),cur_ts(A))
         invariant ready(N) -> pending(N)
         invariant ready(N) & live(A) -> acked(N,A)
+        invariant ready(N) -> pending_ts(N) = cur_ts(N) | lt(pending_ts(N),cur_ts(N))
+        invariant ready(N) & pending_ts(N) = cur_ts(N) -> state(N) = hs_write | state(N) = hs_replay
+        invariant ready(N) & lt(pending_ts(N),cur_ts(N)) -> state(N) = hs_invalid_write | state(N) = hs_invalid | state(N) = hs_valid
         invariant pending(N) & pending_ts(N) = cur_ts(N) -> state(N) = hs_write | state(N) = hs_replay
         invariant pending(N) & lt(pending_ts(N),cur_ts(N)) -> state(N) = hs_invalid_write | state(N) = hs_invalid | state(N) = hs_valid
         invariant ~pending(N) -> ~acked(N,A)
@@ -443,13 +485,12 @@ isolate hermes_protocol = {
         # Liveness/progress obligation
         ################################################################################
 
-        instance completion : signal1(node)
-
         before complete_ready {
             if live(n) & ready(n) & pending(n) & pending_ts(n) = cur_ts(n) & (state(n) = hs_write | state(n) = hs_replay) {
                 completed(cur_ts(n)) := true;
                 val_msg(cur_ts(n)) := true;
                 state(n) := hs_valid;
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
                 pending(n) := false;
                 pending_rmw(n) := false;
                 acked(n,A) := false;
@@ -457,6 +498,7 @@ isolate hermes_protocol = {
             } else {
                 if live(n) & ready(n) & pending(n) & lt(pending_ts(n),cur_ts(n)) {
                     completed(pending_ts(n)) := true;
+                    epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
                     pending(n) := false;
                     pending_rmw(n) := false;
                     acked(n,A) := false;
@@ -468,22 +510,25 @@ isolate hermes_protocol = {
                 }
             };
 
-            call completion.raise(n);
+            complete_try.raise(n);
         }
 
         invariant ready(N) -> live(N)
+        invariant ready(N) -> seen_epoch(ready_epoch(N))
+        invariant ready(N) -> ready_epoch(N) ~= init_epoch
+        invariant epoch_done(E) -> seen_epoch(E)
 
-        temporal property [ready_nodes_eventually_complete]
-        forall N. (globally eventually (completion.now & completion.value = N)) -> (globally (ready(N) -> eventually ~ready(N)))
+        explicit temporal property [ready_epochs_eventually_finish]
+        forall N,E. (globally eventually (complete_try.now & complete_try.value = N)) -> (globally ((ready(N) & ready_epoch(N) = E) -> eventually epoch_done(E)))
         proof {
             tactic skolemizenp;
             tactic l2s_auto2 with {
-                definition work_created = true
-                definition work_needed = true
-                definition work_done = false
-                definition work_end = ready(_N) & globally ready(_N)
-                definition work_start = ready(_N) & globally ready(_N)
-                definition work_progress = completion.now & completion.value = _N
+                definition work_created(C) = C = _N
+                definition work_needed(C) = C = _N
+                definition work_done(C) = C = _N & epoch_done(_E)
+                definition work_start = ready(_N) & ready_epoch(_N) = _E & globally ~epoch_done(_E)
+                definition work_progress(C) = complete_try.now & complete_try.value = C
+                invariant l2s_saved & ($l2s_s . ready(_N) & ready_epoch(_N) = _E) & ~epoch_done(_E) -> ready(_N) & ready_epoch(_N) = _E
             }
         }
     }
