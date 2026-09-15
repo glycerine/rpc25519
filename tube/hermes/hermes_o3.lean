@@ -656,3 +656,19 @@ theorem o3_ack_quorums_eventually_finish
     · exact movedJ badJ.1
 
 end HermesO3
+
+-- Evidence dump: print the checked theorem bodies and their axiom dependencies.
+#print HermesO3.valid_read_timestamps_agree_from_core
+#print axioms HermesO3.valid_read_timestamps_agree_from_core
+#print HermesO3.valid_read_values_agree_from_core
+#print axioms HermesO3.valid_read_values_agree_from_core
+#print HermesO3.completed_rmw_unique_per_base
+#print axioms HermesO3.completed_rmw_unique_per_base
+#print HermesO3.o3_quorum_live_nodes_advanced
+#print axioms HermesO3.o3_quorum_live_nodes_advanced
+#print HermesO3.init_safety
+#print axioms HermesO3.init_safety
+#print HermesO3.ready_epochs_eventually_finish
+#print axioms HermesO3.ready_epochs_eventually_finish
+#print HermesO3.o3_ack_quorums_eventually_finish
+#print axioms HermesO3.o3_ack_quorums_eventually_finish
