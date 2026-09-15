@@ -2506,6 +2506,10 @@ structure RefAgreementInvariant
       st.nodeLastWriteTS n = st.nodeTS n
   o3_quorum_epoch_le :
     forall n c t e, st.o3Quorum n c t e -> e <= st.epochID
+  o3_quorum_nonself_ack :
+    forall n c t, st.o3Quorum n c t st.epochID ->
+      forall a, st.live a -> a ≠ c ->
+        st.ackMsgs { sender := a, epochID := st.epochID, ts := t }
   o3_current_quorum_advanced :
     forall n c t, st.o3Quorum n c t st.epochID ->
       forall a, st.live a -> tsLe rank t (st.nodeTS a)
@@ -3652,6 +3656,126 @@ theorem step_o3_quorum_epoch_le
       · simpa [o3CompletePost, hFlag] using hInv.o3_quorum_epoch_le n c t e hQPost
       · simpa [o3CompletePost, hFlag] using hInv.o3_quorum_epoch_le n c t e hQPost
 
+theorem step_o3_quorum_nonself_ack
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {rank : NodeRank Node} {initTs : Timestamp Node}
+    {st st' : RefState Node Value} {label : RefLabel Node}
+    (hInv : RefAgreementInvariant rank initTs st)
+    (hStep : HRNext rank st label st') :
+    forall n c t, st'.o3Quorum n c t st'.epochID ->
+      forall a, st'.live a -> a ≠ c ->
+        st'.ackMsgs { sender := a, epochID := st'.epochID, ts := t } := by
+  intro n c t hQPost a hLivePost hNe
+  cases hStep with
+  | hr_write hLive hState =>
+      exact hInv.o3_quorum_nonself_ack n c t
+        (by simpa [writePost, startUpdatePost] using hQPost) a
+        (by simpa [writePost, startUpdatePost] using hLivePost) hNe
+  | hr_rmw hLive hState =>
+      exact hInv.o3_quorum_nonself_ack n c t
+        (by simpa [rmwPost, startUpdatePost] using hQPost) a
+        (by simpa [rmwPost, startUpdatePost] using hLivePost) hNe
+  | hr_write_replay hLive hState hEpoch hMissing hFlag =>
+      exact hInv.o3_quorum_nonself_ack n c t
+        (by simpa [writeReplayPost] using hQPost) a
+        (by simpa [writeReplayPost] using hLivePost) hNe
+  | hr_rmw_replay hLive hState hEpoch hMissing hFlag =>
+      exact hInv.o3_quorum_nonself_ack n c t
+        (by simpa [rmwReplayPost] using hQPost) a
+        (by simpa [rmwReplayPost] using hLivePost) hNe
+  | hr_rcv_ack hLive hMsg hEpoch hSender hFresh hTs hState =>
+      exact hInv.o3_quorum_nonself_ack n c t
+        (by simpa [receiveAckPost] using hQPost) a
+        (by simpa [receiveAckPost] using hLivePost) hNe
+  | hr_send_vals_rmw hLive hFlag hState hAll =>
+      exact hInv.o3_quorum_nonself_ack n c t
+        (by simpa [sendValsPost] using hQPost) a
+        (by simpa [sendValsPost] using hLivePost) hNe
+  | hr_send_vals_write hLive hFlag hState hAll =>
+      exact hInv.o3_quorum_nonself_ack n c t
+        (by simpa [sendValsPost] using hQPost) a
+        (by simpa [sendValsPost] using hLivePost) hNe
+  | hr_rcv_write_inv hLive hMsg hEpoch hSender hKind =>
+      rename_i recv msg
+      unfold receiveWriteInvPost at hQPost hLivePost ⊢
+      split
+      · rename_i hGreater
+        have hOldAck := hInv.o3_quorum_nonself_ack n c t
+          (by simpa [hGreater] using hQPost) a
+          (by simpa [hGreater] using hLivePost) hNe
+        simpa [hGreater, addAck] using Or.inl hOldAck
+      · rename_i hNotGreater
+        have hOldAck := hInv.o3_quorum_nonself_ack n c t
+          (by simpa [hNotGreater] using hQPost) a
+          (by simpa [hNotGreater] using hLivePost) hNe
+        simpa [hNotGreater, addAck] using Or.inl hOldAck
+  | hr_rcv_rmw_inv hLive hMsg hEpoch hSender hKind =>
+      rename_i recv msg
+      unfold receiveRmwInvPost at hQPost hLivePost ⊢
+      split
+      · rename_i hGreater
+        have hOldAck := hInv.o3_quorum_nonself_ack n c t
+          (by simpa [hGreater] using hQPost) a
+          (by simpa [hGreater] using hLivePost) hNe
+        simpa [hGreater, addAck] using Or.inl hOldAck
+      · rename_i hNotGreater
+        split
+        · rename_i hEq
+          have hOldQ : st.o3Quorum n c t st.epochID := by
+            change st.o3Quorum n c t st.epochID at hQPost
+            exact hQPost
+          have hOldLive : st.live a := by
+            change st.live a at hLivePost
+            exact hLivePost
+          have hOldAck := hInv.o3_quorum_nonself_ack n c t hOldQ a hOldLive hNe
+          change (addAck st.ackMsgs (sendAckMsg st.epochID recv msg.ts))
+            { sender := a, epochID := st.epochID, ts := t }
+          exact Or.inl hOldAck
+        · rename_i hEq
+          have hOldQ : st.o3Quorum n c t st.epochID := by
+            change st.o3Quorum n c t st.epochID at hQPost
+            exact hQPost
+          have hOldLive : st.live a := by
+            change st.live a at hLivePost
+            exact hLivePost
+          exact hInv.o3_quorum_nonself_ack n c t hOldQ a hOldLive hNe
+  | hr_rcv_val hLive hVal hState =>
+      unfold receiveValPost at hQPost hLivePost ⊢
+      split
+      · rename_i hEq
+        exact hInv.o3_quorum_nonself_ack n c t
+          (by simpa [hEq] using hQPost) a
+          (by simpa [hEq] using hLivePost) hNe
+      · rename_i hEq
+        exact hInv.o3_quorum_nonself_ack n c t
+          (by simpa [hEq] using hQPost) a
+          (by simpa [hEq] using hLivePost) hNe
+  | hr_follower_replay hLive hState hDead =>
+      exact hInv.o3_quorum_nonself_ack n c t
+        (by simpa [followerReplayPost] using hQPost) a
+        (by simpa [followerReplayPost] using hLivePost) hNe
+  | hr_node_failure hLive =>
+      have hOldQ : st.o3Quorum n c t (st.epochID + 1) := by
+        simpa [nodeFailurePost] using hQPost
+      have hImpossible : st.epochID + 1 <= st.epochID :=
+        hInv.o3_quorum_epoch_le n c t (st.epochID + 1) hOldQ
+      omega
+  | hr_o3_observe hLive hQuorum =>
+      simp [o3ObservePost, addO3] at hQPost
+      rcases hQPost with hOld | hNew
+      · exact hInv.o3_quorum_nonself_ack n c t hOld a hLivePost hNe
+      · rcases hNew with ⟨rfl, rfl, rfl, rfl⟩
+        exact hQuorum.2.2 a hLivePost hNe
+  | hr_o3_complete hLive hState hQuorum =>
+      rename_i nStep cStep
+      by_cases hFlag : st.nodeFlagRMW nStep
+      · exact hInv.o3_quorum_nonself_ack n c t
+          (by simpa [o3CompletePost, hFlag] using hQPost) a
+          (by simpa [o3CompletePost, hFlag] using hLivePost) hNe
+      · exact hInv.o3_quorum_nonself_ack n c t
+          (by simpa [o3CompletePost, hFlag] using hQPost) a
+          (by simpa [o3CompletePost, hFlag] using hLivePost) hNe
+
 theorem step_o3_current_quorum_advanced
     {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
     {rank : NodeRank Node} {initTs : Timestamp Node}
@@ -3735,6 +3859,7 @@ theorem ref_agreement_preserved
     valid_committed := step_valid_committed hInv hStep
     write_or_replay_last_current := step_write_or_replay_last_current hInv hStep
     o3_quorum_epoch_le := step_o3_quorum_epoch_le hInv hStep
+    o3_quorum_nonself_ack := step_o3_quorum_nonself_ack hInv hStep
     o3_current_quorum_advanced := step_o3_current_quorum_advanced hInv hStep
   }
 
@@ -3772,6 +3897,24 @@ def WriteCommitSafe {Node : Type uRefNode} {Value : Type uRefValue}
     (st : RefState Node Value) (t : Timestamp Node) : Prop :=
   forall x, st.committedRMWs x -> RmwWriteGap x t
 
+def RmwActiveSafe {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) (t : Timestamp Node) : Prop :=
+  (forall a, st.live a -> st.nodeFlagRMW a = false ->
+    RmwWriteGap t (st.nodeTS a)) /\
+  (forall a, st.live a -> st.nodeFlagRMW a = true ->
+    RmwSameVersionOK (st.nodeTS a) t) /\
+  (forall m, st.rmsgs m -> m.epochID = st.epochID ->
+    m.kind = OpKind.write -> RmwWriteGap t m.ts) /\
+  (forall m, st.rmsgs m -> m.epochID = st.epochID ->
+    m.kind = OpKind.rmw -> RmwSameVersionOK m.ts t)
+
+def WriteActiveSafe {Node : Type uRefNode} {Value : Type uRefValue}
+    (st : RefState Node Value) (t : Timestamp Node) : Prop :=
+  (forall a, st.live a -> st.nodeFlagRMW a = true ->
+    RmwWriteGap (st.nodeTS a) t) /\
+  (forall m, st.rmsgs m -> m.epochID = st.epochID ->
+    m.kind = OpKind.rmw -> RmwWriteGap m.ts t)
+
 theorem version_le_of_tsLe {Node : Type uRefNode} (rank : NodeRank Node)
     {a b : Timestamp Node} :
     tsLe rank a b -> a.version <= b.version := by
@@ -3789,7 +3932,13 @@ theorem rmw_write_gap_to_succ_succ_of_le
   intro hLe
   have hVersionLe : rmw.version <= base.version :=
     version_le_of_tsLe rank hLe
-  constructor <;> intro hBad <;> unfold tsOf at hBad <;> omega
+  constructor
+  · intro hBad
+    simp [tsOf] at hBad
+    omega
+  · intro hBad
+    simp [tsOf] at hBad
+    omega
 
 theorem rmw_write_gap_from_succ_of_le
     {Node : Type uRefNode} {rank : NodeRank Node}
@@ -3799,7 +3948,14 @@ theorem rmw_write_gap_from_succ_of_le
   intro hLe
   have hVersionLe : write.version <= base.version :=
     version_le_of_tsLe rank hLe
-  constructor <;> intro hBad <;> unfold tsOf at hBad <;> omega
+  constructor
+  · intro hBad
+    simp [tsOf] at hBad
+    omega
+  · intro hBad
+    have hSubLe : write.version - 1 <= write.version := Nat.sub_le _ _
+    simp [tsOf] at hBad
+    omega
 
 theorem rmw_same_version_ok_from_succ_of_le
     {Node : Type uRefNode} {rank : NodeRank Node}
@@ -3811,7 +3967,7 @@ theorem rmw_same_version_ok_from_succ_of_le
     version_le_of_tsLe rank hLe
   left
   intro hBad
-  unfold tsOf at hBad
+  simp [tsOf] at hBad
   omega
 
 theorem send_vals_rmw_preserves_rmw_semantics
@@ -3913,6 +4069,17 @@ structure RefRmwInvariant
     (st : RefState Node Value) : Prop where
   semantic :
     HRSemanticsRMW st
+  rmsg_epoch_le :
+    forall m, st.rmsgs m -> m.epochID <= st.epochID
+  rmsg_write_safe :
+    forall m x, st.rmsgs m -> m.epochID = st.epochID ->
+      m.kind = OpKind.write -> st.committedRMWs x -> RmwWriteGap x m.ts
+  rmsg_rmw_write_safe :
+    forall m y, st.rmsgs m -> m.epochID = st.epochID ->
+      m.kind = OpKind.rmw -> st.committedWrites y -> RmwWriteGap m.ts y
+  rmsg_rmw_unique :
+    forall m x, st.rmsgs m -> m.epochID = st.epochID ->
+      m.kind = OpKind.rmw -> st.committedRMWs x -> RmwSameVersionOK m.ts x
   live_write_safe :
     forall x n, st.committedRMWs x -> st.live n ->
       st.nodeFlagRMW n = false -> RmwWriteGap x (st.nodeTS n)
@@ -3923,28 +4090,28 @@ structure RefRmwInvariant
     forall n x, st.live n -> st.nodeFlagRMW n = true ->
       st.committedRMWs x -> RmwSameVersionOK (st.nodeTS n) x
 
-theorem init_rmw_invariant
+theorem rmw_self_commit_safe
     {Node : Type uRefNode} {Value : Type uRefValue}
-    (initNode : Node) (initValue : Value) :
-    RefRmwInvariant
-      (initState (Node := Node) (Value := Value) initNode initValue) := by
-  refine {
-    semantic := by
-      constructor
-      · intro x y hx _hy
-        cases hx
-      · intro x y hx _hy
-        cases hx
-    live_write_safe := ?_
-    live_rmw_write_safe := ?_
-    live_rmw_unique := ?_
-  }
-  · intro x n hx _hLive _hFlag
-    cases hx
-  · intro n y _hLive hFlag _hy
-    cases hFlag
-  · intro n x _hLive hFlag _hx
-    cases hFlag
+    {st : RefState Node Value} {n : Node}
+    (hRmw : RefRmwInvariant st)
+    (hLive : st.live n)
+    (hFlag : st.nodeFlagRMW n = true) :
+    RmwCommitSafe st (st.nodeTS n) := by
+  constructor
+  · intro y hy
+    exact hRmw.live_rmw_write_safe n y hLive hFlag hy
+  · intro x hx
+    exact hRmw.live_rmw_unique n x hLive hFlag hx
+
+theorem write_self_commit_safe
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    {st : RefState Node Value} {n : Node}
+    (hRmw : RefRmwInvariant st)
+    (hLive : st.live n)
+    (hFlag : st.nodeFlagRMW n = false) :
+    WriteCommitSafe st (st.nodeTS n) := by
+  intro x hx
+  exact hRmw.live_write_safe x n hx hLive hFlag
 
 theorem local_write_preserves_ref_rmw_invariant
     {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
@@ -3957,10 +4124,42 @@ theorem local_write_preserves_ref_rmw_invariant
   refine {
     semantic := by
       simpa [writePost, startUpdatePost] using hRmw.semantic
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
     live_write_safe := ?_
     live_rmw_write_safe := ?_
     live_rmw_unique := ?_
   }
+  · intro m hm
+    simp [writePost, startUpdatePost, addRInv, sendRInvMsg] at hm
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_epoch_le m hm
+    · subst hm
+      exact Nat.le_refl st.epochID
+  · intro m x hm hEpoch hKind hx
+    simp [writePost, startUpdatePost, addRInv, sendRInvMsg] at hm hEpoch hKind ⊢
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_write_safe m x hm hEpoch hKind hx
+    · subst hm
+      have hOldLe : tsLe rank x (st.nodeTS n) :=
+        hAgree.committed_live_advanced x n (Or.inl hx) hLive
+      exact rmw_write_gap_to_succ_succ_of_le
+        (rank := rank) (rmw := x) (base := st.nodeTS n)
+        (writer := n) hOldLe
+  · intro m y hm hEpoch hKind hy
+    simp [writePost, startUpdatePost, addRInv, sendRInvMsg] at hm hEpoch hKind
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_rmw_write_safe m y hm hEpoch hKind hy
+    · subst hm
+      simp at hKind
+  · intro m x hm hEpoch hKind hx
+    simp [writePost, startUpdatePost, addRInv, sendRInvMsg] at hm hEpoch hKind
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_rmw_unique m x hm hEpoch hKind hx
+    · subst hm
+      simp at hKind
   · intro x a hx hLiveA hFlagA
     by_cases hA : a = n
     · subst a
@@ -4011,10 +4210,46 @@ theorem local_rmw_preserves_ref_rmw_invariant
   refine {
     semantic := by
       simpa [rmwPost, startUpdatePost] using hRmw.semantic
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
     live_write_safe := ?_
     live_rmw_write_safe := ?_
     live_rmw_unique := ?_
   }
+  · intro m hm
+    simp [rmwPost, startUpdatePost, addRInv, sendRInvMsg] at hm
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_epoch_le m hm
+    · subst hm
+      exact Nat.le_refl st.epochID
+  · intro m x hm hEpoch hKind hx
+    simp [rmwPost, startUpdatePost, addRInv, sendRInvMsg] at hm hEpoch hKind
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_write_safe m x hm hEpoch hKind hx
+    · subst hm
+      simp at hKind
+  · intro m y hm hEpoch hKind hy
+    simp [rmwPost, startUpdatePost, addRInv, sendRInvMsg] at hm hEpoch hKind ⊢
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_rmw_write_safe m y hm hEpoch hKind hy
+    · subst hm
+      have hOldLe : tsLe rank y (st.nodeTS n) :=
+        hAgree.committed_live_advanced y n (Or.inr hy) hLive
+      exact rmw_write_gap_from_succ_of_le
+        (rank := rank) (base := st.nodeTS n) (write := y)
+        (writer := n) hOldLe
+  · intro m x hm hEpoch hKind hx
+    simp [rmwPost, startUpdatePost, addRInv, sendRInvMsg] at hm hEpoch hKind ⊢
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_rmw_unique m x hm hEpoch hKind hx
+    · subst hm
+      have hOldLe : tsLe rank x (st.nodeTS n) :=
+        hAgree.committed_live_advanced x n (Or.inl hx) hLive
+      exact rmw_same_version_ok_from_succ_of_le
+        (rank := rank) (base := st.nodeTS n) (rmw := x)
+        (writer := n) hOldLe
   · intro x a hx hLiveA hFlagA
     by_cases hA : a = n
     · subst a
@@ -4062,14 +4297,44 @@ theorem local_rmw_preserves_ref_rmw_invariant
 theorem write_replay_preserves_ref_rmw_invariant
     {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
     {st : RefState Node Value} {n : Node}
-    (hRmw : RefRmwInvariant st) :
+    (hRmw : RefRmwInvariant st)
+    (hLive : st.live n)
+    (hFlag : st.nodeFlagRMW n = false) :
     RefRmwInvariant (writeReplayPost st n) := by
   refine {
     semantic := by simpa [writeReplayPost] using hRmw.semantic
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
     live_write_safe := ?_
     live_rmw_write_safe := ?_
     live_rmw_unique := ?_
   }
+  · intro m hm
+    simp [writeReplayPost, addRInv, sendRInvMsg] at hm
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_epoch_le m hm
+    · subst hm
+      exact Nat.le_refl st.epochID
+  · intro m x hm hEpoch hKind hx
+    simp [writeReplayPost, addRInv, sendRInvMsg] at hm hEpoch hKind
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_write_safe m x hm hEpoch hKind hx
+    · subst hm
+      exact hRmw.live_write_safe x n hx hLive hFlag
+  · intro m y hm hEpoch hKind hy
+    simp [writeReplayPost, addRInv, sendRInvMsg] at hm hEpoch hKind
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_rmw_write_safe m y hm hEpoch hKind hy
+    · subst hm
+      simp at hKind
+  · intro m x hm hEpoch hKind hx
+    simp [writeReplayPost, addRInv, sendRInvMsg] at hm hEpoch hKind
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_rmw_unique m x hm hEpoch hKind hx
+    · subst hm
+      simp at hKind
   · intro x a hx hLiveA hFlagA
     exact hRmw.live_write_safe x a hx hLiveA hFlagA
   · intro a y hLiveA hFlagA hy
@@ -4080,14 +4345,44 @@ theorem write_replay_preserves_ref_rmw_invariant
 theorem rmw_replay_preserves_ref_rmw_invariant
     {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
     {st : RefState Node Value} {n : Node}
-    (hRmw : RefRmwInvariant st) :
+    (hRmw : RefRmwInvariant st)
+    (hLive : st.live n)
+    (hFlag : st.nodeFlagRMW n = true) :
     RefRmwInvariant (rmwReplayPost st n) := by
   refine {
     semantic := by simpa [rmwReplayPost] using hRmw.semantic
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
     live_write_safe := ?_
     live_rmw_write_safe := ?_
     live_rmw_unique := ?_
   }
+  · intro m hm
+    simp [rmwReplayPost, addRInv, sendRInvMsg] at hm
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_epoch_le m hm
+    · subst hm
+      exact Nat.le_refl st.epochID
+  · intro m x hm hEpoch hKind hx
+    simp [rmwReplayPost, addRInv, sendRInvMsg] at hm hEpoch hKind
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_write_safe m x hm hEpoch hKind hx
+    · subst hm
+      simp at hKind
+  · intro m y hm hEpoch hKind hy
+    simp [rmwReplayPost, addRInv, sendRInvMsg] at hm hEpoch hKind
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_rmw_write_safe m y hm hEpoch hKind hy
+    · subst hm
+      exact hRmw.live_rmw_write_safe n y hLive hFlag hy
+  · intro m x hm hEpoch hKind hx
+    simp [rmwReplayPost, addRInv, sendRInvMsg] at hm hEpoch hKind
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_rmw_unique m x hm hEpoch hKind hx
+    · subst hm
+      exact hRmw.live_rmw_unique n x hLive hFlag hx
   · intro x a hx hLiveA hFlagA
     exact hRmw.live_write_safe x a hx hLiveA hFlagA
   · intro a y hLiveA hFlagA hy
@@ -4102,10 +4397,18 @@ theorem receive_ack_preserves_ref_rmw_invariant
     RefRmwInvariant (receiveAckPost st n sender) := by
   refine {
     semantic := by simpa [receiveAckPost] using hRmw.semantic
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
     live_write_safe := ?_
     live_rmw_write_safe := ?_
     live_rmw_unique := ?_
   }
+  · exact hRmw.rmsg_epoch_le
+  · exact hRmw.rmsg_write_safe
+  · exact hRmw.rmsg_rmw_write_safe
+  · exact hRmw.rmsg_rmw_unique
   · intro x a hx hLiveA hFlagA
     exact hRmw.live_write_safe x a hx hLiveA hFlagA
   · intro a y hLiveA hFlagA hy
@@ -4122,10 +4425,18 @@ theorem receive_val_preserves_ref_rmw_invariant
   split
   · refine {
       semantic := by simpa using hRmw.semantic
+      rmsg_epoch_le := ?_
+      rmsg_write_safe := ?_
+      rmsg_rmw_write_safe := ?_
+      rmsg_rmw_unique := ?_
       live_write_safe := ?_
       live_rmw_write_safe := ?_
       live_rmw_unique := ?_
     }
+    · exact hRmw.rmsg_epoch_le
+    · exact hRmw.rmsg_write_safe
+    · exact hRmw.rmsg_rmw_write_safe
+    · exact hRmw.rmsg_rmw_unique
     · intro x a hx hLiveA hFlagA
       exact hRmw.live_write_safe x a hx hLiveA hFlagA
     · intro a y hLiveA hFlagA hy
@@ -4137,14 +4448,55 @@ theorem receive_val_preserves_ref_rmw_invariant
 theorem follower_replay_preserves_ref_rmw_invariant
     {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
     {st : RefState Node Value} {n : Node}
-    (hRmw : RefRmwInvariant st) :
+    (hRmw : RefRmwInvariant st)
+    (hLive : st.live n) :
     RefRmwInvariant (followerReplayPost st n) := by
   refine {
     semantic := by simpa [followerReplayPost] using hRmw.semantic
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
     live_write_safe := ?_
     live_rmw_write_safe := ?_
     live_rmw_unique := ?_
   }
+  · intro m hm
+    simp [followerReplayPost, addRInv, sendRInvMsg] at hm
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_epoch_le m hm
+    · subst hm
+      exact Nat.le_refl st.epochID
+  · intro m x hm hEpoch hKind hx
+    simp [followerReplayPost, addRInv, sendRInvMsg] at hm hEpoch hKind
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_write_safe m x hm hEpoch hKind hx
+    · subst hm
+      by_cases hFlag : st.nodeFlagRMW n
+      · simp [hFlag] at hKind
+      · have hFlagFalse : st.nodeFlagRMW n = false := by
+          simpa using hFlag
+        exact hRmw.live_write_safe x n hx hLive hFlagFalse
+  · intro m y hm hEpoch hKind hy
+    simp [followerReplayPost, addRInv, sendRInvMsg] at hm hEpoch hKind
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_rmw_write_safe m y hm hEpoch hKind hy
+    · subst hm
+      by_cases hFlag : st.nodeFlagRMW n
+      · have hFlagTrue : st.nodeFlagRMW n = true := by
+          simpa using hFlag
+        exact hRmw.live_rmw_write_safe n y hLive hFlagTrue hy
+      · simp [hFlag] at hKind
+  · intro m x hm hEpoch hKind hx
+    simp [followerReplayPost, addRInv, sendRInvMsg] at hm hEpoch hKind
+    rcases hm with hm | hm
+    · exact hRmw.rmsg_rmw_unique m x hm hEpoch hKind hx
+    · subst hm
+      by_cases hFlag : st.nodeFlagRMW n
+      · have hFlagTrue : st.nodeFlagRMW n = true := by
+          simpa using hFlag
+        exact hRmw.live_rmw_unique n x hLive hFlagTrue hx
+      · simp [hFlag] at hKind
   · intro x a hx hLiveA hFlagA
     exact hRmw.live_write_safe x a hx hLiveA hFlagA
   · intro a y hLiveA hFlagA hy
@@ -4159,22 +4511,47 @@ theorem node_failure_preserves_ref_rmw_invariant
     RefRmwInvariant (nodeFailurePost st n) := by
   refine {
     semantic := by simpa [nodeFailurePost] using hRmw.semantic
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
     live_write_safe := ?_
     live_rmw_write_safe := ?_
     live_rmw_unique := ?_
   }
+  · intro m hm
+    exact Nat.le_succ_of_le (hRmw.rmsg_epoch_le m (by
+      simpa [nodeFailurePost] using hm))
+  · intro m x hm hEpoch hKind hx
+    have hOldMsg : st.rmsgs m := by
+      simpa [nodeFailurePost] using hm
+    have hOldLe : m.epochID <= st.epochID := hRmw.rmsg_epoch_le m hOldMsg
+    simp [nodeFailurePost] at hEpoch
+    omega
+  · intro m y hm hEpoch hKind hy
+    have hOldMsg : st.rmsgs m := by
+      simpa [nodeFailurePost] using hm
+    have hOldLe : m.epochID <= st.epochID := hRmw.rmsg_epoch_le m hOldMsg
+    simp [nodeFailurePost] at hEpoch
+    omega
+  · intro m x hm hEpoch hKind hx
+    have hOldMsg : st.rmsgs m := by
+      simpa [nodeFailurePost] using hm
+    have hOldLe : m.epochID <= st.epochID := hRmw.rmsg_epoch_le m hOldMsg
+    simp [nodeFailurePost] at hEpoch
+    omega
   · intro x a hx hLiveA hFlagA
-    have hOldLive : st.live a := by
+    have hOldLiveAndNe : st.live a ∧ a ≠ n := by
       simpa [nodeFailurePost, removeLive] using hLiveA
-    exact hRmw.live_write_safe x a hx hOldLive hFlagA
+    exact hRmw.live_write_safe x a hx hOldLiveAndNe.1 hFlagA
   · intro a y hLiveA hFlagA hy
-    have hOldLive : st.live a := by
+    have hOldLiveAndNe : st.live a ∧ a ≠ n := by
       simpa [nodeFailurePost, removeLive] using hLiveA
-    exact hRmw.live_rmw_write_safe a y hOldLive hFlagA hy
+    exact hRmw.live_rmw_write_safe a y hOldLiveAndNe.1 hFlagA hy
   · intro a x hLiveA hFlagA hx
-    have hOldLive : st.live a := by
+    have hOldLiveAndNe : st.live a ∧ a ≠ n := by
       simpa [nodeFailurePost, removeLive] using hLiveA
-    exact hRmw.live_rmw_unique a x hOldLive hFlagA hx
+    exact hRmw.live_rmw_unique a x hOldLiveAndNe.1 hFlagA hx
 
 theorem o3_observe_preserves_ref_rmw_invariant
     {Node : Type uRefNode} {Value : Type uRefValue}
@@ -4183,16 +4560,535 @@ theorem o3_observe_preserves_ref_rmw_invariant
     RefRmwInvariant (o3ObservePost st n c t) := by
   refine {
     semantic := by simpa [o3ObservePost] using hRmw.semantic
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
     live_write_safe := ?_
     live_rmw_write_safe := ?_
     live_rmw_unique := ?_
   }
+  · exact hRmw.rmsg_epoch_le
+  · exact hRmw.rmsg_write_safe
+  · exact hRmw.rmsg_rmw_write_safe
+  · exact hRmw.rmsg_rmw_unique
   · intro x a hx hLiveA hFlagA
     exact hRmw.live_write_safe x a hx hLiveA hFlagA
   · intro a y hLiveA hFlagA hy
     exact hRmw.live_rmw_write_safe a y hLiveA hFlagA hy
   · intro a x hLiveA hFlagA hx
     exact hRmw.live_rmw_unique a x hLiveA hFlagA hx
+
+theorem receive_write_inv_preserves_ref_rmw_invariant
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {rank : NodeRank Node} {st : RefState Node Value} {n : Node}
+    {m : RInvMsg Node Value}
+    (hRmw : RefRmwInvariant st)
+    (hMsg : st.rmsgs m)
+    (hEpoch : m.epochID = st.epochID)
+    (hKind : m.kind = OpKind.write) :
+    RefRmwInvariant (receiveWriteInvPost rank st n m) := by
+  unfold receiveWriteInvPost
+  split
+  · rename_i hGreater
+    refine {
+      semantic := by simpa using hRmw.semantic
+      rmsg_epoch_le := ?_
+      rmsg_write_safe := ?_
+      rmsg_rmw_write_safe := ?_
+      rmsg_rmw_unique := ?_
+      live_write_safe := ?_
+      live_rmw_write_safe := ?_
+      live_rmw_unique := ?_
+    }
+    · exact hRmw.rmsg_epoch_le
+    · exact hRmw.rmsg_write_safe
+    · exact hRmw.rmsg_rmw_write_safe
+    · exact hRmw.rmsg_rmw_unique
+    · intro x a hx hLiveA hFlagA
+      by_cases hA : a = n
+      · subst a
+        simpa [replace] using hRmw.rmsg_write_safe m x hMsg hEpoch hKind hx
+      · have hOldFlag : st.nodeFlagRMW a = false := by
+          simpa [replace, hA] using hFlagA
+        simpa [replace, hA] using
+          hRmw.live_write_safe x a hx hLiveA hOldFlag
+    · intro a y hLiveA hFlagA hy
+      by_cases hA : a = n
+      · subst a
+        simp [replace] at hFlagA
+      · have hOldFlag : st.nodeFlagRMW a = true := by
+          simpa [replace, hA] using hFlagA
+        simpa [replace, hA] using
+          hRmw.live_rmw_write_safe a y hLiveA hOldFlag hy
+    · intro a x hLiveA hFlagA hx
+      by_cases hA : a = n
+      · subst a
+        simp [replace] at hFlagA
+      · have hOldFlag : st.nodeFlagRMW a = true := by
+          simpa [replace, hA] using hFlagA
+        simpa [replace, hA] using
+          hRmw.live_rmw_unique a x hLiveA hOldFlag hx
+  · rename_i hNotGreater
+    refine {
+      semantic := by simpa using hRmw.semantic
+      rmsg_epoch_le := hRmw.rmsg_epoch_le
+      rmsg_write_safe := hRmw.rmsg_write_safe
+      rmsg_rmw_write_safe := hRmw.rmsg_rmw_write_safe
+      rmsg_rmw_unique := hRmw.rmsg_rmw_unique
+      live_write_safe := ?_
+      live_rmw_write_safe := ?_
+      live_rmw_unique := ?_
+    }
+    · intro x a hx hLiveA hFlagA
+      exact hRmw.live_write_safe x a hx hLiveA hFlagA
+    · intro a y hLiveA hFlagA hy
+      exact hRmw.live_rmw_write_safe a y hLiveA hFlagA hy
+    · intro a x hLiveA hFlagA hx
+      exact hRmw.live_rmw_unique a x hLiveA hFlagA hx
+
+theorem receive_rmw_inv_preserves_ref_rmw_invariant
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {rank : NodeRank Node} {st : RefState Node Value} {n : Node}
+    {m : RInvMsg Node Value}
+    (hRmw : RefRmwInvariant st)
+    (hLive : st.live n)
+    (hMsg : st.rmsgs m)
+    (hEpoch : m.epochID = st.epochID)
+    (hKind : m.kind = OpKind.rmw) :
+    RefRmwInvariant (receiveRmwInvPost rank st n m) := by
+  unfold receiveRmwInvPost
+  split
+  · rename_i hGreater
+    refine {
+      semantic := by simpa using hRmw.semantic
+      rmsg_epoch_le := ?_
+      rmsg_write_safe := ?_
+      rmsg_rmw_write_safe := ?_
+      rmsg_rmw_unique := ?_
+      live_write_safe := ?_
+      live_rmw_write_safe := ?_
+      live_rmw_unique := ?_
+    }
+    · exact hRmw.rmsg_epoch_le
+    · exact hRmw.rmsg_write_safe
+    · exact hRmw.rmsg_rmw_write_safe
+    · exact hRmw.rmsg_rmw_unique
+    · intro x a hx hLiveA hFlagA
+      by_cases hA : a = n
+      · subst a
+        simp [replace] at hFlagA
+      · have hOldFlag : st.nodeFlagRMW a = false := by
+          simpa [replace, hA] using hFlagA
+        simpa [replace, hA] using
+          hRmw.live_write_safe x a hx hLiveA hOldFlag
+    · intro a y hLiveA hFlagA hy
+      by_cases hA : a = n
+      · subst a
+        simpa [replace] using hRmw.rmsg_rmw_write_safe m y hMsg hEpoch hKind hy
+      · have hOldFlag : st.nodeFlagRMW a = true := by
+          simpa [replace, hA] using hFlagA
+        simpa [replace, hA] using
+          hRmw.live_rmw_write_safe a y hLiveA hOldFlag hy
+    · intro a x hLiveA hFlagA hx
+      by_cases hA : a = n
+      · subst a
+        simpa [replace] using hRmw.rmsg_rmw_unique m x hMsg hEpoch hKind hx
+      · have hOldFlag : st.nodeFlagRMW a = true := by
+          simpa [replace, hA] using hFlagA
+        simpa [replace, hA] using
+          hRmw.live_rmw_unique a x hLiveA hOldFlag hx
+  · rename_i hNotGreater
+    split
+    · rename_i hEq
+      refine {
+        semantic := by simpa [hEq] using hRmw.semantic
+        rmsg_epoch_le := hRmw.rmsg_epoch_le
+        rmsg_write_safe := hRmw.rmsg_write_safe
+        rmsg_rmw_write_safe := hRmw.rmsg_rmw_write_safe
+        rmsg_rmw_unique := hRmw.rmsg_rmw_unique
+        live_write_safe := ?_
+        live_rmw_write_safe := ?_
+        live_rmw_unique := ?_
+      }
+      · intro x a hx hLiveA hFlagA
+        exact hRmw.live_write_safe x a hx hLiveA hFlagA
+      · intro a y hLiveA hFlagA hy
+        exact hRmw.live_rmw_write_safe a y hLiveA hFlagA hy
+      · intro a x hLiveA hFlagA hx
+        exact hRmw.live_rmw_unique a x hLiveA hFlagA hx
+    · rename_i hEq
+      refine {
+        semantic := by simpa [hEq] using hRmw.semantic
+        rmsg_epoch_le := ?_
+        rmsg_write_safe := ?_
+        rmsg_rmw_write_safe := ?_
+        rmsg_rmw_unique := ?_
+        live_write_safe := ?_
+        live_rmw_write_safe := ?_
+        live_rmw_unique := ?_
+      }
+      · intro msg hMsgPost
+        simp [hEq, addRInv, sendRInvMsg] at hMsgPost
+        rcases hMsgPost with hOld | hNew
+        · exact hRmw.rmsg_epoch_le msg hOld
+        · subst hNew
+          exact Nat.le_refl st.epochID
+      · intro msg x hMsgPost hEpochPost hKindPost hx
+        simp [hEq, addRInv, sendRInvMsg] at hMsgPost hEpochPost hKindPost
+        rcases hMsgPost with hOld | hNew
+        · exact hRmw.rmsg_write_safe msg x hOld hEpochPost hKindPost hx
+        · subst hNew
+          by_cases hFlag : st.nodeFlagRMW n
+          · simp [hFlag] at hKindPost
+          · have hFlagFalse : st.nodeFlagRMW n = false := by
+              simpa using hFlag
+            exact hRmw.live_write_safe x n hx hLive hFlagFalse
+      · intro msg y hMsgPost hEpochPost hKindPost hy
+        simp [hEq, addRInv, sendRInvMsg] at hMsgPost hEpochPost hKindPost
+        rcases hMsgPost with hOld | hNew
+        · exact hRmw.rmsg_rmw_write_safe msg y hOld hEpochPost hKindPost hy
+        · subst hNew
+          by_cases hFlag : st.nodeFlagRMW n
+          · have hFlagTrue : st.nodeFlagRMW n = true := by
+              simpa using hFlag
+            exact hRmw.live_rmw_write_safe n y hLive hFlagTrue hy
+          · simp [hFlag] at hKindPost
+      · intro msg x hMsgPost hEpochPost hKindPost hx
+        simp [hEq, addRInv, sendRInvMsg] at hMsgPost hEpochPost hKindPost
+        rcases hMsgPost with hOld | hNew
+        · exact hRmw.rmsg_rmw_unique msg x hOld hEpochPost hKindPost hx
+        · subst hNew
+          by_cases hFlag : st.nodeFlagRMW n
+          · have hFlagTrue : st.nodeFlagRMW n = true := by
+              simpa using hFlag
+            exact hRmw.live_rmw_unique n x hLive hFlagTrue hx
+          · simp [hFlag] at hKindPost
+      · intro x a hx hLiveA hFlagA
+        exact hRmw.live_write_safe x a hx hLiveA hFlagA
+      · intro a y hLiveA hFlagA hy
+        exact hRmw.live_rmw_write_safe a y hLiveA hFlagA hy
+      · intro a x hLiveA hFlagA hx
+        exact hRmw.live_rmw_unique a x hLiveA hFlagA hx
+
+theorem send_vals_rmw_preserves_ref_rmw_invariant
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {st : RefState Node Value} {n : Node}
+    (hRmw : RefRmwInvariant st)
+    (hLive : st.live n)
+    (hFlag : st.nodeFlagRMW n = true)
+    (hActive : RmwActiveSafe st (st.nodeTS n)) :
+    RefRmwInvariant (sendValsPost st n) := by
+  refine {
+    semantic := send_vals_rmw_preserves_rmw_semantics
+      hRmw.semantic hFlag (rmw_self_commit_safe hRmw hLive hFlag)
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
+    live_write_safe := ?_
+    live_rmw_write_safe := ?_
+    live_rmw_unique := ?_
+  }
+  · intro m hm
+    exact hRmw.rmsg_epoch_le m (by
+      simpa [sendValsPost] using hm)
+  · intro m x hm hEpoch hKind hx
+    have hMsgOld : st.rmsgs m := by
+      simpa [sendValsPost] using hm
+    simp [sendValsPost, hFlag, addCommitted] at hx
+    rcases hx with hxOld | hxNew
+    · exact hRmw.rmsg_write_safe m x hMsgOld hEpoch hKind hxOld
+    · subst hxNew
+      exact hActive.2.2.1 m hMsgOld hEpoch hKind
+  · intro m y hm hEpoch hKind hy
+    exact hRmw.rmsg_rmw_write_safe m y
+      (by simpa [sendValsPost] using hm) hEpoch hKind (by
+        simpa [sendValsPost, hFlag] using hy)
+  · intro m x hm hEpoch hKind hx
+    have hMsgOld : st.rmsgs m := by
+      simpa [sendValsPost] using hm
+    simp [sendValsPost, hFlag, addCommitted] at hx
+    rcases hx with hxOld | hxNew
+    · exact hRmw.rmsg_rmw_unique m x hMsgOld hEpoch hKind hxOld
+    · subst hxNew
+      exact hActive.2.2.2 m hMsgOld hEpoch hKind
+  · intro x a hx hLiveA hFlagA
+    have hLiveOld : st.live a := by
+      simpa [sendValsPost] using hLiveA
+    have hFlagOld : st.nodeFlagRMW a = false := by
+      simpa [sendValsPost] using hFlagA
+    simp [sendValsPost, hFlag, addCommitted] at hx
+    rcases hx with hxOld | hxNew
+    · exact hRmw.live_write_safe x a hxOld hLiveOld hFlagOld
+    · subst hxNew
+      exact hActive.1 a hLiveOld hFlagOld
+  · intro a y hLiveA hFlagA hy
+    exact hRmw.live_rmw_write_safe a y
+      (by simpa [sendValsPost] using hLiveA)
+      (by simpa [sendValsPost] using hFlagA)
+      (by simpa [sendValsPost, hFlag] using hy)
+  · intro a x hLiveA hFlagA hx
+    have hLiveOld : st.live a := by
+      simpa [sendValsPost] using hLiveA
+    have hFlagOld : st.nodeFlagRMW a = true := by
+      simpa [sendValsPost] using hFlagA
+    simp [sendValsPost, hFlag, addCommitted] at hx
+    rcases hx with hxOld | hxNew
+    · exact hRmw.live_rmw_unique a x hLiveOld hFlagOld hxOld
+    · subst hxNew
+      exact hActive.2.1 a hLiveOld hFlagOld
+
+theorem send_vals_write_preserves_ref_rmw_invariant
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {st : RefState Node Value} {n : Node}
+    (hRmw : RefRmwInvariant st)
+    (hLive : st.live n)
+    (hFlag : st.nodeFlagRMW n = false)
+    (hActive : WriteActiveSafe st (st.nodeTS n)) :
+    RefRmwInvariant (sendValsPost st n) := by
+  refine {
+    semantic := send_vals_write_preserves_rmw_semantics
+      hRmw.semantic hFlag (write_self_commit_safe hRmw hLive hFlag)
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
+    live_write_safe := ?_
+    live_rmw_write_safe := ?_
+    live_rmw_unique := ?_
+  }
+  · intro m hm
+    exact hRmw.rmsg_epoch_le m (by
+      simpa [sendValsPost] using hm)
+  · intro m x hm hEpoch hKind hx
+    exact hRmw.rmsg_write_safe m x
+      (by simpa [sendValsPost] using hm) hEpoch hKind
+      (by simpa [sendValsPost, hFlag] using hx)
+  · intro m y hm hEpoch hKind hy
+    have hMsgOld : st.rmsgs m := by
+      simpa [sendValsPost] using hm
+    simp [sendValsPost, hFlag, addCommitted] at hy
+    rcases hy with hyOld | hyNew
+    · exact hRmw.rmsg_rmw_write_safe m y hMsgOld hEpoch hKind hyOld
+    · subst hyNew
+      exact hActive.2 m hMsgOld hEpoch hKind
+  · intro m x hm hEpoch hKind hx
+    exact hRmw.rmsg_rmw_unique m x
+      (by simpa [sendValsPost] using hm) hEpoch hKind
+      (by simpa [sendValsPost, hFlag] using hx)
+  · intro x a hx hLiveA hFlagA
+    exact hRmw.live_write_safe x a
+      (by simpa [sendValsPost, hFlag] using hx)
+      (by simpa [sendValsPost] using hLiveA)
+      (by simpa [sendValsPost] using hFlagA)
+  · intro a y hLiveA hFlagA hy
+    have hLiveOld : st.live a := by
+      simpa [sendValsPost] using hLiveA
+    have hFlagOld : st.nodeFlagRMW a = true := by
+      simpa [sendValsPost] using hFlagA
+    simp [sendValsPost, hFlag, addCommitted] at hy
+    rcases hy with hyOld | hyNew
+    · exact hRmw.live_rmw_write_safe a y hLiveOld hFlagOld hyOld
+    · subst hyNew
+      exact hActive.1 a hLiveOld hFlagOld
+  · intro a x hLiveA hFlagA hx
+    exact hRmw.live_rmw_unique a x
+      (by simpa [sendValsPost] using hLiveA)
+      (by simpa [sendValsPost] using hFlagA)
+      (by simpa [sendValsPost, hFlag] using hx)
+
+theorem o3_complete_rmw_preserves_ref_rmw_invariant
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {st : RefState Node Value} {n : Node}
+    (hRmw : RefRmwInvariant st)
+    (hLive : st.live n)
+    (hFlag : st.nodeFlagRMW n = true)
+    (hActive : RmwActiveSafe st (st.nodeTS n)) :
+    RefRmwInvariant (o3CompletePost st n) := by
+  refine {
+    semantic := o3_complete_rmw_preserves_rmw_semantics
+      hRmw.semantic hFlag (rmw_self_commit_safe hRmw hLive hFlag)
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
+    live_write_safe := ?_
+    live_rmw_write_safe := ?_
+    live_rmw_unique := ?_
+  }
+  · intro m hm
+    exact hRmw.rmsg_epoch_le m (by
+      simpa [o3CompletePost] using hm)
+  · intro m x hm hEpoch hKind hx
+    have hMsgOld : st.rmsgs m := by
+      simpa [o3CompletePost] using hm
+    simp [o3CompletePost, hFlag, addCommitted] at hx
+    rcases hx with hxOld | hxNew
+    · exact hRmw.rmsg_write_safe m x hMsgOld hEpoch hKind hxOld
+    · subst hxNew
+      exact hActive.2.2.1 m hMsgOld hEpoch hKind
+  · intro m y hm hEpoch hKind hy
+    exact hRmw.rmsg_rmw_write_safe m y
+      (by simpa [o3CompletePost] using hm) hEpoch hKind (by
+        simpa [o3CompletePost, hFlag] using hy)
+  · intro m x hm hEpoch hKind hx
+    have hMsgOld : st.rmsgs m := by
+      simpa [o3CompletePost] using hm
+    simp [o3CompletePost, hFlag, addCommitted] at hx
+    rcases hx with hxOld | hxNew
+    · exact hRmw.rmsg_rmw_unique m x hMsgOld hEpoch hKind hxOld
+    · subst hxNew
+      exact hActive.2.2.2 m hMsgOld hEpoch hKind
+  · intro x a hx hLiveA hFlagA
+    have hLiveOld : st.live a := by
+      simpa [o3CompletePost] using hLiveA
+    have hFlagOld : st.nodeFlagRMW a = false := by
+      simpa [o3CompletePost] using hFlagA
+    simp [o3CompletePost, hFlag, addCommitted] at hx
+    rcases hx with hxOld | hxNew
+    · exact hRmw.live_write_safe x a hxOld hLiveOld hFlagOld
+    · subst hxNew
+      exact hActive.1 a hLiveOld hFlagOld
+  · intro a y hLiveA hFlagA hy
+    exact hRmw.live_rmw_write_safe a y
+      (by simpa [o3CompletePost] using hLiveA)
+      (by simpa [o3CompletePost] using hFlagA)
+      (by simpa [o3CompletePost, hFlag] using hy)
+  · intro a x hLiveA hFlagA hx
+    have hLiveOld : st.live a := by
+      simpa [o3CompletePost] using hLiveA
+    have hFlagOld : st.nodeFlagRMW a = true := by
+      simpa [o3CompletePost] using hFlagA
+    simp [o3CompletePost, hFlag, addCommitted] at hx
+    rcases hx with hxOld | hxNew
+    · exact hRmw.live_rmw_unique a x hLiveOld hFlagOld hxOld
+    · subst hxNew
+      exact hActive.2.1 a hLiveOld hFlagOld
+
+theorem o3_complete_write_preserves_ref_rmw_invariant
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {st : RefState Node Value} {n : Node}
+    (hRmw : RefRmwInvariant st)
+    (hLive : st.live n)
+    (hFlag : st.nodeFlagRMW n = false)
+    (hActive : WriteActiveSafe st (st.nodeTS n)) :
+    RefRmwInvariant (o3CompletePost st n) := by
+  refine {
+    semantic := o3_complete_write_preserves_rmw_semantics
+      hRmw.semantic hFlag (write_self_commit_safe hRmw hLive hFlag)
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
+    live_write_safe := ?_
+    live_rmw_write_safe := ?_
+    live_rmw_unique := ?_
+  }
+  · intro m hm
+    exact hRmw.rmsg_epoch_le m (by
+      simpa [o3CompletePost] using hm)
+  · intro m x hm hEpoch hKind hx
+    exact hRmw.rmsg_write_safe m x
+      (by simpa [o3CompletePost] using hm) hEpoch hKind
+      (by simpa [o3CompletePost, hFlag] using hx)
+  · intro m y hm hEpoch hKind hy
+    have hMsgOld : st.rmsgs m := by
+      simpa [o3CompletePost] using hm
+    simp [o3CompletePost, hFlag, addCommitted] at hy
+    rcases hy with hyOld | hyNew
+    · exact hRmw.rmsg_rmw_write_safe m y hMsgOld hEpoch hKind hyOld
+    · subst hyNew
+      exact hActive.2 m hMsgOld hEpoch hKind
+  · intro m x hm hEpoch hKind hx
+    exact hRmw.rmsg_rmw_unique m x
+      (by simpa [o3CompletePost] using hm) hEpoch hKind
+      (by simpa [o3CompletePost, hFlag] using hx)
+  · intro x a hx hLiveA hFlagA
+    exact hRmw.live_write_safe x a
+      (by simpa [o3CompletePost, hFlag] using hx)
+      (by simpa [o3CompletePost] using hLiveA)
+      (by simpa [o3CompletePost] using hFlagA)
+  · intro a y hLiveA hFlagA hy
+    have hLiveOld : st.live a := by
+      simpa [o3CompletePost] using hLiveA
+    have hFlagOld : st.nodeFlagRMW a = true := by
+      simpa [o3CompletePost] using hFlagA
+    simp [o3CompletePost, hFlag, addCommitted] at hy
+    rcases hy with hyOld | hyNew
+    · exact hRmw.live_rmw_write_safe a y hLiveOld hFlagOld hyOld
+    · subst hyNew
+      exact hActive.1 a hLiveOld hFlagOld
+  · intro a x hLiveA hFlagA hx
+    exact hRmw.live_rmw_unique a x
+      (by simpa [o3CompletePost] using hLiveA)
+      (by simpa [o3CompletePost] using hFlagA)
+      (by simpa [o3CompletePost, hFlag] using hx)
+
+theorem ref_rmw_preserved_given_active
+    {Node : Type uRefNode} {Value : Type uRefValue} [DecidableEq Node]
+    {rank : NodeRank Node} {initTs : Timestamp Node}
+    {st st' : RefState Node Value} {label : RefLabel Node}
+    (hAgree : RefAgreementInvariant rank initTs st)
+    (hRmw : RefRmwInvariant st)
+    (hStep : HRNext rank st label st')
+    (hSendRmwActive :
+      forall n, st.live n -> st.nodeFlagRMW n = true ->
+        stateCanSendVal st n -> receivedAllAcks st n ->
+        RmwActiveSafe st (st.nodeTS n))
+    (hSendWriteActive :
+      forall n, st.live n -> st.nodeFlagRMW n = false ->
+        stateCanSendVal st n -> receivedAllAcks st n ->
+        WriteActiveSafe st (st.nodeTS n))
+    (hO3RmwActive :
+      forall n c, st.live n -> st.nodeFlagRMW n = true ->
+        st.nodeState n ≠ HState.hs_valid ->
+        st.o3Quorum n c (st.nodeTS n) st.epochID ->
+        RmwActiveSafe st (st.nodeTS n))
+    (hO3WriteActive :
+      forall n c, st.live n -> st.nodeFlagRMW n = false ->
+        st.nodeState n ≠ HState.hs_valid ->
+        st.o3Quorum n c (st.nodeTS n) st.epochID ->
+        WriteActiveSafe st (st.nodeTS n)) :
+    RefRmwInvariant st' := by
+  cases hStep with
+  | hr_write hLive hState =>
+      exact local_write_preserves_ref_rmw_invariant hAgree hRmw hLive
+  | hr_rmw hLive hState =>
+      exact local_rmw_preserves_ref_rmw_invariant hAgree hRmw hLive
+  | hr_write_replay hLive hState hEpoch hMissing hFlag =>
+      exact write_replay_preserves_ref_rmw_invariant hRmw hLive hFlag
+  | hr_rmw_replay hLive hState hEpoch hMissing hFlag =>
+      exact rmw_replay_preserves_ref_rmw_invariant hRmw hLive hFlag
+  | hr_rcv_ack hLive hMsg hEpoch hSender hFresh hTs hState =>
+      exact receive_ack_preserves_ref_rmw_invariant hRmw
+  | hr_send_vals_rmw hLive hFlag hState hAll =>
+      exact send_vals_rmw_preserves_ref_rmw_invariant hRmw hLive hFlag
+        (hSendRmwActive _ hLive hFlag hState hAll)
+  | hr_send_vals_write hLive hFlag hState hAll =>
+      exact send_vals_write_preserves_ref_rmw_invariant hRmw hLive hFlag
+        (hSendWriteActive _ hLive hFlag hState hAll)
+  | hr_rcv_write_inv hLive hMsg hEpoch hSender hKind =>
+      exact receive_write_inv_preserves_ref_rmw_invariant hRmw hMsg hEpoch hKind
+  | hr_rcv_rmw_inv hLive hMsg hEpoch hSender hKind =>
+      exact receive_rmw_inv_preserves_ref_rmw_invariant hRmw hLive hMsg hEpoch hKind
+  | hr_rcv_val hLive hVal hState =>
+      exact receive_val_preserves_ref_rmw_invariant hRmw
+  | hr_follower_replay hLive hState hDead =>
+      exact follower_replay_preserves_ref_rmw_invariant hRmw hLive
+  | hr_node_failure hLive =>
+      exact node_failure_preserves_ref_rmw_invariant hRmw
+  | hr_o3_observe hLive hQuorum =>
+      exact o3_observe_preserves_ref_rmw_invariant hRmw
+  | hr_o3_complete hLive hState hQuorum =>
+      rename_i n c
+      by_cases hFlag : st.nodeFlagRMW n
+      · exact o3_complete_rmw_preserves_ref_rmw_invariant hRmw hLive hFlag
+          (hO3RmwActive n c hLive hFlag hState hQuorum)
+      · have hFlagFalse : st.nodeFlagRMW n = false := by
+          simpa using hFlag
+        exact o3_complete_write_preserves_ref_rmw_invariant hRmw hLive hFlagFalse
+          (hO3WriteActive n c hLive hFlagFalse hState hQuorum)
 
 structure RefSafety {Node : Type uRefNode} {Value : Type uRefValue}
     (st : RefState Node Value) : Prop where
@@ -4250,6 +5146,41 @@ theorem init_safety
     · intro x y hx _hy
       cases hx
 
+theorem init_rmw_invariant
+    {Node : Type uRefNode} {Value : Type uRefValue}
+    (initNode : Node) (initValue : Value) :
+    RefRmwInvariant
+      (initState (Node := Node) (Value := Value) initNode initValue) := by
+  refine {
+    semantic := by
+      constructor
+      · intro x y hx _hy
+        cases hx
+      · intro x y hx _hy
+        cases hx
+    rmsg_epoch_le := ?_
+    rmsg_write_safe := ?_
+    rmsg_rmw_write_safe := ?_
+    rmsg_rmw_unique := ?_
+    live_write_safe := ?_
+    live_rmw_write_safe := ?_
+    live_rmw_unique := ?_
+  }
+  · intro m hm
+    cases hm
+  · intro m x hm _hEpoch _hKind _hx
+    cases hm
+  · intro m y hm _hEpoch _hKind _hy
+    cases hm
+  · intro m x hm _hEpoch _hKind _hx
+    cases hm
+  · intro x n hx _hLive _hFlag
+    cases hx
+  · intro n y _hLive hFlag _hy
+    cases hFlag
+  · intro n x _hLive hFlag _hx
+    cases hFlag
+
 theorem init_agreement_invariant
     {Node : Type uRefNode} {Value : Type uRefValue}
     (rank : NodeRank Node) (initNode : Node) (initValue : Value) :
@@ -4264,6 +5195,7 @@ theorem init_agreement_invariant
     valid_committed := ?_
     write_or_replay_last_current := ?_
     o3_quorum_epoch_le := ?_
+    o3_quorum_nonself_ack := ?_
     o3_current_quorum_advanced := ?_
   }
   · intro n _hLive
@@ -4288,6 +5220,8 @@ theorem init_agreement_invariant
     · cases hWrite
     · cases hReplay
   · intro n c t e h
+    cases h
+  · intro n c t h
     cases h
   · intro n c t h
     cases h
@@ -4478,33 +5412,33 @@ theorem fair_send_vals_rules_out_permanent_ready
 end Reference
 
 -- Evidence dump for the TLA/paper-aligned reference model.
-#print HermesRmwO3.Reference.HRNext
-#print HermesRmwO3.Reference.ref_agreement_preserved
-#print axioms HermesRmwO3.Reference.ref_agreement_preserved
-#print HermesRmwO3.Reference.Reachable
-#print HermesRmwO3.Reference.reachable_agreement_invariant
-#print axioms HermesRmwO3.Reference.reachable_agreement_invariant
-#print HermesRmwO3.Reference.reachable_consistency
-#print axioms HermesRmwO3.Reference.reachable_consistency
-#print HermesRmwO3.Reference.init_safety
-#print axioms HermesRmwO3.Reference.init_safety
-#print HermesRmwO3.Reference.failure_increments_epoch
-#print axioms HermesRmwO3.Reference.failure_increments_epoch
-#print HermesRmwO3.Reference.failure_resets_all_acks
-#print axioms HermesRmwO3.Reference.failure_resets_all_acks
-#print HermesRmwO3.Reference.rmw_replay_resets_acks
-#print axioms HermesRmwO3.Reference.rmw_replay_resets_acks
-#print HermesRmwO3.Reference.write_replay_preserves_acks
-#print axioms HermesRmwO3.Reference.write_replay_preserves_acks
-#print HermesRmwO3.Reference.stale_rmw_inv_ack_messages_iff
-#print axioms HermesRmwO3.Reference.stale_rmw_inv_ack_messages_iff
-#print HermesRmwO3.Reference.stale_rmw_inv_sends_local_rinv
-#print axioms HermesRmwO3.Reference.stale_rmw_inv_sends_local_rinv
-#print HermesRmwO3.Reference.o3_quorum_excludes_coordinator_self_ack
-#print axioms HermesRmwO3.Reference.o3_quorum_excludes_coordinator_self_ack
-#print HermesRmwO3.Reference.o3_quorum_allows_missing_coordinator_ack
-#print axioms HermesRmwO3.Reference.o3_quorum_allows_missing_coordinator_ack
-#print HermesRmwO3.Reference.fair_send_vals_rules_out_permanent_ready
-#print axioms HermesRmwO3.Reference.fair_send_vals_rules_out_permanent_ready
-
+-- #print HermesRmwO3.Reference.HRNext
+-- #print HermesRmwO3.Reference.ref_agreement_preserved
+-- #print axioms HermesRmwO3.Reference.ref_agreement_preserved
+-- #print HermesRmwO3.Reference.Reachable
+-- #print HermesRmwO3.Reference.reachable_agreement_invariant
+-- #print axioms HermesRmwO3.Reference.reachable_agreement_invariant
+-- #print HermesRmwO3.Reference.reachable_consistency
+-- #print axioms HermesRmwO3.Reference.reachable_consistency
+-- #print HermesRmwO3.Reference.init_safety
+-- #print axioms HermesRmwO3.Reference.init_safety
+-- #print HermesRmwO3.Reference.failure_increments_epoch
+-- #print axioms HermesRmwO3.Reference.failure_increments_epoch
+-- #print HermesRmwO3.Reference.failure_resets_all_acks
+-- #print axioms HermesRmwO3.Reference.failure_resets_all_acks
+-- #print HermesRmwO3.Reference.rmw_replay_resets_acks
+-- #print axioms HermesRmwO3.Reference.rmw_replay_resets_acks
+-- #print HermesRmwO3.Reference.write_replay_preserves_acks
+-- #print axioms HermesRmwO3.Reference.write_replay_preserves_acks
+-- #print HermesRmwO3.Reference.stale_rmw_inv_ack_messages_iff
+-- #print axioms HermesRmwO3.Reference.stale_rmw_inv_ack_messages_iff
+-- #print HermesRmwO3.Reference.stale_rmw_inv_sends_local_rinv
+-- #print axioms HermesRmwO3.Reference.stale_rmw_inv_sends_local_rinv
+-- #print HermesRmwO3.Reference.o3_quorum_excludes_coordinator_self_ack
+-- #print axioms HermesRmwO3.Reference.o3_quorum_excludes_coordinator_self_ack
+-- #print HermesRmwO3.Reference.o3_quorum_allows_missing_coordinator_ack
+-- #print axioms HermesRmwO3.Reference.o3_quorum_allows_missing_coordinator_ack
+-- #print HermesRmwO3.Reference.fair_send_vals_rules_out_permanent_ready
+-- #print axioms HermesRmwO3.Reference.fair_send_vals_rules_out_permanent_ready
+-- 
 end HermesRmwO3
