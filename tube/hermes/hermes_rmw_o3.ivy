@@ -1,11 +1,13 @@
 #lang ivy1.7
 
+include order
+
 # ivy_check said OK.
 # Single-key Hermes protocol model with O3 broadcast-ACK completion,
 # including RMW O3 completion guarded by the RMW conflict rule.
 #
-# Hermes is per-key linearizable and composes across keys, so this model
-# intentionally verifies one key. The model includes normal writes, RMWs,
+# Hermes safety composes per key, so this model verifies one key and proves
+# read-state agreement, not a full history linearizability theorem. It includes normal writes, RMWs,
 # invalidations, acknowledgements, validations, write replay after membership
 # removal, and the "invalid_write" / overwritten local update state.
 
@@ -24,6 +26,7 @@ isolate hermes_protocol = {
     type ts
     type value
     type epoch
+    instance version : unbounded_sequence
 
     type hstate = {hs_valid, hs_invalid, hs_invalid_write, hs_write, hs_replay}
 
@@ -83,6 +86,9 @@ isolate hermes_protocol = {
         relation parent(T:ts,B:ts)
         relation same_parent(T:ts,U:ts)
         individual parent_ts(T:ts):ts
+        relation ts_version(T:ts,V:version)
+        relation same_version(T:ts,U:ts) = exists V. ts_version(T,V) & ts_version(U,V)
+        relation next_version(T:ts,U:ts) = exists VT,VU. ts_version(T,VT) & ts_version(U,VU) & version.succ(VU,VT)
         relation ts_value(T:ts,V:value)
         relation ts_rmw(T:ts)
         relation rmw_conflict(T:ts)
@@ -128,6 +134,7 @@ isolate hermes_protocol = {
             parent(T,B) := false;
             same_parent(T,U) := false;
             parent_ts(T) := init_ts;
+            ts_version(T,TV) := T = init_ts & TV = 0;
             ts_value(T,V) := T = init_ts & V = init_value;
             ts_rmw(T) := false;
             rmw_conflict(T) := false;
@@ -150,9 +157,13 @@ isolate hermes_protocol = {
             require lt(cur_ts(n),t);
             require ~seen_ts(t);
             assert seen_ts(cur_ts(n));
-            # Write/RMW timestamp spacing from HermesRMWs.tla: a write from
-            # base B must be greater than every concurrent RMW from B.
-            require parent(R,cur_ts(n)) & ts_rmw(R) -> lt(R,t);
+            var base_ver:version;
+            require ts_version(cur_ts(n),base_ver);
+            var mid_ver := base_ver.next;
+            var new_ver := mid_ver.next;
+            # HRWrite in HermesRMWs.tla sets version := base.version + 2.
+            require ts_version(U,UV) & UV < new_ver -> lt(U,t);
+            require ts_version(U,UV) & new_ver < UV -> lt(t,U);
 
             seen_ts(t) := true;
             parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
@@ -160,6 +171,7 @@ isolate hermes_protocol = {
                 (T = t & parent(U,cur_ts(n))) |
                 (U = t & parent(T,cur_ts(n)));
             parent_ts(T) := cur_ts(n) if T = t else parent_ts(T);
+            ts_version(T,TV) := ts_version(T,TV) | (T = t & TV = new_ver);
             ts_value(T,V) := ts_value(T,V) | (T = t & V = v);
             ts_rmw(T) := ts_rmw(T) & T ~= t;
             rmw_conflict(T) := rmw_conflict(T) & T ~= t;
@@ -189,8 +201,12 @@ isolate hermes_protocol = {
             require lt(cur_ts(n),t);
             require ~seen_ts(t);
             assert seen_ts(cur_ts(n));
-            # RMW from base B must be lower than any concurrent write from B.
-            require parent(W,cur_ts(n)) & ~ts_rmw(W) -> lt(t,W);
+            var base_ver:version;
+            require ts_version(cur_ts(n),base_ver);
+            var new_ver := base_ver.next;
+            # HRRMW in HermesRMWs.tla sets version := base.version + 1.
+            require ts_version(U,UV) & UV < new_ver -> lt(U,t);
+            require ts_version(U,UV) & new_ver < UV -> lt(t,U);
 
             seen_ts(t) := true;
             parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
@@ -198,6 +214,7 @@ isolate hermes_protocol = {
                 (T = t & parent(U,cur_ts(n))) |
                 (U = t & parent(T,cur_ts(n)));
             parent_ts(T) := cur_ts(n) if T = t else parent_ts(T);
+            ts_version(T,TV) := ts_version(T,TV) | (T = t & TV = new_ver);
             ts_value(T,V) := ts_value(T,V) | (T = t & V = v);
             ts_rmw(T) := ts_rmw(T) | T = t;
             rmw_conflict(T) := rmw_conflict(T) & T ~= t;
@@ -304,6 +321,7 @@ isolate hermes_protocol = {
             require pending(n);
             require pending_ts(n) = t;
             require ack_msg(a,n,t);
+            require ~acked(n,a);
             if ready(n) {
                 epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
             };
@@ -330,13 +348,17 @@ isolate hermes_protocol = {
             require pending_ts(n) = cur_ts(n);
             require state(n) = hs_write | state(n) = hs_replay;
             require ready(n);
-            require ~write_conflict(cur_ts(n));
+            require cur_rmw(n) -> ~rmw_conflict(cur_ts(n));
+            require ~cur_rmw(n) -> ~write_conflict(cur_ts(n));
             assert live(A) -> acked(n,A);
             assert live(A) -> le(cur_ts(n),cur_ts(A));
 
             completed(cur_ts(n)) := true;
-            rmw_conflict(T) := rmw_conflict(T) | (ts_rmw(T) & T ~= cur_ts(n) & same_parent(cur_ts(n),T));
-            write_conflict(T) := write_conflict(T) | (ts_rmw(cur_ts(n)) & ~ts_rmw(T) & same_parent(cur_ts(n),T));
+            rmw_conflict(T) := rmw_conflict(T) |
+                (ts_rmw(T) & T ~= cur_ts(n) & same_version(cur_ts(n),T)) |
+                (~ts_rmw(cur_ts(n)) & ts_rmw(T) & (same_version(T,cur_ts(n)) | next_version(cur_ts(n),T)));
+            write_conflict(T) := write_conflict(T) |
+                (ts_rmw(cur_ts(n)) & ~ts_rmw(T) & (same_version(cur_ts(n),T) | next_version(T,cur_ts(n))));
             val_msg(cur_ts(n)) := true;
             state(n) := hs_valid;
             epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
@@ -356,8 +378,11 @@ isolate hermes_protocol = {
             assert live(A) -> le(pending_ts(n),cur_ts(A));
 
             completed(pending_ts(n)) := true;
-            rmw_conflict(T) := rmw_conflict(T) | (ts_rmw(T) & T ~= pending_ts(n) & same_parent(pending_ts(n),T));
-            write_conflict(T) := write_conflict(T) | (pending_rmw(n) & ~ts_rmw(T) & same_parent(pending_ts(n),T));
+            rmw_conflict(T) := rmw_conflict(T) |
+                (ts_rmw(T) & T ~= pending_ts(n) & same_version(pending_ts(n),T)) |
+                (~ts_rmw(pending_ts(n)) & ts_rmw(T) & (same_version(T,pending_ts(n)) | next_version(pending_ts(n),T)));
+            write_conflict(T) := write_conflict(T) |
+                (ts_rmw(pending_ts(n)) & ~ts_rmw(T) & (same_version(pending_ts(n),T) | next_version(T,pending_ts(n))));
             epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
             pending(n) := false;
             pending_rmw(n) := false;
@@ -415,15 +440,16 @@ isolate hermes_protocol = {
             require live(n);
             epoch_done(E) := epoch_done(E) | ready_epoch_active(E);
 
-            inv_write(S,T,V) := false;
+            inv_write(S,T,V) :=
+                live(S) & S ~= n & pending(S) & ~pending_rmw(S) &
+                pending_ts(S) = cur_ts(S) & T = cur_ts(S) & V = cur_value(S);
             inv_rmw(S,T,V) :=
                 live(S) & S ~= n & pending(S) & pending_rmw(S) & T = cur_ts(S) & V = cur_value(S);
             ack_msg(A,C,T) := false;
-            val_msg(T) := false;
             o3_quorum(N,C,T) := false;
 
-            state(S) := hs_replay if live(S) & S ~= n & pending(S) & pending_rmw(S) else state(S);
-            acked(C,A) := (A = C) if live(C) & C ~= n & pending(C) else acked(C,A);
+            state(S) := hs_replay if live(S) & S ~= n & pending(S) & pending_ts(S) = cur_ts(S) else state(S);
+            acked(C,A) := (A = C) if live(C) & C ~= n & pending(C) & pending_ts(C) = cur_ts(C) else acked(C,A);
             ready(C) := false if live(C) & C ~= n & pending(C) else ready(C);
             writer_live(S) := writer_live(S) & last_writer(S) ~= n;
 
@@ -455,6 +481,15 @@ isolate hermes_protocol = {
         invariant same_parent(T,U) & parent(T,B) -> parent(U,B)
         invariant same_parent(T,U) & parent(U,B) -> parent(T,B)
         invariant parent(T,B) & parent(U,B) & T ~= U -> same_parent(T,U)
+        invariant ts_version(T,V1) & ts_version(T,V2) -> V1 = V2
+        invariant ts_version(T,V) -> seen_ts(T)
+        invariant seen_ts(T) -> same_version(T,T)
+        invariant same_version(T,U) -> seen_ts(T) & seen_ts(U)
+        invariant same_version(T,U) -> same_version(U,T)
+        invariant same_version(T,U) & same_version(U,V) -> same_version(T,V)
+        invariant next_version(T,U) -> seen_ts(T) & seen_ts(U)
+        invariant next_version(T,U) -> ~same_version(T,U)
+        invariant ts_version(T,TV) & ts_version(U,UV) & TV < UV -> lt(T,U)
         invariant ts_value(T,V) -> seen_ts(T)
         invariant ts_rmw(T) -> seen_ts(T)
         invariant rmw_conflict(T) -> seen_ts(T)
@@ -467,21 +502,12 @@ isolate hermes_protocol = {
         invariant ack_msg(A,C,T) -> live(A) & live(C)
         invariant ack_msg(A,C,T) -> seen_ts(T)
         invariant ack_msg(A,C,T) -> le(T,cur_ts(A))
-        invariant ack_msg(A,C,T) & ts_rmw(T) & live(A) & same_parent(T,cur_ts(A)) & T ~= cur_ts(A) -> writer_live(A)
-        invariant ack_msg(A,C,T) & ts_rmw(T) & parent(T,B) & live(A) & pending(A) & pending_rmw(A) & parent(pending_ts(A),B) -> pending_ts(A) = T
-        invariant ack_msg(A,C,T) & ts_rmw(T) & parent(T,B) & live(A) & pending(A) & ~pending_rmw(A) & parent(pending_ts(A),B) -> false
-        invariant ack_msg(A,C,T) & ts_rmw(T) & live(A) & pending(A) & pending_rmw(A) & same_parent(T,pending_ts(A)) -> pending_ts(A) = T
-        invariant ack_msg(A,C,T) & ts_rmw(T) & live(A) & pending(A) & ~pending_rmw(A) & same_parent(T,pending_ts(A)) -> false
         invariant val_msg(T) -> completed(T)
         invariant completed(T) -> seen_ts(T)
         invariant o3_quorum(N,C,T) -> live(C)
         invariant o3_quorum(N,C,T) & live(A) & A ~= C -> ack_msg(A,C,T)
         invariant o3_quorum(N,C,T) & live(C) -> le(T,cur_ts(C))
         invariant o3_quorum(N,C,T) -> seen_ts(T)
-        invariant o3_quorum(N,C,T) & ts_rmw(T) & live(C) & cur_rmw(C) & same_parent(T,cur_ts(C)) -> cur_ts(C) = T
-        invariant o3_quorum(N,C,T) & ts_rmw(T) & live(C) & ~cur_rmw(C) & same_parent(T,cur_ts(C)) -> false
-        invariant o3_quorum(N,C,T) & ts_rmw(T) & live(A) & pending(A) & pending_rmw(A) & same_parent(T,pending_ts(A)) -> pending_ts(A) = T
-        invariant o3_quorum(N,C,T) & ts_rmw(T) & live(A) & pending(A) & ~pending_rmw(A) & same_parent(T,pending_ts(A)) -> false
         invariant seen_ts(cur_ts(N))
         invariant ts_value(cur_ts(N),cur_value(N))
         invariant cur_rmw(N) -> ts_rmw(cur_ts(N))
@@ -495,10 +521,6 @@ isolate hermes_protocol = {
         invariant pending(N) & pending_rmw(N) -> pending_ts(N) = cur_ts(N)
         invariant pending(N) & pending_rmw(N) -> cur_rmw(N)
         invariant pending(N) & acked(N,A) -> le(pending_ts(N),cur_ts(A))
-        invariant pending(C) & pending_rmw(C) & acked(C,A) & live(A) & same_parent(pending_ts(C),cur_ts(A)) & pending_ts(C) ~= cur_ts(A) -> writer_live(A)
-        invariant pending(C) & pending_rmw(C) & acked(C,A) & live(A) & pending(A) & pending_rmw(A) & same_parent(pending_ts(C),pending_ts(A)) -> pending_ts(C) = pending_ts(A)
-        invariant pending(C) & pending_rmw(C) & acked(C,A) & live(A) & pending(A) & ~pending_rmw(A) & same_parent(pending_ts(C),pending_ts(A)) -> false
-        invariant pending(C) & ~pending_rmw(C) & acked(C,A) & live(A) & pending(A) & pending_rmw(A) & same_parent(pending_ts(C),pending_ts(A)) -> false
         invariant ready(N) -> pending(N)
         invariant ready(N) & live(A) -> acked(N,A)
         invariant ready(N) -> pending_ts(N) = cur_ts(N) | lt(pending_ts(N),cur_ts(N))
@@ -517,34 +539,28 @@ isolate hermes_protocol = {
 
         invariant state(N) = hs_valid -> completed(cur_ts(N))
 
-        # Linearizability safety for the one modeled key: any two live replicas
-        # that can serve local reads agree on the timestamp and value.
+        # Read-state agreement for the one modeled key: any two live replicas
+        # that can serve local reads agree on timestamp and value.
         invariant live(N1) & live(N2) & state(N1) = hs_valid & state(N2) = hs_valid -> cur_ts(N1) = cur_ts(N2)
         invariant live(N1) & live(N2) & state(N1) = hs_valid & state(N2) = hs_valid -> cur_value(N1) = cur_value(N2)
 
-        # Write/RMW spacing: blind writes from the same base are above RMWs.
-        invariant parent(R,B) & parent(W,B) & ts_rmw(R) & ~ts_rmw(W) -> lt(R,W)
-        invariant same_parent(R,W) & ts_rmw(R) & ~ts_rmw(W) -> lt(R,W)
+        # A live node may retain a pending/ready conflicting operation, but it
+        # must already be marked conflicted so it cannot complete.
+        invariant live(N) & pending(N) & pending_rmw(N) & completed(R) & ts_rmw(R) & same_version(pending_ts(N),R) -> pending_ts(N) = R | rmw_conflict(pending_ts(N))
+        invariant live(N) & pending(N) & pending_rmw(N) & completed(W) & ~ts_rmw(W) & (same_version(pending_ts(N),W) | next_version(W,pending_ts(N))) -> rmw_conflict(pending_ts(N))
+        invariant live(N) & pending(N) & ~pending_rmw(N) & completed(R) & ts_rmw(R) & (same_version(pending_ts(N),R) | next_version(pending_ts(N),R)) -> write_conflict(pending_ts(N))
+        invariant live(N) & ready(N) & pending_rmw(N) & completed(R) & ts_rmw(R) & same_version(pending_ts(N),R) -> pending_ts(N) = R | rmw_conflict(pending_ts(N))
+        invariant live(N) & ready(N) & pending_rmw(N) & completed(W) & ~ts_rmw(W) & (same_version(pending_ts(N),W) | next_version(W,pending_ts(N))) -> rmw_conflict(pending_ts(N))
+        invariant live(N) & ready(N) & pending(N) & ~pending_rmw(N) & completed(R) & ts_rmw(R) & (same_version(pending_ts(N),R) | next_version(pending_ts(N),R)) -> write_conflict(pending_ts(N))
 
-        # A live node cannot be ready to complete an RMW from base B once a
-        # conflicting operation from that same base has completed. Two ready
-        # RMWs from the same base must be the same timestamp.
-        invariant live(N) & pending(N) & pending_rmw(N) & parent(pending_ts(N),B) & completed(R) & ts_rmw(R) & parent(R,B) -> pending_ts(N) = R
-        invariant live(N) & pending(N) & pending_rmw(N) & parent(pending_ts(N),B) & completed(W) & ~ts_rmw(W) & parent(W,B) -> false
-        invariant live(N) & pending(N) & ~pending_rmw(N) & parent(pending_ts(N),B) & completed(R) & ts_rmw(R) & parent(R,B) -> false
-        invariant live(N) & ready(N) & pending_rmw(N) & parent(pending_ts(N),B) & completed(R) & ts_rmw(R) & parent(R,B) -> pending_ts(N) = R
-        invariant live(N) & ready(N) & pending_rmw(N) & parent(pending_ts(N),B) & completed(W) & ~ts_rmw(W) & parent(W,B) -> false
-        invariant live(N) & ready(N) & pending(N) & ~pending_rmw(N) & parent(pending_ts(N),B) & completed(R) & ts_rmw(R) & parent(R,B) -> false
-        invariant live(N1) & ready(N1) & pending_rmw(N1) & parent(pending_ts(N1),B) & live(N2) & ready(N2) & pending_rmw(N2) & parent(pending_ts(N2),B) -> pending_ts(N1) = pending_ts(N2)
-
-        # RMW safety: at most one RMW derived from the same base timestamp can
-        # complete, and a completed RMW cannot coexist with a completed blind
-        # write from the same base. Sequential RMWs have different parents.
-        invariant completed(R) & ts_rmw(R) & same_parent(R,T) & ts_rmw(T) & R ~= T -> rmw_conflict(T)
-        invariant completed(W) & ~ts_rmw(W) & same_parent(W,T) & ts_rmw(T) -> rmw_conflict(T)
-        invariant completed(R) & ts_rmw(R) & same_parent(R,W) & ~ts_rmw(W) -> write_conflict(W)
-        invariant completed(R1) & completed(R2) & ts_rmw(R1) & ts_rmw(R2) & parent(R1,B) & parent(R2,B) -> R1 = R2
-        invariant completed(R) & ts_rmw(R) & parent(R,B) & completed(W) & ~ts_rmw(W) & parent(W,B) -> false
+        # RMW safety: the TLA semantics are version-based. A completed RMW
+        # conflicts with any other RMW at the same version and with blind writes
+        # at either the same version or the immediately following version.
+        invariant completed(R) & ts_rmw(R) & ts_rmw(T) & same_version(R,T) & R ~= T -> rmw_conflict(T)
+        invariant completed(W) & ~ts_rmw(W) & ts_rmw(T) & (same_version(W,T) | next_version(W,T)) -> rmw_conflict(T)
+        invariant completed(R) & ts_rmw(R) & ~ts_rmw(W) & (same_version(R,W) | next_version(W,R)) -> write_conflict(W)
+        invariant completed(R1) & completed(R2) & ts_rmw(R1) & ts_rmw(R2) & same_version(R1,R2) -> R1 = R2
+        invariant completed(R) & ts_rmw(R) & completed(W) & ~ts_rmw(W) & (same_version(R,W) | next_version(W,R)) -> false
 
         ################################################################################
         # Liveness/progress obligation
@@ -556,6 +572,14 @@ isolate hermes_protocol = {
             complete_try(n) := true;
             complete_try(N) := false;
 
+            if live(n) & ready(n) & pending(n) & pending_rmw(n) & rmw_conflict(pending_ts(n)) {
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                pending(n) := false;
+                pending_rmw(n) := false;
+                acked(n,A) := false;
+                ready(n) := false;
+                state(n) := hs_invalid;
+            } else {
             if live(n) & ready(n) & pending(n) & ~pending_rmw(n) & write_conflict(pending_ts(n)) {
                 epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
                 pending(n) := false;
@@ -567,10 +591,14 @@ isolate hermes_protocol = {
                     state(n) := hs_invalid;
                 };
             } else {
-            if live(n) & ready(n) & pending(n) & pending_ts(n) = cur_ts(n) & (state(n) = hs_write | state(n) = hs_replay) & ~write_conflict(cur_ts(n)) {
+            if live(n) & ready(n) & pending(n) & pending_ts(n) = cur_ts(n) & (state(n) = hs_write | state(n) = hs_replay) &
+               (cur_rmw(n) -> ~rmw_conflict(cur_ts(n))) & (~cur_rmw(n) -> ~write_conflict(cur_ts(n))) {
                 completed(cur_ts(n)) := true;
-                rmw_conflict(T) := rmw_conflict(T) | (ts_rmw(T) & T ~= cur_ts(n) & same_parent(cur_ts(n),T));
-                write_conflict(T) := write_conflict(T) | (ts_rmw(cur_ts(n)) & ~ts_rmw(T) & same_parent(cur_ts(n),T));
+                rmw_conflict(T) := rmw_conflict(T) |
+                    (ts_rmw(T) & T ~= cur_ts(n) & same_version(cur_ts(n),T)) |
+                    (~ts_rmw(cur_ts(n)) & ts_rmw(T) & (same_version(T,cur_ts(n)) | next_version(cur_ts(n),T)));
+                write_conflict(T) := write_conflict(T) |
+                    (ts_rmw(cur_ts(n)) & ~ts_rmw(T) & (same_version(cur_ts(n),T) | next_version(T,cur_ts(n))));
                 val_msg(cur_ts(n)) := true;
                 state(n) := hs_valid;
                 epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
@@ -581,8 +609,11 @@ isolate hermes_protocol = {
             } else {
                 if live(n) & ready(n) & pending(n) & lt(pending_ts(n),cur_ts(n)) & ~write_conflict(pending_ts(n)) {
                     completed(pending_ts(n)) := true;
-                    rmw_conflict(T) := rmw_conflict(T) | (ts_rmw(T) & T ~= pending_ts(n) & same_parent(pending_ts(n),T));
-                    write_conflict(T) := write_conflict(T) | (pending_rmw(n) & ~ts_rmw(T) & same_parent(pending_ts(n),T));
+                    rmw_conflict(T) := rmw_conflict(T) |
+                        (ts_rmw(T) & T ~= pending_ts(n) & same_version(pending_ts(n),T)) |
+                        (~ts_rmw(pending_ts(n)) & ts_rmw(T) & (same_version(T,pending_ts(n)) | next_version(pending_ts(n),T)));
+                    write_conflict(T) := write_conflict(T) |
+                        (ts_rmw(pending_ts(n)) & ~ts_rmw(T) & (same_version(pending_ts(n),T) | next_version(T,pending_ts(n))));
                     epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
                     pending(n) := false;
                     pending_rmw(n) := false;
@@ -593,6 +624,7 @@ isolate hermes_protocol = {
                         state(n) := hs_invalid;
                     }
                 }
+            }
             }
             }
         }
@@ -629,8 +661,11 @@ isolate hermes_protocol = {
 
             if cur_ts(n) = t & state(n) ~= hs_valid & o3_quorum(n,c,t) & ~rmw_conflict(t) & ~write_conflict(t) {
                 completed(t) := true;
-                rmw_conflict(T) := rmw_conflict(T) | (ts_rmw(T) & T ~= t & same_parent(t,T));
-                write_conflict(T) := write_conflict(T) | (ts_rmw(t) & ~ts_rmw(T) & same_parent(t,T));
+                rmw_conflict(T) := rmw_conflict(T) |
+                    (ts_rmw(T) & T ~= t & same_version(t,T)) |
+                    (~ts_rmw(t) & ts_rmw(T) & (same_version(T,t) | next_version(t,T)));
+                write_conflict(T) := write_conflict(T) |
+                    (ts_rmw(t) & ~ts_rmw(T) & (same_version(t,T) | next_version(T,t)));
                 state(n) := hs_valid;
 
                 if pending(n) & pending_ts(n) = t {

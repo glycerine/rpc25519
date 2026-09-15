@@ -142,8 +142,15 @@ vacuity diagnostics in the captured checker output. The model proves:
 - Safety: any two live replicas in `hs_valid` have the same timestamp and value.
 - Safety: once a timestamp is completed, every live node has advanced to at
   least that timestamp.
-- RMW safety: at most one RMW derived from the same base timestamp can
-  complete.
+- Timestamp semantics: every timestamp has an explicit TLA-style `version`
+  component, writes allocate `base.version + 2`, RMWs allocate
+  `base.version + 1`, and timestamp ordering respects version ordering.
+- RMW safety: at most one completed RMW may exist at a timestamp version.
+- RMW/write safety: a completed RMW cannot coexist with a completed blind write
+  at the same version or at the immediately following blind-write version.
+- Pending/ready loser safety: conflicting pending or ready writes/RMWs may
+  remain in local metadata only after the matching conflict marker is set, so
+  completion drains them as aborts rather than commits.
 - Ready liveness: if `complete_ready(n)` is attempted infinitely often for a
   node, then every ready completion epoch for that node is eventually marked
   done.
@@ -155,15 +162,20 @@ vacuity diagnostics in the captured checker output. The model proves:
   for an installed invalid timestamp cannot remain unfinished forever under
   fair `o3_complete` attempts.
 
+This is not a full Herlihy/Wing-style linearizability proof. The Ivy model has
+no read invocation/response history, no real-time precedence relation, and no
+RMW function semantics; it proves the protocol invariants and fair-progress
+obligations the implementation must preserve.
+
 The model deliberately does not prove an unconditional "highest RMW timestamp
 wins" property across coordinator failures. The paper's highest-wins statement
 is a fault-free progress claim: if competing RMW coordinators remain live long
 enough to participate in the race, lower-priority RMWs cannot collect the live
 ACK set. If a higher-priority coordinator is removed by membership change before
 it can ACK or complete, the lower RMW may finish in the reduced live set. The
-proved always-on property is mutual exclusion: at most one RMW from a base
-timestamp completes, and a completed RMW cannot coexist with a blind write from
-the same base.
+proved always-on property is version-level mutual exclusion: at most one RMW at
+a version completes, and a completed RMW cannot coexist with a blind write at
+the same version or the immediately following write version.
 
 The ready liveness theorem is written in "no permanent bad suffix" form:
 
@@ -190,8 +202,8 @@ external client retry to finish.
 
 Important Ivy 1.7 detail: `complete_try` and `o3_try` are justice-condition
 pulses, not durable state bits. They are intentionally set and then cleared in
-the same action (`complete_ready` lines 553-598, `o3_complete` lines 624-646),
-and the invariants at lines 654-655 intentionally prove they are false between
+the same action (`complete_ready` lines 569-630, `o3_complete` lines 656-681),
+and the invariants at lines 689-690 intentionally prove they are false between
 actions. This matches the Apple liveness examples in
 `/home/jaten/ivy/ivy-lang-examples/doc/examples/apple/ord_live2.ivy`, where
 fairness predicates are raised and lowered in one action, used in
@@ -210,6 +222,10 @@ The proof also makes these implementation obligations explicit:
 - Local pending metadata is separate from key metadata. A pending operation has
   its own `pending_ts`, `pending_rmw`, ACK set, and ready bit even if the key's
   current `TS` advances to a higher timestamp.
+- Timestamp metadata must carry both ordering and version. Parent/base
+  timestamps are still useful for replay and O3 compatibility checks, but RMW
+  safety is enforced by `ts_version`, `same_version`, and `next_version`, not by
+  exact parent identity.
 - A ready bit is a certificate for one ACK set and one membership generation.
   If a later ACK or reconfiguration mutates the ACK set, clear/recompute the
   ready bit rather than treating the previous ready certificate as still live.
@@ -228,21 +244,24 @@ The proof also makes these implementation obligations explicit:
 - O3 pseudo-tickets are key/timestamp certificates, not values by themselves.
   `o3_observe_quorum` may only record a quorum. `o3_complete` may expose a
   value only after the matching timestamp/value is installed locally.
-- RMW O3 needs the proof's conflict metadata. Record the timestamp parent in
-  `parent_ts`, mark sibling RMW conflict through `rmw_conflict`, and require
-  `o3_complete` to re-check both `~rmw_conflict(t)` and the completed-RMW
-  conflict guard before it marks an RMW timestamp valid.
+- RMW O3 needs concrete version/conflict metadata. Record timestamp version and
+  parent/base metadata, mark same-version RMW conflicts through `rmw_conflict`,
+  mark conflicting blind writes through `write_conflict`, and require
+  `o3_complete` to re-check both conflict markers before it marks a timestamp
+  valid.
 - Failure/reconfiguration is an epoch boundary. It retires active ready epochs,
-  clears old INV/ACK/VALIDATE/O3 evidence, resets surviving pending ACK sets
-  against the new live membership, and forces surviving pending RMWs to replay.
-  This is what prevents old ACK evidence from carrying an unsafe RMW/write race
-  across a membership change.
+  clears old INV/ACK/O3 evidence, preserves `VALIDATE` evidence, recreates INV
+  messages for surviving current pending writes and RMWs, resets their ACK sets
+  against the new live membership, and forces those current pending operations
+  through replay. This is what prevents old ACK evidence from carrying an
+  unsafe RMW/write race across a membership change while still letting already
+  validated timestamps remain consumable.
 - `writer_live` is the proof's compact way to say whether the writer
   responsible for an installed invalid timestamp is still in the current live
   membership. Replay is allowed only after that writer is gone.
 - O3 quorum records are valid only while the coordinator is live and still on
-  the same timestamp/parent relation. The proof clears O3 quorum evidence when a
-  node changes its current timestamp or when membership changes.
+  compatible timestamp/version and parent metadata. The proof clears O3 quorum
+  evidence when a node changes its current timestamp or when membership changes.
 
 ## `hermes_rmw_o3.ivy` action traceability
 
@@ -254,79 +273,85 @@ state that no Ivy action can reach.
 
 Implementation-critical invariant groups:
 
-- State declarations and ghost metadata: lines 51-103 define the live set,
+- State declarations and ghost metadata: lines 50-110 define the live set,
   per-node key state, pending operation metadata, timestamp parent/conflict
-  facts, message buffers, O3 quorum records, fair-attempt pulses, and the
-  completed timestamp set.
-- Initialization and metadata shape: lines 104-142 define one initial valid
-  timestamp, no pending operation, no ACKs, no O3 quorums, no RMW conflicts,
-  no active ready epochs, and the initial timestamp completed. New Go state
-  should start in this shape for every key.
-- Timestamp/message/O3 well-formedness: lines 447-483 require each timestamp
-  to have one value/parent meaning, require INV/ACK/VALIDATE/O3 records to
-  imply known timestamps, tie O3 quorum records to full live ACK coverage, and
-  prevent stale O3 quorum evidence from spanning a coordinator timestamp change.
-- Current key and pending metadata: lines 484-510 require pending metadata to
+  facts, explicit timestamp versions, message buffers, O3 quorum records,
+  fair-attempt pulses, and the completed timestamp set.
+- Initialization and metadata shape: lines 112-150 define one initial valid
+  timestamp at version 0, no pending operation, no ACKs, no O3 quorums, no
+  RMW/write conflicts, no active ready epochs, and the initial timestamp
+  completed. New Go state should start in this shape for every key.
+- Timestamp/message/O3 well-formedness: lines 467-510 require each timestamp
+  to have one value/parent/version meaning, require INV/ACK/VALIDATE/O3 records
+  to imply known timestamps, tie O3 quorum records to full live ACK coverage,
+  and prevent stale O3 quorum evidence from spanning a coordinator timestamp
+  change.
+- Current key and pending metadata: lines 511-533 require pending metadata to
   remain separate from the key's current timestamp, require self-ACK on pending
   work, keep pending RMWs attached to the installed RMW timestamp, and require
   ready certificates to imply full live ACK coverage.
-- Completion/read safety: lines 512-522 are the core read-safety contract:
+- Completion/read safety: lines 535-545 are the core read-safety contract:
   completed timestamps have reached every live node, and two live valid replicas
   agree on timestamp and value.
-- RMW safety: lines 524-546 enforce write/RMW timestamp spacing, completed
-  sibling conflict marking, at most one completed RMW per parent timestamp, and
-  no completed RMW/write pair from the same parent.
-- Ready/liveness bookkeeping: lines 647-656 tie ready certificates to live
+- Pending/ready loser and RMW safety: lines 547-563 enforce version-level
+  conflict marking, at most one completed RMW per version, and no completed
+  RMW/write pair at the same or adjacent forbidden version.
+- Ready/liveness bookkeeping: lines 683-692 tie ready certificates to live
   nodes, known epochs, active ready epochs, and temporary fair-attempt pulses.
-  Lines 658-705 prove ready work and O3 quorum work cannot remain enabled
+  Lines 694-742 prove ready work and O3 quorum work cannot remain enabled
   forever under fair `complete_ready`/`o3_complete` attempts.
 
 Action-to-implementation mapping:
 
 | Ivy action | Proof lines | Implementation mapping |
 | --- | --- | --- |
-| `init` | 104-142 | Per-key/default node state. Initialize `sValid`, initial timestamp/value, no pending ticket, no ready bit, no ACK set, no pseudo-ticket, no active ready epoch, no RMW/write conflict marker, and initial timestamp completed. |
-| `local_write` | 145-182 | `Write` start from live lease, no pending op, `sValid` or `sInvalid`. Allocate a fresh non-RMW timestamp above any same-parent RMW, record parent/value metadata, clear O3 quorums owned by this coordinator, install key state as `sWrite`, create pending metadata with self-ACK, clear stale conflict markers for the new timestamp, then publish/broadcast non-RMW `INV`. |
-| `local_rmw` | 184-220 | RMW API start from live lease, no pending op, and `sValid` only. Allocate a fresh RMW timestamp below any concurrent write from the same base, record parent/value/RMW metadata, clear O3 quorums owned by this coordinator, install `sWrite`, create pending metadata with self-ACK, clear stale conflict markers for the new timestamp, then broadcast RMW `INV`. |
-| `receive_write_inv` | 222-254 | Non-RMW `INV` handling. Always record/send ACK for the sender/timestamp. If incoming timestamp is higher, clear O3 quorums owned by this node, abort a lower pending RMW, otherwise preserve lower non-RMW pending metadata as `sInvalidWR`; install timestamp/value as non-RMW and set `LastWriterID`/`writer_live` to the sender. Equal/stale non-RMW INV is ACK-only. |
-| `receive_rmw_inv` | 256-299 | RMW `INV` handling. If incoming timestamp is higher, clear O3 quorums owned by this node, install it, abort any lower RMW, preserve lower non-RMW pending metadata as needed, and ACK. If equal, ACK only. If stale, send this node's current INV back and do not ACK. The RMW conflict safety comes from the completed/conflict invariants at lines 531-546, not from a global-oracle receive precondition. |
-| `receive_ack` | 301-310 | ACK handling for local pending operations only. Count an ACK only when it matches `LocalWriteTS`; if a ready certificate already exists, retire its generation before mutating the ACK set, then clear `ready` and recompute readiness. |
-| `mark_ready` | 313-323 | Ready-certificate creation. Wait until every live member in the current membership is ACKed. Allocate a fresh ready generation, mark that epoch active, and mark the pending operation ready. |
-| `complete_current` | 326-345 | Current-timestamp completion. Wait for live node, pending operation, `LocalWriteTS == KeyMeta.TS`, state `sWrite` or `sReplay`, and a ready certificate. Mark the timestamp completed, mark sibling RMWs/write siblings conflicted when needed, broadcast/record `VALIDATE`, set `sValid`, retire ready generation, and clear pending metadata. |
-| `complete_overwritten` | 348-368 | Lower overwritten-operation completion. Wait for live node, pending operation, `LocalWriteTS < KeyMeta.TS`, and ready certificate. Mark only the lower timestamp completed for the local ticket, mark sibling RMW/write conflicts when needed, do not broadcast `VALIDATE`, clear pending metadata, and turn `sInvalidWR` into `sInvalid` unless a matching higher validation already made the key valid. |
-| `receive_validate` | 371-385 | `VALIDATE` handling. If the validate timestamp equals the key timestamp, set `sValid`. Clear pending metadata only when the pending timestamp exactly matches the key timestamp. Do not complete or clear older overwritten work. |
-| `replay_after_failure` | 388-410 | Replay start. Wait until the node is live, the key has no pending op, state is `sInvalid`, the current writer is no longer live (`writer_live=false`), and RMW/write conflict markers allow replay. Preserve timestamp/value/RMW kind, enter `sReplay`, create self-ACKed pending metadata, retire stale ready generation, and rebroadcast the matching INV kind. |
-| `fail` | 413-433 | Membership removal/reconfiguration transition. Retire every active ready epoch, clear old INV/ACK/VALIDATE/O3 evidence, reset surviving live pending ACK sets to self only, force surviving pending RMWs into replay by rebroadcasting their RMW INV, clear `writer_live` for keys whose last writer was removed, then remove the failed node and clear its pending/ready metadata. |
-| `complete_ready` | 552-597 | Fair event-loop completion driver. This is the liveness-facing implementation helper. It retires conflicted lower writes, performs current-timestamp completion, or performs overwritten-timestamp completion, including RMW/write conflict marking. It must be attempted whenever ready work may exist. |
-| `o3_observe_quorum` | 603-618 | O3 pseudo-ticket observation. For a live node and live coordinator, record a pseudo-ticket only after ACKs from every currently live non-coordinator member are visible and the coordinator remains compatible with the timestamp/parent relation. Do not mutate key state here. |
-| `o3_complete` | 623-644 | O3 follower completion. Wait until the matching timestamp is already installed locally (`KeyMeta.TS == T`), the key is not valid, the O3 pseudo-ticket has all live ACKs, and RMW/write conflict markers are still clear. Then mark completed, mark sibling RMWs/write siblings conflicted when needed, set `sValid`, and clear same-timestamp pending metadata without broadcasting `VALIDATE`. |
+| `init` | 112-150 | Per-key/default node state. Initialize `sValid`, initial timestamp/value/version, no pending ticket, no ready bit, no ACK set, no pseudo-ticket, no active ready epoch, no RMW/write conflict marker, and initial timestamp completed. |
+| `local_write` | 153-195 | `Write` start from live lease, no pending op, `sValid` or `sInvalid`. Allocate a fresh non-RMW timestamp at `base.version + 2`, require timestamp ordering to match version ordering, record parent/value/version metadata, clear O3 quorums owned by this coordinator, install key state as `sWrite`, create pending metadata with self-ACK, clear stale conflict markers for the new timestamp, then publish/broadcast non-RMW `INV`. |
+| `local_rmw` | 197-238 | RMW API start from live lease, no pending op, and `sValid` only. Allocate a fresh RMW timestamp at `base.version + 1`, require timestamp ordering to match version ordering, record parent/value/version/RMW metadata, clear O3 quorums owned by this coordinator, install `sWrite`, create pending metadata with self-ACK, clear stale conflict markers for the new timestamp, then broadcast RMW `INV`. |
+| `receive_write_inv` | 240-272 | Non-RMW `INV` handling. Always record/send ACK for the sender/timestamp. If incoming timestamp is higher, clear O3 quorums owned by this node, abort a lower pending RMW, otherwise preserve lower non-RMW pending metadata as `sInvalidWR`; install timestamp/value as non-RMW and set `LastWriterID`/`writer_live` to the sender. Equal/stale non-RMW INV is ACK-only. |
+| `receive_rmw_inv` | 274-317 | RMW `INV` handling. If incoming timestamp is higher, clear O3 quorums owned by this node, install it, abort any lower RMW, preserve lower non-RMW pending metadata as needed, and ACK. If equal, ACK only. If stale, send this node's current INV back and do not ACK. Version-level RMW conflict safety is enforced by the conflict markers and invariants at lines 547-563. |
+| `receive_ack` | 319-330 | ACK handling for local pending operations only. Count an ACK only when it matches `LocalWriteTS` and has not already been counted; if a ready certificate already exists, retire its generation before mutating the ACK set, then clear `ready` and recompute readiness. |
+| `mark_ready` | 332-343 | Ready-certificate creation. Wait until every live member in the current membership is ACKed. Allocate a fresh ready generation, mark that epoch active, and mark the pending operation ready. |
+| `complete_current` | 345-369 | Current-timestamp completion. Wait for live node, pending operation, `LocalWriteTS == KeyMeta.TS`, state `sWrite` or `sReplay`, a ready certificate, and clear RMW/write conflict marker. Mark the timestamp completed, mark version-level RMW/write conflicts, broadcast/record `VALIDATE`, set `sValid`, retire ready generation, and clear pending metadata. |
+| `complete_overwritten` | 371-395 | Lower overwritten-operation completion. Wait for live node, pending operation, `LocalWriteTS < KeyMeta.TS`, a ready certificate, and no write conflict. Mark only the lower timestamp completed for the local ticket, mark version-level RMW/write conflicts, do not broadcast `VALIDATE`, clear pending metadata, and turn `sInvalidWR` into `sInvalid` unless a matching higher validation already made the key valid. |
+| `receive_validate` | 397-412 | `VALIDATE` handling. If the validate timestamp equals the key timestamp, set `sValid`. Clear pending metadata only when the pending timestamp exactly matches the key timestamp. Do not complete or clear older overwritten work. |
+| `replay_after_failure` | 414-437 | Replay start. Wait until the node is live, the key has no pending op, state is `sInvalid`, the current writer is no longer live (`writer_live=false`), and RMW/write conflict markers allow replay. Preserve timestamp/value/RMW kind, enter `sReplay`, create self-ACKed pending metadata, retire stale ready generation, and rebroadcast the matching INV kind. |
+| `fail` | 439-461 | Membership removal/reconfiguration transition. Retire every active ready epoch, recreate INV evidence for surviving current pending writes and RMWs, clear ACK/O3 evidence, preserve `VALIDATE` evidence, reset surviving current pending ACK sets to self only, force those current pending operations into replay, clear `writer_live` for keys whose last writer was removed, then remove the failed node and clear its pending/ready metadata. |
+| `complete_ready` | 569-630 | Fair event-loop completion driver. This is the liveness-facing implementation helper. It first retires conflicted ready RMWs, then conflicted ready writes, then performs current-timestamp completion or overwritten-timestamp completion with version-level conflict marking. It must be attempted whenever ready work may exist. |
+| `o3_observe_quorum` | 636-652 | O3 pseudo-ticket observation. For a live node and live coordinator, record a pseudo-ticket only after ACKs from every currently live non-coordinator member are visible and the coordinator remains compatible with the timestamp/parent relation. These compatibility facts must come from concrete local metadata in the implementation; do not mutate key state here. |
+| `o3_complete` | 656-681 | O3 follower completion. Wait until the matching timestamp is already installed locally (`KeyMeta.TS == T`), the key is not valid, the O3 pseudo-ticket has all live ACKs, and RMW/write conflict markers are still clear. Then mark completed, mark version-level RMW/write conflicts, set `sValid`, and clear same-timestamp pending metadata without broadcasting `VALIDATE`. |
 
 Ordering notes that must not be loosened:
 
 - Do not merge `receive_ack` and completion into one unstructured path. The
-  proof separates ACK counting (`receive_ack`, lines 301-310), ready-certificate
-  creation (`mark_ready`, lines 313-323), and fair completion (`complete_ready`,
-  lines 552-597). Go may call helpers back-to-back in one event-loop turn, but
+  proof separates ACK counting (`receive_ack`, lines 319-330), ready-certificate
+  creation (`mark_ready`, lines 332-343), and fair completion (`complete_ready`,
+  lines 569-630). Go may call helpers back-to-back in one event-loop turn, but
   the metadata boundary must remain explicit.
 - When a higher INV overwrites a local pending operation, install the higher key
   timestamp/value and preserve a lower non-RMW pending ticket only as lower
   pending metadata. Completion of that lower ticket must follow
-  `complete_overwritten` lines 348-368 and must not publish `VALIDATE`.
+  `complete_overwritten` lines 371-395 and must not publish `VALIDATE`.
 - A ready generation belongs to one live-membership snapshot. Retire or
   recompute it before changing ACK membership, processing a matching validate,
   aborting an RMW, or clearing pending metadata.
 - O3 completion is two-step: observe all live ACKs first (`o3_observe_quorum`,
-  lines 603-618), then wait until the matching INV/value is installed locally
+  lines 636-652), then wait until the matching INV/value is installed locally
   and the RMW conflict guards are clear before setting `sValid` (`o3_complete`,
-  lines 623-644). ACK quorum alone is not enough to expose a value.
+  lines 656-681). ACK quorum alone is not enough to expose a value.
 - O3 quorum records must be cleared whenever the coordinator changes current
   timestamp or membership changes. The proof does this on local starts, incoming
-  higher invalidations, and failure/reconfiguration at lines 166, 204, 231,
-  262, and 422.
+  higher invalidations, and failure/reconfiguration at lines 179, 222, 249,
+  280, and 449.
 - RMW priority is local/fault-free. Do not implement "highest wins" as a
   cross-failure safety assertion. Under membership removal, the surviving live
   set may let a lower RMW finish after a higher coordinator has failed; the
-  invariant we rely on is still mutual exclusion, not unconditional priority.
+  invariant we rely on is version-level mutual exclusion, not unconditional
+  priority.
+- Membership change must preserve validation evidence while discarding epoch
+  evidence. The proof keeps `val_msg` untouched in `fail` lines 439-461, but
+  clears ACK/O3 evidence and recreates current pending INV messages so both
+  ordinary writes and RMWs can replay in the new membership.
 - Network sends should be ordered after the local event-loop state transition is
   durably represented in memory. The Ivy action is atomic; real Go code must not
   let a sent ACK/INV/VALIDATE race ahead of the local state that justifies it.
@@ -336,22 +361,24 @@ Absolute wait points:
 - Wait for a valid operating membership lease before local reads, writes, RMWs,
   replay starts, and ACK/quorum decisions. This is the Go counterpart of the
   `live(n)` preconditions throughout the proof.
-- Wait for every currently live member to ACK before `mark_ready` lines 313-323,
-  `complete_current` lines 326-345, `complete_overwritten` lines 348-368, or O3
-  quorum observation lines 603-618.
+- Wait for every currently live member to ACK before `mark_ready` lines 332-343,
+  `complete_current` lines 345-369, `complete_overwritten` lines 371-395, or O3
+  quorum observation lines 636-652.
 - Wait for Tube/RM membership change and old-lease expiry before replaying or
   completing around a missing writer. Timeout alone cannot satisfy
-  `~writer_live(n)` in `replay_after_failure` lines 388-394.
-- Wait for the RMW conflict guard before accepting, replaying, or marking ready
-  an RMW. The guard is represented by the conflict markers and completion
-  invariants at lines 531-546 and by replay checks at lines 392-394.
+  `~writer_live(n)` in `replay_after_failure` lines 414-420.
+- Wait for the RMW/write conflict guard before replaying or completing an
+  operation that could be a version-level loser. The guard is represented by the
+  conflict markers and completion invariants at lines 547-563, the current
+  completion checks at lines 351-352, the replay checks at lines 419-420, and
+  the `complete_ready` conflict-retire branches at lines 575-595.
 - Wait for the matching INV/value to be installed locally before O3 completion.
-  `o3_complete` requires `cur_ts(n) = t` at lines 623-629; a pseudo-ticket for a
+  `o3_complete` requires `cur_ts(n) = t` at lines 656-662; a pseudo-ticket for a
   timestamp not yet installed must remain blocked.
 - Wait for fair event-loop progress before considering liveness satisfied. Ready
   work and O3-completable work must be drained before the event loop blocks
   again; otherwise the implementation violates the liveness obligations at
-  lines 658-705.
+  lines 694-742.
 
 ## Corrected rules from the references
 
@@ -384,8 +411,9 @@ ambiguous.
 
    With RMW enabled, RMW uses `local.version + 1`; write uses
    `local.version + 2`. This guarantees a blind write racing with an RMW from
-   the same base value gets a higher timestamp, so the RMW aborts and the write
-   commits.
+   the same base version gets a higher timestamp, so the RMW aborts and the
+   write commits. Timestamp comparison must be version-first; parent identity
+   alone is not enough to preserve the TLA RMW semantics.
 
 5. Timeout alone is not a membership change.
 
@@ -444,8 +472,8 @@ ambiguous.
    and do not ACK. Completed sibling conflicts are represented by the
    `rmw_conflict` and completed-sibling invariants, so implementation should
    treat a known completed sibling as a terminal conflict rather than trying to
-   ACK or revive the stale RMW. This is how "at most one RMW per base" is
-   maintained.
+   ACK or revive the stale RMW. This is how "at most one RMW per version" and
+   the RMW/write adjacent-version exclusion are maintained.
 
 12. Scheduler fairness is part of the liveness contract.
 
@@ -453,6 +481,14 @@ ambiguous.
    Implementation must approximate this by draining ready completions whenever
    the node is operational. A ready operation that sits in a map or queue with
    no wakeup path violates the proved fair-progress obligation.
+
+13. Membership changes replay current pending writes and RMWs, and validation
+    survives reconfiguration.
+
+    The checked `fail` action preserves `VALIDATE` evidence, clears epoch-bound
+    INV/ACK/O3 evidence, and recreates INV messages for surviving current
+    pending ordinary writes as well as surviving current pending RMWs. Both
+    kinds reset their ACK sets against the new live membership before replaying.
 
 ## Transition prompts and actions
 
@@ -482,7 +518,8 @@ By current key state:
 - `sInvalid`:
   - If `LastWriterID` is still in the current live membership, buffer the read
     and wait for `VALIDATE`, a later replay, or the proved O3 path for an
-    installed timestamp with all live ACKs observed and no RMW conflict.
+    installed timestamp with all live ACKs observed and no active conflict
+    marker for that timestamp.
   - If `LastWriterID` has been removed by a membership change, start a replay:
     keep the same `TS`, value, and `IsRMW`; set state to `sReplay`; initialize
     the ACK set for the current live membership; broadcast `INV`; buffer the
@@ -565,11 +602,11 @@ RMW is not currently implemented in Go, but the target protocol is:
 - If the RMW gathers all ACKs first, mark it ready. A fair completion step then
   transitions to `sValid`, completes the client RMW, and broadcasts
   `VALIDATE` on the ordinary current-timestamp completion path.
-- If a different RMW from the same base timestamp has already completed, abort
+- If a different RMW at the same timestamp version has already completed, abort
   this RMW and reply with local state instead of ACKing.
 - After a membership reconfiguration, replaying an in-progress RMW must reset
-  its ACK set before rebroadcasting. This differs from non-RMW write replay,
-  which may keep already gathered ACKs when safe.
+  its ACK set before rebroadcasting. Current pending ordinary writes reset and
+  replay the same way in the checked model.
 
 ### Receiving a non-RMW write INV
 
@@ -635,8 +672,8 @@ Timestamp-specific rules:
   - Send a local `INV` back to `INV.FromID` using this node's current local
     timestamp, value, and RMW flag. This is the RMW abort path.
 
-- Incoming RMW conflicts with an already completed different RMW from the same
-  base timestamp:
+- Incoming RMW conflicts with an already completed different RMW at the same
+  timestamp version:
   - Do not send `ACK`.
   - Send a local `INV` back to `INV.FromID` using this node's current local
     timestamp, value, and RMW flag.
@@ -660,13 +697,15 @@ Common rules:
 - Count ACKs for local pending operations, and under O3 also retain
   pseudo-tickets for observed ACK quorums. Pseudo-tickets complete only through
   the `o3_observe_quorum` and `o3_complete` sequence. For RMW pseudo-tickets,
-  also track parent/conflict state and treat a completed sibling RMW as a
-  terminal conflict outcome.
+  also track version/parent/conflict state and treat a completed same-version
+  sibling RMW, or a forbidden adjacent-version write conflict, as a terminal
+  conflict outcome.
 
 When the ACK set covers every live member in the current membership:
 
-- Check the RMW conflict guard. A pending RMW can be marked ready only if no
-  different RMW from the same base timestamp has completed.
+- Check the conflict guard. A pending RMW can be marked ready only if no
+  completed same-version RMW or forbidden adjacent-version write has already
+  made it a loser.
 - Mark the pending operation ready with a fresh ready generation tied to the
   current membership snapshot.
 - Schedule or immediately call `complete_ready`. The proof's liveness
@@ -758,9 +797,12 @@ Rules:
 
 - Update `EpochV` and the live node set atomically in the Hermes event loop.
 - Drop future messages from older epochs.
-- Recompute every pending ACK set against the new live membership.
+- Discard old ACK evidence and recompute every pending ACK set against the new
+  live membership.
 - Clear any ready generation that was tied to the old membership snapshot, then
   recompute readiness against the new live set.
+- Preserve `VALIDATE` evidence; validations are not epoch-bound in the checked
+  model.
 - For `sWrite`, if the pending write now has all ACKs from live members:
   mark it ready; `complete_ready` transitions to `sValid`, completes the client
   ticket, and broadcasts `VALIDATE`.
@@ -770,8 +812,9 @@ Rules:
 - For `sInvalidWR`, if the lower local write/replay now has all required ACKs:
   mark it ready; `complete_ready` completes or retries that local ticket, but
   does not broadcast `VALIDATE`.
-- For pending RMWs after reconfiguration:
-  reset ACKs and replay the RMW to re-check conflicts.
+- For current pending writes and RMWs after reconfiguration:
+  reset ACKs to self-only and replay the matching INV kind to re-check the new
+  live membership and any RMW/write conflicts.
 - For keys in `sInvalid` whose `LastWriterID` is no longer live:
   the next blocked request or maintenance scan may start a replay.
 - After processing the membership change, drain ready completions before the
@@ -781,9 +824,9 @@ Rules:
 
 1. Bring the implementation into the final proved protocol shape in dependency
    order.
-   - Proof anchors: current completion lines 326-345, overwritten completion
-     lines 348-368, fair completion lines 552-597, validation lines 371-385,
-     and O3 completion lines 603-644.
+   - Proof anchors: current completion lines 345-369, overwritten completion
+     lines 371-395, fair completion lines 569-630, validation lines 397-412,
+     O3 quorum observation lines 636-652, and O3 completion lines 656-681.
    - Keep O3 disabled until the implementation matches the final proof's
      pseudo-ticket observation and guarded completion sequence.
    - Once enabled, O3 pseudo-ticket completion is allowed only for timestamps
@@ -794,9 +837,9 @@ Rules:
 
 2. Make membership and leases first-class in Hermes.
    - Proof anchors: `live(n)` preconditions on local/write/RMW/receive/replay
-     actions at lines 145-150, 184-189, 222-225, 256-259, 301-305,
-     313-318, 326-332, 348-353, 371-373, 388-394, and failure removal lines
-     413-433.
+     actions at lines 153-156, 197-200, 240-243, 274-277, 319-323,
+     332-337, 345-352, 371-376, 397-399, 414-420, and failure removal lines
+     439-461.
    - Store the current live member set in `HermesNode`.
    - Reject local reads/writes/RMWs when the operating lease is expired.
    - Stop `cmd/hermes/main.go` from consuming membership upcalls that belong to
@@ -804,9 +847,10 @@ Rules:
    - Use membership upcalls to connect/disconnect Hermes peer circuits.
 
 3. Split key timestamp from local pending update timestamp.
-   - Proof anchors: initialization lines 104-142, local pending writes at
-     lines 175-179 and 213-217, pending invariants lines 488-510, and
-     overwritten completion lines 348-368.
+   - Proof anchors: initialization lines 112-150, local pending writes at
+     lines 188-192 and 231-235, timestamp-version metadata at lines 89-91,
+     local timestamp allocation at lines 160-174 and 204-218, pending
+     invariants lines 515-533, and overwritten completion lines 371-395.
    - Keep `KeyMeta.TS` as the current key timestamp.
    - Add explicit per-key pending operation metadata, or extend
      `HermesTicket`, so overwritten local writes can complete against their
@@ -814,16 +858,18 @@ Rules:
    - Track `pending_ts`, `pending_rmw`, ACK set, ready bit, and ready
      generation separately from `KeyMeta.TS`, `KeyMeta.IsRMW`, and
      `KeyMeta.State`.
-   - Store the parent/base timestamp for RMW conflict checks.
+   - Store the parent/base timestamp and explicit version for RMW conflict
+     checks.
 
 4. Add proof-shaped ready/completion helpers.
-   - Proof anchors: ACK count lines 301-310, ready creation lines 313-323,
-     current completion lines 326-345, overwritten completion lines 348-368,
-     fair `complete_ready` lines 552-597, and ready liveness lines 658-671.
-   - `markReady`: requires all current live members are ACKed and the RMW
-     conflict guard passes.
+   - Proof anchors: ACK count lines 319-330, ready creation lines 332-343,
+     current completion lines 345-369, overwritten completion lines 371-395,
+     fair `complete_ready` lines 569-630, and ready liveness lines 694-708.
+   - `markReady`: requires all current live members are ACKed.
    - `completeReady`: handles the two proved completion cases:
      `LocalWriteTS == KeyMeta.TS` and `LocalWriteTS < KeyMeta.TS`.
+   - `completeReady`: also handles conflicted ready RMWs and conflicted ready
+     writes first, retiring them without committing.
    - Current completion sets `sValid`, completes the local ticket, and
      broadcasts/records `VALIDATE` on the ordinary current-timestamp path.
    - Overwritten completion clears the lower pending op and completes/retries
@@ -833,29 +879,30 @@ Rules:
      starts, and timeout processing.
 
 5. Fix the write/RMW timestamp rules.
-   - Proof anchors: write timestamp guard lines 145-154, RMW timestamp guard
-     lines 184-192, and write/RMW spacing invariants lines 524-546.
+   - Proof anchors: write timestamp guard lines 153-174, RMW timestamp guard
+     lines 197-218, timestamp-version invariants lines 484-492, and RMW/write
+     safety invariants lines 556-563.
    - Write: `+2` when RMW is enabled.
    - RMW: `+1`.
    - Keep the current deterministic tie-breaker only if every node computes it
      identically from the same `(version, CoordID)` pair.
 
 6. Implement RMW fully.
-   - Proof anchors: `local_rmw` lines 184-220, `receive_rmw_inv` lines
-     256-299, replay lines 388-410, O3 RMW guards lines 603-618, and RMW
-     safety invariants lines 524-546.
+   - Proof anchors: `local_rmw` lines 197-238, `receive_rmw_inv` lines
+     274-317, replay lines 414-437, O3 RMW guards lines 636-652, and RMW
+     safety invariants lines 547-563.
    - Add public API.
    - Implement RMW start, ACK completion, abort, stale-RMW-INV response, and
      membership replay.
-   - Track RMW parent/base timestamps.
-   - Refuse to mark a pending RMW ready if a different RMW from the same base
-     has completed.
+   - Track RMW parent/base timestamps and explicit timestamp versions.
+   - Refuse to commit a pending RMW if a same-version RMW or forbidden
+     adjacent-version write has already completed.
    - On receiving a stale or known-conflicting RMW invalidation, send local
      state back and do not ACK.
    - Add tests for write-vs-RMW and RMW-vs-RMW races.
 
 7. Correct INV handling.
-   - Proof anchors: non-RMW INV lines 222-254 and RMW INV lines 256-299.
+   - Proof anchors: non-RMW INV lines 240-272 and RMW INV lines 274-317.
    - Equal timestamp: ACK-only.
    - Greater timestamp: apply value/state and abort lower RMWs.
    - Stale write INV: ACK-only.
@@ -867,9 +914,9 @@ Rules:
      clearing the RMW's pending metadata.
 
 8. Correct ACK and VALIDATE handling around `sInvalidWR`.
-   - Proof anchors: ACK lines 301-310, `mark_ready` lines 313-323,
-     overwritten completion lines 348-368, validate lines 371-385, and
-     pending/ready invariants lines 488-510.
+   - Proof anchors: ACK lines 319-330, `mark_ready` lines 332-343,
+     overwritten completion lines 371-395, validate lines 397-412, and
+     pending/ready invariants lines 515-533.
    - Completing a lower overwritten operation must not publish a lower value.
    - Validation of a higher timestamp must not prematurely complete a lower
      operation.
@@ -878,20 +925,23 @@ Rules:
      pending operation remains tracked.
 
 9. Move failure completion onto membership-change semantics.
-   - Proof anchors: `replay_after_failure` lines 388-410 and `fail` lines
-     413-433.
+   - Proof anchors: `replay_after_failure` lines 414-437 and `fail` lines
+     439-461.
    - Timers retransmit or start replay only when membership says the old
      writer is gone.
    - Completion without a missing ACK happens only after the missing node is no
      longer live in the current epoch.
+   - On reconfiguration, preserve validation evidence, clear old ACK/O3
+     evidence, and replay surviving current pending writes and RMWs with
+     self-only ACK sets.
    - Remove timeout paths that complete `sWrite`, `sReplay`, or `sInvalidWR`
      merely because a deadline expired.
 
 10. Implement the proved O3 path only after the ordinary completion, RMW, and
     membership work above.
-   - Proof anchors: O3 quorum observation lines 603-618, guarded completion
-     lines 623-644, conflict bookkeeping lines 80-88, 126-133, 156-204,
-     336-359, 497-546, and O3 liveness lines 674-705.
+   - Proof anchors: O3 quorum observation lines 636-652, guarded completion
+     lines 656-681, conflict bookkeeping lines 83-95, 133-141, 168-222,
+     356-361, 380-385, 547-563, 662-668, and O3 liveness lines 710-742.
    - Absolutely wait before enabling this by default until the implementation
      has pseudo-tickets keyed by `(key, coordinator, timestamp)`, can prove all
      current live members ACKed, and can prove the matching value is installed
@@ -899,16 +949,16 @@ Rules:
    - Do not complete from a pseudo-ticket if `KeyMeta.TS != ticket.TS`, if the
      key is already valid, or if the membership epoch changed without
      recomputing the ACK requirement.
-   - For RMW pseudo-tickets, do not complete if a sibling RMW from the same
-     parent has completed. The implementation needs the equivalent of
-     `rmw_conflict` and must treat conflict as a terminal O3 outcome for that
-     candidate, not as an O3 success.
+   - For RMW pseudo-tickets, do not complete if a same-version sibling RMW or
+     forbidden adjacent-version write has completed. The implementation needs
+     the equivalent of `rmw_conflict`/`write_conflict` and must treat conflict
+     as a terminal O3 outcome for that candidate, not as an O3 success.
    - O3 completion sets `sValid` and may clear same-timestamp pending metadata,
      but it does not broadcast `VALIDATE`.
 
 11. Expand tests.
-   - Proof anchors: safety invariants lines 440-546, ready liveness lines
-     658-671, and O3 liveness lines 674-705.
+   - Proof anchors: safety invariants lines 467-563, ready liveness lines
+     694-708, and O3 liveness lines 710-742.
    - Lease expiry rejects local requests.
    - Membership change completes writes/replays waiting only on removed nodes.
    - Coordinator failure before any INV, after some INVs, and after all INVs.
