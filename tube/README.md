@@ -238,5 +238,10 @@ to such hazards.
 Ramnatthan Alagappan and Aishwarya Ganesan; Eric Lee; Aws Albarghouthi; Vijay Chidambaram; Andrea C. Arpaci-Dusseau and Remzi H. Arpaci-Dusseau
 FAST Conference 2018 best paper award.
 
+backing store
+-------------
+For a durable local state-machine storage, we use the YogaDB flexible-address-space B-tree based transactional storage engine.
+See https://github.com/glycerine/yogadb
+
 ------
 Copyright (C) 2025 Jason E. Aten, Ph.D. All rights reserved.
