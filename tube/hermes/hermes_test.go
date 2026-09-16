@@ -9,6 +9,7 @@ import (
 
 	"testing"
 
+	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/tube"
 )
 
@@ -104,6 +105,17 @@ func Test010_TS_Compare_is_fair(t *testing.T) {
 
 func newHermesTestCluster(cfg *HermesConfig) *HermesCluster {
 	n := cfg.ReplicationDegree
+	if cfg.RpcCfg == nil {
+		rpcCfg := rpc.NewConfig()
+		rpcCfg.UseSimNet = true
+		rpcCfg.TCPonly_no_TLS = true
+		rpcCfg.ServerAddr = "127.0.0.1:0"
+		rpcCfg.ServerAutoCreateClientsToDialOtherServers = true
+		rpcCfg.QuietTestMode = true
+		cfg.RpcCfg = rpcCfg
+		cfg.UseSimNet = true
+		cfg.TCPonly_no_TLS = false
+	}
 
 	dataDir, err := tube.GetServerDataDir()
 	panicOn(err)
