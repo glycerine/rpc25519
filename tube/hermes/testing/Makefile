@@ -18,5 +18,6 @@ punish:
 	./hermes_rmw_o3_testing runs=1 iters=100 seed=1
 
 check:
+	if [ -f log.ivy_check.out ]; then mv log.ivy_check.out log.ivy_check.out.prev; fi
 	XTRACE_OFF=1 time ivy_check diagnose=true trace=true hermes_rmw_o3_testing.ivy > log.ivy_check.out
 	tail -4 log.ivy_check.out
