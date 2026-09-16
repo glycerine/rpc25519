@@ -1047,10 +1047,8 @@ isolate hermes_protocol = {
                     live(c) & live(a) & live(b) & live(d) &
                     only_live4(c,a,b,d) &
                     a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
-                    ~pending(c) & ~pending(a) & ~pending(b) & ~pending(d) &
-                    (state(c) = hs_valid | state(c) = hs_invalid) &
-                    lt(cur_ts(c),t) & lt(cur_ts(a),t) &
-                    lt(cur_ts(b),t) & lt(cur_ts(d),t) & ~seen_ts(t) &
+                    ~pending(c) & (state(c) = hs_valid | state(c) = hs_invalid) &
+                    lt(cur_ts(c),t) & ~seen_ts(t) &
                     write_start_order_ok(c,t) & ~seen_epoch(e) {
                     call local_write(c,t,v);
                     call receive_write_inv(a,c,t,v);
@@ -1101,10 +1099,8 @@ isolate hermes_protocol = {
                     live(c) & live(a) & live(b) & live(d) &
                     only_live4(c,a,b,d) &
                     a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
-                    ~pending(c) & ~pending(a) & ~pending(b) & ~pending(d) &
-                    (state(c) = hs_valid | state(c) = hs_invalid) &
-                    lt(cur_ts(c),t) & lt(cur_ts(a),t) &
-                    lt(cur_ts(b),t) & lt(cur_ts(d),t) & ~seen_ts(t) &
+                    ~pending(c) & (state(c) = hs_valid | state(c) = hs_invalid) &
+                    lt(cur_ts(c),t) & ~seen_ts(t) &
                     write_start_order_ok(c,t) & ~seen_epoch(e) {
                     call local_write(c,t,v);
                     call receive_write_inv(a,c,t,v);
@@ -1220,8 +1216,10 @@ isolate hermes_protocol = {
                     live(c) & live(a) & live(b) & live(d) &
                     only_live4(c,a,b,d) &
                     a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
-                    ~pending(c) & (state(c) = hs_valid | state(c) = hs_invalid) &
-                    lt(cur_ts(c),t) & ~seen_ts(t) &
+                    ~pending(c) & ~pending(a) & ~pending(b) & ~pending(d) &
+                    (state(c) = hs_valid | state(c) = hs_invalid) &
+                    lt(cur_ts(c),t) & lt(cur_ts(a),t) &
+                    lt(cur_ts(b),t) & lt(cur_ts(d),t) & ~seen_ts(t) &
                     write_start_order_ok(c,t) & ~seen_epoch(e) {
                     call local_write(c,t,v);
                     call receive_write_inv(a,c,t,v);
