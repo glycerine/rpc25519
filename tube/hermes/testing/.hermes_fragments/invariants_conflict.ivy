@@ -1,0 +1,19 @@
+        # A live node may retain a pending/ready conflicting operation, but it
+        # must already be marked conflicted so it cannot complete.
+        invariant live(N) & pending(N) & pending_rmw(N) & completed(R) & ts_rmw(R) & same_version(pending_ts(N),R) -> pending_ts(N) = R | rmw_conflict(pending_ts(N))
+        invariant live(N) & pending(N) & pending_rmw(N) & completed(W) & ~ts_rmw(W) & (same_version(pending_ts(N),W) | next_version(W,pending_ts(N))) -> rmw_conflict(pending_ts(N))
+        invariant live(N) & pending(N) & ~pending_rmw(N) & completed(R) & ts_rmw(R) & (same_version(pending_ts(N),R) | next_version(pending_ts(N),R)) -> write_conflict(pending_ts(N))
+        invariant live(N) & ready(N) & pending_rmw(N) & completed(R) & ts_rmw(R) & same_version(pending_ts(N),R) -> pending_ts(N) = R | rmw_conflict(pending_ts(N))
+        invariant live(N) & ready(N) & pending_rmw(N) & completed(W) & ~ts_rmw(W) & (same_version(pending_ts(N),W) | next_version(W,pending_ts(N))) -> rmw_conflict(pending_ts(N))
+        invariant live(N) & ready(N) & pending(N) & ~pending_rmw(N) & completed(R) & ts_rmw(R) & (same_version(pending_ts(N),R) | next_version(pending_ts(N),R)) -> write_conflict(pending_ts(N))
+
+        # RMW safety: the TLA semantics are version-based. A completed RMW
+        # conflicts with any other RMW at the same version and with blind writes
+        # at either the same version or the immediately following version.
+        invariant completed(R) & ts_rmw(R) & ts_rmw(T) & same_version(R,T) & R ~= T -> rmw_conflict(T)
+        invariant completed(W) & ~ts_rmw(W) & ts_rmw(T) & (same_version(W,T) | next_version(W,T)) -> rmw_conflict(T)
+        invariant completed(R) & ts_rmw(R) & ~ts_rmw(W) & (same_version(R,W) | next_version(W,R)) -> write_conflict(W)
+        invariant completed(R1) & completed(R2) & ts_rmw(R1) & ts_rmw(R2) & same_version(R1,R2) -> R1 = R2
+        invariant completed(R) & ts_rmw(R) & completed(W) & ~ts_rmw(W) & (same_version(R,W) | next_version(W,R)) -> false
+
+        ################################################################################

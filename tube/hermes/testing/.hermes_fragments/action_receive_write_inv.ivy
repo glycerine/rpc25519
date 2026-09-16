@@ -1,0 +1,34 @@
+        before receive_write_inv {
+            require live(n);
+            require n ~= s;
+            require inv_write(s,t,v);
+
+            # Non-RMW writes are always ACKed, even when stale.
+            ack_msg(n,s,t) := true;
+
+            if lt(cur_ts(n),t) {
+                o3_quorum(N,n,T) := false;
+                if pending(n) & pending_rmw(n) {
+                    if ready(n) {
+                        epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    };
+                    pending(n) := false;
+                    pending_rmw(n) := false;
+                    acked(n,A) := false;
+                    ready(n) := false;
+                    state(n) := hs_invalid;
+                } else {
+                    if pending(n) {
+                        state(n) := hs_invalid_write;
+                    } else {
+                        state(n) := hs_invalid;
+                    }
+                };
+                cur_ts(n) := t;
+                cur_value(n) := v;
+                cur_rmw(n) := false;
+                last_writer(n) := s;
+                writer_live(n) := true;
+            }
+        }
+

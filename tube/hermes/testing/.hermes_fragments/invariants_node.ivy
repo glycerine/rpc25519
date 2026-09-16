@@ -1,0 +1,26 @@
+        invariant seen_ts(cur_ts(N))
+        invariant ts_value(cur_ts(N),cur_value(N))
+        invariant cur_rmw(N) -> ts_rmw(cur_ts(N))
+        invariant ~cur_rmw(N) -> ~ts_rmw(cur_ts(N))
+        invariant pending(N) -> live(N)
+        invariant pending(N) -> seen_ts(pending_ts(N))
+        invariant pending(N) -> acked(N,N)
+        invariant pending(N) -> le(pending_ts(N),cur_ts(N))
+        invariant pending(N) & pending_rmw(N) -> ts_rmw(pending_ts(N))
+        invariant pending(N) & ~pending_rmw(N) -> ~ts_rmw(pending_ts(N))
+        invariant pending(N) & pending_rmw(N) -> pending_ts(N) = cur_ts(N)
+        invariant pending(N) & pending_rmw(N) -> cur_rmw(N)
+        invariant pending(N) & acked(N,A) -> le(pending_ts(N),cur_ts(A))
+        invariant ready(N) -> pending(N)
+        invariant ready(N) & live(A) -> acked(N,A)
+        invariant ready(N) -> pending_ts(N) = cur_ts(N) | lt(pending_ts(N),cur_ts(N))
+        invariant ready(N) & pending_ts(N) = cur_ts(N) -> state(N) = hs_write | state(N) = hs_replay
+        invariant ready(N) & lt(pending_ts(N),cur_ts(N)) -> state(N) = hs_invalid_write | state(N) = hs_invalid | state(N) = hs_valid
+        invariant pending(N) & pending_ts(N) = cur_ts(N) -> state(N) = hs_write | state(N) = hs_replay
+        invariant pending(N) & lt(pending_ts(N),cur_ts(N)) -> state(N) = hs_invalid_write | state(N) = hs_invalid | state(N) = hs_valid
+        invariant ~pending(N) -> ~acked(N,A)
+        invariant ~pending(N) -> ~pending_rmw(N)
+        invariant ~pending(N) -> ~ready(N)
+        invariant client_write_pending(N) -> live(N)
+        invariant client_rmw_pending(N) -> live(N)
+

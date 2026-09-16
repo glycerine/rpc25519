@@ -1,0 +1,183 @@
+#lang ivy1.7
+
+include order
+
+# ivy_check said OK.
+# Single-key Hermes protocol model with O3 broadcast-ACK completion,
+# including RMW O3 completion guarded by the RMW conflict rule.
+#
+# Hermes safety composes per key, so this model verifies one key and proves
+# read-state agreement, not a full history linearizability theorem. It includes normal writes, RMWs,
+# invalidations, acknowledgements, validations, write replay after membership
+# removal, and the "invalid_write" / overwritten local update state.
+
+module total_order(r) = {
+    axiom r(X,X)
+    axiom r(X,Y) & r(Y,Z) -> r(X,Z)
+    axiom r(X,Y) & r(Y,X) -> X = Y
+    axiom r(X,Y) | r(Y,X)
+}
+
+type ltask = {ready_finish, o3_finish}
+
+isolate hermes_protocol = {
+
+    type node
+    type ts
+    type value
+    type epoch
+    instance version : unbounded_sequence
+
+    type hstate = {hs_valid, hs_invalid, hs_invalid_write, hs_write, hs_replay}
+
+    action local_write(n:node, t:ts, v:value)
+    action local_rmw(n:node, t:ts, v:value)
+    action receive_write_inv(n:node, s:node, t:ts, v:value)
+    action receive_rmw_inv(n:node, s:node, t:ts, v:value)
+    action receive_ack(n:node, a:node, t:ts)
+    action complete_current(n:node)
+    action complete_overwritten(n:node)
+    action complete_ready(n:node)
+    action o3_observe_quorum(n:node, c:node, t:ts)
+    action o3_complete(n:node, c:node, t:ts)
+    action mark_ready(n:node, e:epoch)
+    action receive_validate(n:node, t:ts)
+    action replay_after_failure(n:node)
+    action fail(n:node)
+
+    specification {
+
+        relation le(X:ts,Y:ts)
+        instantiate total_order(le)
+
+        relation lt(X:ts,Y:ts) = le(X,Y) & X ~= Y
+
+        individual ready_task:ltask
+        individual o3_task:ltask
+        individual init_ts:ts
+        individual init_value:value
+        individual init_epoch:epoch
+        axiom le(init_ts,T)
+
+        # Current per-node key metadata.
+        individual state(N:node):hstate
+        individual cur_ts(N:node):ts
+        individual cur_value(N:node):value
+        relation cur_rmw(N:node)
+        individual last_writer(N:node):node
+        relation writer_live(N:node)
+        relation live(N:node)
+
+        # Local pending operation metadata. A node may have an overwritten
+        # pending operation while its current key timestamp is already newer.
+        relation pending(N:node)
+        individual pending_ts(N:node):ts
+        relation pending_rmw(N:node)
+        relation acked(C:node,A:node)
+        relation ready(N:node)
+        individual ready_epoch(N:node):epoch
+        relation seen_epoch(E:epoch)
+        relation epoch_done(E:epoch)
+        relation ready_epoch_active(E:epoch)
+
+        # One-slot client request buffers. These model requests arriving at a
+        # live server while the local key replica is not yet able to start the
+        # low-level protocol transition. makes the randomized testing more efficient.
+        relation client_write_pending(N:node)
+        individual client_write_value(N:node):value
+        relation client_rmw_pending(N:node)
+        individual client_rmw_value(N:node):value
+        relation local_key_known(N:node) =
+            live(N) & (state(N) = hs_valid | state(N) = hs_invalid | pending(N))
+        # Timestamp metadata. `parent(T,B)` means update timestamp T was
+        # generated from base timestamp B.
+        relation seen_ts(T:ts)
+        relation parent(T:ts,B:ts)
+        relation same_parent(T:ts,U:ts)
+        individual parent_ts(T:ts):ts
+        relation ts_version(T:ts,V:version)
+        relation same_version(T:ts,U:ts)
+        relation next_version(T:ts,U:ts)
+        relation write_then_write_order_ok(N:node,M:node) =
+            same_version(cur_ts(N),cur_ts(M)) | lt(cur_ts(N),cur_ts(M))
+        relation rmw_then_write_order_ok(N:node,M:node) =
+            same_version(cur_ts(N),cur_ts(M)) | lt(cur_ts(N),cur_ts(M)) |
+            next_version(cur_ts(N),cur_ts(M))
+        relation rmw_then_rmw_order_ok(N:node,M:node) =
+            same_version(cur_ts(N),cur_ts(M)) | lt(cur_ts(N),cur_ts(M))
+        relation can_start_client_write(N:node,T:ts) =
+            client_write_pending(N) & live(N) & ~pending(N) &
+            (state(N) = hs_valid | state(N) = hs_invalid) &
+            lt(cur_ts(N),T) & ~seen_ts(T)
+        relation can_start_client_rmw(N:node,T:ts) =
+            client_rmw_pending(N) & live(N) & ~pending(N) &
+            state(N) = hs_valid &
+            lt(cur_ts(N),T) & ~seen_ts(T)
+        relation ts_value(T:ts,V:value)
+        relation ts_rmw(T:ts)
+        relation rmw_conflict(T:ts)
+        relation write_conflict(T:ts)
+
+        # Persistent network buffers. Messages are never removed, matching the
+        # TLA model's duplicate/reordering tolerance.
+        relation inv_write(S:node,T:ts,V:value)
+        relation inv_rmw(S:node,T:ts,V:value)
+        relation ack_msg(A:node,C:node,T:ts)
+        relation val_msg(T:ts)
+        relation o3_quorum(N:node,C:node,T:ts)
+
+        relation complete_try(N:node)
+        relation o3_try(N:node,C:node,T:ts)
+
+        # A timestamp is externally completed once its coordinator/replayer has
+        # gathered ACKs from all live members in the current membership.
+        relation completed(T:ts)
+
+        after init {
+            ready_task := ready_finish;
+            o3_task := o3_finish;
+            live(N) := true;
+            state(N) := hs_valid;
+            cur_ts(N) := init_ts;
+            cur_value(N) := init_value;
+            cur_rmw(N) := false;
+            last_writer(N) := N;
+            writer_live(N) := true;
+
+            pending(N) := false;
+            pending_ts(N) := init_ts;
+            pending_rmw(N) := false;
+            acked(C,A) := false;
+            ready(N) := false;
+            ready_epoch(N) := init_epoch;
+            seen_epoch(E) := E = init_epoch;
+            epoch_done(E) := E = init_epoch;
+            ready_epoch_active(E) := false;
+            client_write_pending(N) := false;
+            client_write_value(N) := init_value;
+            client_rmw_pending(N) := false;
+            client_rmw_value(N) := init_value;
+
+            seen_ts(T) := T = init_ts;
+            parent(T,B) := false;
+            same_parent(T,U) := false;
+            parent_ts(T) := init_ts;
+            ts_version(T,V) := T = init_ts & V = 0;
+            same_version(T,U) := false;
+            same_version(init_ts,init_ts) := true;
+            next_version(T,U) := false;
+            ts_value(T,V) := T = init_ts & V = init_value;
+            ts_rmw(T) := false;
+            rmw_conflict(T) := false;
+            write_conflict(T) := false;
+
+            inv_write(S,T,V) := false;
+            inv_rmw(S,T,V) := false;
+            ack_msg(A,C,T) := false;
+            val_msg(T) := T = init_ts;
+            o3_quorum(N,C,T) := false;
+            complete_try(N) := false;
+            o3_try(N,C,T) := false;
+            completed(T) := T = init_ts;
+        }
+

@@ -1,0 +1,26 @@
+        before complete_current {
+            require live(n);
+            require pending(n);
+            require pending_ts(n) = cur_ts(n);
+            require state(n) = hs_write | state(n) = hs_replay;
+            require ready(n);
+            require cur_rmw(n) -> ~rmw_conflict(cur_ts(n));
+            require ~cur_rmw(n) -> ~write_conflict(cur_ts(n));
+            assert live(A) -> acked(n,A);
+            assert live(A) -> le(cur_ts(n),cur_ts(A));
+
+            completed(cur_ts(n)) := true;
+            rmw_conflict(T) := rmw_conflict(T) |
+                (ts_rmw(T) & T ~= cur_ts(n) & same_version(cur_ts(n),T)) |
+                (~ts_rmw(cur_ts(n)) & ts_rmw(T) & (same_version(T,cur_ts(n)) | next_version(cur_ts(n),T)));
+            write_conflict(T) := write_conflict(T) |
+                (ts_rmw(cur_ts(n)) & ~ts_rmw(T) & (same_version(cur_ts(n),T) | next_version(T,cur_ts(n))));
+            val_msg(cur_ts(n)) := true;
+            state(n) := hs_valid;
+            epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            pending(n) := false;
+            pending_rmw(n) := false;
+            acked(n,A) := false;
+            ready(n) := false;
+        }
+

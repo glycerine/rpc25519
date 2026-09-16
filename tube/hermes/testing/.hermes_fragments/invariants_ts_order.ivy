@@ -1,0 +1,29 @@
+        invariant seen_epoch(init_epoch)
+        invariant seen_ts(init_ts)
+        invariant completed(init_ts)
+        invariant ts_value(init_ts,init_value)
+        invariant ~ts_rmw(init_ts)
+        invariant ~parent(init_ts,B)
+
+        invariant ts_value(T,V1) & ts_value(T,V2) -> V1 = V2
+        invariant parent(T,B1) & parent(T,B2) -> B1 = B2
+        invariant parent(T,B) -> seen_ts(T) & seen_ts(B) & lt(B,T)
+        invariant same_parent(T,U) -> seen_ts(T) & seen_ts(U)
+        invariant same_parent(T,U) -> T ~= init_ts & U ~= init_ts
+        invariant same_parent(T,U) -> same_parent(U,T)
+        invariant same_parent(T,U) & parent(T,B1) & parent(U,B2) -> B1 = B2
+        invariant same_parent(T,U) & parent(T,B) -> parent(U,B)
+        invariant same_parent(T,U) & parent(U,B) -> parent(T,B)
+        invariant parent(T,B) & parent(U,B) & T ~= U -> same_parent(T,U)
+        invariant ts_version(T,V1) & ts_version(T,V2) -> V1 = V2
+        invariant ts_version(T,V) -> seen_ts(T)
+        invariant seen_ts(T) -> same_version(T,T)
+        invariant same_version(T,U) -> seen_ts(T) & seen_ts(U)
+        invariant same_version(T,U) -> same_version(U,T)
+        invariant same_version(T,U) & same_version(U,V) -> same_version(T,V)
+        invariant same_version(T,U) & ts_version(T,V) -> ts_version(U,V)
+        invariant ts_version(T,V) & ts_version(U,V) -> same_version(T,U)
+        invariant next_version(T,U) -> seen_ts(T) & seen_ts(U)
+        invariant next_version(T,U) -> ~same_version(T,U)
+        invariant next_version(T,U) & ts_version(T,TV) & ts_version(U,UV) -> UV < TV
+        invariant ts_version(T,TV) & ts_version(U,UV) & TV < UV -> lt(T,U)

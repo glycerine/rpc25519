@@ -1,0 +1,51 @@
+        before local_write {
+            require live(n);
+            require ~pending(n);
+            require state(n) = hs_valid | state(n) = hs_invalid;
+            require lt(cur_ts(n),t);
+            require ~seen_ts(t);
+            assert seen_ts(cur_ts(n));
+            var base_ver:version;
+            assume ts_version(cur_ts(n),base_ver);
+            var mid_ver := base_ver.next;
+            var new_ver := mid_ver.next;
+            var after_ver := new_ver.next;
+            # HRWrite in HermesRMWs.tla sets version := base.version + 2.
+            assume ts_version(U,UV) & UV < new_ver -> lt(U,t);
+            assume ts_version(U,UV) & new_ver < UV -> lt(t,U);
+
+            seen_ts(t) := true;
+            parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
+            same_parent(T,U) := same_parent(T,U) |
+                (T = t & U ~= t & parent(U,cur_ts(n))) |
+                (U = t & T ~= t & parent(T,cur_ts(n)));
+            parent_ts(T) := cur_ts(n) if T = t else parent_ts(T);
+            same_version(T,U) := same_version(T,U) |
+                (T = t & (U = t | ts_version(U,new_ver))) |
+                (U = t & (T = t | ts_version(T,new_ver)));
+            next_version(T,U) := next_version(T,U) |
+                (T = t & ts_version(U,mid_ver)) |
+                (U = t & ts_version(T,after_ver));
+            ts_version(T,TV) := ts_version(T,TV) | (T = t & TV = new_ver);
+            ts_value(T,V) := ts_value(T,V) | (T = t & V = v);
+            ts_rmw(T) := ts_rmw(T) & T ~= t;
+            rmw_conflict(T) := rmw_conflict(T) & T ~= t;
+            write_conflict(T) := write_conflict(T) & T ~= t;
+            o3_quorum(N,n,T) := false;
+
+            cur_ts(n) := t;
+            cur_value(n) := v;
+            cur_rmw(n) := false;
+            last_writer(n) := n;
+            writer_live(n) := true;
+            state(n) := hs_write;
+
+            pending(n) := true;
+            pending_ts(n) := t;
+            pending_rmw(n) := false;
+            acked(n,A) := A = n;
+            ready(n) := false;
+
+            inv_write(n,t,v) := true;
+        }
+

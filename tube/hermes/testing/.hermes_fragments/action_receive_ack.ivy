@@ -1,0 +1,13 @@
+        before receive_ack {
+            require live(n);
+            require pending(n);
+            require pending_ts(n) = t;
+            require ack_msg(a,n,t);
+            require ~acked(n,a);
+            if ready(n) {
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            };
+            acked(n,a) := true;
+            ready(n) := false;
+        }
+

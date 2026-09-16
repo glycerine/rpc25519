@@ -1,0 +1,12 @@
+        # Once a timestamp is completed, every live node has advanced to at
+        # least that timestamp. This is the key invariant behind valid/valid
+        # consistency.
+        invariant completed(T) & live(N) -> le(T,cur_ts(N))
+
+        invariant state(N) = hs_valid -> completed(cur_ts(N))
+
+        # Read-state agreement for the one modeled key: any two live replicas
+        # that can serve local reads agree on timestamp and value.
+        invariant live(N1) & live(N2) & state(N1) = hs_valid & state(N2) = hs_valid -> cur_ts(N1) = cur_ts(N2)
+        invariant live(N1) & live(N2) & state(N1) = hs_valid & state(N2) = hs_valid -> cur_value(N1) = cur_value(N2)
+

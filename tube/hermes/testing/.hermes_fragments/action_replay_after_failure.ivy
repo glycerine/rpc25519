@@ -1,0 +1,25 @@
+        before replay_after_failure {
+            require live(n);
+            require ~pending(n);
+            require state(n) = hs_invalid;
+            require ~writer_live(n);
+            require ~rmw_conflict(cur_ts(n));
+            require cur_rmw(n) | ~write_conflict(cur_ts(n));
+
+            state(n) := hs_replay;
+            pending(n) := true;
+            pending_ts(n) := cur_ts(n);
+            pending_rmw(n) := cur_rmw(n);
+            acked(n,A) := A = n;
+            if ready(n) {
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            };
+            ready(n) := false;
+
+            if cur_rmw(n) {
+                inv_rmw(n,cur_ts(n),cur_value(n)) := true;
+            } else {
+                inv_write(n,cur_ts(n),cur_value(n)) := true;
+            }
+        }
+

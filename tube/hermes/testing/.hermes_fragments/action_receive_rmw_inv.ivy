@@ -1,0 +1,45 @@
+        before receive_rmw_inv {
+            require live(n);
+            require n ~= s;
+            require inv_rmw(s,t,v);
+
+            if lt(cur_ts(n),t) {
+                o3_quorum(N,n,T) := false;
+                if pending(n) & pending_rmw(n) {
+                    if ready(n) {
+                        epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    };
+                    pending(n) := false;
+                    pending_rmw(n) := false;
+                    acked(n,A) := false;
+                    ready(n) := false;
+                    state(n) := hs_invalid;
+                } else {
+                    if pending(n) {
+                        state(n) := hs_invalid_write;
+                    } else {
+                        state(n) := hs_invalid;
+                    }
+                };
+                cur_ts(n) := t;
+                cur_value(n) := v;
+                cur_rmw(n) := true;
+                last_writer(n) := s;
+                writer_live(n) := true;
+                ack_msg(n,s,t) := true;
+            } else {
+                if cur_ts(n) = t {
+                    ack_msg(n,s,t) := true;
+                } else {
+                    # Stale RMW invalidations are not ACKed. The receiver
+                    # replies with its local newer invalidation, which aborts
+                    # the stale RMW coordinator.
+                    if cur_rmw(n) {
+                        inv_rmw(n,cur_ts(n),cur_value(n)) := true;
+                    } else {
+                        inv_write(n,cur_ts(n),cur_value(n)) := true;
+                    }
+                }
+            }
+        }
+

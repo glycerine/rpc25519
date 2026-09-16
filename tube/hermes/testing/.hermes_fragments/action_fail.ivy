@@ -1,0 +1,26 @@
+        before fail {
+            require live(n);
+            epoch_done(E) := epoch_done(E) | ready_epoch_active(E);
+
+            inv_write(S,T,V) :=
+                live(S) & S ~= n & pending(S) & ~pending_rmw(S) &
+                pending_ts(S) = cur_ts(S) & T = cur_ts(S) & V = cur_value(S);
+            inv_rmw(S,T,V) :=
+                live(S) & S ~= n & pending(S) & pending_rmw(S) & T = cur_ts(S) & V = cur_value(S);
+            ack_msg(A,C,T) := false;
+            o3_quorum(N,C,T) := false;
+
+            state(S) := hs_replay if live(S) & S ~= n & pending(S) & pending_ts(S) = cur_ts(S) else state(S);
+            acked(C,A) := (A = C) if live(C) & C ~= n & pending(C) & pending_ts(C) = cur_ts(C) else acked(C,A);
+            ready(C) := false if live(C) & C ~= n & pending(C) else ready(C);
+            writer_live(S) := writer_live(S) & last_writer(S) ~= n;
+
+            live(n) := false;
+            pending(n) := false;
+            pending_rmw(n) := false;
+            acked(n,A) := false;
+            ready(n) := false;
+            client_write_pending(S) := client_write_pending(S) & S ~= n;
+            client_rmw_pending(S) := client_rmw_pending(S) & S ~= n;
+        }
+

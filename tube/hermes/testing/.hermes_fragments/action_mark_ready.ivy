@@ -1,0 +1,13 @@
+        before mark_ready {
+            require live(n);
+            require pending(n);
+            require ~ready(n);
+            require ~seen_epoch(e);
+            require live(A) -> acked(n,A);
+            seen_epoch(E) := seen_epoch(E) | E = e;
+            epoch_done(E) := epoch_done(E) & E ~= e;
+            ready_epoch_active(E) := ready_epoch_active(E) | E = e;
+            ready_epoch(n) := e;
+            ready(n) := true;
+        }
+

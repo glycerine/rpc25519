@@ -1,0 +1,17 @@
+        before receive_validate {
+            require live(n);
+            require val_msg(t);
+            if cur_ts(n) = t {
+                state(n) := hs_valid;
+                if pending(n) & pending_ts(n) = cur_ts(n) {
+                    if ready(n) {
+                        epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    };
+                    pending(n) := false;
+                    pending_rmw(n) := false;
+                    acked(n,A) := false;
+                    ready(n) := false;
+                }
+            }
+        }
+

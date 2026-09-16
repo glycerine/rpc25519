@@ -1,0 +1,26 @@
+        before complete_overwritten {
+            require live(n);
+            require pending(n);
+            require lt(pending_ts(n),cur_ts(n));
+            require ready(n);
+            require ~write_conflict(pending_ts(n));
+            assert live(A) -> acked(n,A);
+            assert live(A) -> le(pending_ts(n),cur_ts(A));
+
+            completed(pending_ts(n)) := true;
+            rmw_conflict(T) := rmw_conflict(T) |
+                (ts_rmw(T) & T ~= pending_ts(n) & same_version(pending_ts(n),T)) |
+                (~ts_rmw(pending_ts(n)) & ts_rmw(T) & (same_version(T,pending_ts(n)) | next_version(pending_ts(n),T)));
+            write_conflict(T) := write_conflict(T) |
+                (ts_rmw(pending_ts(n)) & ~ts_rmw(T) & (same_version(pending_ts(n),T) | next_version(T,pending_ts(n))));
+            epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            pending(n) := false;
+            pending_rmw(n) := false;
+            acked(n,A) := false;
+            ready(n) := false;
+
+            if state(n) = hs_invalid_write {
+                state(n) := hs_invalid;
+            }
+        }
+
