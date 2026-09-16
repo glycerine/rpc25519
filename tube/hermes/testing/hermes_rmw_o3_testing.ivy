@@ -528,8 +528,11 @@ isolate hermes_protocol = {
         invariant same_version(T,U) -> seen_ts(T) & seen_ts(U)
         invariant same_version(T,U) -> same_version(U,T)
         invariant same_version(T,U) & same_version(U,V) -> same_version(T,V)
+        invariant same_version(T,U) & ts_version(T,V) -> ts_version(U,V)
+        invariant ts_version(T,V) & ts_version(U,V) -> same_version(T,U)
         invariant next_version(T,U) -> seen_ts(T) & seen_ts(U)
         invariant next_version(T,U) -> ~same_version(T,U)
+        invariant next_version(T,U) & ts_version(T,TV) & ts_version(U,UV) -> UV < TV
         invariant ts_version(T,TV) & ts_version(U,UV) & TV < UV -> lt(T,U)
         invariant ts_value(T,V) -> seen_ts(T)
         invariant ts_rmw(T) -> seen_ts(T)
