@@ -31,7 +31,7 @@ var _ = binary.LittleEndian
 // protocol table
 // https://github.com/ease-lab/Hermes/blob/master/tla/protocol-actions.png
 
-type Key string // for now... []byte later.
+type Key string
 type Val []byte
 
 // timestamp

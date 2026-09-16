@@ -1,15 +1,33 @@
-package tube
+//go:build synctest
+
+package hermes
 
 import (
 	//"bytes"
 	"context"
 	"fmt"
+	"testing"
+	"testing/synctest"
 	"time"
 
-	"testing"
+	"github.com/glycerine/rpc25519/tube"
 )
 
 var _ = context.Background
+
+const faketime bool = true
+
+func synctestWait_LetAllOtherGoroFinish() {
+	synctest.Wait()
+}
+
+func bubbleOrNot(t *testing.T, f func(t *testing.T)) {
+	synctest.Test(t, f)
+}
+
+func onlyBubbled(t *testing.T, f func(t *testing.T)) {
+	synctest.Test(t, f)
+}
 
 func Test808_czar_only_one_at_a_time(t *testing.T) {
 
@@ -17,7 +35,8 @@ func Test808_czar_only_one_at_a_time(t *testing.T) {
 
 		numNodes := 3
 		forceLeader := 0
-		c, leader, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 808)
+		cfg := tube.NewTubeConfigTest(numNodes, t.Name(), faketime)
+		c, leader, leadi, _ := tube.SetupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 808)
 		defer c.Close()
 		_, _ = leader, leadi
 
@@ -27,7 +46,7 @@ func Test808_czar_only_one_at_a_time(t *testing.T) {
 		leaderURL := leaderNode.URL
 		vv("leader is '%v' at url = '%v'", leader, leaderURL)
 
-		var mems []*RMember
+		var mems []*tube.RMember
 		for i := range 5 {
 			vv("top i = %v mem loop", i)
 			mem := testStartOneMember(t, i, c.Cfg)
@@ -48,13 +67,13 @@ func Test808_czar_only_one_at_a_time(t *testing.T) {
 			vv("good: at i=%v, saw amCz = %v", i, amCz)
 		}
 		for _, mem := range mems {
-			mem.Czar.Halt.RequestStop()
-			<-mem.Czar.Halt.Done.Chan
+			mem.czar.Halt.RequestStop()
+			<-mem.czar.Halt.Done.Chan
 		}
 	})
 }
 
-func testStartOneMember(t *testing.T, num int, cfg *TubeConfig) *RMember {
+func testStartOneMember(t *testing.T, num int, cfg *tube.TubeConfig) *tube.RMember {
 
 	cliName := fmt.Sprintf("%v_%v", t.Name(), num)
 
@@ -66,13 +85,13 @@ func testStartOneMember(t *testing.T, num int, cfg *TubeConfig) *RMember {
 	//cliCfg.isTest = true
 
 	cliCfg.MyName = cliName
-	cliCfg.PeerServiceName = TUBE_CLIENT
+	cliCfg.PeerServiceName = tube.TUBE_CLIENT
 	cliCfg.ClockDriftBound = 500 * time.Millisecond
 	tableSpace := t.Name()
 
 	vv("at num=%v, cliName = '%v'; cliCfg.Node2Addr = '%#v'", num, cliName, cliCfg.Node2Addr)
 
-	mem := NewRMember(tableSpace, &cliCfg)
+	mem := tube.NewRMember(tableSpace, &cliCfg)
 	mem.Start()
 	<-mem.Ready.Chan
 	vv("mem.Ready.Chan has closed for = %v", cliName)
@@ -85,7 +104,7 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 
 		numNodes := 3
 		forceLeader := 0
-		c, leader, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 809)
+		c, leader, leadi, _ := tube.SetupTestClusterWithCustomConfig(nil, t, numNodes, forceLeader, 809)
 		defer c.Close()
 		//simnet := c.Cfg.RpcCfg.GetSimnet()
 		//defer simnet.Close()
@@ -99,8 +118,8 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 		vv("leader is '%v' at url = '%v'", leader, leaderURL)
 
 		N := 5
-		mems := make([]*RMember, N)
-		pings := make([]*PingReply, N)
+		mems := make([]*tube.RMember, N)
+		pings := make([]*tube.PingReply, N)
 		_ = pings
 		for i := range N {
 			vv("top i = %v mem loop", i)
@@ -109,7 +128,7 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 
 			vv("about to wait for mem.debugAmCzarCh on i = %v", i) // i = 0 only seen.
 
-			amCz := <-mem.TestingAmCzarCh
+			amCz := <-mem.testingAmCzarCh
 			if i == 0 {
 				if !amCz {
 					panicf("0th (first) member should be czar")
@@ -128,8 +147,8 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 		// stop after 3
 		for i, mem := range mems {
 			if i <= 2 {
-				mem.Czar.Halt.RequestStop()
-				<-mem.Czar.Halt.Done.Chan
+				mem.czar.Halt.RequestStop()
+				<-mem.czar.Halt.Done.Chan
 				//vv("%v has halted", mem.name)
 			}
 		}
@@ -146,7 +165,7 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 		vv("has been 20 sec after leader crash")
 
 		// confirm a leader has been elected; this is a pre-requisite.
-		leadi2, haveLeader, leadURL := InTestClusterGetCurrentLeader(c)
+		leadi2, haveLeader, leadURL := tube.InTestClusterGetCurrentLeader(c)
 		if !haveLeader {
 			panic("must have elected a new leader by now.")
 		}
@@ -157,18 +176,18 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 
 		// confirm LeaseEpoch has advanced: inspect
 		//var err error
-		//pings[3], err = mems[3].Czar.inspect(context.Background())
+		//pings[3], err = mems[3].czar.inspect(context.Background())
 		//panicOn(err)
-		//pings[4], err = mems[4].Czar.inspect(context.Background())
+		//pings[4], err = mems[4].czar.inspect(context.Background())
 		//panicOn(err)
 
 		numCzar := 0
-		cur := czarState(mems[3].Czar.cState.Load())
+		cur := czarState(mems[3].czar.cState.Load())
 		vv("cur[3] = %v", cur)
 		if cur == amCzar {
 			numCzar++
 		}
-		cur = czarState(mems[4].Czar.cState.Load())
+		cur = czarState(mems[4].czar.cState.Load())
 		vv("cur[4] = %v", cur)
 		if cur == amCzar {
 			numCzar++
@@ -180,9 +199,9 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 		vv("begin shutdown / cleanup: shut down other 2")
 		for i, mem := range mems {
 			if i > 2 {
-				mem.Czar.Halt.RequestStop()
-				<-mem.Czar.Halt.Done.Chan
-				vv("%v has halted", mem.Name)
+				mem.czar.Halt.RequestStop()
+				<-mem.czar.Halt.Done.Chan
+				vv("%v has halted", mem.name)
 			}
 		}
 	})

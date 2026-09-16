@@ -137,7 +137,7 @@ func Test101_userFuzz(t *testing.T) {
 				// the creation of the simnet.
 				cfg.InitialSimnetScenario = int64seed
 
-				c, leaderName, leadi, _ := setupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 101)
+				c, leaderName, leadi, _ := SetupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 101)
 
 				curClus = c
 

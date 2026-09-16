@@ -417,7 +417,7 @@ func (s *Czar) inspect(ctx context.Context) (reply *PingReply, err error) {
 func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *PingReply) (err error) {
 
 	// since the rpc system will call us on a
-	// new goroutine, separate from the main goroutine,
+	// new goroutine (one separate from the main goroutine),
 	// we submit the request over a channel to
 	// avoid mutex/deadlock issues.
 
@@ -613,7 +613,7 @@ func (s *Czar) shortRMemberSummary() (r string) {
 
 // RMember provies a ReliableMembership service with these goals:
 //
-// a) Maintain a current view of who's in the group.
+// a) Maintain a current view of who is in the group.
 //
 // b) Notify members when that view changes.
 //
@@ -621,7 +621,7 @@ func (s *Czar) shortRMemberSummary() (r string) {
 // by providing the RMVersionTuple versioning.
 //
 // The implementation takes the following approach.
-// The default test/tablespace is/was called "hermes"
+// The default test/tablespace is called "hermes"
 // because we wrote this with an implementation
 // of the Hermes replication protocol in mind.
 // Hermes must be built atop a reliable membership
@@ -667,19 +667,20 @@ func (s *Czar) shortRMemberSummary() (r string) {
 // The membership list stored under the czar key
 // is not authoritative. It is is probably stale,
 // it cannot be assumed to be the most recent version.
-//
 // It is only written
 // when the current czar renews its lease.
 // The czar must be contacted for the most
 // up-to-date version of the membership.
-// It is just a reasonable place to start for
+//
+// The czar key list is just a reasonable place to start for
 // the new czar--it hopefully avoids some
 // membership churn, but correctness never
 // depends on it, and the written Details.RMVersionTuple
 // will always be incorrect and stale, since
 // we cannot set the lease epoch correctly
 // before actually writing and winning the
-// lease.
+// lease: that process increments the version of
+// the lease during the process of winning.
 //
 // After the heartbeats are received or not
 // then the membership will converge as
@@ -729,15 +730,15 @@ type RMember struct {
 	// wait for Ready to be closed).
 	Ready *idem.IdemCloseChan
 
-	clockDriftBound time.Duration
+	ClockDriftBound time.Duration
 
 	Cfg *TubeConfig
 
-	testingAmCzarCh chan bool
+	TestingAmCzarCh chan bool
 
-	czar *Czar
+	Czar *Czar
 
-	name string
+	Name string
 }
 
 // NewRMember creates a member of the given tableSpace.
@@ -757,8 +758,8 @@ func NewRMember(tableSpace string, cfg *TubeConfig) (rm *RMember) {
 		TableSpace:      tableSpace,
 		Ready:           idem.NewIdemCloseChan(),
 		Cfg:             &cp,
-		clockDriftBound: cp.ClockDriftBound,
-		name:            cfg.MyName,
+		ClockDriftBound: cp.ClockDriftBound,
+		Name:            cfg.MyName,
 
 		UpcallMembershipChangeCh: make(chan *PingReply, 10),
 		//UpcallMembershipChangeCh: make(chan *PingReply), // red czar_test.go Test809_lease_epoch_monotone
@@ -766,7 +767,7 @@ func NewRMember(tableSpace string, cfg *TubeConfig) (rm *RMember) {
 		OperatingLeaseRenewCh: make(chan time.Time, 10),
 	}
 	if cfg.isTest {
-		rm.testingAmCzarCh = make(chan bool, 10)
+		rm.TestingAmCzarCh = make(chan bool, 10)
 	}
 	return
 }
@@ -790,8 +791,8 @@ func (membr *RMember) start() {
 	err := cli.InitAndStart()
 	panicOn(err)
 
-	czar := NewCzar(tableSpace, name, cli, membr.clockDriftBound)
-	membr.czar = czar
+	czar := NewCzar(tableSpace, name, cli, membr.ClockDriftBound)
+	membr.Czar = czar
 
 	if cliCfg.isTest && cliCfg.testNum == 809 {
 		czar.testingCrashIfNotMonotone = true
@@ -1046,9 +1047,9 @@ fullRestart:
 					// I am czar.
 					czar.cState.Store(int32(amCzar))
 
-					if membr.testingAmCzarCh != nil {
+					if membr.TestingAmCzarCh != nil {
 
-						membr.testingAmCzarCh <- true
+						membr.TestingAmCzarCh <- true
 						vv("%v: reported am czar", name)
 					}
 
@@ -1164,9 +1165,9 @@ fullRestart:
 
 					czar.cState.Store(int32(notCzar))
 
-					if membr.testingAmCzarCh != nil {
+					if membr.TestingAmCzarCh != nil {
 
-						membr.testingAmCzarCh <- false
+						membr.TestingAmCzarCh <- false
 						//vv("%v: reported not czar", name)
 					}
 
@@ -1503,7 +1504,7 @@ fullRestart:
 						}
 					}
 					if !reply.Vers.CzarLeaseUntilTm.IsZero() {
-						deadline := reply.Vers.CzarLeaseUntilTm.Add(-membr.clockDriftBound)
+						deadline := reply.Vers.CzarLeaseUntilTm.Add(-membr.ClockDriftBound)
 						now := time.Now()
 						//vv("reply.Vers = '%v';\n deadline = '%v' \n now = '%v'", reply.Vers, nice(deadline), nice(now))
 						if lte(deadline, now) {

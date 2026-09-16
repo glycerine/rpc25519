@@ -50,7 +50,7 @@ func Test079_lease_from_leader(t *testing.T) {
 		cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
 		cfg.MinElectionDur = 10 * time.Second
 		cfg.HeartbeatDur = time.Second
-		c, _, leadi, _ := setupTestClusterWithCustomConfig(cfg, t, numNodes, 0, 79)
+		c, _, leadi, _ := SetupTestClusterWithCustomConfig(cfg, t, numNodes, 0, 79)
 
 		defer c.Close()
 		//vv("c.Cfg = '%#v'", c.Cfg)

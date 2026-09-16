@@ -13,10 +13,11 @@ import (
 // allow the chapter 4 membership reconfig to work/
 // be tested.
 func setupTestCluster(t *testing.T, numNodes, forceLeader, testNum int) (c *TubeCluster, leader string, leadi int, maxterm int64) {
-	return setupTestClusterWithCustomConfig(nil, t, numNodes, forceLeader, testNum)
+	return SetupTestClusterWithCustomConfig(nil, t, numNodes, forceLeader, testNum)
 }
 
-func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, forceLeader, testNum int) (c *TubeCluster, leader string, leadi int, maxterm int64) {
+// SetupTestClusterWithCustomConfig is exported so hermes/ testing can use it too.
+func SetupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, forceLeader, testNum int) (c *TubeCluster, leader string, leadi int, maxterm int64) {
 
 	if cfg == nil {
 		cfg = NewTubeConfigTest(numNodes, t.Name(), faketime)
@@ -198,7 +199,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 	return
 }
 
-func testClusterGetCurrentLeader(c *TubeCluster) (leadi int, haveLeader bool, leadURL string) {
+func InTestClusterGetCurrentLeader(c *TubeCluster) (leadi int, haveLeader bool, leadURL string) {
 
 	for i, node := range c.Nodes {
 		insp := node.Inspect()

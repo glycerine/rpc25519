@@ -254,7 +254,7 @@ func Test061_handleAppendEntries_is_snapshot_aware(t *testing.T) {
 			cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
 			cfg.NoLogCompaction = true // does get applied to memwal now.
 
-			c, leader, leadi, maxterm := setupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 55)
+			c, leader, leadi, maxterm := SetupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 55)
 			_, _, _ = leader, leadi, maxterm
 
 			time.Sleep(time.Second * 5)

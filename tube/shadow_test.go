@@ -32,7 +32,7 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 			cfg.RpcCfg.QuietTestMode = false
 			// why is NoInitialLeaderTimeout?? forceLeader>=0 causes it.
 
-			c, leader, leadi, maxterm := setupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 55)
+			c, leader, leadi, maxterm := SetupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 55)
 
 			_, _, _ = leader, leadi, maxterm
 

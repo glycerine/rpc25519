@@ -26,6 +26,8 @@ func main() {
 
 	cliCfg.ClockDriftBound = 500 * time.Millisecond
 	tableSpace := "hermes"
+
+	// is an RMember riding on top of a Tube (Raft) node?
 	mem := tube.NewRMember(tableSpace, cliCfg)
 	mem.Start()
 	<-mem.Ready.Chan
