@@ -82,7 +82,7 @@ isolate hermes_protocol = {
 
         # One-slot client request buffers. These model requests arriving at a
         # live server while the local key replica is not yet able to start the
-        # low-level protocol transition.
+        # low-level protocol transition. makes the randomized testing more efficient.
         relation client_write_pending(N:node)
         individual client_write_value(N:node):value
         relation client_rmw_pending(N:node)
