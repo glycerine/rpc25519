@@ -29,7 +29,12 @@ CHECK_SPECS = \
 	hermes_rmw_o3_ready_completion_safety \
 	hermes_rmw_o3_ready_conflict_safety \
 	hermes_rmw_o3_ready_progress_safety \
-	hermes_rmw_o3_o3_safety \
+	hermes_rmw_o3_o3_ts_safety \
+	hermes_rmw_o3_o3_messages_safety \
+	hermes_rmw_o3_o3_node_safety \
+	hermes_rmw_o3_o3_completion_safety \
+	hermes_rmw_o3_o3_conflict_safety \
+	hermes_rmw_o3_o3_progress_safety \
 	hermes_rmw_o3_ready_liveness \
 	hermes_rmw_o3_o3_write_liveness \
 	hermes_rmw_o3_o3_rmw_liveness
@@ -71,7 +76,7 @@ check-one: compose
 	XTRACE_OFF=1 timeout $(CHECK_TIMEOUT) ivy_check diagnose=true trace=true $(SPEC).ivy > log.$(SPEC).ivy_check.out
 	tail -4 log.$(SPEC).ivy_check.out
 
-check-small: check-write-small check-rmw-small check-failure-small check-ready-small check-o3-safety check-ready check-o3-write check-o3-rmw
+check-small: check-write-small check-rmw-small check-failure-small check-ready-small check-o3-small check-ready check-o3-write check-o3-rmw
 
 check-safety:
 	$(MAKE) check-one SPEC=hermes_rmw_o3_safety
@@ -161,6 +166,26 @@ check-ready-progress:
 
 check-o3-safety:
 	$(MAKE) check-one SPEC=hermes_rmw_o3_o3_safety
+
+check-o3-small: check-o3-ts check-o3-messages check-o3-node check-o3-completion check-o3-conflict check-o3-progress
+
+check-o3-ts:
+	$(MAKE) check-one SPEC=hermes_rmw_o3_o3_ts_safety
+
+check-o3-messages:
+	$(MAKE) check-one SPEC=hermes_rmw_o3_o3_messages_safety
+
+check-o3-node:
+	$(MAKE) check-one SPEC=hermes_rmw_o3_o3_node_safety
+
+check-o3-completion:
+	$(MAKE) check-one SPEC=hermes_rmw_o3_o3_completion_safety
+
+check-o3-conflict:
+	$(MAKE) check-one SPEC=hermes_rmw_o3_o3_conflict_safety
+
+check-o3-progress:
+	$(MAKE) check-one SPEC=hermes_rmw_o3_o3_progress_safety
 
 check-ready:
 	$(MAKE) check-one SPEC=hermes_rmw_o3_ready_liveness
