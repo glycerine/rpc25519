@@ -97,28 +97,16 @@ isolate hermes_protocol = {
         relation same_parent(T:ts,U:ts)
         individual parent_ts(T:ts):ts
         relation ts_version(T:ts,V:version)
-        relation version_position_ok(T:ts,V:version)
         relation same_version(T:ts,U:ts) = exists V. ts_version(T,V) & ts_version(U,V)
         relation next_version(T:ts,U:ts) = exists VT,VU. ts_version(T,VT) & ts_version(U,VU) & version.succ(VU,VT)
-        relation write_version_ok(N:node,T:ts) =
-            exists BASE,MID,NEW.
-                ts_version(cur_ts(N),BASE) &
-                version.succ(BASE,MID) &
-                version.succ(MID,NEW) &
-                version_position_ok(T,NEW)
-        relation rmw_version_ok(N:node,T:ts) =
-            exists BASE,NEW.
-                ts_version(cur_ts(N),BASE) &
-                version.succ(BASE,NEW) &
-                version_position_ok(T,NEW)
         relation can_start_client_write(N:node,T:ts) =
             client_write_pending(N) & live(N) & ~pending(N) &
             (state(N) = hs_valid | state(N) = hs_invalid) &
-            lt(cur_ts(N),T) & ~seen_ts(T) & write_version_ok(N,T)
+            lt(cur_ts(N),T) & ~seen_ts(T)
         relation can_start_client_rmw(N:node,T:ts) =
             client_rmw_pending(N) & live(N) & ~pending(N) &
             state(N) = hs_valid &
-            lt(cur_ts(N),T) & ~seen_ts(T) & rmw_version_ok(N,T)
+            lt(cur_ts(N),T) & ~seen_ts(T)
         relation ts_value(T:ts,V:value)
         relation ts_rmw(T:ts)
         relation rmw_conflict(T:ts)
@@ -196,7 +184,8 @@ isolate hermes_protocol = {
             var mid_ver := base_ver.next;
             var new_ver := mid_ver.next;
             # HRWrite in HermesRMWs.tla sets version := base.version + 2.
-            require version_position_ok(t,new_ver);
+            require ts_version(U,UV) & UV < new_ver -> lt(U,t);
+            require ts_version(U,UV) & new_ver < UV -> lt(t,U);
 
             seen_ts(t) := true;
             parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
@@ -238,7 +227,8 @@ isolate hermes_protocol = {
             require ts_version(cur_ts(n),base_ver);
             var new_ver := base_ver.next;
             # HRRMW in HermesRMWs.tla sets version := base.version + 1.
-            require version_position_ok(t,new_ver);
+            require ts_version(U,UV) & UV < new_ver -> lt(U,t);
+            require ts_version(U,UV) & new_ver < UV -> lt(t,U);
 
             seen_ts(t) := true;
             parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
@@ -470,7 +460,6 @@ isolate hermes_protocol = {
 
         before fail {
             require live(n);
-            require exists A. live(A) & A ~= n;
             epoch_done(E) := epoch_done(E) | ready_epoch_active(E);
 
             inv_write(S,T,V) :=
@@ -516,15 +505,14 @@ isolate hermes_protocol = {
         invariant same_parent(T,U) & parent(T,B) -> parent(U,B)
         invariant same_parent(T,U) & parent(U,B) -> parent(T,B)
         invariant parent(T,B) & parent(U,B) & T ~= U -> same_parent(T,U)
+        invariant ts_version(T,V1) & ts_version(T,V2) -> V1 = V2
+        invariant ts_version(T,V) -> seen_ts(T)
         invariant seen_ts(T) -> same_version(T,T)
         invariant same_version(T,U) -> seen_ts(T) & seen_ts(U)
         invariant same_version(T,U) -> same_version(U,T)
         invariant same_version(T,U) & same_version(U,V) -> same_version(T,V)
         invariant next_version(T,U) -> seen_ts(T) & seen_ts(U)
         invariant next_version(T,U) -> ~same_version(T,U)
-        invariant ts_version(T,TV) -> version_position_ok(T,TV)
-        invariant version_position_ok(T,TV) & ts_version(U,UV) & UV < TV -> lt(U,T)
-        invariant version_position_ok(T,TV) & ts_version(U,UV) & TV < UV -> lt(T,U)
         invariant ts_version(T,TV) & ts_version(U,UV) & TV < UV -> lt(T,U)
         invariant ts_value(T,V) -> seen_ts(T)
         invariant ts_rmw(T) -> seen_ts(T)
@@ -793,7 +781,7 @@ isolate hermes_protocol = {
             before start_write {
                 if live(n) & ~pending(n) &
                     (state(n) = hs_valid | state(n) = hs_invalid) &
-                    lt(cur_ts(n),t) & ~seen_ts(t) & write_version_ok(n,t) {
+                    lt(cur_ts(n),t) & ~seen_ts(t) {
                     call local_write(n,t,v)
                 }
             }
@@ -801,7 +789,7 @@ isolate hermes_protocol = {
             action start_rmw(n:node,t:ts,v:value)
             before start_rmw {
                 if live(n) & ~pending(n) & state(n) = hs_valid &
-                    lt(cur_ts(n),t) & ~seen_ts(t) & rmw_version_ok(n,t) {
+                    lt(cur_ts(n),t) & ~seen_ts(t) {
                     call local_rmw(n,t,v)
                 }
             }
