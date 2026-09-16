@@ -1336,6 +1336,9 @@ func (s *HermesNode) drainValidKeyWaiters(keym *KeyMeta) {
 				progressed = true
 				break
 			case WRITE, RMW:
+				if tkt.TS.Compare(&keym.TS) != 0 {
+					continue
+				}
 				tkt.keym = keym
 				s.writeReq(tkt)
 				return
