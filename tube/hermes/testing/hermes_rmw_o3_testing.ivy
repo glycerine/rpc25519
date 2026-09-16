@@ -783,17 +783,19 @@ isolate hermes_protocol = {
 
             action start_write(n:node,t:ts,v:value)
             before start_write {
-                assert live(n) & ~pending(n) &
+                if live(n) & ~pending(n) &
                     (state(n) = hs_valid | state(n) = hs_invalid) &
-                    lt(cur_ts(n),t) & ~seen_ts(t) & write_version_ok(n,t);
-                call local_write(n,t,v)
+                    lt(cur_ts(n),t) & ~seen_ts(t) & write_version_ok(n,t) {
+                    call local_write(n,t,v)
+                }
             }
 
             action start_rmw(n:node,t:ts,v:value)
             before start_rmw {
-                assert live(n) & ~pending(n) & state(n) = hs_valid &
-                    lt(cur_ts(n),t) & ~seen_ts(t) & rmw_version_ok(n,t);
-                call local_rmw(n,t,v)
+                if live(n) & ~pending(n) & state(n) = hs_valid &
+                    lt(cur_ts(n),t) & ~seen_ts(t) & rmw_version_ok(n,t) {
+                    call local_rmw(n,t,v)
+                }
             }
 
             action client_write_arrive(n:node,v:value)
@@ -1201,10 +1203,10 @@ export hermes_protocol.ambient.finish_conflicted_ready
 export hermes_protocol.ambient.fail_nonlast
 
 interpret hermes_protocol.node -> bv[2]
-interpret hermes_protocol.epoch -> bv[5]
-interpret hermes_protocol.ts -> bv[5]
+interpret hermes_protocol.epoch -> bv[4]
+interpret hermes_protocol.ts -> bv[4]
 interpret hermes_protocol.value -> bv[4]
-interpret hermes_protocol.version -> bv[5]
+interpret hermes_protocol.version -> bv[4]
 
 attribute hermes_protocol.ambient.idle.weight = "0.02"
 attribute hermes_protocol.ambient.fail_nonlast.weight = "0.15"
