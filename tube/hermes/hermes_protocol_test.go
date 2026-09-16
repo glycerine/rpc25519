@@ -583,3 +583,57 @@ func Test021_o3_completes_when_inv_arrives_after_ack_quorum(t *testing.T) {
 		t.Fatalf("O3 did not complete after reordered ACK quorum and INV; state %v", stateString(keym.State))
 	}
 }
+
+func Test022_distributed_rmw_replicates_and_advances_by_one(t *testing.T) {
+	hermesBubble(t, func(t *testing.T) {
+		n := 3
+		cfg := &HermesConfig{
+			ReplicationDegree:  n,
+			MessageLossTimeout: time.Second * 5,
+			TCPonly_no_TLS:     true,
+			testName:           t.Name(),
+		}
+		c := newHermesTestCluster(cfg)
+		nodes := c.Nodes
+		c.Start()
+		defer c.Close()
+
+		if err := nodes[0].Write("k", []byte("one"), 0); err != nil {
+			t.Fatalf("initial write failed: %v", err)
+		}
+		base := nodes[0].store["k"].TS
+		if base.Version != 2 {
+			t.Fatalf("initial write version = %v, want 2", base.Version)
+		}
+
+		got, err := nodes[1].ReadModifyWrite("k", func(old Val) Val {
+			if string(old) != "one" {
+				t.Fatalf("RMW saw %q, want one", string(old))
+			}
+			return []byte("two")
+		}, 0)
+		if err != nil {
+			t.Fatalf("ReadModifyWrite failed: %v", err)
+		}
+		if string(got) != "two" {
+			t.Fatalf("ReadModifyWrite returned %q, want two", string(got))
+		}
+
+		for i, node := range nodes {
+			val, err := node.Read("k", 0)
+			if err != nil {
+				t.Fatalf("node %v read after RMW failed: %v", i, err)
+			}
+			if string(val) != "two" {
+				t.Fatalf("node %v read %q after RMW, want two", i, string(val))
+			}
+			keym := node.store["k"]
+			if keym.TS.Version != base.Version+1 {
+				t.Fatalf("node %v RMW version = %v, want %v", i, keym.TS.Version, base.Version+1)
+			}
+			if !keym.IsRMW {
+				t.Fatalf("node %v key metadata did not retain RMW flag", i)
+			}
+		}
+	})
+}

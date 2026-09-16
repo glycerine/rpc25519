@@ -399,7 +399,7 @@ func (s *HermesNode) tryO3Complete(tkt *HermesTicket, keym *KeyMeta) bool {
 	}
 	s.recordCompletedTicket(tkt)
 	s.deleteTicket(tkt.TicketID, false)
-	s.unblockReadsFor(keym)
+	s.drainValidKeyWaiters(keym)
 	return true
 }
 
@@ -845,7 +845,7 @@ func (s *HermesNode) writeReq(tkt *HermesTicket) {
 		if s.cfg.ReplicationDegree == 1 {
 			keym.State = sValid
 			tkt.Done.Close()
-			s.unblockReadsFor(keym)
+			s.drainValidKeyWaiters(keym)
 			return
 		}
 		invalidation := &INV{
@@ -1213,7 +1213,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 			//vv("%v recvInvalid: setting sValid; keym='%v'", s.me, keym)
 			// still have to apply the inv value.
 			keym.State = sValid
-			s.unblockReadsFor(keym)
+			s.drainValidKeyWaiters(keym)
 		}
 	}
 	return
@@ -1250,7 +1250,7 @@ func (s *HermesNode) completeWrite(keym *KeyMeta, ticketID string) {
 	} // end if ticketID != ""
 
 	// all readers waiting on this key also need to get unblocked
-	s.unblockReadsFor(keym)
+	s.drainValidKeyWaiters(keym)
 	//for _, it := range readers {
 	//	tkt2 := it.value
 	//	s.completeRead(keym, tkt2)
@@ -1305,6 +1305,48 @@ func (s *HermesNode) unblockReadsFor(keym *KeyMeta) {
 		s.nextWakeCh = nil
 		s.nextWake = time.Time{}
 		s.setWakeup()
+	}
+}
+
+func (s *HermesNode) drainValidKeyWaiters(keym *KeyMeta) {
+	for keym != nil && keym.State == sValid {
+		pqitems, ok := s.key2items[keym.Key]
+		if !ok {
+			return
+		}
+		slc := append([]*pqTimeItem{}, pqitems.slc...)
+		progressed := false
+		for _, it := range slc {
+			if it == nil || it.tkt == nil {
+				continue
+			}
+			tkt := it.tkt
+			if _, ok := s.tkt2item[tkt.TicketID]; !ok {
+				continue
+			}
+			if tkt.PseudoTicketForAckAccum {
+				continue
+			}
+			switch tkt.Op {
+			case READ:
+				tkt.Val = keym.Val
+				tkt.TS = keym.TS
+				s.deleteTicket(tkt.TicketID, false)
+				tkt.Done.Close()
+				progressed = true
+				break
+			case WRITE, RMW:
+				tkt.keym = keym
+				s.writeReq(tkt)
+				return
+			}
+			if progressed {
+				break
+			}
+		}
+		if !progressed {
+			return
+		}
 	}
 }
 
@@ -1491,7 +1533,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 				if isWrite {
 					s.completeWrite(keym, ticketID)
 				} else {
-					s.unblockReadsFor(keym)
+					s.drainValidKeyWaiters(keym)
 				}
 			}
 		}
@@ -1513,7 +1555,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 				// of us and then that write completes...
 				// we should resume the read, but mark as valid (now above).
 				//s.actionRR(keym, ack.TicketID)
-				s.unblockReadsFor(keym)
+				s.drainValidKeyWaiters(keym)
 			}
 			// Q: why don't we send out VALIDATES here, like sWrite below does?
 			// A: because only a follower can get into sInvalidWR, so
@@ -1582,7 +1624,7 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 			keym.State = sValid
 			// actionRR will apply the keym.Val to tkt.Val
 			//s.actionRR(keym, ack.TicketID)
-			s.unblockReadsFor(keym)
+			s.drainValidKeyWaiters(keym)
 			if !s.o3Enabled() {
 				valid := &VALIDATE{
 					TicketID: ack.TicketID,
@@ -1623,29 +1665,25 @@ func (s *HermesNode) recvValidate(v *VALIDATE) (err error) {
 		// nothing to do
 	case sInvalid:
 		keym.State = sValid
-		s.completeValidatedPending(keym)
 		// We known keym.TS == v.TS, but
 
 		// now we have to resume any blocked reads, right?
 		// this is not in the transition table...
 		//vv("seems like we should be unblocking reads here... len %v buffered='%#v'", len(s.buffered), s.buffered)
 		//s.actionRR(keym, v.TicketID)
-		s.unblockReadsFor(keym)
+		s.drainValidKeyWaiters(keym)
 
 	case sInvalidWR:
 		keym.State = sValid
-		s.completeValidatedPending(keym)
-		s.unblockReadsFor(keym)
+		s.drainValidKeyWaiters(keym)
 		// we are in recvValidate
 	case sWrite:
 		keym.State = sValid
-		s.completeValidatedPending(keym)
-		s.unblockReadsFor(keym)
+		s.drainValidKeyWaiters(keym)
 	case sReplay:
 		//s.actionRR(keym, v.TicketID) // is RR == Retry Read?
 		keym.State = sValid
-		s.completeValidatedPending(keym)
-		s.unblockReadsFor(keym)
+		s.drainValidKeyWaiters(keym)
 	}
 	return
 }
@@ -1775,7 +1813,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 					s.bcastValid(valid)
 				} else {
 					//s.actionRR(keym, tkt.TicketID)
-					s.unblockReadsFor(keym)
+					s.drainValidKeyWaiters(keym)
 				}
 			}
 		case sReplay: // failed follower case
@@ -1786,7 +1824,7 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 			}
 			keym.State = sValid
 			//s.actionRR(keym, tkt.TicketID)
-			s.unblockReadsFor(keym)
+			s.drainValidKeyWaiters(keym)
 			if !s.o3Enabled() {
 				valid := &VALIDATE{
 					TicketID: tkt.TicketID,
@@ -2137,7 +2175,7 @@ func (s *HermesNode) completeReadyCurrent(keym *KeyMeta, tkt *HermesTicket) bool
 			TS:       keym.TS,
 		})
 	}
-	s.unblockReadsFor(keym)
+	s.drainValidKeyWaiters(keym)
 	return true
 }
 

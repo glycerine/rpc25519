@@ -757,3 +757,10 @@ export hermes_protocol.o3_complete
 export hermes_protocol.receive_validate
 export hermes_protocol.replay_after_failure
 export hermes_protocol.fail
+
+interpret hermes_protocol.node -> bv[3]
+interpret hermes_protocol.epoch -> bv[16]
+interpret hermes_protocol.ts -> bv[16]
+interpret hermes_protocol.value -> bv[8]
+#interpret hermes_protocol.version -> bv[16]  # hermes_protocol.version is already interpreted
+
