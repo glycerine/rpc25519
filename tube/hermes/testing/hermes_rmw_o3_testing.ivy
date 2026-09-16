@@ -438,6 +438,7 @@ isolate hermes_protocol = {
 
         before fail {
             require live(n);
+            require exists A. live(A) & A ~= n;
             epoch_done(E) := epoch_done(E) | ready_epoch_active(E);
 
             inv_write(S,T,V) :=
@@ -740,27 +741,400 @@ isolate hermes_protocol = {
                 invariant l2s_saved & ($l2s_s . cur_ts(_N) = _T & state(_N) ~= hs_valid) & ~completed(_T) -> cur_ts(_N) = _T & state(_N) ~= hs_valid
             }
         }
+
+        ################################################################################
+        # Randomized ambient environment
+        ################################################################################
+
+        object ambient = {
+
+            # Always satisfiable, so bounded tests can finish even after the
+            # interesting enabled moves have been exhausted.
+            action idle = {
+            }
+
+            action start_write = {
+                if some (n:node,t:ts,v:value)
+                    live(n) & ~pending(n) &
+                    (state(n) = hs_valid | state(n) = hs_invalid) &
+                    lt(cur_ts(n),t) & ~seen_ts(t) {
+                    call local_write(n,t,v)
+                } else {
+                    assume false
+                }
+            }
+
+            action start_rmw = {
+                if some (n:node,t:ts,v:value)
+                    live(n) & ~pending(n) & state(n) = hs_valid &
+                    lt(cur_ts(n),t) & ~seen_ts(t) {
+                    call local_rmw(n,t,v)
+                } else {
+                    assume false
+                }
+            }
+
+            action deliver_write_inv = {
+                if some (n:node,s:node,t:ts,v:value)
+                    live(n) & n ~= s & inv_write(s,t,v) {
+                    call receive_write_inv(n,s,t,v)
+                } else {
+                    assume false
+                }
+            }
+
+            action duplicate_write_inv = {
+                if some (n:node,s:node,t:ts,v:value)
+                    live(n) & n ~= s & inv_write(s,t,v) {
+                    call receive_write_inv(n,s,t,v);
+                    call receive_write_inv(n,s,t,v)
+                } else {
+                    assume false
+                }
+            }
+
+            action deliver_rmw_inv = {
+                if some (n:node,s:node,t:ts,v:value)
+                    live(n) & n ~= s & inv_rmw(s,t,v) {
+                    call receive_rmw_inv(n,s,t,v)
+                } else {
+                    assume false
+                }
+            }
+
+            action duplicate_rmw_inv = {
+                if some (n:node,s:node,t:ts,v:value)
+                    live(n) & n ~= s & inv_rmw(s,t,v) {
+                    call receive_rmw_inv(n,s,t,v);
+                    call receive_rmw_inv(n,s,t,v)
+                } else {
+                    assume false
+                }
+            }
+
+            action collect_ack = {
+                if some (n:node,a:node,t:ts)
+                    live(n) & pending(n) & pending_ts(n) = t &
+                    ack_msg(a,n,t) & ~acked(n,a) {
+                    call receive_ack(n,a,t)
+                } else {
+                    assume false
+                }
+            }
+
+            action make_ready = {
+                if some (n:node,e:epoch)
+                    live(n) & pending(n) & ~ready(n) & ~seen_epoch(e) &
+                    (live(A) -> acked(n,A)) {
+                    call mark_ready(n,e)
+                } else {
+                    assume false
+                }
+            }
+
+            action finish_current = {
+                if some (n:node)
+                    live(n) & pending(n) & pending_ts(n) = cur_ts(n) &
+                    (state(n) = hs_write | state(n) = hs_replay) & ready(n) &
+                    (cur_rmw(n) -> ~rmw_conflict(cur_ts(n))) &
+                    (~cur_rmw(n) -> ~write_conflict(cur_ts(n))) {
+                    call complete_current(n)
+                } else {
+                    assume false
+                }
+            }
+
+            action finish_overwritten = {
+                if some (n:node)
+                    live(n) & pending(n) & lt(pending_ts(n),cur_ts(n)) &
+                    ready(n) & ~write_conflict(pending_ts(n)) {
+                    call complete_overwritten(n)
+                } else {
+                    assume false
+                }
+            }
+
+            action complete_ready_driver = {
+                if some (n:node) live(n) {
+                    call complete_ready(n)
+                } else {
+                    assume false
+                }
+            }
+
+            action observe_o3 = {
+                if some (n:node,c:node,t:ts)
+                    live(n) & live(c) & seen_ts(t) &
+                    (live(A) & A ~= c -> ack_msg(A,c,t)) &
+                    (live(c) -> le(t,cur_ts(c))) &
+                    (live(c) & ts_rmw(t) & parent(t,B) & cur_rmw(c) & parent(cur_ts(c),B) -> cur_ts(c) = t) &
+                    (live(c) & ts_rmw(t) & parent(t,B) & ~cur_rmw(c) & parent(cur_ts(c),B) -> false) &
+                    (live(c) & ts_rmw(t) & parent(t,B) & pending(c) & pending_rmw(c) & parent(pending_ts(c),B) -> pending_ts(c) = t) &
+                    (live(c) & ts_rmw(t) & parent(t,B) & pending(c) & ~pending_rmw(c) & parent(pending_ts(c),B) -> false) &
+                    (live(c) & ts_rmw(t) & cur_rmw(c) & same_parent(t,cur_ts(c)) -> cur_ts(c) = t) &
+                    (live(c) & ts_rmw(t) & ~cur_rmw(c) & same_parent(t,cur_ts(c)) -> false) &
+                    (live(c) & ts_rmw(t) & pending(c) & pending_rmw(c) & same_parent(t,pending_ts(c)) -> pending_ts(c) = t) &
+                    (live(c) & ts_rmw(t) & pending(c) & ~pending_rmw(c) & same_parent(t,pending_ts(c)) -> false) {
+                    call o3_observe_quorum(n,c,t)
+                } else {
+                    assume false
+                }
+            }
+
+            action complete_o3 = {
+                if some (n:node,c:node,t:ts)
+                    live(n) & cur_ts(n) = t & state(n) ~= hs_valid &
+                    o3_quorum(n,c,t) & ~rmw_conflict(t) & ~write_conflict(t) {
+                    call o3_complete(n,c,t)
+                } else {
+                    assume false
+                }
+            }
+
+            action validate_some = {
+                if some (n:node,t:ts)
+                    live(n) & val_msg(t) {
+                    call receive_validate(n,t)
+                } else {
+                    assume false
+                }
+            }
+
+            action replay_dead_writer = {
+                if some (n:node)
+                    live(n) & ~pending(n) & state(n) = hs_invalid &
+                    ~writer_live(n) & ~rmw_conflict(cur_ts(n)) &
+                    (cur_rmw(n) | ~write_conflict(cur_ts(n))) {
+                    call replay_after_failure(n)
+                } else {
+                    assume false
+                }
+            }
+
+            action fail_nonlast = {
+                if some (n:node)
+                    live(n) & (exists A. live(A) & A ~= n) {
+                    call fail(n)
+                } else {
+                    assume false
+                }
+            }
+
+            # Complete a blind write through the normal ACK/READY/VALIDATE path.
+            action scenario_write_quorum = {
+                if some (c:node,a:node,b:node,d:node,t:ts,v:value,e:epoch)
+                    live(c) & live(a) & live(b) & live(d) &
+                    a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
+                    ~pending(c) & (state(c) = hs_valid | state(c) = hs_invalid) &
+                    lt(cur_ts(c),t) & ~seen_ts(t) & ~seen_epoch(e) {
+                    call local_write(c,t,v);
+                    call receive_write_inv(a,c,t,v);
+                    call receive_write_inv(b,c,t,v);
+                    call receive_write_inv(d,c,t,v);
+                    call receive_ack(c,a,t);
+                    call receive_ack(c,b,t);
+                    call receive_ack(c,d,t);
+                    call mark_ready(c,e);
+                    call complete_current(c);
+                    call receive_validate(a,t);
+                    call receive_validate(b,t);
+                    call receive_validate(d,t)
+                } else {
+                    assume false
+                }
+            }
+
+            # Complete an RMW after all live replicas have accepted its INV.
+            action scenario_rmw_quorum = {
+                if some (c:node,a:node,b:node,d:node,t:ts,v:value,e:epoch)
+                    live(c) & live(a) & live(b) & live(d) &
+                    a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
+                    ~pending(c) & state(c) = hs_valid &
+                    lt(cur_ts(c),t) & ~seen_ts(t) & ~seen_epoch(e) {
+                    call local_rmw(c,t,v);
+                    call receive_rmw_inv(a,c,t,v);
+                    call receive_rmw_inv(b,c,t,v);
+                    call receive_rmw_inv(d,c,t,v);
+                    call receive_ack(c,a,t);
+                    call receive_ack(c,b,t);
+                    call receive_ack(c,d,t);
+                    call mark_ready(c,e);
+                    call complete_current(c);
+                    call receive_validate(a,t);
+                    call receive_validate(b,t);
+                    call receive_validate(d,t)
+                } else {
+                    assume false
+                }
+            }
+
+            # Finish through the O3 path before the coordinator sends VALIDATE.
+            action scenario_o3_write = {
+                if some (c:node,a:node,b:node,d:node,t:ts,v:value,e:epoch)
+                    live(c) & live(a) & live(b) & live(d) &
+                    a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
+                    ~pending(c) & (state(c) = hs_valid | state(c) = hs_invalid) &
+                    lt(cur_ts(c),t) & ~seen_ts(t) & ~seen_epoch(e) {
+                    call local_write(c,t,v);
+                    call receive_write_inv(a,c,t,v);
+                    call receive_write_inv(b,c,t,v);
+                    call receive_write_inv(d,c,t,v);
+                    call o3_observe_quorum(a,c,t);
+                    call o3_complete(a,c,t);
+                    call receive_ack(c,a,t);
+                    call receive_ack(c,b,t);
+                    call receive_ack(c,d,t);
+                    call mark_ready(c,e);
+                    call complete_current(c)
+                } else {
+                    assume false
+                }
+            }
+
+            # A local blind write is overwritten by a newer blind write but
+            # still completes as an overwritten operation.
+            action scenario_overwritten_write = {
+                if some (c:node,w:node,a:node,b:node,t1:ts,t2:ts,v1:value,v2:value,e:epoch)
+                    live(c) & live(w) & live(a) & live(b) &
+                    c ~= w & c ~= a & c ~= b & w ~= a & w ~= b & a ~= b &
+                    ~pending(c) & ~pending(w) &
+                    (state(c) = hs_valid | state(c) = hs_invalid) &
+                    (state(w) = hs_valid | state(w) = hs_invalid) &
+                    lt(cur_ts(c),t1) & lt(cur_ts(w),t2) & lt(t1,t2) &
+                    ~seen_ts(t1) & ~seen_ts(t2) & ~seen_epoch(e) {
+                    call local_write(c,t1,v1);
+                    call local_write(w,t2,v2);
+                    call receive_write_inv(c,w,t2,v2);
+                    call receive_write_inv(w,c,t1,v1);
+                    call receive_write_inv(a,c,t1,v1);
+                    call receive_write_inv(b,c,t1,v1);
+                    call receive_ack(c,w,t1);
+                    call receive_ack(c,a,t1);
+                    call receive_ack(c,b,t1);
+                    call mark_ready(c,e);
+                    call complete_overwritten(c)
+                } else {
+                    assume false
+                }
+            }
+
+            # A pending RMW loses to a newer blind write and is forced invalid.
+            action scenario_rmw_aborted_by_write = {
+                if some (c:node,w:node,a:node,b:node,t1:ts,t2:ts,v1:value,v2:value,e:epoch)
+                    live(c) & live(w) & live(a) & live(b) &
+                    c ~= w & c ~= a & c ~= b & w ~= a & w ~= b & a ~= b &
+                    ~pending(c) & ~pending(w) &
+                    state(c) = hs_valid &
+                    (state(w) = hs_valid | state(w) = hs_invalid) &
+                    lt(cur_ts(c),t1) & lt(cur_ts(w),t2) & lt(t1,t2) &
+                    ~seen_ts(t1) & ~seen_ts(t2) & ~seen_epoch(e) {
+                    call local_rmw(c,t1,v1);
+                    call local_write(w,t2,v2);
+                    call receive_write_inv(c,w,t2,v2);
+                    call receive_write_inv(a,w,t2,v2);
+                    call receive_write_inv(b,w,t2,v2);
+                    call receive_ack(w,c,t2);
+                    call receive_ack(w,a,t2);
+                    call receive_ack(w,b,t2);
+                    call mark_ready(w,e);
+                    call complete_current(w)
+                } else {
+                    assume false
+                }
+            }
+
+            # Two same-base RMWs race. The lower timestamp receives a stale-RMW
+            # pushback, and the winner completes, marking the loser conflicted.
+            action scenario_rmw_race_pushback = {
+                if some (c:node,w:node,a:node,b:node,t1:ts,t2:ts,v1:value,v2:value,e:epoch)
+                    live(c) & live(w) & live(a) & live(b) &
+                    c ~= w & c ~= a & c ~= b & w ~= a & w ~= b & a ~= b &
+                    ~pending(c) & ~pending(w) &
+                    state(c) = hs_valid & state(w) = hs_valid &
+                    cur_ts(c) = cur_ts(w) &
+                    lt(cur_ts(c),t1) & lt(cur_ts(w),t2) & lt(t1,t2) &
+                    ~seen_ts(t1) & ~seen_ts(t2) & ~seen_epoch(e) {
+                    call local_rmw(c,t1,v1);
+                    call local_rmw(w,t2,v2);
+                    call receive_rmw_inv(w,c,t1,v1);
+                    call receive_rmw_inv(c,w,t2,v2);
+                    call receive_rmw_inv(a,w,t2,v2);
+                    call receive_rmw_inv(b,w,t2,v2);
+                    call receive_ack(w,c,t2);
+                    call receive_ack(w,a,t2);
+                    call receive_ack(w,b,t2);
+                    call mark_ready(w,e);
+                    call complete_current(w)
+                } else {
+                    assume false
+                }
+            }
+
+            # Coordinator fails after only one follower has the update; that
+            # follower replays and completes the write for the surviving group.
+            action scenario_writer_fail_replay = {
+                if some (c:node,a:node,b:node,d:node,t:ts,v:value,e:epoch)
+                    live(c) & live(a) & live(b) & live(d) &
+                    a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
+                    ~pending(c) & (state(c) = hs_valid | state(c) = hs_invalid) &
+                    lt(cur_ts(c),t) & ~seen_ts(t) & ~seen_epoch(e) {
+                    call local_write(c,t,v);
+                    call receive_write_inv(a,c,t,v);
+                    call fail(c);
+                    call replay_after_failure(a);
+                    call receive_write_inv(b,a,t,v);
+                    call receive_write_inv(d,a,t,v);
+                    call receive_ack(a,b,t);
+                    call receive_ack(a,d,t);
+                    call mark_ready(a,e);
+                    call complete_current(a);
+                    call receive_validate(b,t);
+                    call receive_validate(d,t)
+                } else {
+                    assume false
+                }
+            }
+        }
     }
 }
 
-export hermes_protocol.local_write
-export hermes_protocol.local_rmw
-export hermes_protocol.receive_write_inv
-export hermes_protocol.receive_rmw_inv
-export hermes_protocol.receive_ack
-export hermes_protocol.mark_ready
-export hermes_protocol.complete_current
-export hermes_protocol.complete_overwritten
-export hermes_protocol.complete_ready
-export hermes_protocol.o3_observe_quorum
-export hermes_protocol.o3_complete
-export hermes_protocol.receive_validate
-export hermes_protocol.replay_after_failure
-export hermes_protocol.fail
+export hermes_protocol.ambient.idle
+export hermes_protocol.ambient.start_write
+export hermes_protocol.ambient.start_rmw
+export hermes_protocol.ambient.deliver_write_inv
+export hermes_protocol.ambient.duplicate_write_inv
+export hermes_protocol.ambient.deliver_rmw_inv
+export hermes_protocol.ambient.duplicate_rmw_inv
+export hermes_protocol.ambient.collect_ack
+export hermes_protocol.ambient.make_ready
+export hermes_protocol.ambient.finish_current
+export hermes_protocol.ambient.finish_overwritten
+export hermes_protocol.ambient.complete_ready_driver
+export hermes_protocol.ambient.observe_o3
+export hermes_protocol.ambient.complete_o3
+export hermes_protocol.ambient.validate_some
+export hermes_protocol.ambient.replay_dead_writer
+export hermes_protocol.ambient.fail_nonlast
+export hermes_protocol.ambient.scenario_write_quorum
+export hermes_protocol.ambient.scenario_rmw_quorum
+export hermes_protocol.ambient.scenario_o3_write
+export hermes_protocol.ambient.scenario_overwritten_write
+export hermes_protocol.ambient.scenario_rmw_aborted_by_write
+export hermes_protocol.ambient.scenario_rmw_race_pushback
+export hermes_protocol.ambient.scenario_writer_fail_replay
 
-interpret hermes_protocol.node -> bv[3]
-interpret hermes_protocol.epoch -> bv[16]
-interpret hermes_protocol.ts -> bv[16]
-interpret hermes_protocol.value -> bv[8]
+interpret hermes_protocol.node -> bv[2]
+interpret hermes_protocol.epoch -> bv[5]
+interpret hermes_protocol.ts -> bv[5]
+interpret hermes_protocol.value -> bv[4]
 #interpret hermes_protocol.version -> bv[16]  # hermes_protocol.version is already interpreted
 
+attribute hermes_protocol.ambient.idle.weight = "0.02"
+attribute hermes_protocol.ambient.fail_nonlast.weight = "0.15"
+attribute hermes_protocol.ambient.scenario_write_quorum.weight = "3.0"
+attribute hermes_protocol.ambient.scenario_rmw_quorum.weight = "3.0"
+attribute hermes_protocol.ambient.scenario_o3_write.weight = "3.0"
+attribute hermes_protocol.ambient.scenario_overwritten_write.weight = "2.0"
+attribute hermes_protocol.ambient.scenario_rmw_aborted_by_write.weight = "2.0"
+attribute hermes_protocol.ambient.scenario_rmw_race_pushback.weight = "2.0"
+attribute hermes_protocol.ambient.scenario_writer_fail_replay.weight = "2.0"

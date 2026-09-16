@@ -335,7 +335,9 @@ func (s *HermesNode) actionI(inv *INV, keym *KeyMeta) {
 
 	if s.o3Enabled() {
 		tkt := s.bindO3Ticket(inv, keym)
-		s.tryO3Complete(tkt, keym)
+		if keym.State != sValid {
+			s.tryO3Complete(tkt, keym)
+		}
 	}
 }
 
@@ -1681,26 +1683,6 @@ func (s *HermesNode) recvValidate(v *VALIDATE) (err error) {
 	return
 }
 
-func (s *HermesNode) completeValidatedPending(keym *KeyMeta) {
-	items, ok := s.key2items[keym.Key]
-	if !ok {
-		return
-	}
-	slc := append([]*pqTimeItem{}, items.slc...)
-	for _, it := range slc {
-		tkt := it.tkt
-		if tkt.TS.Compare(&keym.TS) != 0 {
-			continue
-		}
-		if tkt.Op == READ {
-			tkt.Val = keym.Val
-			tkt.TS = keym.TS
-		}
-		s.deleteTicket(tkt.TicketID, tkt.Op == WRITE || tkt.Op == RMW)
-		tkt.Done.Close()
-	}
-}
-
 // we should only be called when s.nextWakeCh fires,
 // since we reset it. This has combined failed-coordinator
 // and failed-follower logic, so it follows up on
@@ -1873,7 +1855,34 @@ func (s *HermesNode) reconfigRM() {
 }
 
 func (s *HermesNode) replayRMW(tkt *HermesTicket) {
-	panic("TODO implement s.replayRMW()")
+	if tkt == nil || tkt.Op != RMW {
+		return
+	}
+	keym := tkt.keym
+	if keym == nil {
+		keym = s.store[tkt.Key]
+		tkt.keym = keym
+	}
+	if keym == nil {
+		return
+	}
+	if len(tkt.Val) == 0 {
+		tkt.Val = keym.Val
+	}
+	tkt.Ready = false
+	tkt.ackVector = map[string]bool{s.PeerID: true}
+	keym.State = sReplay
+	keym.IsRMW = true
+	s.actionAbRecordPending(tkt)
+	s.bcastInval(keym.Key, &INV{
+		TicketID: tkt.TicketID,
+		FromID:   s.PeerID,
+		Key:      keym.Key,
+		Val:      tkt.Val,
+		TS:       tkt.TS,
+		EpochV:   s.EpochV,
+		IsRMW:    true,
+	})
 }
 
 func (s *HermesNode) applyMembershipChange(reply *tube.PingReply) {
