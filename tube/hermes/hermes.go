@@ -1206,16 +1206,6 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 			s.ack(inv)
 		}
 	}
-	if s.o3Enabled() {
-		if s.cfg.ReplicationDegree <= 2 {
-			// we know other guy is trying write, so with
-			// only two nodes, we are done.
-			//vv("%v recvInvalid: setting sValid; keym='%v'", s.me, keym)
-			// still have to apply the inv value.
-			keym.State = sValid
-			s.drainValidKeyWaiters(keym)
-		}
-	}
 	return
 }
 

@@ -584,6 +584,120 @@ func Test021_o3_completes_when_inv_arrives_after_ack_quorum(t *testing.T) {
 	}
 }
 
+func Test023_o3_existing_key_waits_for_ack_quorum_before_valid(t *testing.T) {
+	orig := useBcastAckOptimization
+	useBcastAckOptimization = true
+	defer func() {
+		useBcastAckOptimization = orig
+	}()
+
+	cfg := &HermesConfig{
+		ReplicationDegree:  2,
+		MessageLossTimeout: time.Second,
+		TCPonly_no_TLS:     true,
+		EnableO3:           true,
+		testName:           t.Name(),
+	}
+	n := NewHermesNode("o3_existing", cfg)
+	n.PeerID = "node_b"
+	n.liveNodes = []string{"node_a", "node_b"}
+	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	oldTS := TS{Version: 0, CoordID: "node_a"}
+	newTS := TS{Version: 2, CoordID: "node_a"}
+	ticketID := "write-ticket"
+	n.store["k"] = &KeyMeta{
+		Key:          "k",
+		TS:           oldTS,
+		State:        sValid,
+		LastWriterID: "node_a",
+		Val:          []byte("old"),
+	}
+
+	if err := n.recvInvalidate(&INV{
+		Key:      "k",
+		FromID:   "node_a",
+		EpochV:   n.EpochV,
+		TS:       newTS,
+		Val:      []byte("new"),
+		TicketID: ticketID,
+	}); err != nil {
+		t.Fatalf("recvInvalidate returned %v", err)
+	}
+	keym := n.store["k"]
+	if keym.State == sValid {
+		t.Fatalf("O3 made existing key valid before matching ACK quorum")
+	}
+
+	if err := n.recvAck(&ACK{
+		Key:      "k",
+		FromID:   "node_b",
+		EpochV:   n.EpochV,
+		TS:       newTS,
+		TicketID: ticketID,
+	}); err != nil {
+		t.Fatalf("recvAck returned %v", err)
+	}
+	if keym.State != sValid {
+		t.Fatalf("O3 did not complete existing key after ACK quorum; state %v", stateString(keym.State))
+	}
+	if string(keym.Val) != "new" {
+		t.Fatalf("O3 completed existing key with value %q, want new", string(keym.Val))
+	}
+}
+
+func Test024_replay_rmw_rebroadcasts_same_timestamp_and_value(t *testing.T) {
+	cfg := &HermesConfig{
+		ReplicationDegree:  3,
+		MessageLossTimeout: time.Second,
+		TCPonly_no_TLS:     true,
+		testName:           t.Name(),
+	}
+	n := NewHermesNode("rmw_replay", cfg)
+	n.PeerID = "node_a"
+	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	ts := TS{Version: 3, CoordID: "node_a"}
+	keym := &KeyMeta{
+		Key:          "k",
+		TS:           ts,
+		State:        sWrite,
+		LastWriterID: "node_a",
+		Val:          []byte("value"),
+		IsRMW:        true,
+	}
+	n.store["k"] = keym
+	tkt := n.NewHermesTicket(RMW, "k", []byte("value"), n.PeerID, 0)
+	tkt.TS = ts
+	tkt.keym = keym
+	tkt.ackVector["node_b"] = true
+	tkt.Ready = true
+	n.actionAbRecordPending(tkt)
+
+	n.replayRMW(tkt)
+
+	if keym.State != sReplay {
+		t.Fatalf("replayRMW left key state %v, want sReplay", stateString(keym.State))
+	}
+	if !tkt.ackVector[n.PeerID] || len(tkt.ackVector) != 1 {
+		t.Fatalf("replayRMW ack vector = %#v, want only self ACK", tkt.ackVector)
+	}
+	if tkt.Ready {
+		t.Fatalf("replayRMW left stale ready certificate set")
+	}
+	if len(n.sentINVs) != 1 {
+		t.Fatalf("replayRMW sent %v INVs, want 1", len(n.sentINVs))
+	}
+	inv := n.sentINVs[0]
+	if !inv.IsRMW {
+		t.Fatalf("replayRMW sent non-RMW INV")
+	}
+	if inv.TS.Compare(&ts) != 0 {
+		t.Fatalf("replayRMW sent TS %v, want %v", inv.TS, ts)
+	}
+	if string(inv.Val) != "value" {
+		t.Fatalf("replayRMW sent value %q, want value", string(inv.Val))
+	}
+}
+
 func Test022_distributed_rmw_replicates_and_advances_by_one(t *testing.T) {
 	hermesBubble(t, func(t *testing.T) {
 		n := 3
