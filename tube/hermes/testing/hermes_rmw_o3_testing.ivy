@@ -97,6 +97,7 @@ isolate hermes_protocol = {
         relation same_parent(T:ts,U:ts)
         individual parent_ts(T:ts):ts
         relation ts_version(T:ts,V:version)
+        relation version_position_ok(T:ts,V:version)
         relation same_version(T:ts,U:ts) = exists V. ts_version(T,V) & ts_version(U,V)
         relation next_version(T:ts,U:ts) = exists VT,VU. ts_version(T,VT) & ts_version(U,VU) & version.succ(VU,VT)
         relation write_version_ok(N:node,T:ts) =
@@ -104,14 +105,12 @@ isolate hermes_protocol = {
                 ts_version(cur_ts(N),BASE) &
                 version.succ(BASE,MID) &
                 version.succ(MID,NEW) &
-                (forall U,UV. ts_version(U,UV) & UV < NEW -> lt(U,T)) &
-                (forall U,UV. ts_version(U,UV) & NEW < UV -> lt(T,U))
+                version_position_ok(T,NEW)
         relation rmw_version_ok(N:node,T:ts) =
             exists BASE,NEW.
                 ts_version(cur_ts(N),BASE) &
                 version.succ(BASE,NEW) &
-                (forall U,UV. ts_version(U,UV) & UV < NEW -> lt(U,T)) &
-                (forall U,UV. ts_version(U,UV) & NEW < UV -> lt(T,U))
+                version_position_ok(T,NEW)
         relation can_start_client_write(N:node,T:ts) =
             client_write_pending(N) & live(N) & ~pending(N) &
             (state(N) = hs_valid | state(N) = hs_invalid) &
@@ -197,8 +196,7 @@ isolate hermes_protocol = {
             var mid_ver := base_ver.next;
             var new_ver := mid_ver.next;
             # HRWrite in HermesRMWs.tla sets version := base.version + 2.
-            require ts_version(U,UV) & UV < new_ver -> lt(U,t);
-            require ts_version(U,UV) & new_ver < UV -> lt(t,U);
+            require version_position_ok(t,new_ver);
 
             seen_ts(t) := true;
             parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
@@ -240,8 +238,7 @@ isolate hermes_protocol = {
             require ts_version(cur_ts(n),base_ver);
             var new_ver := base_ver.next;
             # HRRMW in HermesRMWs.tla sets version := base.version + 1.
-            require ts_version(U,UV) & UV < new_ver -> lt(U,t);
-            require ts_version(U,UV) & new_ver < UV -> lt(t,U);
+            require version_position_ok(t,new_ver);
 
             seen_ts(t) := true;
             parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
@@ -525,6 +522,9 @@ isolate hermes_protocol = {
         invariant same_version(T,U) & same_version(U,V) -> same_version(T,V)
         invariant next_version(T,U) -> seen_ts(T) & seen_ts(U)
         invariant next_version(T,U) -> ~same_version(T,U)
+        invariant ts_version(T,TV) -> version_position_ok(T,TV)
+        invariant version_position_ok(T,TV) & ts_version(U,UV) & UV < TV -> lt(U,T)
+        invariant version_position_ok(T,TV) & ts_version(U,UV) & TV < UV -> lt(T,U)
         invariant ts_version(T,TV) & ts_version(U,UV) & TV < UV -> lt(T,U)
         invariant ts_value(T,V) -> seen_ts(T)
         invariant ts_rmw(T) -> seen_ts(T)
