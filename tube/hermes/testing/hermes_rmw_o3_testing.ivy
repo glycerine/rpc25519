@@ -26,7 +26,7 @@ isolate hermes_protocol = {
     type ts
     type value
     type epoch
-    instance version : unbounded_sequence
+    type version
 
     type hstate = {hs_valid, hs_invalid, hs_invalid_write, hs_write, hs_replay}
 
@@ -86,9 +86,18 @@ isolate hermes_protocol = {
         relation parent(T:ts,B:ts)
         relation same_parent(T:ts,U:ts)
         individual parent_ts(T:ts):ts
-        relation ts_version(T:ts,V:version)
-        relation same_version(T:ts,U:ts) = exists V. ts_version(T,V) & ts_version(U,V)
-        relation next_version(T:ts,U:ts) = exists VT,VU. ts_version(T,VT) & ts_version(U,VU) & version.succ(VU,VT)
+        individual ts_version(T:ts):version
+        relation same_version(T:ts,U:ts) = seen_ts(T) & seen_ts(U) & ts_version(T) = ts_version(U)
+        relation next_version(T:ts,U:ts) = seen_ts(T) & seen_ts(U) & ts_version(U) + 1 = ts_version(T) & ts_version(U) < ts_version(T)
+        relation write_version_ok(N:node,T:ts) =
+            ts_version(cur_ts(N)) < ts_version(cur_ts(N)) + 1 &
+            ts_version(cur_ts(N)) + 1 < (ts_version(cur_ts(N)) + 1) + 1 &
+            (forall U. seen_ts(U) & ts_version(U) < (ts_version(cur_ts(N)) + 1) + 1 -> lt(U,T)) &
+            (forall U. seen_ts(U) & (ts_version(cur_ts(N)) + 1) + 1 < ts_version(U) -> lt(T,U))
+        relation rmw_version_ok(N:node,T:ts) =
+            ts_version(cur_ts(N)) < ts_version(cur_ts(N)) + 1 &
+            (forall U. seen_ts(U) & ts_version(U) < ts_version(cur_ts(N)) + 1 -> lt(U,T)) &
+            (forall U. seen_ts(U) & ts_version(cur_ts(N)) + 1 < ts_version(U) -> lt(T,U))
         relation ts_value(T:ts,V:value)
         relation ts_rmw(T:ts)
         relation rmw_conflict(T:ts)
@@ -134,7 +143,7 @@ isolate hermes_protocol = {
             parent(T,B) := false;
             same_parent(T,U) := false;
             parent_ts(T) := init_ts;
-            ts_version(T,TV) := T = init_ts & TV = 0;
+            ts_version(T) := 0;
             ts_value(T,V) := T = init_ts & V = init_value;
             ts_rmw(T) := false;
             rmw_conflict(T) := false;
@@ -157,13 +166,11 @@ isolate hermes_protocol = {
             require lt(cur_ts(n),t);
             require ~seen_ts(t);
             assert seen_ts(cur_ts(n));
-            var base_ver:version;
-            require ts_version(cur_ts(n),base_ver);
-            var mid_ver := base_ver.next;
-            var new_ver := mid_ver.next;
+            var base_ver := ts_version(cur_ts(n));
+            var mid_ver := base_ver + 1;
+            var new_ver := mid_ver + 1;
             # HRWrite in HermesRMWs.tla sets version := base.version + 2.
-            require ts_version(U,UV) & UV < new_ver -> lt(U,t);
-            require ts_version(U,UV) & new_ver < UV -> lt(t,U);
+            require write_version_ok(n,t);
 
             seen_ts(t) := true;
             parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
@@ -171,7 +178,7 @@ isolate hermes_protocol = {
                 (T = t & parent(U,cur_ts(n))) |
                 (U = t & parent(T,cur_ts(n)));
             parent_ts(T) := cur_ts(n) if T = t else parent_ts(T);
-            ts_version(T,TV) := ts_version(T,TV) | (T = t & TV = new_ver);
+            ts_version(T) := new_ver if T = t else ts_version(T);
             ts_value(T,V) := ts_value(T,V) | (T = t & V = v);
             ts_rmw(T) := ts_rmw(T) & T ~= t;
             rmw_conflict(T) := rmw_conflict(T) & T ~= t;
@@ -201,12 +208,10 @@ isolate hermes_protocol = {
             require lt(cur_ts(n),t);
             require ~seen_ts(t);
             assert seen_ts(cur_ts(n));
-            var base_ver:version;
-            require ts_version(cur_ts(n),base_ver);
-            var new_ver := base_ver.next;
+            var base_ver := ts_version(cur_ts(n));
+            var new_ver := base_ver + 1;
             # HRRMW in HermesRMWs.tla sets version := base.version + 1.
-            require ts_version(U,UV) & UV < new_ver -> lt(U,t);
-            require ts_version(U,UV) & new_ver < UV -> lt(t,U);
+            require rmw_version_ok(n,t);
 
             seen_ts(t) := true;
             parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
@@ -214,7 +219,7 @@ isolate hermes_protocol = {
                 (T = t & parent(U,cur_ts(n))) |
                 (U = t & parent(T,cur_ts(n)));
             parent_ts(T) := cur_ts(n) if T = t else parent_ts(T);
-            ts_version(T,TV) := ts_version(T,TV) | (T = t & TV = new_ver);
+            ts_version(T) := new_ver if T = t else ts_version(T);
             ts_value(T,V) := ts_value(T,V) | (T = t & V = v);
             ts_rmw(T) := ts_rmw(T) | T = t;
             rmw_conflict(T) := rmw_conflict(T) & T ~= t;
@@ -482,15 +487,13 @@ isolate hermes_protocol = {
         invariant same_parent(T,U) & parent(T,B) -> parent(U,B)
         invariant same_parent(T,U) & parent(U,B) -> parent(T,B)
         invariant parent(T,B) & parent(U,B) & T ~= U -> same_parent(T,U)
-        invariant ts_version(T,V1) & ts_version(T,V2) -> V1 = V2
-        invariant ts_version(T,V) -> seen_ts(T)
         invariant seen_ts(T) -> same_version(T,T)
         invariant same_version(T,U) -> seen_ts(T) & seen_ts(U)
         invariant same_version(T,U) -> same_version(U,T)
         invariant same_version(T,U) & same_version(U,V) -> same_version(T,V)
         invariant next_version(T,U) -> seen_ts(T) & seen_ts(U)
         invariant next_version(T,U) -> ~same_version(T,U)
-        invariant ts_version(T,TV) & ts_version(U,UV) & TV < UV -> lt(T,U)
+        invariant seen_ts(T) & seen_ts(U) & ts_version(T) < ts_version(U) -> lt(T,U)
         invariant ts_value(T,V) -> seen_ts(T)
         invariant ts_rmw(T) -> seen_ts(T)
         invariant rmw_conflict(T) -> seen_ts(T)
@@ -750,173 +753,186 @@ isolate hermes_protocol = {
 
             # Always satisfiable, so bounded tests can finish even after the
             # interesting enabled moves have been exhausted.
-            action idle = {
-            }
+            action idle
 
-            action start_write = {
-                if some (n:node,t:ts,v:value)
-                    live(n) & ~pending(n) &
+            action start_write(n:node,t:ts,v:value)
+            before start_write {
+                assert live(n) & ~pending(n) &
                     (state(n) = hs_valid | state(n) = hs_invalid) &
-                    lt(cur_ts(n),t) & ~seen_ts(t) {
-                    call local_write(n,t,v)
-                } else {
-                    assume false
-                }
+                    lt(cur_ts(n),t) & ~seen_ts(t) & write_version_ok(n,t);
+                call local_write(n,t,v)
             }
 
-            action start_rmw = {
-                if some (n:node,t:ts,v:value)
-                    live(n) & ~pending(n) & state(n) = hs_valid &
-                    lt(cur_ts(n),t) & ~seen_ts(t) {
-                    call local_rmw(n,t,v)
-                } else {
-                    assume false
-                }
+            action start_rmw(n:node,t:ts,v:value)
+            before start_rmw {
+                assert live(n) & ~pending(n) & state(n) = hs_valid &
+                    lt(cur_ts(n),t) & ~seen_ts(t) & rmw_version_ok(n,t);
+                call local_rmw(n,t,v)
             }
 
-            action deliver_write_inv = {
-                if some (n:node,s:node,t:ts,v:value)
-                    live(n) & n ~= s & inv_write(s,t,v) {
+            action deliver_write_inv(n:node,s:node,t:ts,v:value)
+            before deliver_write_inv {
+                if live(n) & n ~= s & inv_write(s,t,v) {
                     call receive_write_inv(n,s,t,v)
-                } else {
-                    assume false
                 }
             }
 
-            action duplicate_write_inv = {
-                if some (n:node,s:node,t:ts,v:value)
-                    live(n) & n ~= s & inv_write(s,t,v) {
+            action duplicate_write_inv(n:node,s:node,t:ts,v:value)
+            before duplicate_write_inv {
+                if live(n) & n ~= s & inv_write(s,t,v) {
                     call receive_write_inv(n,s,t,v);
                     call receive_write_inv(n,s,t,v)
-                } else {
-                    assume false
                 }
             }
 
-            action deliver_rmw_inv = {
-                if some (n:node,s:node,t:ts,v:value)
-                    live(n) & n ~= s & inv_rmw(s,t,v) {
+            action deliver_rmw_inv(n:node,s:node,t:ts,v:value)
+            before deliver_rmw_inv {
+                if live(n) & n ~= s & inv_rmw(s,t,v) {
                     call receive_rmw_inv(n,s,t,v)
-                } else {
-                    assume false
                 }
             }
 
-            action duplicate_rmw_inv = {
-                if some (n:node,s:node,t:ts,v:value)
-                    live(n) & n ~= s & inv_rmw(s,t,v) {
+            action duplicate_rmw_inv(n:node,s:node,t:ts,v:value)
+            before duplicate_rmw_inv {
+                if live(n) & n ~= s & inv_rmw(s,t,v) {
                     call receive_rmw_inv(n,s,t,v);
                     call receive_rmw_inv(n,s,t,v)
-                } else {
-                    assume false
                 }
             }
 
-            action collect_ack = {
-                if some (n:node,a:node,t:ts)
-                    live(n) & pending(n) & pending_ts(n) = t &
+            action collect_ack(n:node,a:node,t:ts)
+            before collect_ack {
+                if live(n) & pending(n) & pending_ts(n) = t &
                     ack_msg(a,n,t) & ~acked(n,a) {
                     call receive_ack(n,a,t)
-                } else {
-                    assume false
                 }
             }
 
-            action make_ready = {
-                if some (n:node,e:epoch)
-                    live(n) & pending(n) & ~ready(n) & ~seen_epoch(e) &
-                    (live(A) -> acked(n,A)) {
+            action make_ready(n:node,e:epoch)
+            before make_ready {
+                if live(n) & pending(n) & ~ready(n) & ~seen_epoch(e) &
+                    (forall A. live(A) -> acked(n,A)) {
                     call mark_ready(n,e)
-                } else {
-                    assume false
                 }
             }
 
-            action finish_current = {
-                if some (n:node)
-                    live(n) & pending(n) & pending_ts(n) = cur_ts(n) &
+            action finish_current(n:node)
+            before finish_current {
+                if live(n) & pending(n) & pending_ts(n) = cur_ts(n) &
                     (state(n) = hs_write | state(n) = hs_replay) & ready(n) &
                     (cur_rmw(n) -> ~rmw_conflict(cur_ts(n))) &
                     (~cur_rmw(n) -> ~write_conflict(cur_ts(n))) {
                     call complete_current(n)
-                } else {
-                    assume false
                 }
             }
 
-            action finish_overwritten = {
-                if some (n:node)
-                    live(n) & pending(n) & lt(pending_ts(n),cur_ts(n)) &
+            action finish_overwritten(n:node)
+            before finish_overwritten {
+                if live(n) & pending(n) & lt(pending_ts(n),cur_ts(n)) &
                     ready(n) & ~write_conflict(pending_ts(n)) {
                     call complete_overwritten(n)
-                } else {
-                    assume false
                 }
             }
 
-            action complete_ready_driver = {
-                if some (n:node) live(n) {
+            action complete_ready_driver(n:node)
+            before complete_ready_driver {
+                if live(n) {
                     call complete_ready(n)
-                } else {
-                    assume false
                 }
             }
 
-            action observe_o3 = {
-                if some (n:node,c:node,t:ts)
-                    live(n) & live(c) & seen_ts(t) &
-                    (live(A) & A ~= c -> ack_msg(A,c,t)) &
+            action observe_o3(n:node,c:node,t:ts)
+            before observe_o3 {
+                if live(n) & live(c) & seen_ts(t) &
+                    (forall A. live(A) & A ~= c -> ack_msg(A,c,t)) &
                     (live(c) -> le(t,cur_ts(c))) &
-                    (live(c) & ts_rmw(t) & parent(t,B) & cur_rmw(c) & parent(cur_ts(c),B) -> cur_ts(c) = t) &
-                    (live(c) & ts_rmw(t) & parent(t,B) & ~cur_rmw(c) & parent(cur_ts(c),B) -> false) &
-                    (live(c) & ts_rmw(t) & parent(t,B) & pending(c) & pending_rmw(c) & parent(pending_ts(c),B) -> pending_ts(c) = t) &
-                    (live(c) & ts_rmw(t) & parent(t,B) & pending(c) & ~pending_rmw(c) & parent(pending_ts(c),B) -> false) &
+                    (forall B. live(c) & ts_rmw(t) & parent(t,B) & cur_rmw(c) & parent(cur_ts(c),B) -> cur_ts(c) = t) &
+                    (forall B. live(c) & ts_rmw(t) & parent(t,B) & ~cur_rmw(c) & parent(cur_ts(c),B) -> false) &
+                    (forall B. live(c) & ts_rmw(t) & parent(t,B) & pending(c) & pending_rmw(c) & parent(pending_ts(c),B) -> pending_ts(c) = t) &
+                    (forall B. live(c) & ts_rmw(t) & parent(t,B) & pending(c) & ~pending_rmw(c) & parent(pending_ts(c),B) -> false) &
                     (live(c) & ts_rmw(t) & cur_rmw(c) & same_parent(t,cur_ts(c)) -> cur_ts(c) = t) &
                     (live(c) & ts_rmw(t) & ~cur_rmw(c) & same_parent(t,cur_ts(c)) -> false) &
                     (live(c) & ts_rmw(t) & pending(c) & pending_rmw(c) & same_parent(t,pending_ts(c)) -> pending_ts(c) = t) &
                     (live(c) & ts_rmw(t) & pending(c) & ~pending_rmw(c) & same_parent(t,pending_ts(c)) -> false) {
                     call o3_observe_quorum(n,c,t)
-                } else {
-                    assume false
                 }
             }
 
-            action complete_o3 = {
-                if some (n:node,c:node,t:ts)
-                    live(n) & cur_ts(n) = t & state(n) ~= hs_valid &
+            action complete_o3(n:node,c:node,t:ts)
+            before complete_o3 {
+                if live(n) & cur_ts(n) = t & state(n) ~= hs_valid &
                     o3_quorum(n,c,t) & ~rmw_conflict(t) & ~write_conflict(t) {
                     call o3_complete(n,c,t)
-                } else {
-                    assume false
                 }
             }
 
-            action validate_some = {
-                if some (n:node,t:ts)
-                    live(n) & val_msg(t) {
+            action validate_some(n:node,t:ts)
+            before validate_some {
+                if live(n) & val_msg(t) {
                     call receive_validate(n,t)
-                } else {
-                    assume false
                 }
             }
 
-            action replay_dead_writer = {
-                if some (n:node)
-                    live(n) & ~pending(n) & state(n) = hs_invalid &
+            action replay_dead_writer(n:node)
+            before replay_dead_writer {
+                if live(n) & ~pending(n) & state(n) = hs_invalid &
                     ~writer_live(n) & ~rmw_conflict(cur_ts(n)) &
                     (cur_rmw(n) | ~write_conflict(cur_ts(n))) {
                     call replay_after_failure(n)
-                } else {
-                    assume false
                 }
             }
 
-            action fail_nonlast = {
-                if some (n:node)
-                    live(n) & (exists A. live(A) & A ~= n) {
+            action overwrite_pending_write(n:node,s:node,t:ts,v:value)
+            before overwrite_pending_write {
+                if live(n) & n ~= s & pending(n) & ~pending_rmw(n) &
+                    inv_write(s,t,v) & lt(cur_ts(n),t) {
+                    call receive_write_inv(n,s,t,v)
+                }
+            }
+
+            action abort_pending_rmw_by_write(n:node,s:node,t:ts,v:value)
+            before abort_pending_rmw_by_write {
+                if live(n) & n ~= s & pending(n) & pending_rmw(n) &
+                    inv_write(s,t,v) & lt(cur_ts(n),t) {
+                    call receive_write_inv(n,s,t,v)
+                }
+            }
+
+            action stale_rmw_pushback(n:node,s:node,t:ts,v:value)
+            before stale_rmw_pushback {
+                if live(n) & n ~= s & inv_rmw(s,t,v) &
+                    lt(t,cur_ts(n)) & cur_rmw(n) {
+                    call receive_rmw_inv(n,s,t,v)
+                }
+            }
+
+            action fail_pending_node(n:node)
+            before fail_pending_node {
+                if live(n) & pending(n) & (exists A. live(A) & A ~= n) {
                     call fail(n)
-                } else {
-                    assume false
+                }
+            }
+
+            action fail_observed_writer(n:node)
+            before fail_observed_writer {
+                if live(n) & (exists A. live(A) & A ~= n & last_writer(A) = n) {
+                    call fail(n)
+                }
+            }
+
+            action finish_conflicted_ready(n:node)
+            before finish_conflicted_ready {
+                if live(n) & ready(n) & pending(n) &
+                    ((pending_rmw(n) & rmw_conflict(pending_ts(n))) |
+                     (~pending_rmw(n) & write_conflict(pending_ts(n)))) {
+                    call complete_ready(n)
+                }
+            }
+
+            action fail_nonlast(n:node)
+            before fail_nonlast {
+                if live(n) & (exists A. live(A) & A ~= n) {
+                    call fail(n)
                 }
             }
 
@@ -1114,27 +1130,35 @@ export hermes_protocol.ambient.observe_o3
 export hermes_protocol.ambient.complete_o3
 export hermes_protocol.ambient.validate_some
 export hermes_protocol.ambient.replay_dead_writer
+export hermes_protocol.ambient.overwrite_pending_write
+export hermes_protocol.ambient.abort_pending_rmw_by_write
+export hermes_protocol.ambient.stale_rmw_pushback
+export hermes_protocol.ambient.fail_pending_node
+export hermes_protocol.ambient.fail_observed_writer
+export hermes_protocol.ambient.finish_conflicted_ready
 export hermes_protocol.ambient.fail_nonlast
-export hermes_protocol.ambient.scenario_write_quorum
-export hermes_protocol.ambient.scenario_rmw_quorum
-export hermes_protocol.ambient.scenario_o3_write
-export hermes_protocol.ambient.scenario_overwritten_write
-export hermes_protocol.ambient.scenario_rmw_aborted_by_write
-export hermes_protocol.ambient.scenario_rmw_race_pushback
-export hermes_protocol.ambient.scenario_writer_fail_replay
 
 interpret hermes_protocol.node -> bv[2]
 interpret hermes_protocol.epoch -> bv[5]
 interpret hermes_protocol.ts -> bv[5]
 interpret hermes_protocol.value -> bv[4]
-#interpret hermes_protocol.version -> bv[16]  # hermes_protocol.version is already interpreted
+interpret hermes_protocol.version -> bv[5]
 
 attribute hermes_protocol.ambient.idle.weight = "0.02"
 attribute hermes_protocol.ambient.fail_nonlast.weight = "0.15"
-attribute hermes_protocol.ambient.scenario_write_quorum.weight = "3.0"
-attribute hermes_protocol.ambient.scenario_rmw_quorum.weight = "3.0"
-attribute hermes_protocol.ambient.scenario_o3_write.weight = "3.0"
-attribute hermes_protocol.ambient.scenario_overwritten_write.weight = "2.0"
-attribute hermes_protocol.ambient.scenario_rmw_aborted_by_write.weight = "2.0"
-attribute hermes_protocol.ambient.scenario_rmw_race_pushback.weight = "2.0"
-attribute hermes_protocol.ambient.scenario_writer_fail_replay.weight = "2.0"
+attribute hermes_protocol.ambient.start_write.weight = "2.0"
+attribute hermes_protocol.ambient.start_rmw.weight = "2.0"
+attribute hermes_protocol.ambient.deliver_write_inv.weight = "2.0"
+attribute hermes_protocol.ambient.deliver_rmw_inv.weight = "2.0"
+attribute hermes_protocol.ambient.collect_ack.weight = "2.0"
+attribute hermes_protocol.ambient.make_ready.weight = "1.5"
+attribute hermes_protocol.ambient.finish_current.weight = "1.5"
+attribute hermes_protocol.ambient.finish_overwritten.weight = "1.5"
+attribute hermes_protocol.ambient.observe_o3.weight = "1.5"
+attribute hermes_protocol.ambient.complete_o3.weight = "1.5"
+attribute hermes_protocol.ambient.overwrite_pending_write.weight = "2.0"
+attribute hermes_protocol.ambient.abort_pending_rmw_by_write.weight = "2.0"
+attribute hermes_protocol.ambient.stale_rmw_pushback.weight = "2.0"
+attribute hermes_protocol.ambient.fail_pending_node.weight = "0.75"
+attribute hermes_protocol.ambient.fail_observed_writer.weight = "0.75"
+attribute hermes_protocol.ambient.finish_conflicted_ready.weight = "1.0"
