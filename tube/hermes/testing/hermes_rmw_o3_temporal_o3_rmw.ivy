@@ -1,0 +1,17 @@
+#lang ivy1.7
+        explicit temporal property [o3_rmw_ack_quorums_eventually_finish_or_conflict]
+        forall N,C,T. (globally eventually o3_try(N,C,T)) ->
+            globally ~(o3_quorum(N,C,T) & ts_rmw(T) & cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & ~rmw_conflict(T) & globally (cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & ~rmw_conflict(T)))
+        proof {
+            tactic skolemize;
+            tactic l2s_auto5 with {
+                definition work_created(Q) = Q = o3_task
+                definition work_needed(Q) = Q = o3_task & o3_quorum(_N,_C,_T) & ts_rmw(_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T)
+                definition work_done(Q) = Q = o3_task & (completed(_T) | state(_N) = hs_valid | cur_ts(_N) ~= _T | rmw_conflict(_T))
+                definition work_invar = o3_quorum(_N,_C,_T) & ts_rmw(_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T)
+                definition work_start = o3_quorum(_N,_C,_T) & ts_rmw(_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T) & globally (cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T))
+                definition work_progress = o3_try(_N,_C,_T)
+                definition work_helpful = o3_quorum(_N,_C,_T) & ts_rmw(_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T)
+                invariant l2s_saved & ($l2s_s . cur_ts(_N) = _T & state(_N) ~= hs_valid) & ~completed(_T) -> cur_ts(_N) = _T & state(_N) ~= hs_valid
+            }
+        }

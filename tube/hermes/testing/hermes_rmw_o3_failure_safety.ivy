@@ -1,0 +1,530 @@
+#lang ivy1.7
+
+include order
+
+# ivy_check said OK.
+# Single-key Hermes protocol model with O3 broadcast-ACK completion,
+# including RMW O3 completion guarded by the RMW conflict rule.
+#
+# Hermes safety composes per key, so this model verifies one key and proves
+# read-state agreement, not a full history linearizability theorem. It includes normal writes, RMWs,
+# invalidations, acknowledgements, validations, write replay after membership
+# removal, and the "invalid_write" / overwritten local update state.
+
+module total_order(r) = {
+    axiom r(X,X)
+    axiom r(X,Y) & r(Y,Z) -> r(X,Z)
+    axiom r(X,Y) & r(Y,X) -> X = Y
+    axiom r(X,Y) | r(Y,X)
+}
+
+type ltask = {ready_finish, o3_finish}
+
+isolate hermes_protocol = {
+
+    type node
+    type ts
+    type value
+    type epoch
+    instance version : unbounded_sequence
+
+    type hstate = {hs_valid, hs_invalid, hs_invalid_write, hs_write, hs_replay}
+
+    action local_write(n:node, t:ts, v:value)
+    action local_rmw(n:node, t:ts, v:value)
+    action receive_write_inv(n:node, s:node, t:ts, v:value)
+    action receive_rmw_inv(n:node, s:node, t:ts, v:value)
+    action receive_ack(n:node, a:node, t:ts)
+    action complete_current(n:node)
+    action complete_overwritten(n:node)
+    action complete_ready(n:node)
+    action o3_observe_quorum(n:node, c:node, t:ts)
+    action o3_complete(n:node, c:node, t:ts)
+    action mark_ready(n:node, e:epoch)
+    action receive_validate(n:node, t:ts)
+    action replay_after_failure(n:node)
+    action fail(n:node)
+
+    specification {
+
+        relation le(X:ts,Y:ts)
+        instantiate total_order(le)
+
+        relation lt(X:ts,Y:ts) = le(X,Y) & X ~= Y
+
+        individual ready_task:ltask
+        individual o3_task:ltask
+        individual init_ts:ts
+        individual init_value:value
+        individual init_epoch:epoch
+        axiom le(init_ts,T)
+
+        # Current per-node key metadata.
+        individual state(N:node):hstate
+        individual cur_ts(N:node):ts
+        individual cur_value(N:node):value
+        relation cur_rmw(N:node)
+        individual last_writer(N:node):node
+        relation writer_live(N:node)
+        relation live(N:node)
+
+        # Local pending operation metadata. A node may have an overwritten
+        # pending operation while its current key timestamp is already newer.
+        relation pending(N:node)
+        individual pending_ts(N:node):ts
+        relation pending_rmw(N:node)
+        relation acked(C:node,A:node)
+        relation ready(N:node)
+        individual ready_epoch(N:node):epoch
+        relation seen_epoch(E:epoch)
+        relation epoch_done(E:epoch)
+        relation ready_epoch_active(E:epoch)
+
+        # One-slot client request buffers. These model requests arriving at a
+        # live server while the local key replica is not yet able to start the
+        # low-level protocol transition. makes the randomized testing more efficient.
+        relation client_write_pending(N:node)
+        individual client_write_value(N:node):value
+        relation client_rmw_pending(N:node)
+        individual client_rmw_value(N:node):value
+        relation local_key_known(N:node) =
+            live(N) & (state(N) = hs_valid | state(N) = hs_invalid | pending(N))
+        relation only_live4(A:node,B:node,C:node,D:node) =
+            forall N. live(N) -> (N = A | N = B | N = C | N = D)
+
+        # Timestamp metadata. `parent(T,B)` means update timestamp T was
+        # generated from base timestamp B.
+        relation seen_ts(T:ts)
+        relation parent(T:ts,B:ts)
+        relation same_parent(T:ts,U:ts)
+        individual parent_ts(T:ts):ts
+        relation ts_version(T:ts,V:version)
+        relation same_version(T:ts,U:ts)
+        relation next_version(T:ts,U:ts)
+        relation write_then_write_order_ok(N:node,T:ts,M:node,U:ts) =
+            same_version(cur_ts(N),cur_ts(M)) | lt(cur_ts(N),cur_ts(M))
+        relation rmw_then_write_order_ok(N:node,T:ts,M:node,U:ts) =
+            same_version(cur_ts(N),cur_ts(M)) | lt(cur_ts(N),cur_ts(M)) |
+            next_version(cur_ts(N),cur_ts(M))
+        relation rmw_then_rmw_order_ok(N:node,T:ts,M:node,U:ts) =
+            same_version(cur_ts(N),cur_ts(M)) | lt(cur_ts(N),cur_ts(M))
+        relation can_start_client_write(N:node,T:ts) =
+            client_write_pending(N) & live(N) & ~pending(N) &
+            (state(N) = hs_valid | state(N) = hs_invalid) &
+            lt(cur_ts(N),T) & ~seen_ts(T)
+        relation can_start_client_rmw(N:node,T:ts) =
+            client_rmw_pending(N) & live(N) & ~pending(N) &
+            state(N) = hs_valid &
+            lt(cur_ts(N),T) & ~seen_ts(T)
+        relation ts_value(T:ts,V:value)
+        relation ts_rmw(T:ts)
+        relation rmw_conflict(T:ts)
+        relation write_conflict(T:ts)
+
+        # Persistent network buffers. Messages are never removed, matching the
+        # TLA model's duplicate/reordering tolerance.
+        relation inv_write(S:node,T:ts,V:value)
+        relation inv_rmw(S:node,T:ts,V:value)
+        relation ack_msg(A:node,C:node,T:ts)
+        relation val_msg(T:ts)
+        relation o3_quorum(N:node,C:node,T:ts)
+
+        relation complete_try(N:node)
+        relation o3_try(N:node,C:node,T:ts)
+
+        # A timestamp is externally completed once its coordinator/replayer has
+        # gathered ACKs from all live members in the current membership.
+        relation completed(T:ts)
+
+        after init {
+            ready_task := ready_finish;
+            o3_task := o3_finish;
+            live(N) := true;
+            state(N) := hs_valid;
+            cur_ts(N) := init_ts;
+            cur_value(N) := init_value;
+            cur_rmw(N) := false;
+            last_writer(N) := N;
+            writer_live(N) := true;
+
+            pending(N) := false;
+            pending_ts(N) := init_ts;
+            pending_rmw(N) := false;
+            acked(C,A) := false;
+            ready(N) := false;
+            ready_epoch(N) := init_epoch;
+            seen_epoch(E) := E = init_epoch;
+            epoch_done(E) := E = init_epoch;
+            ready_epoch_active(E) := false;
+            client_write_pending(N) := false;
+            client_write_value(N) := init_value;
+            client_rmw_pending(N) := false;
+            client_rmw_value(N) := init_value;
+
+            seen_ts(T) := T = init_ts;
+            parent(T,B) := false;
+            same_parent(T,U) := false;
+            parent_ts(T) := init_ts;
+            ts_version(T,V) := T = init_ts & V = 0;
+            same_version(T,U) := false;
+            same_version(init_ts,init_ts) := true;
+            next_version(T,U) := false;
+            ts_value(T,V) := T = init_ts & V = init_value;
+            ts_rmw(T) := false;
+            rmw_conflict(T) := false;
+            write_conflict(T) := false;
+
+            inv_write(S,T,V) := false;
+            inv_rmw(S,T,V) := false;
+            ack_msg(A,C,T) := false;
+            val_msg(T) := T = init_ts;
+            o3_quorum(N,C,T) := false;
+            complete_try(N) := false;
+            o3_try(N,C,T) := false;
+            completed(T) := T = init_ts;
+        }
+
+        before local_write {
+            require live(n);
+            require ~pending(n);
+            require state(n) = hs_valid | state(n) = hs_invalid;
+            require lt(cur_ts(n),t);
+            require ~seen_ts(t);
+            assert seen_ts(cur_ts(n));
+            var base_ver:version;
+            assume ts_version(cur_ts(n),base_ver);
+            var mid_ver := base_ver.next;
+            var new_ver := mid_ver.next;
+            var after_ver := new_ver.next;
+            # HRWrite in HermesRMWs.tla sets version := base.version + 2.
+            assume ts_version(U,UV) & UV < new_ver -> lt(U,t);
+            assume ts_version(U,UV) & new_ver < UV -> lt(t,U);
+
+            seen_ts(t) := true;
+            parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
+            same_parent(T,U) := same_parent(T,U) |
+                (T = t & U ~= t & parent(U,cur_ts(n))) |
+                (U = t & T ~= t & parent(T,cur_ts(n)));
+            parent_ts(T) := cur_ts(n) if T = t else parent_ts(T);
+            same_version(T,U) := same_version(T,U) |
+                (T = t & (U = t | ts_version(U,new_ver))) |
+                (U = t & (T = t | ts_version(T,new_ver)));
+            next_version(T,U) := next_version(T,U) |
+                (T = t & ts_version(U,mid_ver)) |
+                (U = t & ts_version(T,after_ver));
+            ts_version(T,TV) := ts_version(T,TV) | (T = t & TV = new_ver);
+            ts_value(T,V) := ts_value(T,V) | (T = t & V = v);
+            ts_rmw(T) := ts_rmw(T) & T ~= t;
+            rmw_conflict(T) := rmw_conflict(T) & T ~= t;
+            write_conflict(T) := write_conflict(T) & T ~= t;
+            o3_quorum(N,n,T) := false;
+
+            cur_ts(n) := t;
+            cur_value(n) := v;
+            cur_rmw(n) := false;
+            last_writer(n) := n;
+            writer_live(n) := true;
+            state(n) := hs_write;
+
+            pending(n) := true;
+            pending_ts(n) := t;
+            pending_rmw(n) := false;
+            acked(n,A) := A = n;
+            ready(n) := false;
+
+            inv_write(n,t,v) := true;
+        }
+
+        before receive_write_inv {
+            require live(n);
+            require n ~= s;
+            require inv_write(s,t,v);
+
+            # Non-RMW writes are always ACKed, even when stale.
+            ack_msg(n,s,t) := true;
+
+            if lt(cur_ts(n),t) {
+                o3_quorum(N,n,T) := false;
+                if pending(n) & pending_rmw(n) {
+                    if ready(n) {
+                        epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    };
+                    pending(n) := false;
+                    pending_rmw(n) := false;
+                    acked(n,A) := false;
+                    ready(n) := false;
+                    state(n) := hs_invalid;
+                } else {
+                    if pending(n) {
+                        state(n) := hs_invalid_write;
+                    } else {
+                        state(n) := hs_invalid;
+                    }
+                };
+                cur_ts(n) := t;
+                cur_value(n) := v;
+                cur_rmw(n) := false;
+                last_writer(n) := s;
+                writer_live(n) := true;
+            }
+        }
+
+        before receive_ack {
+            require live(n);
+            require pending(n);
+            require pending_ts(n) = t;
+            require ack_msg(a,n,t);
+            require ~acked(n,a);
+            if ready(n) {
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            };
+            acked(n,a) := true;
+            ready(n) := false;
+        }
+
+        before mark_ready {
+            require live(n);
+            require pending(n);
+            require ~ready(n);
+            require ~seen_epoch(e);
+            require live(A) -> acked(n,A);
+            seen_epoch(E) := seen_epoch(E) | E = e;
+            epoch_done(E) := epoch_done(E) & E ~= e;
+            ready_epoch_active(E) := ready_epoch_active(E) | E = e;
+            ready_epoch(n) := e;
+            ready(n) := true;
+        }
+
+        before fail {
+            require live(n);
+            epoch_done(E) := epoch_done(E) | ready_epoch_active(E);
+
+            inv_write(S,T,V) :=
+                live(S) & S ~= n & pending(S) & ~pending_rmw(S) &
+                pending_ts(S) = cur_ts(S) & T = cur_ts(S) & V = cur_value(S);
+            inv_rmw(S,T,V) :=
+                live(S) & S ~= n & pending(S) & pending_rmw(S) & T = cur_ts(S) & V = cur_value(S);
+            ack_msg(A,C,T) := false;
+            o3_quorum(N,C,T) := false;
+
+            state(S) := hs_replay if live(S) & S ~= n & pending(S) & pending_ts(S) = cur_ts(S) else state(S);
+            acked(C,A) := (A = C) if live(C) & C ~= n & pending(C) & pending_ts(C) = cur_ts(C) else acked(C,A);
+            ready(C) := false if live(C) & C ~= n & pending(C) else ready(C);
+            writer_live(S) := writer_live(S) & last_writer(S) ~= n;
+
+            live(n) := false;
+            pending(n) := false;
+            pending_rmw(n) := false;
+            acked(n,A) := false;
+            ready(n) := false;
+            client_write_pending(S) := client_write_pending(S) & S ~= n;
+            client_rmw_pending(S) := client_rmw_pending(S) & S ~= n;
+        }
+
+        before replay_after_failure {
+            require live(n);
+            require ~pending(n);
+            require state(n) = hs_invalid;
+            require ~writer_live(n);
+            require ~rmw_conflict(cur_ts(n));
+            require cur_rmw(n) | ~write_conflict(cur_ts(n));
+
+            state(n) := hs_replay;
+            pending(n) := true;
+            pending_ts(n) := cur_ts(n);
+            pending_rmw(n) := cur_rmw(n);
+            acked(n,A) := A = n;
+            if ready(n) {
+                epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            };
+            ready(n) := false;
+
+            if cur_rmw(n) {
+                inv_rmw(n,cur_ts(n),cur_value(n)) := true;
+            } else {
+                inv_write(n,cur_ts(n),cur_value(n)) := true;
+            }
+        }
+
+        before complete_current {
+            require live(n);
+            require pending(n);
+            require pending_ts(n) = cur_ts(n);
+            require state(n) = hs_write | state(n) = hs_replay;
+            require ready(n);
+            require cur_rmw(n) -> ~rmw_conflict(cur_ts(n));
+            require ~cur_rmw(n) -> ~write_conflict(cur_ts(n));
+            assert live(A) -> acked(n,A);
+            assert live(A) -> le(cur_ts(n),cur_ts(A));
+
+            completed(cur_ts(n)) := true;
+            rmw_conflict(T) := rmw_conflict(T) |
+                (ts_rmw(T) & T ~= cur_ts(n) & same_version(cur_ts(n),T)) |
+                (~ts_rmw(cur_ts(n)) & ts_rmw(T) & (same_version(T,cur_ts(n)) | next_version(cur_ts(n),T)));
+            write_conflict(T) := write_conflict(T) |
+                (ts_rmw(cur_ts(n)) & ~ts_rmw(T) & (same_version(cur_ts(n),T) | next_version(T,cur_ts(n))));
+            val_msg(cur_ts(n)) := true;
+            state(n) := hs_valid;
+            epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+            pending(n) := false;
+            pending_rmw(n) := false;
+            acked(n,A) := false;
+            ready(n) := false;
+        }
+
+        before receive_validate {
+            require live(n);
+            require val_msg(t);
+            if cur_ts(n) = t {
+                state(n) := hs_valid;
+                if pending(n) & pending_ts(n) = cur_ts(n) {
+                    if ready(n) {
+                        epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    };
+                    pending(n) := false;
+                    pending_rmw(n) := false;
+                    acked(n,A) := false;
+                    ready(n) := false;
+                }
+            }
+        }
+
+        # Safety invariants
+        ################################################################################
+
+        invariant seen_epoch(init_epoch)
+        invariant seen_ts(init_ts)
+        invariant completed(init_ts)
+        invariant ts_value(init_ts,init_value)
+        invariant ~ts_rmw(init_ts)
+        invariant ~parent(init_ts,B)
+
+        invariant ts_value(T,V1) & ts_value(T,V2) -> V1 = V2
+        invariant parent(T,B1) & parent(T,B2) -> B1 = B2
+        invariant parent(T,B) -> seen_ts(T) & seen_ts(B) & lt(B,T)
+        invariant same_parent(T,U) -> seen_ts(T) & seen_ts(U)
+        invariant same_parent(T,U) -> T ~= init_ts & U ~= init_ts
+        invariant same_parent(T,U) -> same_parent(U,T)
+        invariant same_parent(T,U) & parent(T,B1) & parent(U,B2) -> B1 = B2
+        invariant same_parent(T,U) & parent(T,B) -> parent(U,B)
+        invariant same_parent(T,U) & parent(U,B) -> parent(T,B)
+        invariant parent(T,B) & parent(U,B) & T ~= U -> same_parent(T,U)
+        invariant ts_version(T,V1) & ts_version(T,V2) -> V1 = V2
+        invariant ts_version(T,V) -> seen_ts(T)
+        invariant seen_ts(T) -> same_version(T,T)
+        invariant same_version(T,U) -> seen_ts(T) & seen_ts(U)
+        invariant same_version(T,U) -> same_version(U,T)
+        invariant same_version(T,U) & same_version(U,V) -> same_version(T,V)
+        invariant same_version(T,U) & ts_version(T,V) -> ts_version(U,V)
+        invariant ts_version(T,V) & ts_version(U,V) -> same_version(T,U)
+        invariant next_version(T,U) -> seen_ts(T) & seen_ts(U)
+        invariant next_version(T,U) -> ~same_version(T,U)
+        invariant next_version(T,U) & ts_version(T,TV) & ts_version(U,UV) -> UV < TV
+        invariant ts_version(T,TV) & ts_version(U,UV) & TV < UV -> lt(T,U)
+        invariant ts_value(T,V) -> seen_ts(T)
+        invariant ts_rmw(T) -> seen_ts(T)
+        invariant rmw_conflict(T) -> seen_ts(T)
+        invariant rmw_conflict(T) -> ts_rmw(T)
+        invariant write_conflict(T) -> seen_ts(T)
+        invariant write_conflict(T) -> ~ts_rmw(T)
+        invariant inv_write(S,T,V) -> live(S) & seen_ts(T) & ts_value(T,V) & ~ts_rmw(T)
+        invariant inv_rmw(S,T,V) -> live(S) & seen_ts(T) & ts_value(T,V) & ts_rmw(T)
+        invariant ~ack_msg(N,N,T)
+        invariant ack_msg(A,C,T) -> live(A) & live(C)
+        invariant ack_msg(A,C,T) -> seen_ts(T)
+        invariant ack_msg(A,C,T) -> le(T,cur_ts(A))
+        invariant val_msg(T) -> completed(T)
+        invariant completed(T) -> seen_ts(T)
+        invariant o3_quorum(N,C,T) -> live(C)
+        invariant o3_quorum(N,C,T) & live(A) & A ~= C -> ack_msg(A,C,T)
+        invariant o3_quorum(N,C,T) & live(C) -> le(T,cur_ts(C))
+        invariant o3_quorum(N,C,T) -> seen_ts(T)
+        invariant seen_ts(cur_ts(N))
+        invariant ts_value(cur_ts(N),cur_value(N))
+        invariant cur_rmw(N) -> ts_rmw(cur_ts(N))
+        invariant ~cur_rmw(N) -> ~ts_rmw(cur_ts(N))
+        invariant pending(N) -> live(N)
+        invariant pending(N) -> seen_ts(pending_ts(N))
+        invariant pending(N) -> acked(N,N)
+        invariant pending(N) -> le(pending_ts(N),cur_ts(N))
+        invariant pending(N) & pending_rmw(N) -> ts_rmw(pending_ts(N))
+        invariant pending(N) & ~pending_rmw(N) -> ~ts_rmw(pending_ts(N))
+        invariant pending(N) & pending_rmw(N) -> pending_ts(N) = cur_ts(N)
+        invariant pending(N) & pending_rmw(N) -> cur_rmw(N)
+        invariant pending(N) & acked(N,A) -> le(pending_ts(N),cur_ts(A))
+        invariant ready(N) -> pending(N)
+        invariant ready(N) & live(A) -> acked(N,A)
+        invariant ready(N) -> pending_ts(N) = cur_ts(N) | lt(pending_ts(N),cur_ts(N))
+        invariant ready(N) & pending_ts(N) = cur_ts(N) -> state(N) = hs_write | state(N) = hs_replay
+        invariant ready(N) & lt(pending_ts(N),cur_ts(N)) -> state(N) = hs_invalid_write | state(N) = hs_invalid | state(N) = hs_valid
+        invariant pending(N) & pending_ts(N) = cur_ts(N) -> state(N) = hs_write | state(N) = hs_replay
+        invariant pending(N) & lt(pending_ts(N),cur_ts(N)) -> state(N) = hs_invalid_write | state(N) = hs_invalid | state(N) = hs_valid
+        invariant ~pending(N) -> ~acked(N,A)
+        invariant ~pending(N) -> ~pending_rmw(N)
+        invariant ~pending(N) -> ~ready(N)
+        invariant client_write_pending(N) -> live(N)
+        invariant client_rmw_pending(N) -> live(N)
+
+        # Once a timestamp is completed, every live node has advanced to at
+        # least that timestamp. This is the key invariant behind valid/valid
+        # consistency.
+        invariant completed(T) & live(N) -> le(T,cur_ts(N))
+
+        invariant state(N) = hs_valid -> completed(cur_ts(N))
+
+        # Read-state agreement for the one modeled key: any two live replicas
+        # that can serve local reads agree on timestamp and value.
+        invariant live(N1) & live(N2) & state(N1) = hs_valid & state(N2) = hs_valid -> cur_ts(N1) = cur_ts(N2)
+        invariant live(N1) & live(N2) & state(N1) = hs_valid & state(N2) = hs_valid -> cur_value(N1) = cur_value(N2)
+
+        # A live node may retain a pending/ready conflicting operation, but it
+        # must already be marked conflicted so it cannot complete.
+        invariant live(N) & pending(N) & pending_rmw(N) & completed(R) & ts_rmw(R) & same_version(pending_ts(N),R) -> pending_ts(N) = R | rmw_conflict(pending_ts(N))
+        invariant live(N) & pending(N) & pending_rmw(N) & completed(W) & ~ts_rmw(W) & (same_version(pending_ts(N),W) | next_version(W,pending_ts(N))) -> rmw_conflict(pending_ts(N))
+        invariant live(N) & pending(N) & ~pending_rmw(N) & completed(R) & ts_rmw(R) & (same_version(pending_ts(N),R) | next_version(pending_ts(N),R)) -> write_conflict(pending_ts(N))
+        invariant live(N) & ready(N) & pending_rmw(N) & completed(R) & ts_rmw(R) & same_version(pending_ts(N),R) -> pending_ts(N) = R | rmw_conflict(pending_ts(N))
+        invariant live(N) & ready(N) & pending_rmw(N) & completed(W) & ~ts_rmw(W) & (same_version(pending_ts(N),W) | next_version(W,pending_ts(N))) -> rmw_conflict(pending_ts(N))
+        invariant live(N) & ready(N) & pending(N) & ~pending_rmw(N) & completed(R) & ts_rmw(R) & (same_version(pending_ts(N),R) | next_version(pending_ts(N),R)) -> write_conflict(pending_ts(N))
+
+        # RMW safety: the TLA semantics are version-based. A completed RMW
+        # conflicts with any other RMW at the same version and with blind writes
+        # at either the same version or the immediately following version.
+        invariant completed(R) & ts_rmw(R) & ts_rmw(T) & same_version(R,T) & R ~= T -> rmw_conflict(T)
+        invariant completed(W) & ~ts_rmw(W) & ts_rmw(T) & (same_version(W,T) | next_version(W,T)) -> rmw_conflict(T)
+        invariant completed(R) & ts_rmw(R) & ~ts_rmw(W) & (same_version(R,W) | next_version(W,R)) -> write_conflict(W)
+        invariant completed(R1) & completed(R2) & ts_rmw(R1) & ts_rmw(R2) & same_version(R1,R2) -> R1 = R2
+        invariant completed(R) & ts_rmw(R) & completed(W) & ~ts_rmw(W) & (same_version(R,W) | next_version(W,R)) -> false
+
+        ################################################################################
+    }
+}
+
+export hermes_protocol.local_write
+export hermes_protocol.local_rmw
+export hermes_protocol.receive_write_inv
+export hermes_protocol.receive_rmw_inv
+export hermes_protocol.receive_ack
+export hermes_protocol.complete_current
+export hermes_protocol.complete_overwritten
+export hermes_protocol.complete_ready
+export hermes_protocol.o3_observe_quorum
+export hermes_protocol.o3_complete
+export hermes_protocol.mark_ready
+export hermes_protocol.receive_validate
+export hermes_protocol.replay_after_failure
+export hermes_protocol.fail
+
+attribute hermes_protocol.local_write.weight = "2.0"
+attribute hermes_protocol.local_rmw.weight = "2.0"
+attribute hermes_protocol.receive_write_inv.weight = "2.0"
+attribute hermes_protocol.receive_rmw_inv.weight = "2.0"
+attribute hermes_protocol.receive_ack.weight = "2.0"
+attribute hermes_protocol.complete_current.weight = "1.5"
+attribute hermes_protocol.complete_overwritten.weight = "1.5"
+attribute hermes_protocol.complete_ready.weight = "1.0"
+attribute hermes_protocol.o3_observe_quorum.weight = "1.5"
+attribute hermes_protocol.o3_complete.weight = "1.5"
+attribute hermes_protocol.mark_ready.weight = "1.5"
+attribute hermes_protocol.receive_validate.weight = "1.5"
+attribute hermes_protocol.replay_after_failure.weight = "0.75"
+attribute hermes_protocol.fail.weight = "0.75"

@@ -1,0 +1,30 @@
+#lang ivy1.7
+
+export hermes_protocol.ambient.idle
+export hermes_protocol.ambient.start_rmw
+export hermes_protocol.ambient.client_rmw_arrive
+export hermes_protocol.ambient.drain_client_rmw
+export hermes_protocol.ambient.deliver_rmw_inv
+export hermes_protocol.ambient.duplicate_rmw_inv
+export hermes_protocol.ambient.collect_ack
+export hermes_protocol.ambient.make_ready
+export hermes_protocol.ambient.finish_current
+export hermes_protocol.ambient.complete_ready_driver
+export hermes_protocol.ambient.validate_some
+export hermes_protocol.ambient.stale_rmw_pushback
+export hermes_protocol.ambient.finish_conflicted_ready
+export hermes_protocol.ambient.scenario_rmw_quorum
+export hermes_protocol.ambient.scenario_rmw_race_pushback
+
+attribute hermes_protocol.ambient.idle.weight = "0.02"
+attribute hermes_protocol.ambient.start_rmw.weight = "2.0"
+attribute hermes_protocol.ambient.client_rmw_arrive.weight = "3.0"
+attribute hermes_protocol.ambient.drain_client_rmw.weight = "3.0"
+attribute hermes_protocol.ambient.deliver_rmw_inv.weight = "2.0"
+attribute hermes_protocol.ambient.collect_ack.weight = "2.0"
+attribute hermes_protocol.ambient.make_ready.weight = "1.5"
+attribute hermes_protocol.ambient.finish_current.weight = "1.5"
+attribute hermes_protocol.ambient.stale_rmw_pushback.weight = "2.0"
+attribute hermes_protocol.ambient.finish_conflicted_ready.weight = "1.0"
+attribute hermes_protocol.ambient.scenario_rmw_quorum.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_rmw_race_pushback.weight = "0.75"

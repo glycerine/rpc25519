@@ -1,0 +1,31 @@
+#lang ivy1.7
+
+export hermes_protocol.local_write
+export hermes_protocol.local_rmw
+export hermes_protocol.receive_write_inv
+export hermes_protocol.receive_rmw_inv
+export hermes_protocol.receive_ack
+export hermes_protocol.complete_current
+export hermes_protocol.complete_overwritten
+export hermes_protocol.complete_ready
+export hermes_protocol.o3_observe_quorum
+export hermes_protocol.o3_complete
+export hermes_protocol.mark_ready
+export hermes_protocol.receive_validate
+export hermes_protocol.replay_after_failure
+export hermes_protocol.fail
+
+attribute hermes_protocol.local_write.weight = "2.0"
+attribute hermes_protocol.local_rmw.weight = "2.0"
+attribute hermes_protocol.receive_write_inv.weight = "2.0"
+attribute hermes_protocol.receive_rmw_inv.weight = "2.0"
+attribute hermes_protocol.receive_ack.weight = "2.0"
+attribute hermes_protocol.complete_current.weight = "1.5"
+attribute hermes_protocol.complete_overwritten.weight = "1.5"
+attribute hermes_protocol.complete_ready.weight = "1.0"
+attribute hermes_protocol.o3_observe_quorum.weight = "1.5"
+attribute hermes_protocol.o3_complete.weight = "1.5"
+attribute hermes_protocol.mark_ready.weight = "1.5"
+attribute hermes_protocol.receive_validate.weight = "1.5"
+attribute hermes_protocol.replay_after_failure.weight = "0.75"
+attribute hermes_protocol.fail.weight = "0.75"

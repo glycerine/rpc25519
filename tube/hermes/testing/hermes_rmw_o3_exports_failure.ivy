@@ -1,0 +1,25 @@
+#lang ivy1.7
+
+export hermes_protocol.ambient.idle
+export hermes_protocol.ambient.start_write
+export hermes_protocol.ambient.deliver_write_inv
+export hermes_protocol.ambient.collect_ack
+export hermes_protocol.ambient.make_ready
+export hermes_protocol.ambient.finish_current
+export hermes_protocol.ambient.validate_some
+export hermes_protocol.ambient.replay_dead_writer
+export hermes_protocol.ambient.fail_pending_node
+export hermes_protocol.ambient.fail_observed_writer
+export hermes_protocol.ambient.fail_nonlast
+export hermes_protocol.ambient.scenario_writer_fail_replay
+
+attribute hermes_protocol.ambient.idle.weight = "0.02"
+attribute hermes_protocol.ambient.fail_nonlast.weight = "0.15"
+attribute hermes_protocol.ambient.start_write.weight = "2.0"
+attribute hermes_protocol.ambient.deliver_write_inv.weight = "2.0"
+attribute hermes_protocol.ambient.collect_ack.weight = "2.0"
+attribute hermes_protocol.ambient.make_ready.weight = "1.5"
+attribute hermes_protocol.ambient.finish_current.weight = "1.5"
+attribute hermes_protocol.ambient.fail_pending_node.weight = "0.75"
+attribute hermes_protocol.ambient.fail_observed_writer.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_writer_fail_replay.weight = "0.75"

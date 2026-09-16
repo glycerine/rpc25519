@@ -1,0 +1,29 @@
+#lang ivy1.7
+
+export hermes_protocol.ambient.idle
+export hermes_protocol.ambient.start_write
+export hermes_protocol.ambient.deliver_write_inv
+export hermes_protocol.ambient.duplicate_write_inv
+export hermes_protocol.ambient.collect_ack
+export hermes_protocol.ambient.make_ready
+export hermes_protocol.ambient.finish_current
+export hermes_protocol.ambient.observe_o3
+export hermes_protocol.ambient.complete_o3
+export hermes_protocol.ambient.validate_some
+export hermes_protocol.ambient.overwrite_pending_write
+export hermes_protocol.ambient.scenario_write_quorum
+export hermes_protocol.ambient.scenario_o3_write
+export hermes_protocol.ambient.scenario_overwritten_write
+
+attribute hermes_protocol.ambient.idle.weight = "0.02"
+attribute hermes_protocol.ambient.start_write.weight = "2.0"
+attribute hermes_protocol.ambient.deliver_write_inv.weight = "2.0"
+attribute hermes_protocol.ambient.collect_ack.weight = "2.0"
+attribute hermes_protocol.ambient.make_ready.weight = "1.5"
+attribute hermes_protocol.ambient.finish_current.weight = "1.5"
+attribute hermes_protocol.ambient.observe_o3.weight = "1.5"
+attribute hermes_protocol.ambient.complete_o3.weight = "1.5"
+attribute hermes_protocol.ambient.overwrite_pending_write.weight = "2.0"
+attribute hermes_protocol.ambient.scenario_write_quorum.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_o3_write.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_overwritten_write.weight = "0.75"

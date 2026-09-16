@@ -746,53 +746,6 @@ isolate hermes_protocol = {
         invariant ready_task = ready_finish
         invariant o3_task = o3_finish
 
-        explicit temporal property [ready_epochs_eventually_finish]
-        forall N,E. (globally eventually complete_try(N)) -> (globally ~(ready(N) & ready_epoch(N) = E & globally ~epoch_done(E)))
-        proof {
-            tactic skolemize;
-            tactic l2s_auto5 with {
-                definition work_created(T) = T = ready_task
-                definition work_needed(T) = T = ready_task & ready(_N) & ready_epoch(_N) = _E & ~epoch_done(_E)
-                definition work_done(T) = T = ready_task & epoch_done(_E)
-                definition work_invar = ready(_N) & ready_epoch(_N) = _E & ~epoch_done(_E)
-                definition work_start = ready(_N) & ready_epoch(_N) = _E & globally ~epoch_done(_E)
-                definition work_progress = complete_try(_N)
-                definition work_helpful = ready(_N) & ready_epoch(_N) = _E & ~epoch_done(_E)
-                invariant l2s_saved & ($l2s_s . ready(_N) & ready_epoch(_N) = _E) & ~epoch_done(_E) -> ready(_N) & ready_epoch(_N) = _E
-            }
-        }
-        explicit temporal property [o3_ack_quorums_eventually_finish_or_conflict]
-        forall N,C,T. (globally eventually o3_try(N,C,T)) ->
-            globally ~(o3_quorum(N,C,T) & cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & ~rmw_conflict(T) & ~write_conflict(T) & globally (cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & ~rmw_conflict(T) & ~write_conflict(T)))
-        proof {
-            tactic skolemize;
-            tactic l2s_auto5 with {
-                definition work_created(Q) = Q = o3_task
-                definition work_needed(Q) = Q = o3_task & o3_quorum(_N,_C,_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T) & ~write_conflict(_T)
-                definition work_done(Q) = Q = o3_task & (completed(_T) | state(_N) = hs_valid | cur_ts(_N) ~= _T | rmw_conflict(_T) | write_conflict(_T))
-                definition work_invar = o3_quorum(_N,_C,_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T) & ~write_conflict(_T)
-                definition work_start = o3_quorum(_N,_C,_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T) & ~write_conflict(_T) & globally (cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T) & ~write_conflict(_T))
-                definition work_progress = o3_try(_N,_C,_T)
-                definition work_helpful = o3_quorum(_N,_C,_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T) & ~write_conflict(_T)
-                invariant l2s_saved & ($l2s_s . cur_ts(_N) = _T & state(_N) ~= hs_valid) & ~completed(_T) -> cur_ts(_N) = _T & state(_N) ~= hs_valid
-            }
-        }
-        explicit temporal property [o3_rmw_ack_quorums_eventually_finish_or_conflict]
-        forall N,C,T. (globally eventually o3_try(N,C,T)) ->
-            globally ~(o3_quorum(N,C,T) & ts_rmw(T) & cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & ~rmw_conflict(T) & globally (cur_ts(N) = T & state(N) ~= hs_valid & ~completed(T) & ~rmw_conflict(T)))
-        proof {
-            tactic skolemize;
-            tactic l2s_auto5 with {
-                definition work_created(Q) = Q = o3_task
-                definition work_needed(Q) = Q = o3_task & o3_quorum(_N,_C,_T) & ts_rmw(_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T)
-                definition work_done(Q) = Q = o3_task & (completed(_T) | state(_N) = hs_valid | cur_ts(_N) ~= _T | rmw_conflict(_T))
-                definition work_invar = o3_quorum(_N,_C,_T) & ts_rmw(_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T)
-                definition work_start = o3_quorum(_N,_C,_T) & ts_rmw(_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T) & globally (cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T))
-                definition work_progress = o3_try(_N,_C,_T)
-                definition work_helpful = o3_quorum(_N,_C,_T) & ts_rmw(_T) & cur_ts(_N) = _T & state(_N) ~= hs_valid & ~completed(_T) & ~rmw_conflict(_T)
-                invariant l2s_saved & ($l2s_s . cur_ts(_N) = _T & state(_N) ~= hs_valid) & ~completed(_T) -> cur_ts(_N) = _T & state(_N) ~= hs_valid
-            }
-        }
         ################################################################################
         # Randomized ambient environment
         ################################################################################

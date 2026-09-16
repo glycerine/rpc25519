@@ -1,0 +1,70 @@
+#lang ivy1.7
+export hermes_protocol.ambient.idle
+export hermes_protocol.ambient.start_write
+export hermes_protocol.ambient.start_rmw
+export hermes_protocol.ambient.client_write_arrive
+export hermes_protocol.ambient.client_rmw_arrive
+export hermes_protocol.ambient.drain_client_write
+export hermes_protocol.ambient.drain_client_rmw
+export hermes_protocol.ambient.deliver_write_inv
+export hermes_protocol.ambient.duplicate_write_inv
+export hermes_protocol.ambient.deliver_rmw_inv
+export hermes_protocol.ambient.duplicate_rmw_inv
+export hermes_protocol.ambient.collect_ack
+export hermes_protocol.ambient.make_ready
+export hermes_protocol.ambient.finish_current
+export hermes_protocol.ambient.finish_overwritten
+export hermes_protocol.ambient.complete_ready_driver
+export hermes_protocol.ambient.observe_o3
+export hermes_protocol.ambient.complete_o3
+export hermes_protocol.ambient.validate_some
+export hermes_protocol.ambient.replay_dead_writer
+export hermes_protocol.ambient.overwrite_pending_write
+export hermes_protocol.ambient.abort_pending_rmw_by_write
+export hermes_protocol.ambient.stale_rmw_pushback
+export hermes_protocol.ambient.fail_pending_node
+export hermes_protocol.ambient.fail_observed_writer
+export hermes_protocol.ambient.finish_conflicted_ready
+export hermes_protocol.ambient.fail_nonlast
+export hermes_protocol.ambient.scenario_write_quorum
+export hermes_protocol.ambient.scenario_rmw_quorum
+export hermes_protocol.ambient.scenario_o3_write
+export hermes_protocol.ambient.scenario_overwritten_write
+export hermes_protocol.ambient.scenario_rmw_aborted_by_write
+export hermes_protocol.ambient.scenario_rmw_race_pushback
+export hermes_protocol.ambient.scenario_writer_fail_replay
+
+interpret hermes_protocol.node -> bv[2]
+interpret hermes_protocol.epoch -> bv[4]
+interpret hermes_protocol.ts -> bv[4]
+interpret hermes_protocol.value -> bv[4]
+
+attribute hermes_protocol.ambient.idle.weight = "0.02"
+attribute hermes_protocol.ambient.fail_nonlast.weight = "0.15"
+attribute hermes_protocol.ambient.start_write.weight = "2.0"
+attribute hermes_protocol.ambient.start_rmw.weight = "2.0"
+attribute hermes_protocol.ambient.client_write_arrive.weight = "2.5"
+attribute hermes_protocol.ambient.client_rmw_arrive.weight = "3.0"
+attribute hermes_protocol.ambient.drain_client_write.weight = "2.5"
+attribute hermes_protocol.ambient.drain_client_rmw.weight = "3.0"
+attribute hermes_protocol.ambient.deliver_write_inv.weight = "2.0"
+attribute hermes_protocol.ambient.deliver_rmw_inv.weight = "2.0"
+attribute hermes_protocol.ambient.collect_ack.weight = "2.0"
+attribute hermes_protocol.ambient.make_ready.weight = "1.5"
+attribute hermes_protocol.ambient.finish_current.weight = "1.5"
+attribute hermes_protocol.ambient.finish_overwritten.weight = "1.5"
+attribute hermes_protocol.ambient.observe_o3.weight = "1.5"
+attribute hermes_protocol.ambient.complete_o3.weight = "1.5"
+attribute hermes_protocol.ambient.overwrite_pending_write.weight = "2.0"
+attribute hermes_protocol.ambient.abort_pending_rmw_by_write.weight = "2.0"
+attribute hermes_protocol.ambient.stale_rmw_pushback.weight = "2.0"
+attribute hermes_protocol.ambient.fail_pending_node.weight = "0.75"
+attribute hermes_protocol.ambient.fail_observed_writer.weight = "0.75"
+attribute hermes_protocol.ambient.finish_conflicted_ready.weight = "1.0"
+attribute hermes_protocol.ambient.scenario_write_quorum.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_rmw_quorum.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_o3_write.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_overwritten_write.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_rmw_aborted_by_write.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_rmw_race_pushback.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_writer_fail_replay.weight = "0.75"

@@ -1,0 +1,6 @@
+#lang ivy1.7
+
+interpret hermes_protocol.node -> bv[2]
+interpret hermes_protocol.epoch -> bv[4]
+interpret hermes_protocol.ts -> bv[4]
+interpret hermes_protocol.value -> bv[4]

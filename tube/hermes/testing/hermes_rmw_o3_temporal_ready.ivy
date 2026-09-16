@@ -1,0 +1,16 @@
+#lang ivy1.7
+        explicit temporal property [ready_epochs_eventually_finish]
+        forall N,E. (globally eventually complete_try(N)) -> (globally ~(ready(N) & ready_epoch(N) = E & globally ~epoch_done(E)))
+        proof {
+            tactic skolemize;
+            tactic l2s_auto5 with {
+                definition work_created(T) = T = ready_task
+                definition work_needed(T) = T = ready_task & ready(_N) & ready_epoch(_N) = _E & ~epoch_done(_E)
+                definition work_done(T) = T = ready_task & epoch_done(_E)
+                definition work_invar = ready(_N) & ready_epoch(_N) = _E & ~epoch_done(_E)
+                definition work_start = ready(_N) & ready_epoch(_N) = _E & globally ~epoch_done(_E)
+                definition work_progress = complete_try(_N)
+                definition work_helpful = ready(_N) & ready_epoch(_N) = _E & ~epoch_done(_E)
+                invariant l2s_saved & ($l2s_s . ready(_N) & ready_epoch(_N) = _E) & ~epoch_done(_E) -> ready(_N) & ready_epoch(_N) = _E
+            }
+        }
