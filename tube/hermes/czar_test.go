@@ -2,6 +2,8 @@
 
 package hermes
 
+// all tests must be run with: go test -tags synctest
+
 import (
 	//"bytes"
 	"context"
@@ -57,6 +59,7 @@ func testStartOneMember(t *testing.T, num int, cfg *tube.TubeConfig) *tube.RMemb
 	return mem
 }
 
+// must be run with: go test -tags synctest
 func Test808_czar_only_one_at_a_time(t *testing.T) {
 
 	onlyBubbled(t, func(t *testing.T) {
