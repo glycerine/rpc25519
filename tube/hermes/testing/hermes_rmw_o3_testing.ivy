@@ -80,6 +80,16 @@ isolate hermes_protocol = {
         relation epoch_done(E:epoch)
         relation ready_epoch_active(E:epoch)
 
+        # One-slot client request buffers. These model requests arriving at a
+        # live server while the local key replica is not yet able to start the
+        # low-level protocol transition.
+        relation client_write_pending(N:node)
+        individual client_write_value(N:node):value
+        relation client_rmw_pending(N:node)
+        individual client_rmw_value(N:node):value
+        relation local_key_known(N:node) =
+            live(N) & (state(N) = hs_valid | state(N) = hs_invalid | pending(N))
+
         # Timestamp metadata. `parent(T,B)` means update timestamp T was
         # generated from base timestamp B.
         relation seen_ts(T:ts)
@@ -98,6 +108,14 @@ isolate hermes_protocol = {
             ts_version(cur_ts(N)) < ts_version(cur_ts(N)) + 1 &
             (forall U. seen_ts(U) & ts_version(U) < ts_version(cur_ts(N)) + 1 -> lt(U,T)) &
             (forall U. seen_ts(U) & ts_version(cur_ts(N)) + 1 < ts_version(U) -> lt(T,U))
+        relation can_start_client_write(N:node,T:ts) =
+            client_write_pending(N) & live(N) & ~pending(N) &
+            (state(N) = hs_valid | state(N) = hs_invalid) &
+            lt(cur_ts(N),T) & ~seen_ts(T) & write_version_ok(N,T)
+        relation can_start_client_rmw(N:node,T:ts) =
+            client_rmw_pending(N) & live(N) & ~pending(N) &
+            state(N) = hs_valid &
+            lt(cur_ts(N),T) & ~seen_ts(T) & rmw_version_ok(N,T)
         relation ts_value(T:ts,V:value)
         relation ts_rmw(T:ts)
         relation rmw_conflict(T:ts)
@@ -138,6 +156,10 @@ isolate hermes_protocol = {
             seen_epoch(E) := E = init_epoch;
             epoch_done(E) := E = init_epoch;
             ready_epoch_active(E) := false;
+            client_write_pending(N) := false;
+            client_write_value(N) := init_value;
+            client_rmw_pending(N) := false;
+            client_rmw_value(N) := init_value;
 
             seen_ts(T) := T = init_ts;
             parent(T,B) := false;
@@ -464,6 +486,8 @@ isolate hermes_protocol = {
             pending_rmw(n) := false;
             acked(n,A) := false;
             ready(n) := false;
+            client_write_pending(S) := client_write_pending(S) & S ~= n;
+            client_rmw_pending(S) := client_rmw_pending(S) & S ~= n;
         }
 
         ################################################################################
@@ -535,6 +559,8 @@ isolate hermes_protocol = {
         invariant ~pending(N) -> ~acked(N,A)
         invariant ~pending(N) -> ~pending_rmw(N)
         invariant ~pending(N) -> ~ready(N)
+        invariant client_write_pending(N) -> live(N)
+        invariant client_rmw_pending(N) -> live(N)
 
         # Once a timestamp is completed, every live node has advanced to at
         # least that timestamp. This is the key invariant behind valid/valid
@@ -768,6 +794,38 @@ isolate hermes_protocol = {
                 assert live(n) & ~pending(n) & state(n) = hs_valid &
                     lt(cur_ts(n),t) & ~seen_ts(t) & rmw_version_ok(n,t);
                 call local_rmw(n,t,v)
+            }
+
+            action client_write_arrive(n:node,v:value)
+            before client_write_arrive {
+                if local_key_known(n) & ~client_write_pending(n) {
+                    client_write_pending(n) := true;
+                    client_write_value(n) := v;
+                }
+            }
+
+            action client_rmw_arrive(n:node,v:value)
+            before client_rmw_arrive {
+                if local_key_known(n) & ~client_rmw_pending(n) {
+                    client_rmw_pending(n) := true;
+                    client_rmw_value(n) := v;
+                }
+            }
+
+            action drain_client_write(n:node,t:ts)
+            before drain_client_write {
+                if can_start_client_write(n,t) {
+                    client_write_pending(n) := false;
+                    call local_write(n,t,client_write_value(n))
+                }
+            }
+
+            action drain_client_rmw(n:node,t:ts)
+            before drain_client_rmw {
+                if can_start_client_rmw(n,t) {
+                    client_rmw_pending(n) := false;
+                    call local_rmw(n,t,client_rmw_value(n))
+                }
             }
 
             action deliver_write_inv(n:node,s:node,t:ts,v:value)
@@ -1117,6 +1175,10 @@ isolate hermes_protocol = {
 export hermes_protocol.ambient.idle
 export hermes_protocol.ambient.start_write
 export hermes_protocol.ambient.start_rmw
+export hermes_protocol.ambient.client_write_arrive
+export hermes_protocol.ambient.client_rmw_arrive
+export hermes_protocol.ambient.drain_client_write
+export hermes_protocol.ambient.drain_client_rmw
 export hermes_protocol.ambient.deliver_write_inv
 export hermes_protocol.ambient.duplicate_write_inv
 export hermes_protocol.ambient.deliver_rmw_inv
@@ -1148,6 +1210,10 @@ attribute hermes_protocol.ambient.idle.weight = "0.02"
 attribute hermes_protocol.ambient.fail_nonlast.weight = "0.15"
 attribute hermes_protocol.ambient.start_write.weight = "2.0"
 attribute hermes_protocol.ambient.start_rmw.weight = "2.0"
+attribute hermes_protocol.ambient.client_write_arrive.weight = "2.5"
+attribute hermes_protocol.ambient.client_rmw_arrive.weight = "3.0"
+attribute hermes_protocol.ambient.drain_client_write.weight = "2.5"
+attribute hermes_protocol.ambient.drain_client_rmw.weight = "3.0"
 attribute hermes_protocol.ambient.deliver_write_inv.weight = "2.0"
 attribute hermes_protocol.ambient.deliver_rmw_inv.weight = "2.0"
 attribute hermes_protocol.ambient.collect_ack.weight = "2.0"
