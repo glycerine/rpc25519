@@ -89,6 +89,8 @@ isolate hermes_protocol = {
         individual client_rmw_value(N:node):value
         relation local_key_known(N:node) =
             live(N) & (state(N) = hs_valid | state(N) = hs_invalid | pending(N))
+        relation only_live4(A:node,B:node,C:node,D:node) =
+            forall N. live(N) -> (N = A | N = B | N = C | N = D)
 
         # Timestamp metadata. `parent(T,B)` means update timestamp T was
         # generated from base timestamp B.
@@ -1043,6 +1045,7 @@ isolate hermes_protocol = {
             action scenario_write_quorum = {
                 if some (c:node,a:node,b:node,d:node,t:ts,v:value,e:epoch)
                     live(c) & live(a) & live(b) & live(d) &
+                    only_live4(c,a,b,d) &
                     a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
                     ~pending(c) & (state(c) = hs_valid | state(c) = hs_invalid) &
                     lt(cur_ts(c),t) & ~seen_ts(t) &
@@ -1068,6 +1071,7 @@ isolate hermes_protocol = {
             action scenario_rmw_quorum = {
                 if some (c:node,a:node,b:node,d:node,t:ts,v:value,e:epoch)
                     live(c) & live(a) & live(b) & live(d) &
+                    only_live4(c,a,b,d) &
                     a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
                     ~pending(c) & state(c) = hs_valid &
                     lt(cur_ts(c),t) & ~seen_ts(t) &
@@ -1093,6 +1097,7 @@ isolate hermes_protocol = {
             action scenario_o3_write = {
                 if some (c:node,a:node,b:node,d:node,t:ts,v:value,e:epoch)
                     live(c) & live(a) & live(b) & live(d) &
+                    only_live4(c,a,b,d) &
                     a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
                     ~pending(c) & (state(c) = hs_valid | state(c) = hs_invalid) &
                     lt(cur_ts(c),t) & ~seen_ts(t) &
@@ -1118,6 +1123,7 @@ isolate hermes_protocol = {
             action scenario_overwritten_write = {
                 if some (c:node,w:node,a:node,b:node,t1:ts,t2:ts,v1:value,v2:value,e:epoch)
                     live(c) & live(w) & live(a) & live(b) &
+                    only_live4(c,w,a,b) &
                     c ~= w & c ~= a & c ~= b & w ~= a & w ~= b & a ~= b &
                     ~pending(c) & ~pending(w) &
                     (state(c) = hs_valid | state(c) = hs_invalid) &
@@ -1147,6 +1153,7 @@ isolate hermes_protocol = {
             action scenario_rmw_aborted_by_write = {
                 if some (c:node,w:node,a:node,b:node,t1:ts,t2:ts,v1:value,v2:value,e:epoch)
                     live(c) & live(w) & live(a) & live(b) &
+                    only_live4(c,w,a,b) &
                     c ~= w & c ~= a & c ~= b & w ~= a & w ~= b & a ~= b &
                     ~pending(c) & ~pending(w) &
                     state(c) = hs_valid &
@@ -1176,6 +1183,7 @@ isolate hermes_protocol = {
             action scenario_rmw_race_pushback = {
                 if some (c:node,w:node,a:node,b:node,t1:ts,t2:ts,v1:value,v2:value,e:epoch)
                     live(c) & live(w) & live(a) & live(b) &
+                    only_live4(c,w,a,b) &
                     c ~= w & c ~= a & c ~= b & w ~= a & w ~= b & a ~= b &
                     ~pending(c) & ~pending(w) &
                     state(c) = hs_valid & state(w) = hs_valid &
@@ -1206,6 +1214,7 @@ isolate hermes_protocol = {
             action scenario_writer_fail_replay = {
                 if some (c:node,a:node,b:node,d:node,t:ts,v:value,e:epoch)
                     live(c) & live(a) & live(b) & live(d) &
+                    only_live4(c,a,b,d) &
                     a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
                     ~pending(c) & (state(c) = hs_valid | state(c) = hs_invalid) &
                     lt(cur_ts(c),t) & ~seen_ts(t) &
