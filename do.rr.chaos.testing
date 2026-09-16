@@ -1,0 +1,19 @@
+#!/bin/bash
+
+## rm ~/.local/share/rr
+## mkdir /home/jaten/go/src/github.com/glycerine/rr_binary_for_issue74019/on_go1.25.3
+## mkdir /home/jaten/go/src/github.com/glycerine/rr_binary_for_issue74019/on_go1.25.3/text-logs
+## ln -s /home/jaten/go/src/github.com/glycerine/rr_binary_for_issue74019/on_go1.25.3 ~/local/share/rr
+## cd /home/jaten/go/src/github.com/glycerine/rpc25519
+## go test -race -c -o rpc.race.test
+
+mkdir -p /home/jaten/issue74019/on_go1.25.3_external_link/text-logs
+
+for i in `seq 0 100`; do
+
+rr record -h ./rpc.race.test3 -test.v -test.run Test04[05] &> /home/jaten/issue74019/on_go1.25.3_external_link/text-logs/log.$i.txt
+
+rr pack 
+
+done
+

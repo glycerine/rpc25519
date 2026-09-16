@@ -22,3 +22,5 @@ gitcommit.go
 snap707*
 tube/tube.test
 rpc25519.test
+tube/.codex-gocache
+tube/.codex-gomodcache

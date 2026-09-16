@@ -12,8 +12,9 @@ import (
 
 func Test301_raftStatePersistorSaveLoad(t *testing.T) {
 	path := "test301.persistor.tube.msgp"
-	os.Remove(path)
-	defer os.Remove(path)
+	os.RemoveAll(path + ".yogadb")
+	defer os.RemoveAll(path)
+	defer os.RemoveAll(path + ".yogadb")
 	cfg := &TubeConfig{}
 	saver, _, err := cfg.NewRaftStatePersistor(path, nil, false)
 	panicOn(err)
