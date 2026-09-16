@@ -1074,7 +1074,8 @@ isolate hermes_protocol = {
                     only_live4(c,a,b,d) &
                     a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
                     ~pending(c) & state(c) = hs_valid &
-                    lt(cur_ts(c),t) & ~seen_ts(t) &
+                    lt(cur_ts(c),t) & lt(cur_ts(a),t) &
+                    lt(cur_ts(b),t) & lt(cur_ts(d),t) & ~seen_ts(t) &
                     rmw_start_order_ok(c,t) & ~seen_epoch(e) {
                     call local_rmw(c,t,v);
                     call receive_rmw_inv(a,c,t,v);
@@ -1189,6 +1190,7 @@ isolate hermes_protocol = {
                     state(c) = hs_valid & state(w) = hs_valid &
                     cur_ts(c) = cur_ts(w) &
                     lt(cur_ts(c),t1) & lt(cur_ts(w),t2) & lt(t1,t2) &
+                    lt(cur_ts(a),t2) & lt(cur_ts(b),t2) &
                     rmw_start_order_ok(c,t1) &
                     rmw_start_order_ok(w,t2) &
                     rmw_then_rmw_order_ok(c,t1,w,t2) &
