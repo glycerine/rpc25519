@@ -97,8 +97,8 @@ isolate hermes_protocol = {
         relation same_parent(T:ts,U:ts)
         individual parent_ts(T:ts):ts
         relation ts_version(T:ts,V:version)
-        relation same_version(T:ts,U:ts) = exists V. ts_version(T,V) & ts_version(U,V)
-        relation next_version(T:ts,U:ts) = exists VT,VU. ts_version(T,VT) & ts_version(U,VU) & version.succ(VU,VT)
+        relation same_version(T:ts,U:ts)
+        relation next_version(T:ts,U:ts)
         relation can_start_client_write(N:node,T:ts) =
             client_write_pending(N) & live(N) & ~pending(N) &
             (state(N) = hs_valid | state(N) = hs_invalid) &
@@ -157,6 +157,9 @@ isolate hermes_protocol = {
             same_parent(T,U) := false;
             parent_ts(T) := init_ts;
             ts_version(T,V) := T = init_ts & V = 0;
+            same_version(T,U) := false;
+            same_version(init_ts,init_ts) := true;
+            next_version(T,U) := false;
             ts_value(T,V) := T = init_ts & V = init_value;
             ts_rmw(T) := false;
             rmw_conflict(T) := false;
@@ -183,6 +186,7 @@ isolate hermes_protocol = {
             require ts_version(cur_ts(n),base_ver);
             var mid_ver := base_ver.next;
             var new_ver := mid_ver.next;
+            var after_ver := new_ver.next;
             # HRWrite in HermesRMWs.tla sets version := base.version + 2.
             require ts_version(U,UV) & UV < new_ver -> lt(U,t);
             require ts_version(U,UV) & new_ver < UV -> lt(t,U);
@@ -193,6 +197,12 @@ isolate hermes_protocol = {
                 (T = t & parent(U,cur_ts(n))) |
                 (U = t & parent(T,cur_ts(n)));
             parent_ts(T) := cur_ts(n) if T = t else parent_ts(T);
+            same_version(T,U) := same_version(T,U) |
+                (T = t & (U = t | ts_version(U,new_ver))) |
+                (U = t & (T = t | ts_version(T,new_ver)));
+            next_version(T,U) := next_version(T,U) |
+                (T = t & ts_version(U,mid_ver)) |
+                (U = t & ts_version(T,after_ver));
             ts_version(T,TV) := ts_version(T,TV) | (T = t & TV = new_ver);
             ts_value(T,V) := ts_value(T,V) | (T = t & V = v);
             ts_rmw(T) := ts_rmw(T) & T ~= t;
@@ -226,6 +236,7 @@ isolate hermes_protocol = {
             var base_ver:version;
             require ts_version(cur_ts(n),base_ver);
             var new_ver := base_ver.next;
+            var after_ver := new_ver.next;
             # HRRMW in HermesRMWs.tla sets version := base.version + 1.
             require ts_version(U,UV) & UV < new_ver -> lt(U,t);
             require ts_version(U,UV) & new_ver < UV -> lt(t,U);
@@ -236,6 +247,12 @@ isolate hermes_protocol = {
                 (T = t & parent(U,cur_ts(n))) |
                 (U = t & parent(T,cur_ts(n)));
             parent_ts(T) := cur_ts(n) if T = t else parent_ts(T);
+            same_version(T,U) := same_version(T,U) |
+                (T = t & (U = t | ts_version(U,new_ver))) |
+                (U = t & (T = t | ts_version(T,new_ver)));
+            next_version(T,U) := next_version(T,U) |
+                (T = t & ts_version(U,base_ver)) |
+                (U = t & ts_version(T,after_ver));
             ts_version(T,TV) := ts_version(T,TV) | (T = t & TV = new_ver);
             ts_value(T,V) := ts_value(T,V) | (T = t & V = v);
             ts_rmw(T) := ts_rmw(T) | T = t;
@@ -1197,6 +1214,13 @@ export hermes_protocol.ambient.fail_pending_node
 export hermes_protocol.ambient.fail_observed_writer
 export hermes_protocol.ambient.finish_conflicted_ready
 export hermes_protocol.ambient.fail_nonlast
+export hermes_protocol.ambient.scenario_write_quorum
+export hermes_protocol.ambient.scenario_rmw_quorum
+export hermes_protocol.ambient.scenario_o3_write
+export hermes_protocol.ambient.scenario_overwritten_write
+export hermes_protocol.ambient.scenario_rmw_aborted_by_write
+export hermes_protocol.ambient.scenario_rmw_race_pushback
+export hermes_protocol.ambient.scenario_writer_fail_replay
 
 interpret hermes_protocol.node -> bv[2]
 interpret hermes_protocol.epoch -> bv[4]
@@ -1225,3 +1249,10 @@ attribute hermes_protocol.ambient.stale_rmw_pushback.weight = "2.0"
 attribute hermes_protocol.ambient.fail_pending_node.weight = "0.75"
 attribute hermes_protocol.ambient.fail_observed_writer.weight = "0.75"
 attribute hermes_protocol.ambient.finish_conflicted_ready.weight = "1.0"
+attribute hermes_protocol.ambient.scenario_write_quorum.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_rmw_quorum.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_o3_write.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_overwritten_write.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_rmw_aborted_by_write.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_rmw_race_pushback.weight = "0.75"
+attribute hermes_protocol.ambient.scenario_writer_fail_replay.weight = "0.75"
