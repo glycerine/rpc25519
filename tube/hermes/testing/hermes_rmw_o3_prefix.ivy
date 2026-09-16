@@ -89,9 +89,6 @@ isolate hermes_protocol = {
         individual client_rmw_value(N:node):value
         relation local_key_known(N:node) =
             live(N) & (state(N) = hs_valid | state(N) = hs_invalid | pending(N))
-        relation only_live4(A:node,B:node,C:node,D:node) =
-            forall N. live(N) -> (N = A | N = B | N = C | N = D)
-
         # Timestamp metadata. `parent(T,B)` means update timestamp T was
         # generated from base timestamp B.
         relation seen_ts(T:ts)
@@ -101,12 +98,12 @@ isolate hermes_protocol = {
         relation ts_version(T:ts,V:version)
         relation same_version(T:ts,U:ts)
         relation next_version(T:ts,U:ts)
-        relation write_then_write_order_ok(N:node,T:ts,M:node,U:ts) =
+        relation write_then_write_order_ok(N:node,M:node) =
             same_version(cur_ts(N),cur_ts(M)) | lt(cur_ts(N),cur_ts(M))
-        relation rmw_then_write_order_ok(N:node,T:ts,M:node,U:ts) =
+        relation rmw_then_write_order_ok(N:node,M:node) =
             same_version(cur_ts(N),cur_ts(M)) | lt(cur_ts(N),cur_ts(M)) |
             next_version(cur_ts(N),cur_ts(M))
-        relation rmw_then_rmw_order_ok(N:node,T:ts,M:node,U:ts) =
+        relation rmw_then_rmw_order_ok(N:node,M:node) =
             same_version(cur_ts(N),cur_ts(M)) | lt(cur_ts(N),cur_ts(M))
         relation can_start_client_write(N:node,T:ts) =
             client_write_pending(N) & live(N) & ~pending(N) &
@@ -745,4 +742,3 @@ isolate hermes_protocol = {
         invariant ~o3_try(N,C,T)
         invariant ready_task = ready_finish
         invariant o3_task = o3_finish
-

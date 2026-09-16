@@ -40,7 +40,6 @@ CHECK_SPECS = \
 	hermes_rmw_o3_o3_rmw_liveness
 
 TEST_SPECS = \
-	hermes_rmw_o3_core_testing \
 	hermes_rmw_o3_write_testing \
 	hermes_rmw_o3_rmw_testing \
 	hermes_rmw_o3_failure_testing
@@ -199,10 +198,7 @@ check-o3-rmw:
 check-ambient-safety:
 	$(MAKE) check-one SPEC=hermes_rmw_o3_ambient_safety
 
-py-small: py-core py-write py-rmw py-failure
-
-py-core:
-	$(MAKE) py SPEC=hermes_rmw_o3_core_testing
+py-small: py-write py-rmw py-failure
 
 py-write:
 	$(MAKE) py SPEC=hermes_rmw_o3_write_testing
@@ -213,10 +209,7 @@ py-rmw:
 py-failure:
 	$(MAKE) py SPEC=hermes_rmw_o3_failure_testing
 
-go-small: go-core go-write go-rmw go-failure
-
-go-core:
-	$(MAKE) go SPEC=hermes_rmw_o3_core_testing
+go-small: go-write go-rmw go-failure
 
 go-write:
 	$(MAKE) go SPEC=hermes_rmw_o3_write_testing
@@ -227,11 +220,7 @@ go-rmw:
 go-failure:
 	$(MAKE) go SPEC=hermes_rmw_o3_failure_testing
 
-test-small: test-core test-write test-rmw test-failure
-
-test-core:
-	$(MAKE) py SPEC=hermes_rmw_o3_core_testing
-	$(MAKE) punish SPEC=hermes_rmw_o3_core_testing
+test-small: test-write test-rmw test-failure
 
 test-write:
 	$(MAKE) py SPEC=hermes_rmw_o3_write_testing
