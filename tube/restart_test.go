@@ -29,7 +29,7 @@ func Test057_restart_monitoring_and_maybe_dedup(t *testing.T) {
 		for numNodes := minClusterSz; numNodes <= maxClusterSz; numNodes++ {
 
 			forceLeader := 0
-			c, leader, leadi, maxterm := setupTestCluster(t, numNodes, forceLeader, 57)
+			c, leader, leadi, maxterm := SetupTestCluster(t, numNodes, forceLeader, 57)
 			_, _, _ = leader, leadi, maxterm
 			vv("back from setupTestCluster")
 

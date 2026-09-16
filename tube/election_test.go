@@ -71,7 +71,7 @@ func Test020_election_on_sim_net(t *testing.T) {
 
 			g0 := time.Now()
 			t0 := g0
-			cluster.waitForConnectedGrid() // this is maybe the slowest part
+			cluster.WaitForConnectedGrid() // this is maybe the slowest part
 			vv("%v grid established in %v, %v nodes, after %v", t.Name(), time.Since(g0), numNodes, time.Since(t0))
 
 			if cluster.Cfg.UseSimNet {
@@ -86,10 +86,10 @@ func Test020_election_on_sim_net(t *testing.T) {
 			}
 
 			// let the first noop get committed so we know the cluster is "up".
-			leader, leadi, maxterm := cluster.waitForLeader(t0)
+			leader, leadi, maxterm := cluster.WaitForLeader(t0)
 			vv("waitForLeader saw maxterm = %v when numnodes = %v", maxterm, numNodes)
 
-			cluster.waitForLeaderNoop(t0)
+			cluster.WaitForLeaderNoop(t0)
 			vv("good: noop committed, cluster size %v is up. leader='%v'; leaderi=%v; maxterm=%v", numNodes, leader, leadi, maxterm)
 
 		} else { // old style, not working without a manual entry in the first node's log to bootstrap stuff...
@@ -194,7 +194,7 @@ func Test021_election_first_reqVote_becomes_leader(t *testing.T) {
 		c.Start() // needs to run at least part of main loop to build grid.
 		defer c.Close()
 
-		c.waitForConnectedGrid()
+		c.WaitForConnectedGrid()
 		t0 := time.Now()
 		vv("grid established at %v", t0)
 
@@ -308,7 +308,7 @@ func Test022_election_timeouts_very_close_together(t *testing.T) {
 		c.Start() // needs to run at least part of main loop to build grid.
 		defer c.Close()
 
-		c.waitForConnectedGrid()
+		c.WaitForConnectedGrid()
 		t0 := time.Now()
 		vv("grid established at %v", t0)
 

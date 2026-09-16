@@ -2,6 +2,7 @@ package tube
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	"testing"
@@ -12,7 +13,7 @@ import (
 // first log entry to do dynamic cluster init; to
 // allow the chapter 4 membership reconfig to work/
 // be tested.
-func setupTestCluster(t *testing.T, numNodes, forceLeader, testNum int) (c *TubeCluster, leader string, leadi int, maxterm int64) {
+func SetupTestCluster(t *testing.T, numNodes, forceLeader, testNum int) (c *TubeCluster, leader string, leadi int, maxterm int64) {
 	return SetupTestClusterWithCustomConfig(nil, t, numNodes, forceLeader, testNum)
 }
 
@@ -126,7 +127,7 @@ func SetupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 	g0 := time.Now()
 	t0 := g0
 	if numNodes > 1 {
-		c.waitForConnectedGrid() // this is maybe the slowest part
+		c.WaitForConnectedGrid() // this is maybe the slowest part
 	}
 	//vv("%v grid established in %v, %v nodes, after %v", t.Name(), time.Since(g0), numNodes, time.Since(t0))
 
@@ -144,7 +145,7 @@ func SetupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 	}
 
 	// let the first noop get committed so we know the cluster is "up".
-	leader, leadi, maxterm = c.waitForLeader(t0)
+	leader, leadi, maxterm = c.WaitForLeader(t0)
 	//vv("waitForLeader saw maxterm = %v when numnodes = %v; leadi='%v'; leader='%v'", maxterm, numNodes, leadi, leader)
 
 	if forceLeader >= 0 && leadi != forceLeader {
@@ -153,7 +154,7 @@ func SetupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 		//vv("good: forceLeader=%v and leadi=%v", forceLeader, leadi)
 	}
 
-	c.waitForLeaderNoop(t0)
+	c.WaitForLeaderNoop(t0)
 	//vv("good: noop committed, cluster size %v is up", numNodes)
 
 	// assert that each node actually has cktReplica and cktAllByName
@@ -161,8 +162,8 @@ func SetupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 	nodes := c.Nodes
 	nNode := len(nodes)
 
-	//vv("top waitForConnectedGrid(); nNode = %v", nNode)
-	//defer vv("end waitForConnectedGrid()")
+	//vv("top WaitForConnectedGrid(); nNode = %v", nNode)
+	//defer vv("end WaitForConnectedGrid()")
 
 	for _, node := range c.Nodes {
 		insp := node.Inspect()
@@ -211,4 +212,158 @@ func InTestClusterGetCurrentLeader(c *TubeCluster) (leadi int, haveLeader bool, 
 		}
 	}
 	return
+}
+
+// WaitForConnectedGrid waits until all n*(n-1)
+// circuit endpoints have been reported before returning.
+// We verify that the first ckts established
+// are to replicas, not clients.
+func (c *TubeCluster) WaitForConnectedGrid() (replicaCktCount int) {
+	nodes := c.Nodes
+	nNode := len(nodes)
+
+	//vv("top WaitForConnectedGrid(); nNode = %v", nNode)
+	//defer vv("end WaitForConnectedGrid()")
+
+	for i, g := range nodes {
+		_ = i
+		select { // 031 hung intermit here
+		case <-g.verifyPeersNeededSeen.Chan:
+			//vv("i=%v all peer connections need have been seen(%v) by node '%v': '%#v'", i, g.verifyPeersNeeded, g.name, g.verifyPeersSeen.GetKeySlice()) // data race read vs prev write at tube.go:7267
+
+			// failing test will just hang above.
+			// we cannot really do case <-time.After(time.Minute) with faketime.
+		case cktP := <-g.verifyPeerReplicaOrNot:
+			replicaCktCount++
+			//vv("grid connection seen from (%v)=='%v': cktP.isReplica = %v for ckt='%#v'", rpc.AliasDecode(cktP.ckt.RemotePeerID), cktP.ckt.RemotePeerID, cktP.isReplica, cktP.ckt)
+			if !cktP.isReplica() {
+				panic(fmt.Sprintf("all circuits during cluster setup should be replicas; this was not: '%#v'; cktP.ckt.CircuitID = '%v'", cktP, cktP.ckt.CircuitID))
+			}
+		}
+	}
+	// get them all if we did not above.
+	var cases []reflect.SelectCase
+	for k, g := range nodes {
+		_ = k
+		//vv("adding select case %v: '%v' (%v)", k, g.name, g.PeerID)
+		cases = append(cases, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(g.verifyPeerReplicaOrNot),
+		})
+	}
+	for replicaCktCount < nNode*(nNode-1) {
+		//vv("top of for, replicaCktCount = %v", replicaCktCount)
+		chosenCase, recv, recvOK := reflect.Select(cases)
+		_ = chosenCase
+		if recvOK {
+			cktP := recv.Interface().(*cktPlus)
+			replicaCktCount++
+			//vv("node=chosenCase=%v; cktP.isReplica = %v for ckt='%#v'", chosenCase, cktP.isReplica, cktP.ckt)
+			if !cktP.isReplica() {
+				panic(fmt.Sprintf("all circuits during cluster setup should be replicas; this was not: '%#v'; cktP.ckt.CircuitID = '%v'", cktP, cktP.ckt.CircuitID))
+			}
+		}
+	}
+	return
+}
+
+func (c *TubeCluster) WaitForLeader(t0 time.Time) (leader string, leadi int, maxterm int64) {
+
+	// verify terms are strictly monotonically increasing, per node
+	node2term := make(map[string]*testTermChange)
+
+	cfg := c.Cfg
+	numNodes := cfg.ClusterSize
+	choose2 := numNodes * (numNodes - 1) / 2
+	if choose2 == 0 {
+		choose2 = 1 // handle single node case
+	}
+	allowed := time.Duration(choose2) * cfg.MinElectionDur * 10 // time allowed to elect a leader
+	timeout := time.After(allowed)
+
+elected:
+	for {
+		select {
+		case u := <-c.termChanges:
+			//vv("%v cluster sees member term change: '%#v'", numNodes, u)
+			maxterm = max(maxterm, u.newterm)
+
+			// self consistent
+			if u.oldterm >= u.newterm {
+				panic(fmt.Sprintf("safety violation, term did not increase on node '%v': old='%v'; new='%v'", u.peerID, u.oldterm, u.newterm))
+			}
+			// and change to change consistent
+			old, ok := node2term[u.peerID]
+			if ok {
+				if old.newterm >= u.newterm {
+					panic(fmt.Sprintf("safety violation, term did not increase on node '%v': old='%v'; new='%v'", u.peerID, old.newterm, u.newterm))
+				}
+			} else {
+				// first one for this peer
+				node2term[u.peerID] = u
+			}
+
+		case leader = <-c.LeaderElectedCh:
+			w, ok := c.Name2num[leader]
+			if !ok {
+				panic(fmt.Sprintf("no node number for leader '%v'", leader))
+			}
+			leadi = w
+			//vv("cluster c.LeaderElectedCh fired. leader=%v; node number=%v'", leader, w)
+
+			elap := time.Since(t0)
+			_ = elap
+			//alwaysPrintf("good: clusterSize = %v; node w=%v (%v) won election in %v", numNodes, w, leader, elap.Truncate(time.Millisecond))
+
+			// give them time to depose other candidates with
+			// their first round of heartbeats.
+			time.Sleep(cfg.HeartbeatDur * 3)
+
+			term := int64(-1)
+			for i := range c.Nodes {
+				look := c.Nodes[i].Inspect()
+				roleExpect := FOLLOWER
+				if i == w {
+					roleExpect = LEADER
+				}
+				if look.Role != roleExpect {
+					panic(fmt.Sprintf("error: expected node %v to be %v (but is %v) in term %v", i, roleExpect, look.Role, look.State.CurrentTerm)) // CANDIDATE seen... size 8 is rough! 015_tube_non_parallel_linz (tube_test.go) red under realtime without synctest (might be sporadic): error: expected node 0 to be LEADER (but is FOLLOWER) in term 2
+				}
+				if i == 0 {
+					term = look.State.CurrentTerm
+				} else {
+					if look.State.CurrentTerm != term {
+						panic(fmt.Sprintf("error: inconsistent terms. expected node %v to also be at term %v, but is at %v", i, term, look.State.CurrentTerm))
+					}
+				}
+			}
+			break elected
+		case <-timeout:
+			elap := time.Since(t0)
+			panic(fmt.Sprintf("bad: no leader elected, in %v node cluster, after %v", numNodes, elap)) // bad: no leader elected, in 8 node cluster, after 1m20.003295173s
+		}
+	}
+	//c.Close()
+	//time.Sleep(3 * cfg.MinElectionDur)
+	//time.Sleep(time.Second)
+	return
+}
+
+// get first no-op committed by leader
+func (c *TubeCluster) WaitForLeaderNoop(t0 time.Time) {
+
+	cfg := c.Cfg
+	allowedNoop := cfg.MinElectionDur * 5 // time allowed to get no-op committed
+	select {
+	case noop0leader := <-c.LeaderNoop0committedCh:
+		_ = noop0leader
+		elap := time.Since(t0)
+		_ = elap
+		//vv("good: leader first noop0 was committed after %v by %v", elap, noop0leader)
+		//NO! racey! vv("noop0 ticket = %v", noop0tkt)
+	case <-time.After(allowedNoop):
+		elap := time.Since(t0)
+		vv("bad: NO leader no-op was committed after %v", elap)
+		panic("leader did not commit first noop0")
+	}
 }

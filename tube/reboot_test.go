@@ -24,7 +24,7 @@ func Test055_kill_pause_reboot_node_0(t *testing.T) {
 		for numNodes := minClusterSz; numNodes <= maxClusterSz; numNodes++ {
 
 			forceLeader := 0
-			c, leader, leadi, maxterm := setupTestCluster(t, numNodes, forceLeader, 55)
+			c, leader, leadi, maxterm := SetupTestCluster(t, numNodes, forceLeader, 55)
 			_, _, _ = leader, leadi, maxterm
 
 			time.Sleep(time.Second * 5)

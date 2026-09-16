@@ -17,7 +17,7 @@ func Test808_czar_only_one_at_a_time(t *testing.T) {
 
 		numNodes := 3
 		forceLeader := 0
-		c, leader, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 808)
+		c, leader, leadi, _ := SetupTestCluster(t, numNodes, forceLeader, 808)
 		defer c.Close()
 		_, _ = leader, leadi
 
@@ -85,7 +85,7 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 
 		numNodes := 3
 		forceLeader := 0
-		c, leader, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 809)
+		c, leader, leadi, _ := SetupTestCluster(t, numNodes, forceLeader, 809)
 		defer c.Close()
 		//simnet := c.Cfg.RpcCfg.GetSimnet()
 		//defer simnet.Close()
@@ -163,14 +163,14 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 		//panicOn(err)
 
 		numCzar := 0
-		cur := czarState(mems[3].Czar.cState.Load())
+		cur := CzarState(mems[3].Czar.cState.Load())
 		vv("cur[3] = %v", cur)
-		if cur == amCzar {
+		if cur == AmCzar {
 			numCzar++
 		}
-		cur = czarState(mems[4].Czar.cState.Load())
+		cur = CzarState(mems[4].Czar.cState.Load())
 		vv("cur[4] = %v", cur)
-		if cur == amCzar {
+		if cur == AmCzar {
 			numCzar++
 		}
 		if numCzar != 1 {

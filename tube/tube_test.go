@@ -537,7 +537,7 @@ func Test003_tube_3_node_write_then_read(t *testing.T) {
 		}()
 		numNodes := 3
 
-		c, _, _, _ := setupTestCluster(t, numNodes, -1, 3)
+		c, _, _, _ := SetupTestCluster(t, numNodes, -1, 3)
 		//cfg := NewTubeConfigTest(n, t.Name(), globalUseSimnet)
 		//c := NewCluster(t.Name(), cfg)
 		//c.Start()
@@ -607,7 +607,7 @@ func Test010_tube_write_new_value_two_replicas(t *testing.T) {
 
 		numNodes := 3 // number of nodes (primary + 2 replicas)
 
-		c, _, _, _ := setupTestCluster(t, numNodes, -1, 10)
+		c, _, _, _ := SetupTestCluster(t, numNodes, -1, 10)
 		//cfg := NewTubeConfigTest(n, t.Name(), globalUseSimnet)
 		//c := NewCluster(t.Name(), cfg)
 		//c.Start()
@@ -661,7 +661,7 @@ func Test015_tube_non_parallel_linz(t *testing.T) {
 		}()
 		numNodes := 5
 
-		c, _, _, _ := setupTestCluster(t, numNodes, -1, 15)
+		c, _, _, _ := SetupTestCluster(t, numNodes, -1, 15)
 		//cfg := NewTubeConfigTest(n, t.Name(), globalUseSimnet)
 		//c := NewCluster(t.Name(), cfg)
 		//c.Start()
@@ -736,7 +736,7 @@ func Test017_write_throughput(t *testing.T) {
 		for numNodes := minClusterSz; numNodes < maxClusterSz; numNodes++ {
 
 			forceLeader := -1 // -1 => no forced leader
-			c, leader, leadi, maxterm := setupTestCluster(t, numNodes, forceLeader, 17)
+			c, leader, leadi, maxterm := SetupTestCluster(t, numNodes, forceLeader, 17)
 			_, _, _ = leader, leadi, maxterm
 
 			// n := 3

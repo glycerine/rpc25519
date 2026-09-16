@@ -67,8 +67,8 @@ func Test808_czar_only_one_at_a_time(t *testing.T) {
 			vv("good: at i=%v, saw amCz = %v", i, amCz)
 		}
 		for _, mem := range mems {
-			mem.czar.Halt.RequestStop()
-			<-mem.czar.Halt.Done.Chan
+			mem.Czar.Halt.RequestStop()
+			<-mem.Czar.Halt.Done.Chan
 		}
 	})
 }
@@ -128,7 +128,7 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 
 			vv("about to wait for mem.debugAmCzarCh on i = %v", i) // i = 0 only seen.
 
-			amCz := <-mem.testingAmCzarCh
+			amCz := <-mem.TestingAmCzarCh
 			if i == 0 {
 				if !amCz {
 					panicf("0th (first) member should be czar")
@@ -147,8 +147,8 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 		// stop after 3
 		for i, mem := range mems {
 			if i <= 2 {
-				mem.czar.Halt.RequestStop()
-				<-mem.czar.Halt.Done.Chan
+				mem.Czar.Halt.RequestStop()
+				<-mem.Czar.Halt.Done.Chan
 				//vv("%v has halted", mem.name)
 			}
 		}
@@ -182,14 +182,14 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 		//panicOn(err)
 
 		numCzar := 0
-		cur := czarState(mems[3].czar.cState.Load())
+		cur := mems[3].Czar.State()
 		vv("cur[3] = %v", cur)
-		if cur == amCzar {
+		if cur == tube.AmCzar {
 			numCzar++
 		}
-		cur = czarState(mems[4].czar.cState.Load())
+		cur = mems[4].Czar.State()
 		vv("cur[4] = %v", cur)
-		if cur == amCzar {
+		if cur == tube.AmCzar {
 			numCzar++
 		}
 		if numCzar != 1 {
@@ -199,9 +199,9 @@ func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {
 		vv("begin shutdown / cleanup: shut down other 2")
 		for i, mem := range mems {
 			if i > 2 {
-				mem.czar.Halt.RequestStop()
-				<-mem.czar.Halt.Done.Chan
-				vv("%v has halted", mem.name)
+				mem.Czar.Halt.RequestStop()
+				<-mem.Czar.Halt.Done.Chan
+				vv("%v has halted", mem.Name)
 			}
 		}
 	})

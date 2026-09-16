@@ -202,7 +202,7 @@ func Test050_split_vote_resolution(t *testing.T) {
 
 			g0 := time.Now()
 			_ = g0
-			c.waitForConnectedGrid() // this is maybe the slowest part
+			c.WaitForConnectedGrid() // this is maybe the slowest part
 			t0 := time.Now()
 			//vv("grid established in %v, %v nodes, at %v", time.Since(g0), numNodes, t0)
 

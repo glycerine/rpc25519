@@ -23,7 +23,7 @@ func Test063_start_one_node_cluster(t *testing.T) {
 		for numNodes := minClusterSz; numNodes <= maxClusterSz; numNodes++ {
 
 			forceLeader := 0
-			c, leader, leadi, maxterm := setupTestCluster(t, numNodes, forceLeader, 63)
+			c, leader, leadi, maxterm := SetupTestCluster(t, numNodes, forceLeader, 63)
 			_, _, _ = leader, leadi, maxterm
 			vv("back from setupTestCluster -- with one node")
 
@@ -161,7 +161,7 @@ func Test064_one_node_in_two_node_cluster(t *testing.T) {
 		for numNodes := minClusterSz; numNodes <= maxClusterSz; numNodes++ {
 
 			forceLeader := -1 // nobody forced.
-			c, leader, leadi, maxterm := setupTestCluster(t, numNodes, forceLeader, 63)
+			c, leader, leadi, maxterm := SetupTestCluster(t, numNodes, forceLeader, 63)
 			_, _, _ = leader, leadi, maxterm
 			vv("back from setupTestCluster -- numNodes=%v", numNodes)
 

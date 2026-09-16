@@ -3,7 +3,7 @@ package tube
 import (
 	"context"
 	"fmt"
-	"reflect"
+	//"reflect"
 	//"strings"
 	"testing"
 
@@ -25,61 +25,8 @@ func Test030_does_cluster_come_up_under_simnet(t *testing.T) {
 		c.Start()
 		defer c.Close()
 
-		c.waitForConnectedGrid()
+		c.WaitForConnectedGrid()
 	})
-}
-
-// waitForConnectedGrid waits until all n*(n-1)
-// circuit endpoints have been reported before returning.
-// We verify that the first ckts established
-// are to replicas, not clients.
-func (c *TubeCluster) waitForConnectedGrid() (replicaCktCount int) {
-	nodes := c.Nodes
-	nNode := len(nodes)
-
-	//vv("top waitForConnectedGrid(); nNode = %v", nNode)
-	//defer vv("end waitForConnectedGrid()")
-
-	for i, g := range nodes {
-		_ = i
-		select { // 031 hung intermit here
-		case <-g.verifyPeersNeededSeen.Chan:
-			//vv("i=%v all peer connections need have been seen(%v) by node '%v': '%#v'", i, g.verifyPeersNeeded, g.name, g.verifyPeersSeen.GetKeySlice()) // data race read vs prev write at tube.go:7267
-
-			// failing test will just hang above.
-			// we cannot really do case <-time.After(time.Minute) with faketime.
-		case cktP := <-g.verifyPeerReplicaOrNot:
-			replicaCktCount++
-			//vv("grid connection seen from (%v)=='%v': cktP.isReplica = %v for ckt='%#v'", rpc.AliasDecode(cktP.ckt.RemotePeerID), cktP.ckt.RemotePeerID, cktP.isReplica, cktP.ckt)
-			if !cktP.isReplica() {
-				panic(fmt.Sprintf("all circuits during cluster setup should be replicas; this was not: '%#v'; cktP.ckt.CircuitID = '%v'", cktP, cktP.ckt.CircuitID))
-			}
-		}
-	}
-	// get them all if we did not above.
-	var cases []reflect.SelectCase
-	for k, g := range nodes {
-		_ = k
-		//vv("adding select case %v: '%v' (%v)", k, g.name, g.PeerID)
-		cases = append(cases, reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(g.verifyPeerReplicaOrNot),
-		})
-	}
-	for replicaCktCount < nNode*(nNode-1) {
-		//vv("top of for, replicaCktCount = %v", replicaCktCount)
-		chosenCase, recv, recvOK := reflect.Select(cases)
-		_ = chosenCase
-		if recvOK {
-			cktP := recv.Interface().(*cktPlus)
-			replicaCktCount++
-			//vv("node=chosenCase=%v; cktP.isReplica = %v for ckt='%#v'", chosenCase, cktP.isReplica, cktP.ckt)
-			if !cktP.isReplica() {
-				panic(fmt.Sprintf("all circuits during cluster setup should be replicas; this was not: '%#v'; cktP.ckt.CircuitID = '%v'", cktP, cktP.ckt.CircuitID))
-			}
-		}
-	}
-	return
 }
 
 // client ckt should be distinguished from replica ckt,
@@ -105,7 +52,7 @@ func Test031_client_ckt_is_not_replica_ckt(t *testing.T) {
 		// For n nodes, there are (n choose 2)
 		// circuits with two ends each so
 		// 2 * n*(n-1)/2 = n*(n-1)
-		replicaCktCount := c.waitForConnectedGrid() // waiting in here on red 031 / hung intermit no synctest.
+		replicaCktCount := c.WaitForConnectedGrid() // waiting in here on red 031 / hung intermit no synctest.
 
 		if replicaCktCount != n*(n-1) {
 			panic(fmt.Sprintf("expected %v, got %v", n*(n-1), replicaCktCount))

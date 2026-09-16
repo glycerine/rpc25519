@@ -15,7 +15,7 @@ func Test002_tube_write_new_value(t *testing.T) {
 		numNodes := 2 // must still be able to elect a leader.
 		//n := 3
 
-		c, _, _, _ := setupTestCluster(t, numNodes, -1, 2)
+		c, _, _, _ := SetupTestCluster(t, numNodes, -1, 2)
 		//cfg := NewTubeConfigTest(n, t.Name(), globalUseSimnet)
 		//c := NewCluster(t.Name(), cfg)
 		//c.Start()

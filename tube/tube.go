@@ -2182,7 +2182,7 @@ func (s *TubeNode) handleNewCircuit(
 		// want to hold elections, so if we are a follower we
 		// might never get a read from another follower.
 		// Used in clusterup_test.go and
-		// waitForConnectedGrid().
+		// WaitForConnectedGrid().
 		if s.cfg.isTest {
 			s.verifyCluster(ckt.RemotePeerID)
 		}

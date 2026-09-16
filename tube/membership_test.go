@@ -41,7 +41,7 @@ func Test400_cluster_add_remove_nodes(t *testing.T) {
 		c.Start()
 		defer c.Close()
 
-		c.waitForConnectedGrid()
+		c.WaitForConnectedGrid()
 	})
 }
 
@@ -57,7 +57,7 @@ func Test401_add_node(t *testing.T) {
 		for numNodes := minClusterSz; numNodes < maxClusterSz; numNodes++ {
 
 			forceLeader := 0
-			c, leader, leadi, maxterm0 := setupTestCluster(t, numNodes, forceLeader, 401)
+			c, leader, leadi, maxterm0 := SetupTestCluster(t, numNodes, forceLeader, 401)
 			_, _, _ = leader, leadi, maxterm0
 
 			vv("confirming test setup ok...")
@@ -314,7 +314,7 @@ func Test402_build_up_a_cluster_from_one_node(t *testing.T) {
 
 		// :) nice! seems to have worked.
 		artificiallyHighClusterSize := 19
-		c, leader, leadi, maxterm0 := setupTestCluster(t, baseNodeCount, forceLeader, 402)
+		c, leader, leadi, maxterm0 := SetupTestCluster(t, baseNodeCount, forceLeader, 402)
 		_, _, _ = leader, leadi, maxterm0
 
 		//vv("confirming test setup ok...")
@@ -428,7 +428,7 @@ func Test403_reduce_a_cluster_down_to_one_node(t *testing.T) {
 
 		// :) nice! seems to have worked.
 		artificiallyHighClusterSize := 19 // TODO: make this a default?
-		c, leader, leadi, maxterm0 := setupTestCluster(t, baseNodeCount, forceLeader, 403)
+		c, leader, leadi, maxterm0 := SetupTestCluster(t, baseNodeCount, forceLeader, 403)
 		_, _, _ = leader, leadi, maxterm0
 
 		//vv("confirming test setup ok...")

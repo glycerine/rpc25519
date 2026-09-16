@@ -62,7 +62,7 @@ func Test016_tube_parallel_linz(t *testing.T) {
 		defer c.Close()
 		*/
 		forceLeader := 0
-		c, leader, leadi, maxterm := setupTestCluster(t, numNodes, forceLeader, 16)
+		c, leader, leadi, maxterm := SetupTestCluster(t, numNodes, forceLeader, 16)
 		_, _, _ = leader, leadi, maxterm
 		defer c.Close()
 

@@ -61,7 +61,7 @@ func Test051_partition_and_rejoin(t *testing.T) {
 		for numNodes := minClusterSz; numNodes < maxClusterSz; numNodes++ {
 
 			forceLeader := 0
-			c, leader, leadi, maxterm := setupTestCluster(t, numNodes, forceLeader, 51)
+			c, leader, leadi, maxterm := SetupTestCluster(t, numNodes, forceLeader, 51)
 			_, _, _ = leader, leadi, maxterm
 
 			vv("confirming test setup ok...")
@@ -194,107 +194,6 @@ func Test051_partition_and_rejoin(t *testing.T) {
 	})
 }
 
-func (c *TubeCluster) waitForLeader(t0 time.Time) (leader string, leadi int, maxterm int64) {
-
-	// verify terms are strictly monotonically increasing, per node
-	node2term := make(map[string]*testTermChange)
-
-	cfg := c.Cfg
-	numNodes := cfg.ClusterSize
-	choose2 := numNodes * (numNodes - 1) / 2
-	if choose2 == 0 {
-		choose2 = 1 // handle single node case
-	}
-	allowed := time.Duration(choose2) * cfg.MinElectionDur * 10 // time allowed to elect a leader
-	timeout := time.After(allowed)
-
-elected:
-	for {
-		select {
-		case u := <-c.termChanges:
-			//vv("%v cluster sees member term change: '%#v'", numNodes, u)
-			maxterm = max(maxterm, u.newterm)
-
-			// self consistent
-			if u.oldterm >= u.newterm {
-				panic(fmt.Sprintf("safety violation, term did not increase on node '%v': old='%v'; new='%v'", u.peerID, u.oldterm, u.newterm))
-			}
-			// and change to change consistent
-			old, ok := node2term[u.peerID]
-			if ok {
-				if old.newterm >= u.newterm {
-					panic(fmt.Sprintf("safety violation, term did not increase on node '%v': old='%v'; new='%v'", u.peerID, old.newterm, u.newterm))
-				}
-			} else {
-				// first one for this peer
-				node2term[u.peerID] = u
-			}
-
-		case leader = <-c.LeaderElectedCh:
-			w, ok := c.Name2num[leader]
-			if !ok {
-				panic(fmt.Sprintf("no node number for leader '%v'", leader))
-			}
-			leadi = w
-			//vv("cluster c.LeaderElectedCh fired. leader=%v; node number=%v'", leader, w)
-
-			elap := time.Since(t0)
-			_ = elap
-			//alwaysPrintf("good: clusterSize = %v; node w=%v (%v) won election in %v", numNodes, w, leader, elap.Truncate(time.Millisecond))
-
-			// give them time to depose other candidates with
-			// their first round of heartbeats.
-			time.Sleep(cfg.HeartbeatDur * 3)
-
-			term := int64(-1)
-			for i := range c.Nodes {
-				look := c.Nodes[i].Inspect()
-				roleExpect := FOLLOWER
-				if i == w {
-					roleExpect = LEADER
-				}
-				if look.Role != roleExpect {
-					panic(fmt.Sprintf("error: expected node %v to be %v (but is %v) in term %v", i, roleExpect, look.Role, look.State.CurrentTerm)) // CANDIDATE seen... size 8 is rough! 015_tube_non_parallel_linz (tube_test.go) red under realtime without synctest (might be sporadic): error: expected node 0 to be LEADER (but is FOLLOWER) in term 2
-				}
-				if i == 0 {
-					term = look.State.CurrentTerm
-				} else {
-					if look.State.CurrentTerm != term {
-						panic(fmt.Sprintf("error: inconsistent terms. expected node %v to also be at term %v, but is at %v", i, term, look.State.CurrentTerm))
-					}
-				}
-			}
-			break elected
-		case <-timeout:
-			elap := time.Since(t0)
-			panic(fmt.Sprintf("bad: no leader elected, in %v node cluster, after %v", numNodes, elap)) // bad: no leader elected, in 8 node cluster, after 1m20.003295173s
-		}
-	}
-	//c.Close()
-	//time.Sleep(3 * cfg.MinElectionDur)
-	//time.Sleep(time.Second)
-	return
-}
-
-// get first no-op committed by leader
-func (c *TubeCluster) waitForLeaderNoop(t0 time.Time) {
-
-	cfg := c.Cfg
-	allowedNoop := cfg.MinElectionDur * 5 // time allowed to get no-op committed
-	select {
-	case noop0leader := <-c.LeaderNoop0committedCh:
-		_ = noop0leader
-		elap := time.Since(t0)
-		_ = elap
-		//vv("good: leader first noop0 was committed after %v by %v", elap, noop0leader)
-		//NO! racey! vv("noop0 ticket = %v", noop0tkt)
-	case <-time.After(allowedNoop):
-		elap := time.Since(t0)
-		vv("bad: NO leader no-op was committed after %v", elap)
-		panic("leader did not commit first noop0")
-	}
-}
-
 // IF the minority had the leader, then verify
 // that the paritioned off minority leader steps
 // down without a pong qorum, and does not serve
@@ -314,7 +213,7 @@ func Test052_partition_leader_away_and_rejoin(t *testing.T) {
 		for numNodes := minClusterSz; numNodes < maxClusterSz; numNodes++ {
 
 			forceLeader := 0
-			c, leader, leadi, maxterm0 := setupTestCluster(t, numNodes, forceLeader, 52)
+			c, leader, leadi, maxterm0 := SetupTestCluster(t, numNodes, forceLeader, 52)
 			_, _, _ = leader, leadi, maxterm0
 
 			vv("confirming test setup ok... leadi = %v; leader='%v'; maxterm0=%v", leadi, leader, maxterm0)

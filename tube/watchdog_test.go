@@ -25,7 +25,7 @@ func Test058_watchdog(t *testing.T) {
 		for numNodes := minClusterSz; numNodes <= maxClusterSz; numNodes++ {
 
 			forceLeader := 0
-			c, leader, leadi, maxterm := setupTestCluster(t, numNodes, forceLeader, 51)
+			c, leader, leadi, maxterm := SetupTestCluster(t, numNodes, forceLeader, 51)
 			_, _, _ = leader, leadi, maxterm
 
 			vv("confirming test setup ok...")

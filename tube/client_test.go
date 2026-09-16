@@ -21,7 +21,7 @@ func Test707_client_linz_semantics(t *testing.T) {
 
 		numNodes := 3
 		forceLeader := 0
-		c, leader, leadi, _ := setupTestCluster(t, numNodes, forceLeader, 707)
+		c, leader, leadi, _ := SetupTestCluster(t, numNodes, forceLeader, 707)
 		defer c.Close()
 
 		nodes := c.Nodes
@@ -114,7 +114,7 @@ func Test708_client_linz_SessionSerial_gap_caught(t *testing.T) {
 
 		numNodes := 3
 
-		c, _, _, _ := setupTestCluster(t, numNodes, 0, 708)
+		c, _, _, _ := SetupTestCluster(t, numNodes, 0, 708)
 		defer c.Close()
 
 		nodes := c.Nodes
@@ -254,7 +254,7 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 
 		numNodes := 3
 
-		c, _, _, _ := setupTestCluster(t, numNodes, 0, 710)
+		c, _, _, _ := SetupTestCluster(t, numNodes, 0, 710)
 		defer c.Close()
 
 		nodes := c.Nodes

@@ -22,7 +22,7 @@ func Test056_no_crosstalk_dropdeaf_to_other_queues(t *testing.T) {
 		for numNodes := minClusterSz; numNodes <= maxClusterSz; numNodes++ {
 
 			forceLeader := 0
-			c, leader, leadi, maxterm := setupTestCluster(t, numNodes, forceLeader, 55)
+			c, leader, leadi, maxterm := SetupTestCluster(t, numNodes, forceLeader, 55)
 			_, _, _ = leader, leadi, maxterm
 
 			time.Sleep(time.Second * 50)

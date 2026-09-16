@@ -38,22 +38,22 @@ const leaseAutoDelTrue = true
 
 //go:generate greenpack
 
-type czarState int32
+type CzarState int32
 
 const (
-	unknownCzarState czarState = 0
-	amCzar           czarState = 1
-	notCzar          czarState = 2
+	UnknownCzarState CzarState = 0
+	AmCzar           CzarState = 1
+	NotCzar          CzarState = 2
 )
 
-func (s czarState) String() string {
+func (s CzarState) String() string {
 	switch s {
-	case unknownCzarState:
-		return "unknownCzarState"
-	case amCzar:
-		return "amCzar"
-	case notCzar:
-		return "notCzar"
+	case UnknownCzarState:
+		return "UnknownCzarState"
+	case AmCzar:
+		return "AmCzar"
+	case NotCzar:
+		return "NotCzar"
 	}
 	return "unknown czarState"
 }
@@ -174,6 +174,10 @@ func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Durati
 	s.rateLimiter = rate.NewLimiter(hz, burst)
 
 	return s
+}
+
+func (czar *Czar) State() CzarState {
+	return CzarState(czar.cState.Load())
 }
 
 func (czar *Czar) refreshMemberInTubeMembersTable(ctx context.Context) (err error) {
@@ -427,8 +431,8 @@ func (s *Czar) Ping(ctx context.Context, args *PeerDetailPlus, reply *PingReply)
 	// only for members to keep their lease with the
 	// czar active. They should find the current
 	// czar if they are talking to us by mistake.
-	cur := czarState(s.cState.Load())
-	if cur != amCzar {
+	cur := CzarState(s.cState.Load())
+	if cur != AmCzar {
 		vv("external Ping goro sees we are currently not czar")
 		return ErrNotCzar
 	}
@@ -490,8 +494,8 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 		return
 	}
 
-	cur := czarState(s.cState.Load())
-	if cur != amCzar {
+	cur := CzarState(s.cState.Load())
+	if cur != AmCzar {
 		vv("Czar.handlePing: not czar atm, rejecting straight off.")
 		rr.err = ErrNotCzar
 		return
@@ -501,7 +505,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 	if now.After(s.vers.CzarLeaseUntilTm) {
 		vv("Czar.handlePing: lease has expired, so not czar atm, rejecting.")
 
-		s.cState.Store(int32(unknownCzarState))
+		s.cState.Store(int32(UnknownCzarState))
 		rr.err = ErrNotCzar
 		return
 	}
@@ -581,7 +585,7 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 		}
 	}
 	if updated {
-		err := s.setVersUpcall(updatedVers, updatedList, "amCzar: handlePing updated")
+		err := s.setVersUpcall(updatedVers, updatedList, "AmCzar: handlePing updated")
 		panicOn(err)
 		//vv("Czar.Ping: membership has changed (was %v) is now: {%v}", origVers, s.shortRMemberSummary())
 
@@ -936,7 +940,7 @@ fullRestart:
 
 	haveSess:
 		for ii := 0; ; ii++ {
-			////vv("main loop ii = %v   fullRestart j = %v   cState = %v", ii, j, czarState(czar.cState.Load()))
+			////vv("main loop ii = %v   fullRestart j = %v   cState = %v", ii, j, CzarState(czar.cState.Load()))
 			//if ii > 0 {
 			//	time.Sleep(time.Millisecond * 100)
 			//}
@@ -953,9 +957,9 @@ fullRestart:
 			}
 
 			var errCzarAttempt error
-			switch czarState(czar.cState.Load()) {
+			switch CzarState(czar.cState.Load()) {
 
-			case unknownCzarState:
+			case UnknownCzarState:
 				closedSockets = false
 
 				// find the czar. it might be me.
@@ -1010,7 +1014,7 @@ fullRestart:
 				if vers != nil {
 					prevLeaseEpoch = vers.CzarLeaseEpoch
 				}
-				// in cState == unknownCzarState here
+				// in cState == UnknownCzarState here
 
 				// Notice that when we write(cas) into the tube/raft leader,
 				// we do not include the vers; the LeaseEpoch would be wrong
@@ -1041,11 +1045,11 @@ fullRestart:
 
 				czarLeaseUntilTm = czarTkt.LeaseUntilTm
 
-				// INVAR: state == unknownCzarState here
+				// INVAR: state == UnknownCzarState here
 				if errCzarAttempt == nil {
 
 					// I am czar.
-					czar.cState.Store(int32(amCzar))
+					czar.cState.Store(int32(AmCzar))
 
 					if membr.TestingAmCzarCh != nil {
 
@@ -1058,7 +1062,7 @@ fullRestart:
 					if left < 2*time.Second {
 						//vv("less than 2 sec left on lease as czar?!? try again from haveSess")
 
-						czar.cState.Store(int32(unknownCzarState))
+						czar.cState.Store(int32(UnknownCzarState))
 
 						continue haveSess
 					}
@@ -1107,7 +1111,7 @@ fullRestart:
 					}
 					//vers = vers2 // avoid confusion with old stale vers below if we print
 
-					err = czar.setVersUpcall(vers2, list, "primary transition into amCzar") // amCzar. does upcall for us.
+					err = czar.setVersUpcall(vers2, list, "primary transition into AmCzar") // AmCzar. does upcall for us.
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
 						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
@@ -1163,7 +1167,7 @@ fullRestart:
 						continue fullRestart
 					}
 
-					czar.cState.Store(int32(notCzar))
+					czar.cState.Store(int32(NotCzar))
 
 					if membr.TestingAmCzarCh != nil {
 
@@ -1191,7 +1195,7 @@ fullRestart:
 					// because we have not pinged the actual czar for its
 					// version. an upcall now will see a rollback in version;
 					// it will drop to zero when other nodes have later.
-					err = czar.setVersNoUpcall(vers2, nonCzarMembers, "notCzar primary") // in notCzar
+					err = czar.setVersNoUpcall(vers2, nonCzarMembers, "NotCzar primary") // in NotCzar
 					if err != nil {
 						// non-monotone error on tube servers restart hmm...
 						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
@@ -1205,9 +1209,9 @@ fullRestart:
 					// contact the czar and register ourselves.
 				}
 
-			case amCzar:
+			case AmCzar:
 
-				//vv("%v: amCzar", name) // logs every 0.1 ms so leave off!
+				//vv("%v: AmCzar", name) // logs every 0.1 ms so leave off!
 
 				//cs := cli.Srv.ListClients()
 
@@ -1218,7 +1222,7 @@ fullRestart:
 				if left < 0 {
 					vv("%v: ouch! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces. CzarLeaseUntil(%v) - now(%v) = left = '%v' on czar.vers='%v'", name, nice(until), nice(now), left, czar.vers)
 
-					czar.cState.Store(int32(unknownCzarState))
+					czar.cState.Store(int32(UnknownCzarState))
 					continue fullRestart
 				}
 
@@ -1232,8 +1236,8 @@ fullRestart:
 				select {
 				case rr := <-czar.requestPingCh:
 					czar.handlePing(rr)
-					cur := czarState(czar.cState.Load())
-					if cur != amCzar {
+					cur := CzarState(czar.cState.Load())
+					if cur != AmCzar {
 						vv("%v: about to fullRestart b/c/ I am no longer czar after handlePing'", name, err)
 						continue fullRestart
 					}
@@ -1241,7 +1245,7 @@ fullRestart:
 				case <-time.After(left):
 					vv("%v: ouch2! I think I am czar, but my lease has expired without renewal... really we need to fix the renewal proces.", name)
 
-					czar.cState.Store(int32(unknownCzarState))
+					czar.cState.Store(int32(UnknownCzarState))
 
 					continue fullRestart
 
@@ -1258,7 +1262,7 @@ fullRestart:
 						//pp("Czar check for heartbeats: membership changed, is now: {%v}", czar.shortRMemberSummary())
 						newvers := czar.vers.Clone()
 						newvers.WithinCzarVersion++
-						czar.setVersUpcall(newvers, newlist, "amCzar: expireCheckCh changed") // in amCzar
+						czar.setVersUpcall(newvers, newlist, "AmCzar: expireCheckCh changed") // in AmCzar
 					}
 					expireCheckCh = time.After(5 * time.Second)
 
@@ -1299,7 +1303,7 @@ fullRestart:
 					if err != nil {
 						vv("%v: renewCzarLeaseCh attempt to renew lease with CAS-write to keyCz:'%v' failed: err='%v'", name, czar.keyCz, err)
 
-						czar.cState.Store(int32(unknownCzarState))
+						czar.cState.Store(int32(UnknownCzarState))
 
 						continue fullRestart
 					}
@@ -1336,11 +1340,11 @@ fullRestart:
 					}
 
 				case <-czar.Halt.ReqStop.Chan:
-					vv("%v: czar halt requested (in amCzar state). exiting.", name)
+					vv("%v: czar halt requested (in AmCzar state). exiting.", name)
 					return
 				}
 
-			case notCzar:
+			case NotCzar:
 
 				//vv("%v: notCzar", name) // too much logging, leave off.
 
@@ -1363,7 +1367,7 @@ fullRestart:
 					}
 					if list.CzarName == name {
 						vv("%v: internal logic error? we are not czar but list.CzarName shows us: '%v'", name, list.CzarName)
-						czar.cState.Store(int32(unknownCzarState))
+						czar.cState.Store(int32(UnknownCzarState))
 						continue fullRestart
 					}
 
@@ -1397,7 +1401,7 @@ fullRestart:
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
 
-						czar.cState.Store(int32(unknownCzarState))
+						czar.cState.Store(int32(UnknownCzarState))
 						now = time.Now()
 						if waitDur > 0 {
 							vv("%v: waitDur= '%v' to wait out the current czar lease before trying again", name, waitDur)
@@ -1423,7 +1427,7 @@ fullRestart:
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
 
-						czar.cState.Store(int32(unknownCzarState))
+						czar.cState.Store(int32(UnknownCzarState))
 
 						time.Sleep(time.Second)
 						continue fullRestart
@@ -1460,7 +1464,7 @@ fullRestart:
 					rpcClientToCzar = nil
 					rpcClientToCzarDoneCh = nil
 
-					czar.cState.Store(int32(unknownCzarState))
+					czar.cState.Store(int32(UnknownCzarState))
 
 					continue fullRestart
 
@@ -1474,14 +1478,14 @@ fullRestart:
 					err = rpcClientToCzar.Call("Czar.Ping", czar.myDetail, reply, nil)
 					////vv("member called to Czar.Ping, err='%v'", err)
 					if err != nil {
-						vv("%v: connection refused to (old?) czar, transition to unknownCzarState and write/elect a new czar", name)
+						vv("%v: connection refused to (old?) czar, transition to UnknownCzarState and write/elect a new czar", name)
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}
 						rpcClientToCzar = nil
 						rpcClientToCzarDoneCh = nil
 
-						czar.cState.Store(int32(unknownCzarState))
+						czar.cState.Store(int32(UnknownCzarState))
 
 						continue fullRestart
 					}
@@ -1517,7 +1521,7 @@ fullRestart:
 							rpcClientToCzar = nil
 							rpcClientToCzarDoneCh = nil
 
-							czar.cState.Store(int32(unknownCzarState))
+							czar.cState.Store(int32(UnknownCzarState))
 
 							continue fullRestart
 						}
@@ -1834,7 +1838,7 @@ func (z *PingReply) String() (r string) {
 	r = "&PingReply{\n"
 	r += fmt.Sprintf("Members: %v,\n", z.Members)
 	r += fmt.Sprintf("   Vers: %v,\n", z.Vers)
-	r += fmt.Sprintf(" Status: %v,\n", czarState(z.Status))
+	r += fmt.Sprintf(" Status: %v,\n", CzarState(z.Status))
 	r += "}\n"
 	return
 }
