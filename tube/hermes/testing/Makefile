@@ -17,3 +17,6 @@ py:
 punish:
 	./hermes_rmw_o3_testing runs=1 iters=100 seed=1
 
+check:
+	XTRACE_OFF=1 time ivy_check hermes_rmw_o3_testing.ivy > log.ivy_check.out
+	tail -4 log.ivy_check.out
