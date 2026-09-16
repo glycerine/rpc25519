@@ -101,24 +101,6 @@ isolate hermes_protocol = {
         relation ts_version(T:ts,V:version)
         relation same_version(T:ts,U:ts)
         relation next_version(T:ts,U:ts)
-        relation write_start_order_ok(N:node,T:ts) =
-            (forall U.
-                seen_ts(U) &
-                (lt(U,cur_ts(N)) | same_version(U,cur_ts(N)) |
-                 next_version(U,cur_ts(N)))
-                -> lt(U,T)) &
-            (forall U.
-                seen_ts(U) & lt(cur_ts(N),U) &
-                ~next_version(U,cur_ts(N))
-                -> lt(T,U))
-        relation rmw_start_order_ok(N:node,T:ts) =
-            (forall U.
-                seen_ts(U) &
-                (lt(U,cur_ts(N)) | same_version(U,cur_ts(N)))
-                -> lt(U,T)) &
-            (forall U.
-                seen_ts(U) & lt(cur_ts(N),U)
-                -> lt(T,U))
         relation write_then_write_order_ok(N:node,T:ts,M:node,U:ts) =
             same_version(cur_ts(N),cur_ts(M)) | lt(cur_ts(N),cur_ts(M))
         relation rmw_then_write_order_ok(N:node,T:ts,M:node,U:ts) =
@@ -129,11 +111,11 @@ isolate hermes_protocol = {
         relation can_start_client_write(N:node,T:ts) =
             client_write_pending(N) & live(N) & ~pending(N) &
             (state(N) = hs_valid | state(N) = hs_invalid) &
-            lt(cur_ts(N),T) & ~seen_ts(T) & write_start_order_ok(N,T)
+            lt(cur_ts(N),T) & ~seen_ts(T)
         relation can_start_client_rmw(N:node,T:ts) =
             client_rmw_pending(N) & live(N) & ~pending(N) &
             state(N) = hs_valid &
-            lt(cur_ts(N),T) & ~seen_ts(T) & rmw_start_order_ok(N,T)
+            lt(cur_ts(N),T) & ~seen_ts(T)
         relation ts_value(T:ts,V:value)
         relation ts_rmw(T:ts)
         relation rmw_conflict(T:ts)
@@ -221,8 +203,8 @@ isolate hermes_protocol = {
             seen_ts(t) := true;
             parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
             same_parent(T,U) := same_parent(T,U) |
-                (T = t & parent(U,cur_ts(n))) |
-                (U = t & parent(T,cur_ts(n)));
+                (T = t & U ~= t & parent(U,cur_ts(n))) |
+                (U = t & T ~= t & parent(T,cur_ts(n)));
             parent_ts(T) := cur_ts(n) if T = t else parent_ts(T);
             same_version(T,U) := same_version(T,U) |
                 (T = t & (U = t | ts_version(U,new_ver))) |
@@ -271,8 +253,8 @@ isolate hermes_protocol = {
             seen_ts(t) := true;
             parent(T,B) := parent(T,B) | (T = t & B = cur_ts(n));
             same_parent(T,U) := same_parent(T,U) |
-                (T = t & parent(U,cur_ts(n))) |
-                (U = t & parent(T,cur_ts(n)));
+                (T = t & U ~= t & parent(U,cur_ts(n))) |
+                (U = t & T ~= t & parent(T,cur_ts(n)));
             parent_ts(T) := cur_ts(n) if T = t else parent_ts(T);
             same_version(T,U) := same_version(T,U) |
                 (T = t & (U = t | ts_version(U,new_ver))) |
@@ -828,8 +810,7 @@ isolate hermes_protocol = {
             before start_write {
                 if live(n) & ~pending(n) &
                     (state(n) = hs_valid | state(n) = hs_invalid) &
-                    lt(cur_ts(n),t) & ~seen_ts(t) &
-                    write_start_order_ok(n,t) {
+                    lt(cur_ts(n),t) & ~seen_ts(t) {
                     call local_write(n,t,v)
                 }
             }
@@ -837,8 +818,7 @@ isolate hermes_protocol = {
             action start_rmw(n:node,t:ts,v:value)
             before start_rmw {
                 if live(n) & ~pending(n) & state(n) = hs_valid &
-                    lt(cur_ts(n),t) & ~seen_ts(t) &
-                    rmw_start_order_ok(n,t) {
+                    lt(cur_ts(n),t) & ~seen_ts(t) {
                     call local_rmw(n,t,v)
                 }
             }
@@ -1048,8 +1028,7 @@ isolate hermes_protocol = {
                     only_live4(c,a,b,d) &
                     a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
                     ~pending(c) & (state(c) = hs_valid | state(c) = hs_invalid) &
-                    lt(cur_ts(c),t) & ~seen_ts(t) &
-                    write_start_order_ok(c,t) & ~seen_epoch(e) {
+                    lt(cur_ts(c),t) & ~seen_ts(t) & ~seen_epoch(e) {
                     call local_write(c,t,v);
                     call receive_write_inv(a,c,t,v);
                     call receive_write_inv(b,c,t,v);
@@ -1076,7 +1055,7 @@ isolate hermes_protocol = {
                     ~pending(c) & state(c) = hs_valid &
                     lt(cur_ts(c),t) & lt(cur_ts(a),t) &
                     lt(cur_ts(b),t) & lt(cur_ts(d),t) & ~seen_ts(t) &
-                    rmw_start_order_ok(c,t) & ~seen_epoch(e) {
+                    ~seen_epoch(e) {
                     call local_rmw(c,t,v);
                     call receive_rmw_inv(a,c,t,v);
                     call receive_rmw_inv(b,c,t,v);
@@ -1101,8 +1080,7 @@ isolate hermes_protocol = {
                     only_live4(c,a,b,d) &
                     a ~= c & b ~= c & d ~= c & a ~= b & a ~= d & b ~= d &
                     ~pending(c) & (state(c) = hs_valid | state(c) = hs_invalid) &
-                    lt(cur_ts(c),t) & ~seen_ts(t) &
-                    write_start_order_ok(c,t) & ~seen_epoch(e) {
+                    lt(cur_ts(c),t) & ~seen_ts(t) & ~seen_epoch(e) {
                     call local_write(c,t,v);
                     call receive_write_inv(a,c,t,v);
                     call receive_write_inv(b,c,t,v);
@@ -1130,8 +1108,6 @@ isolate hermes_protocol = {
                     (state(c) = hs_valid | state(c) = hs_invalid) &
                     (state(w) = hs_valid | state(w) = hs_invalid) &
                     lt(cur_ts(c),t1) & lt(cur_ts(w),t2) & lt(t1,t2) &
-                    write_start_order_ok(c,t1) &
-                    write_start_order_ok(w,t2) &
                     write_then_write_order_ok(c,t1,w,t2) &
                     ~seen_ts(t1) & ~seen_ts(t2) & ~seen_epoch(e) {
                     call local_write(c,t1,v1);
@@ -1160,8 +1136,6 @@ isolate hermes_protocol = {
                     state(c) = hs_valid &
                     (state(w) = hs_valid | state(w) = hs_invalid) &
                     lt(cur_ts(c),t1) & lt(cur_ts(w),t2) & lt(t1,t2) &
-                    rmw_start_order_ok(c,t1) &
-                    write_start_order_ok(w,t2) &
                     rmw_then_write_order_ok(c,t1,w,t2) &
                     ~seen_ts(t1) & ~seen_ts(t2) & ~seen_epoch(e) {
                     call local_rmw(c,t1,v1);
@@ -1191,8 +1165,6 @@ isolate hermes_protocol = {
                     cur_ts(c) = cur_ts(w) &
                     lt(cur_ts(c),t1) & lt(cur_ts(w),t2) & lt(t1,t2) &
                     lt(cur_ts(a),t2) & lt(cur_ts(b),t2) &
-                    rmw_start_order_ok(c,t1) &
-                    rmw_start_order_ok(w,t2) &
                     rmw_then_rmw_order_ok(c,t1,w,t2) &
                     ~seen_ts(t1) & ~seen_ts(t2) & ~seen_epoch(e) {
                     call local_rmw(c,t1,v1);
@@ -1222,7 +1194,7 @@ isolate hermes_protocol = {
                     (state(c) = hs_valid | state(c) = hs_invalid) &
                     lt(cur_ts(c),t) & lt(cur_ts(a),t) &
                     lt(cur_ts(b),t) & lt(cur_ts(d),t) & ~seen_ts(t) &
-                    write_start_order_ok(c,t) & ~seen_epoch(e) {
+                    ~seen_epoch(e) {
                     call local_write(c,t,v);
                     call receive_write_inv(a,c,t,v);
                     call fail(c);
