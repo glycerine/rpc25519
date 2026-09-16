@@ -363,6 +363,7 @@ func Test006_hermes_second_write_to_different_node_3_nodes(t *testing.T) {
 	// write to node 1 a new, updated value
 	v2 := []byte("45")
 	err = nodes[1].Write("a", v2, 0)
+
 	panicOn(err)
 
 	//time.Sleep(time.Second)

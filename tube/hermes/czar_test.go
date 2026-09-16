@@ -17,6 +17,7 @@ var _ = context.Background
 
 const faketime bool = true
 
+// generic test helpers
 func synctestWait_LetAllOtherGoroFinish() {
 	synctest.Wait()
 }
@@ -27,6 +28,33 @@ func bubbleOrNot(t *testing.T, f func(t *testing.T)) {
 
 func onlyBubbled(t *testing.T, f func(t *testing.T)) {
 	synctest.Test(t, f)
+}
+
+// specific to czar test, test helper
+
+func testStartOneMember(t *testing.T, num int, cfg *tube.TubeConfig) *tube.RMember {
+
+	cliName := fmt.Sprintf("%v_%v", t.Name(), num)
+
+	cliCfg := *cfg
+
+	// setupTestCluster should have:
+	//cliCfg.RpcCfg.QuietTestMode = false
+	//cliCfg.UseSimNet = true
+	//cliCfg.isTest = true
+
+	cliCfg.MyName = cliName
+	cliCfg.PeerServiceName = tube.TUBE_CLIENT
+	cliCfg.ClockDriftBound = 500 * time.Millisecond
+	tableSpace := t.Name()
+
+	vv("at num=%v, cliName = '%v'; cliCfg.Node2Addr = '%#v'", num, cliName, cliCfg.Node2Addr)
+
+	mem := tube.NewRMember(tableSpace, &cliCfg)
+	mem.Start()
+	<-mem.Ready.Chan
+	vv("mem.Ready.Chan has closed for = %v", cliName)
+	return mem
 }
 
 func Test808_czar_only_one_at_a_time(t *testing.T) {
@@ -71,31 +99,6 @@ func Test808_czar_only_one_at_a_time(t *testing.T) {
 			<-mem.Czar.Halt.Done.Chan
 		}
 	})
-}
-
-func testStartOneMember(t *testing.T, num int, cfg *tube.TubeConfig) *tube.RMember {
-
-	cliName := fmt.Sprintf("%v_%v", t.Name(), num)
-
-	cliCfg := *cfg
-
-	// setupTestCluster should have:
-	//cliCfg.RpcCfg.QuietTestMode = false
-	//cliCfg.UseSimNet = true
-	//cliCfg.isTest = true
-
-	cliCfg.MyName = cliName
-	cliCfg.PeerServiceName = tube.TUBE_CLIENT
-	cliCfg.ClockDriftBound = 500 * time.Millisecond
-	tableSpace := t.Name()
-
-	vv("at num=%v, cliName = '%v'; cliCfg.Node2Addr = '%#v'", num, cliName, cliCfg.Node2Addr)
-
-	mem := tube.NewRMember(tableSpace, &cliCfg)
-	mem.Start()
-	<-mem.Ready.Chan
-	vv("mem.Ready.Chan has closed for = %v", cliName)
-	return mem
 }
 
 func Test809_lease_epoch_monotone_after_leader_change(t *testing.T) {

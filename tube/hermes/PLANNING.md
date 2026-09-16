@@ -57,7 +57,7 @@ Half-finished or missing pieces:
   lease expiration before completing operations without the failed member.
 - The RMW timestamp increment in Go is reversed relative to `HermesRMWs.tla`:
   RMW should advance by 1, and writes should advance by 2 when RMW is enabled.
-  Current `actionW` advances writes by 1 and RMWs by 2.
+  Current `actionW` advances writes by 1 and RMWs by 2. [fixed already]
 - RMW invalidation handling currently ACKs and returns for `compare >= 0`,
   which means it does not apply a greater incoming RMW invalidation. The TLA
   requires applying greater RMW invalidations and only treating equal RMW

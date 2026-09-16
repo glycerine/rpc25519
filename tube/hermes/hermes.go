@@ -381,7 +381,7 @@ func (s *HermesNode) actionW(tkt *HermesTicket, key Key, keym *KeyMeta, val Val,
 	// "Coord_TS: When a coordinator issues an update, the version of
 	// the logical timestamp is incremented by one if the update
 	// is an RMW and by two if it is a write."
-	if isRMW {
+	if !isRMW {
 		keym.TS.Version++
 	}
 
