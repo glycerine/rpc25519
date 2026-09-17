@@ -1,0 +1,27 @@
+        before o3_complete {
+            require live(n);
+
+            o3_try(n,c,t) := true;
+            o3_try(N,C,T) := false;
+
+            if cur_ts(n) = t & state(n) ~= hs_valid & o3_quorum(n,c,t) & ~rmw_conflict(t) & ~write_conflict(t) {
+                completed(t) := true;
+                rmw_conflict(T) := rmw_conflict(T) |
+                    (ts_rmw(T) & T ~= t & same_version(t,T)) |
+                    (~ts_rmw(t) & ts_rmw(T) & (same_version(T,t) | next_version(t,T)));
+                write_conflict(T) := write_conflict(T) |
+                    (ts_rmw(t) & ~ts_rmw(T) & (same_version(t,T) | next_version(T,t)));
+                state(n) := hs_valid;
+
+                if pending(n) & pending_ts(n) = t {
+                    if ready(n) {
+                        epoch_done(E) := epoch_done(E) | E = ready_epoch(n);
+                    };
+                    pending(n) := false;
+                    pending_rmw(n) := false;
+                    acked(n,A) := false;
+                    ready(n) := false;
+                };
+            }
+        }
+

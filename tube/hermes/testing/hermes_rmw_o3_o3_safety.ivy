@@ -374,10 +374,6 @@ isolate hermes_protocol = {
             ready(n) := false;
         }
 
-        # O3 broadcast-ACK optimization. Followers broadcast ACKs, so a replica
-        # can remember that it has seen a full live ACK set even before its
-        # matching INV has arrived. For RMW timestamps, this is only a candidate:
-        # completion still has to re-check the completed-RMW conflict guard.
         before o3_observe_quorum {
             require live(n);
             require live(c);
@@ -396,8 +392,6 @@ isolate hermes_protocol = {
             o3_quorum(n,c,t) := true;
         }
 
-        # Once the matching INV has installed timestamp t locally, the remembered
-        # ACK quorum is enough to infer validity without waiting for VALIDATE.
         before o3_complete {
             require live(n);
 
@@ -442,6 +436,30 @@ isolate hermes_protocol = {
             }
         }
 
+
+        before complete_current {
+            require false;
+        }
+
+        before complete_overwritten {
+            require false;
+        }
+
+        before complete_ready {
+            require false;
+        }
+
+        before mark_ready {
+            require false;
+        }
+
+        before replay_after_failure {
+            require false;
+        }
+
+        before fail {
+            require false;
+        }
         # Safety invariants
         ################################################################################
 

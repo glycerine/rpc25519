@@ -386,6 +386,30 @@ isolate hermes_protocol = {
             }
         }
 
+
+        before local_rmw {
+            require false;
+        }
+
+        before receive_rmw_inv {
+            require false;
+        }
+
+        before complete_overwritten {
+            require false;
+        }
+
+        before complete_ready {
+            require false;
+        }
+
+        before o3_observe_quorum {
+            require false;
+        }
+
+        before o3_complete {
+            require false;
+        }
         # Safety invariants
         ################################################################################
 
@@ -493,6 +517,16 @@ isolate hermes_protocol = {
         invariant completed(R) & ts_rmw(R) & completed(W) & ~ts_rmw(W) & (same_version(R,W) | next_version(W,R)) -> false
 
         ################################################################################
+        invariant ready(N) -> live(N)
+        invariant ready(N) -> seen_epoch(ready_epoch(N))
+        invariant ready(N) -> ready_epoch(N) ~= init_epoch
+        invariant ready(N) -> ready_epoch_active(ready_epoch(N))
+        invariant epoch_done(E) -> seen_epoch(E)
+        invariant ready_epoch_active(E) -> seen_epoch(E)
+        invariant ~complete_try(N)
+        invariant ~o3_try(N,C,T)
+        invariant ready_task = ready_finish
+        invariant o3_task = o3_finish
     }
 }
 

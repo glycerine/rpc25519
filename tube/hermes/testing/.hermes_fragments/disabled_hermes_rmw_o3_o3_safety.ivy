@@ -1,0 +1,24 @@
+
+        before complete_current {
+            require false;
+        }
+
+        before complete_overwritten {
+            require false;
+        }
+
+        before complete_ready {
+            require false;
+        }
+
+        before mark_ready {
+            require false;
+        }
+
+        before replay_after_failure {
+            require false;
+        }
+
+        before fail {
+            require false;
+        }

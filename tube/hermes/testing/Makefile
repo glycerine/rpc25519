@@ -8,6 +8,25 @@ RUNS ?= 1
 ITERS ?= 200
 
 CHECK_SPECS = \
+	hermes_rmw_o3_local_write_safety \
+	hermes_rmw_o3_local_rmw_safety \
+	hermes_rmw_o3_receive_write_inv_safety \
+	hermes_rmw_o3_receive_rmw_inv_safety \
+	hermes_rmw_o3_receive_ack_safety \
+	hermes_rmw_o3_mark_ready_safety \
+	hermes_rmw_o3_complete_current_safety \
+	hermes_rmw_o3_complete_overwritten_safety \
+	hermes_rmw_o3_receive_validate_safety \
+	hermes_rmw_o3_replay_after_failure_safety \
+	hermes_rmw_o3_fail_safety \
+	hermes_rmw_o3_complete_ready_safety \
+	hermes_rmw_o3_o3_observe_quorum_safety \
+	hermes_rmw_o3_o3_complete_safety \
+	hermes_rmw_o3_ready_liveness \
+	hermes_rmw_o3_o3_write_liveness \
+	hermes_rmw_o3_o3_rmw_liveness
+
+OBSOLETE_CHECK_SPECS = \
 	hermes_rmw_o3_write_ts_safety \
 	hermes_rmw_o3_write_messages_safety \
 	hermes_rmw_o3_write_node_safety \
@@ -34,10 +53,7 @@ CHECK_SPECS = \
 	hermes_rmw_o3_o3_node_safety \
 	hermes_rmw_o3_o3_completion_safety \
 	hermes_rmw_o3_o3_conflict_safety \
-	hermes_rmw_o3_o3_progress_safety \
-	hermes_rmw_o3_ready_liveness \
-	hermes_rmw_o3_o3_write_liveness \
-	hermes_rmw_o3_o3_rmw_liveness
+	hermes_rmw_o3_o3_progress_safety
 
 TEST_SPECS = \
 	hermes_rmw_o3_write_testing \
@@ -70,12 +86,20 @@ punish:
 
 check: check-one
 
-check-one: compose
+check-one: compose check-one-run
+
+check-one-run:
 	if [ -f log.$(SPEC).ivy_check.out ]; then mv log.$(SPEC).ivy_check.out log.$(SPEC).ivy_check.out.prev; fi
 	XTRACE_OFF=1 timeout $(CHECK_TIMEOUT) ivy_check diagnose=true trace=true $(SPEC).ivy > log.$(SPEC).ivy_check.out
 	tail -4 log.$(SPEC).ivy_check.out
 
-check-small: check-write-small check-rmw-small check-failure-small check-ready-small check-o3-small check-ready check-o3-write check-o3-rmw
+check-small: compose
+	@set -e; for spec in $(OBSOLETE_CHECK_SPECS); do \
+		if [ -f log.$$spec.ivy_check.out ]; then mv log.$$spec.ivy_check.out log.$$spec.ivy_check.out.prev; fi; \
+	done
+	@set -e; for spec in $(CHECK_SPECS); do \
+		$(MAKE) check-one-run SPEC=$$spec; \
+	done
 
 check-safety:
 	$(MAKE) check-one SPEC=hermes_rmw_o3_safety

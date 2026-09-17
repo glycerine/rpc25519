@@ -322,6 +322,42 @@ isolate hermes_protocol = {
             }
         }
 
+
+        before local_write {
+            require false;
+        }
+
+        before local_rmw {
+            require false;
+        }
+
+        before receive_write_inv {
+            require false;
+        }
+
+        before receive_rmw_inv {
+            require false;
+        }
+
+        before o3_observe_quorum {
+            require false;
+        }
+
+        before o3_complete {
+            require false;
+        }
+
+        before receive_validate {
+            require false;
+        }
+
+        before replay_after_failure {
+            require false;
+        }
+
+        before fail {
+            require false;
+        }
         # Safety invariants
         ################################################################################
 

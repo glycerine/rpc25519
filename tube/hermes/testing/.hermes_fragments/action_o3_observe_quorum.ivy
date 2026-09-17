@@ -1,0 +1,18 @@
+        before o3_observe_quorum {
+            require live(n);
+            require live(c);
+            require seen_ts(t);
+            require live(A) & A ~= c -> ack_msg(A,c,t);
+            require live(c) -> le(t,cur_ts(c));
+            require live(c) & ts_rmw(t) & parent(t,B) & cur_rmw(c) & parent(cur_ts(c),B) -> cur_ts(c) = t;
+            require live(c) & ts_rmw(t) & parent(t,B) & ~cur_rmw(c) & parent(cur_ts(c),B) -> false;
+            require live(c) & ts_rmw(t) & parent(t,B) & pending(c) & pending_rmw(c) & parent(pending_ts(c),B) -> pending_ts(c) = t;
+            require live(c) & ts_rmw(t) & parent(t,B) & pending(c) & ~pending_rmw(c) & parent(pending_ts(c),B) -> false;
+            require live(c) & ts_rmw(t) & cur_rmw(c) & same_parent(t,cur_ts(c)) -> cur_ts(c) = t;
+            require live(c) & ts_rmw(t) & ~cur_rmw(c) & same_parent(t,cur_ts(c)) -> false;
+            require live(c) & ts_rmw(t) & pending(c) & pending_rmw(c) & same_parent(t,pending_ts(c)) -> pending_ts(c) = t;
+            require live(c) & ts_rmw(t) & pending(c) & ~pending_rmw(c) & same_parent(t,pending_ts(c)) -> false;
+
+            o3_quorum(n,c,t) := true;
+        }
+

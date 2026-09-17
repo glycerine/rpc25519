@@ -1,0 +1,52 @@
+
+        before local_write {
+            require false;
+        }
+
+        before receive_write_inv {
+            require false;
+        }
+
+        before receive_rmw_inv {
+            require false;
+        }
+
+        before receive_ack {
+            require false;
+        }
+
+        before complete_current {
+            require false;
+        }
+
+        before complete_overwritten {
+            require false;
+        }
+
+        before complete_ready {
+            require false;
+        }
+
+        before o3_observe_quorum {
+            require false;
+        }
+
+        before o3_complete {
+            require false;
+        }
+
+        before mark_ready {
+            require false;
+        }
+
+        before receive_validate {
+            require false;
+        }
+
+        before replay_after_failure {
+            require false;
+        }
+
+        before fail {
+            require false;
+        }
