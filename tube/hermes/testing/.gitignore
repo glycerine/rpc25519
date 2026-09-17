@@ -1,4 +1,6 @@
 hermes_rmw_o3_testing
 hermes_rmw_o3_testing.cpp
 hermes_rmw_o3_testing.dsc
+hermes_rmw_o3_testing.dSYM
 hermes_rmw_o3_testing.h
+log.*.out
