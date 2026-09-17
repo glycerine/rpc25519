@@ -1,4 +1,5 @@
 # github.com/glycerine/rpc25519/tube/hermes/testing: at b8e784338a638f7556789fb477a09f2a2c65179d from Wed Sep 16 21:27:23 2026 -0500
+# (pasted at end of this file)
 # github.com/glycerine/ivy from 7c286c5b8b52e75ac68fa3cc456e69a9ea8b6f6a Wed Sep 16 13:01:50 2026 -0500
 # run:
 # $ XTRACE_OFF=1 ivy_check diagnose=true trace=true hermes_rmw_o3_testing.ivy > log.hermes_rmw_o3_testing.ivy_check.out
