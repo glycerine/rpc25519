@@ -1168,6 +1168,7 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 			s.actionI(inv, keym)
 			s.ack(inv)
 		case sWrite, sReplay:
+			pendingRMW := keym.IsRMW
 			// sReplay is just smaller-scoped sWrite, where
 			// the node acts like a coordinator and tries
 			// to get unblocked acting like a writer, right?
@@ -1203,8 +1204,15 @@ func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 			// the coordinator’s original write completes,
 			// hence allowing the coordinator
 			// to notify the client of the write's completion.
-			// This is the only place we go into sInvalidWR.
-			keym.State = sInvalidWR // == "Transient" state
+			// Blind writes keep the transient state so the overwritten
+			// writer can still be released. Pending RMWs are aborted by
+			// higher timestamps, matching receive_write_inv/receive_rmw_inv
+			// in the checked Ivy spec.
+			if pendingRMW {
+				keym.State = sInvalid
+			} else {
+				keym.State = sInvalidWR // == "Transient" state
+			}
 			s.ack(inv)
 		}
 	}
@@ -2119,20 +2127,22 @@ func (s *HermesNode) pendingTicketConflicts(tkt *HermesTicket) bool {
 	if tkt == nil {
 		return false
 	}
+	rmwCompleted := s.completedRMWVersion[tkt.Key]
+	writeCompleted := s.completedWriteVersion[tkt.Key]
 	if tkt.Op == RMW {
-		if other, ok := s.completedRMWVersion[tkt.TS.Version]; ok && other.Compare(&tkt.TS) != 0 {
+		if other, ok := rmwCompleted[tkt.TS.Version]; ok && other.Compare(&tkt.TS) != 0 {
 			return true
 		}
-		if s.completedWriteVersion[tkt.TS.Version] || s.completedWriteVersion[tkt.TS.Version+1] {
+		if writeCompleted[tkt.TS.Version] || writeCompleted[tkt.TS.Version+1] {
 			return true
 		}
 		return false
 	}
 	if tkt.Op == WRITE {
-		if _, ok := s.completedRMWVersion[tkt.TS.Version]; ok {
+		if _, ok := rmwCompleted[tkt.TS.Version]; ok {
 			return true
 		}
-		if _, ok := s.completedRMWVersion[tkt.TS.Version-1]; ok {
+		if _, ok := rmwCompleted[tkt.TS.Version-1]; ok {
 			return true
 		}
 	}
@@ -2184,6 +2194,12 @@ func (s *HermesNode) completeReadyCurrent(keym *KeyMeta, tkt *HermesTicket) bool
 func (s *HermesNode) completeReadyOverwritten(keym *KeyMeta, tkt *HermesTicket) bool {
 	if tkt.Op == RMW {
 		tkt.Err = ErrAbortRMW
+		s.deleteTicket(tkt.TicketID, true)
+		tkt.Done.Close()
+		if keym.State == sInvalidWR {
+			keym.State = sInvalid
+		}
+		return true
 	}
 	s.recordCompletedTicket(tkt)
 	if tkt.Op == READ {
@@ -2209,14 +2225,20 @@ func (s *HermesNode) recordCompletedTicket(tkt *HermesTicket) {
 	switch tkt.Op {
 	case RMW:
 		if s.completedRMWVersion == nil {
-			s.completedRMWVersion = make(map[int64]TS)
+			s.completedRMWVersion = make(map[Key]map[int64]TS)
 		}
-		s.completedRMWVersion[tkt.TS.Version] = tkt.TS
+		if s.completedRMWVersion[tkt.Key] == nil {
+			s.completedRMWVersion[tkt.Key] = make(map[int64]TS)
+		}
+		s.completedRMWVersion[tkt.Key][tkt.TS.Version] = tkt.TS
 	case WRITE:
 		if s.completedWriteVersion == nil {
-			s.completedWriteVersion = make(map[int64]bool)
+			s.completedWriteVersion = make(map[Key]map[int64]bool)
 		}
-		s.completedWriteVersion[tkt.TS.Version] = true
+		if s.completedWriteVersion[tkt.Key] == nil {
+			s.completedWriteVersion[tkt.Key] = make(map[int64]bool)
+		}
+		s.completedWriteVersion[tkt.Key][tkt.TS.Version] = true
 	}
 }
 
@@ -2238,8 +2260,8 @@ type HermesNode struct {
 	// the main key/value store.
 	store map[Key]*KeyMeta
 
-	completedRMWVersion   map[int64]TS
-	completedWriteVersion map[int64]bool
+	completedRMWVersion   map[Key]map[int64]TS
+	completedWriteVersion map[Key]map[int64]bool
 
 	// pending reads/writes are stored as HermesTickets in
 	// the timeoutPQ priority queue. The pq is sorted by messageLossTimeout,
@@ -2361,8 +2383,8 @@ func NewHermesNode(name string, cfg *HermesConfig) (node *HermesNode) {
 		name:                  name,
 		ckt:                   make(map[string]*rpc.Circuit),
 		store:                 make(map[Key]*KeyMeta),
-		completedRMWVersion:   make(map[int64]TS),
-		completedWriteVersion: make(map[int64]bool),
+		completedRMWVersion:   make(map[Key]map[int64]TS),
+		completedWriteVersion: make(map[Key]map[int64]bool),
 
 		// comms
 		pushToPeerURL: make(chan string),

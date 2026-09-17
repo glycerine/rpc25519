@@ -362,8 +362,10 @@ func Test017_completed_rmw_version_conflict_aborts_ready_rmw(t *testing.T) {
 		IsRMW:        true,
 	}
 	n.store["k"] = keym
-	n.completedRMWVersion = map[int64]TS{
-		1: {Version: 1, CoordID: "node_b"},
+	n.completedRMWVersion = map[Key]map[int64]TS{
+		"k": {
+			1: {Version: 1, CoordID: "node_b"},
+		},
 	}
 
 	tkt := n.NewHermesTicket(RMW, "k", []byte("candidate"), n.PeerID, 0)
@@ -695,6 +697,137 @@ func Test024_replay_rmw_rebroadcasts_same_timestamp_and_value(t *testing.T) {
 	}
 	if string(inv.Val) != "value" {
 		t.Fatalf("replayRMW sent value %q, want value", string(inv.Val))
+	}
+}
+
+func Test025_completed_conflicts_are_per_key(t *testing.T) {
+	cfg := &HermesConfig{
+		ReplicationDegree:  1,
+		MessageLossTimeout: time.Second,
+		TCPonly_no_TLS:     true,
+		testName:           t.Name(),
+	}
+	n := NewHermesNode("per_key_conflicts", cfg)
+	n.PeerID = "node_a"
+	n.completedRMWVersion = map[Key]map[int64]TS{
+		"other": {
+			1: {Version: 1, CoordID: "node_b"},
+		},
+	}
+	n.completedWriteVersion = map[Key]map[int64]bool{
+		"other": {
+			1: true,
+			2: true,
+		},
+	}
+
+	write := n.NewHermesTicket(WRITE, "k", []byte("value"), n.PeerID, 0)
+	write.TS = TS{Version: 1, CoordID: "node_a"}
+	if n.pendingTicketConflicts(write) {
+		t.Fatalf("completed RMW on a different key conflicted with write on k")
+	}
+
+	rmw := n.NewHermesTicket(RMW, "k", []byte("value"), n.PeerID, 0)
+	rmw.TS = TS{Version: 1, CoordID: "node_a"}
+	if n.pendingTicketConflicts(rmw) {
+		t.Fatalf("completed write/RMW on a different key conflicted with RMW on k")
+	}
+}
+
+func Test026_overwritten_rmw_aborts_without_recording_completion(t *testing.T) {
+	cfg := &HermesConfig{
+		ReplicationDegree:  1,
+		MessageLossTimeout: time.Second,
+		TCPonly_no_TLS:     true,
+		testName:           t.Name(),
+	}
+	n := NewHermesNode("overwritten_rmw_abort", cfg)
+	n.PeerID = "node_a"
+	lowTS := TS{Version: 3, CoordID: "node_a"}
+	highTS := TS{Version: 4, CoordID: "node_b"}
+	keym := &KeyMeta{
+		Key:          "k",
+		TS:           highTS,
+		State:        sInvalidWR,
+		LastWriterID: "node_b",
+		Val:          []byte("higher"),
+	}
+	n.store["k"] = keym
+
+	tkt := n.NewHermesTicket(RMW, "k", []byte("lower-rmw"), n.PeerID, 0)
+	tkt.TS = lowTS
+	tkt.keym = keym
+	tkt.Ready = true
+	n.actionAbRecordPending(tkt)
+
+	if !n.completeReady(tkt) {
+		t.Fatalf("overwritten RMW was not consumed")
+	}
+	if !errors.Is(tkt.Err, ErrAbortRMW) {
+		t.Fatalf("overwritten RMW error = %v, want %v", tkt.Err, ErrAbortRMW)
+	}
+	if keym.State != sInvalid {
+		t.Fatalf("overwritten RMW left state %v, want sInvalid", stateString(keym.State))
+	}
+	if _, ok := n.completedRMWVersion["k"][lowTS.Version]; ok {
+		t.Fatalf("aborted overwritten RMW was recorded as completed")
+	}
+}
+
+func Test027_higher_inv_aborts_pending_rmw_to_invalid(t *testing.T) {
+	cfg := &HermesConfig{
+		ReplicationDegree:  2,
+		MessageLossTimeout: time.Second,
+		TCPonly_no_TLS:     true,
+		testName:           t.Name(),
+	}
+	n := NewHermesNode("higher_inv_aborts_rmw", cfg)
+	n.PeerID = "node_a"
+	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	lowTS := TS{Version: 3, CoordID: "node_a"}
+	highTS := TS{Version: 4, CoordID: "node_b"}
+	keym := &KeyMeta{
+		Key:          "k",
+		TS:           lowTS,
+		State:        sWrite,
+		LastWriterID: "node_a",
+		Val:          []byte("rmw"),
+		IsRMW:        true,
+	}
+	n.store["k"] = keym
+
+	tkt := n.NewHermesTicket(RMW, "k", []byte("rmw"), n.PeerID, 0)
+	tkt.TS = lowTS
+	tkt.keym = keym
+	n.actionAbRecordPending(tkt)
+
+	err := n.recvInvalidate(&INV{
+		Key:      "k",
+		FromID:   "node_b",
+		EpochV:   n.EpochV,
+		TS:       highTS,
+		Val:      []byte("write"),
+		TicketID: "higher-write",
+	})
+	if err != nil {
+		t.Fatalf("recvInvalidate returned %v", err)
+	}
+	select {
+	case <-tkt.Done.Chan:
+	default:
+		t.Fatalf("pending RMW was not aborted by higher INV")
+	}
+	if !errors.Is(tkt.Err, ErrAbortRMW) {
+		t.Fatalf("pending RMW error = %v, want %v", tkt.Err, ErrAbortRMW)
+	}
+	if keym.State != sInvalid {
+		t.Fatalf("higher INV left RMW-overwritten key state %v, want sInvalid", stateString(keym.State))
+	}
+	if keym.TS.Compare(&highTS) != 0 {
+		t.Fatalf("higher INV left TS %v, want %v", keym.TS, highTS)
+	}
+	if keym.IsRMW {
+		t.Fatalf("higher write INV left key marked as RMW")
 	}
 }
 
