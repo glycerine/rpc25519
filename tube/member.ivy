@@ -21,6 +21,19 @@ include order
 # Membership events carry the epoch timestamp metadata needed by a later Hermes
 # spec: CzarLeaseEpoch, WithinCzarVersion, CzarLeaseUntilTm, and LeaseEpochT0.
 
+module totallyordered(t) = {
+    axiom X:t <= X                        # Reflexivity
+    axiom X:t <= Y & Y <= Z -> X <= Z     # Transitivity
+    axiom X:t <= Y & Y <= X -> X = Y      # Anti-symmetry
+    axiom X:t <= Y | Y <= X               # Totality
+    axiom 0 <= X:t                        # 0 is minimal
+
+    # Aliases: <, >, >=
+    axiom X:t < Y <-> X <= Y & X ~= Y
+    axiom X:t > Y <-> Y < X
+    axiom X:t >= Y <-> Y <= X
+}
+
 isolate reliable_membership = {
 
     type member
@@ -41,24 +54,21 @@ isolate reliable_membership = {
         relation epoch_le(X:epoch,Y:epoch)
         relation time_le(X:time,Y:time)
 
-        axiom [epoch_reflexive] epoch_le(X:epoch,X)
-        axiom [epoch_transitive] epoch_le(X:epoch,Y) & epoch_le(Y,Z) -> epoch_le(X,Z)
-        axiom [epoch_antisymmetric] epoch_le(X:epoch,Y) & epoch_le(Y,X) -> X = Y
-        axiom [epoch_total] epoch_le(X:epoch,Y) | epoch_le(Y,X)
+        instantiate totallyordered(epoch)
+        #instantiate totallyordered(time)
 
         axiom [time_reflexive] time_le(X:time,X)
         axiom [time_transitive] time_le(X:time,Y) & time_le(Y,Z) -> time_le(X,Z)
         axiom [time_antisymmetric] time_le(X:time,Y) & time_le(Y,X) -> X = Y
         axiom [time_total] time_le(X:time,Y) | time_le(Y,X)
 
-        relation epoch_lt(X:epoch,Y:epoch) = epoch_le(X,Y) & X ~= Y
         relation time_lt(X:time,Y:time) = time_le(X,Y) & X ~= Y
 
         relation version_le(E1:epoch,V1:within_version,E2:epoch,V2:within_version) =
-            epoch_lt(E1,E2) | (E1 = E2 & V1 <= V2)
+            E1 < E2 | (E1 = E2 & V1 <= V2)
 
         relation version_lt(E1:epoch,V1:within_version,E2:epoch,V2:within_version) =
-            version_le(E1,V1,E2,V2) & ~(E1 = E2 & V1 = V2)
+	    E1 < E2 | (E1 = E2 & V1 < V2)
 
         individual init_epoch:epoch
         individual init_time:time
@@ -237,7 +247,7 @@ export reliable_membership.lose_pending_events
 export reliable_membership.publish_membership_upcall
 export reliable_membership.publish_operating_lease
 
-#interpret reliable_membership.member -> bv[2]
-#interpret reliable_membership.epoch -> bv[4]
-#interpret reliable_membership.time -> bv[4]
+interpret reliable_membership.member -> bv[2]
+interpret reliable_membership.epoch -> bv[4]
+interpret reliable_membership.time -> bv[4]
 
