@@ -1,0 +1,243 @@
+#lang ivy1.7
+
+include order
+
+# Minimal Hermes-facing model of tube.NewRMember/czar.go reliable membership.
+#
+# This spec intentionally hides Raft, the stale tableSpace/czar value, PeerID
+# details, and the identity of the czar. Hermes does not consume any of those.
+# The atomic boundary visible to Hermes is:
+#
+#   * start_ready: Ready closes after the RMember wires callback channels.
+#   * publish_membership_upcall: Hermes receives a PingReply from
+#     UpcallMembershipChangeCh.
+#   * publish_operating_lease: Hermes receives a time from OperatingLeaseRenewCh.
+#
+# The service may internally queue a membership event or operating lease event
+# before Hermes receives it. This models the real buffered Go channels without
+# exposing czar-specific implementation steps. A reboot can drop buffered
+# events, so Hermes is not guaranteed to observe every membership version.
+#
+# Membership events carry the epoch timestamp metadata needed by a later Hermes
+# spec: CzarLeaseEpoch, WithinCzarVersion, CzarLeaseUntilTm, and LeaseEpochT0.
+
+isolate reliable_membership = {
+
+    type member
+    type epoch
+    type time
+
+    instance within_version : unbounded_sequence
+
+    action start_ready(n:member)
+    action queue_membership_upcall(n:member, e:epoch, v:within_version, until:time, t0:time)
+    action queue_operating_lease(n:member, until:time)
+    action lose_pending_events(n:member)
+    action publish_membership_upcall(n:member, e:epoch, v:within_version, until:time, t0:time)
+    action publish_operating_lease(n:member, until:time)
+
+    specification {
+
+        relation epoch_le(X:epoch,Y:epoch)
+        relation time_le(X:time,Y:time)
+
+        axiom [epoch_reflexive] epoch_le(X:epoch,X)
+        axiom [epoch_transitive] epoch_le(X:epoch,Y) & epoch_le(Y,Z) -> epoch_le(X,Z)
+        axiom [epoch_antisymmetric] epoch_le(X:epoch,Y) & epoch_le(Y,X) -> X = Y
+        axiom [epoch_total] epoch_le(X:epoch,Y) | epoch_le(Y,X)
+
+        axiom [time_reflexive] time_le(X:time,X)
+        axiom [time_transitive] time_le(X:time,Y) & time_le(Y,Z) -> time_le(X,Z)
+        axiom [time_antisymmetric] time_le(X:time,Y) & time_le(Y,X) -> X = Y
+        axiom [time_total] time_le(X:time,Y) | time_le(Y,X)
+
+        relation epoch_lt(X:epoch,Y:epoch) = epoch_le(X,Y) & X ~= Y
+        relation time_lt(X:time,Y:time) = time_le(X,Y) & X ~= Y
+
+        relation version_le(E1:epoch,V1:within_version,E2:epoch,V2:within_version) =
+            epoch_lt(E1,E2) | (E1 = E2 & V1 <= V2)
+
+        relation version_lt(E1:epoch,V1:within_version,E2:epoch,V2:within_version) =
+            version_le(E1,V1,E2,V2) & ~(E1 = E2 & V1 = V2)
+
+        individual init_epoch:epoch
+        individual init_time:time
+        axiom epoch_le(init_epoch,E)
+        axiom time_le(init_time,T)
+
+        # RMember local state as observed through later events.
+        relation ready(N:member)
+        relation current_member(N:member,M:member)
+        individual current_epoch(N:member):epoch
+        individual current_within(N:member):within_version
+        individual current_until(N:member):time
+        individual current_epoch_t0(N:member):time
+
+        # Abstract source of membership event payloads. It stands for the actual
+        # ReliableMembershipList in PingReply.Members, without saying how the
+        # implementation produced it.
+        relation event_member(N:member,E:epoch,V:within_version,M:member)
+
+        # Buffered channel contents.
+        relation pending_upcall(N:member,E:epoch,V:within_version)
+        relation pending_upcall_member(N:member,E:epoch,V:within_version,M:member)
+        individual pending_upcall_until(N:member,E:epoch,V:within_version):time
+        individual pending_upcall_t0(N:member,E:epoch,V:within_version):time
+
+        relation pending_operating_lease(N:member,T:time)
+        relation lost_upcall(N:member,E:epoch,V:within_version)
+        relation lost_operating_lease(N:member,T:time)
+
+        # What Hermes has received.
+        relation delivered_upcall(N:member,E:epoch,V:within_version)
+        relation delivered_upcall_member(N:member,E:epoch,V:within_version,M:member)
+        individual delivered_upcall_until(N:member,E:epoch,V:within_version):time
+        individual delivered_upcall_t0(N:member,E:epoch,V:within_version):time
+        individual delivered_epoch(N:member):epoch
+        individual delivered_within(N:member):within_version
+
+        relation delivered_operating_lease(N:member,T:time)
+
+        after init {
+            ready(N) := false;
+            current_member(N,M) := false;
+            current_epoch(N) := init_epoch;
+            current_within(N) := 0;
+            current_until(N) := init_time;
+            current_epoch_t0(N) := init_time;
+
+            pending_upcall(N,E,V) := false;
+            pending_upcall_member(N,E,V,M) := false;
+            pending_upcall_until(N,E,V) := init_time;
+            pending_upcall_t0(N,E,V) := init_time;
+            pending_operating_lease(N,T) := false;
+            lost_upcall(N,E,V) := false;
+            lost_operating_lease(N,T) := false;
+
+            delivered_upcall(N,E,V) := false;
+            delivered_upcall_member(N,E,V,M) := false;
+            delivered_upcall_until(N,E,V) := init_time;
+            delivered_upcall_t0(N,E,V) := init_time;
+            delivered_epoch(N) := init_epoch;
+            delivered_within(N) := 0;
+            delivered_operating_lease(N,T) := false;
+        }
+
+        before start_ready {
+            require ~ready(n);
+            ready(n) := true
+        }
+
+        before queue_membership_upcall {
+            require ready(n);
+            require time_lt(init_time,until);
+            require time_le(t0,until);
+            require event_member(n,e,v,n);
+            require version_le(current_epoch(n),current_within(n),e,v);
+            require delivered_upcall(n,E,V) -> version_le(E,V,e,v);
+            require pending_upcall(n,E,V) -> version_le(E,V,e,v);
+
+            current_member(n,M) := event_member(n,e,v,M);
+            current_epoch(n) := e;
+            current_within(n) := v;
+            current_until(n) := until;
+            current_epoch_t0(n) := t0;
+
+            pending_upcall(n,e,v) := true;
+            pending_upcall_member(n,e,v,M) := event_member(n,e,v,M);
+            pending_upcall_until(n,e,v) := until;
+            pending_upcall_t0(n,e,v) := t0
+        }
+
+        before queue_operating_lease {
+            require ready(n);
+            require time_lt(init_time,until);
+            pending_operating_lease(n,until) := true
+        }
+
+        before lose_pending_events {
+            lost_upcall(n,E,V) := lost_upcall(n,E,V) | pending_upcall(n,E,V);
+            lost_operating_lease(n,T) := lost_operating_lease(n,T) | pending_operating_lease(n,T);
+            pending_upcall(n,E,V) := false;
+            pending_upcall_member(n,E,V,M) := false;
+            pending_operating_lease(n,T) := false
+        }
+
+        before publish_membership_upcall {
+            require pending_upcall(n,e,v);
+            require until = pending_upcall_until(n,e,v);
+            require t0 = pending_upcall_t0(n,e,v);
+            require delivered_upcall(n,E,V) -> version_le(E,V,e,v);
+            require pending_upcall(n,E,V) -> version_le(e,v,E,V);
+
+            pending_upcall(n,e,v) := false;
+            delivered_upcall(n,e,v) := true;
+            delivered_upcall_member(n,e,v,M) := pending_upcall_member(n,e,v,M);
+            delivered_upcall_until(n,e,v) := until;
+            delivered_upcall_t0(n,e,v) := t0;
+            delivered_epoch(n) := e;
+            delivered_within(n) := v
+        }
+
+        before publish_operating_lease {
+            require pending_operating_lease(n,until);
+            require time_lt(init_time,until);
+
+            pending_operating_lease(n,until) := false;
+            delivered_operating_lease(n,until) := true
+        }
+
+        invariant [pending_upcall_versions_are_current_or_older]
+            pending_upcall(N,E,V) -> version_le(E,V,current_epoch(N),current_within(N))
+
+        invariant [pending_upcall_contains_receiver]
+            pending_upcall(N,E,V) -> pending_upcall_member(N,E,V,N)
+
+        invariant [current_view_contains_receiver_after_event]
+            (current_epoch(N) ~= init_epoch | current_within(N) ~= 0) -> current_member(N,N)
+
+        invariant [current_epoch_time_well_formed]
+            time_le(current_epoch_t0(N),current_until(N))
+
+        invariant [pending_upcall_time_well_formed]
+            pending_upcall(N,E,V) -> time_le(pending_upcall_t0(N,E,V),pending_upcall_until(N,E,V))
+
+        invariant [lost_upcalls_were_not_future]
+            lost_upcall(N,E,V) -> version_le(E,V,current_epoch(N),current_within(N))
+
+        invariant [delivered_upcall_time_well_formed]
+            delivered_upcall(N,E,V) -> time_le(delivered_upcall_t0(N,E,V),delivered_upcall_until(N,E,V))
+
+        invariant [last_delivered_is_max_delivered]
+            delivered_upcall(N,E,V) -> version_le(E,V,delivered_epoch(N),delivered_within(N))
+
+        invariant [delivered_upcalls_are_monotone]
+            delivered_upcall(N,E1,V1) & delivered_upcall(N,E2,V2) ->
+                version_le(E1,V1,E2,V2) | version_le(E2,V2,E1,V1)
+
+        invariant [last_delivered_is_an_actual_delivery]
+            delivered_epoch(N) = init_epoch & delivered_within(N) = 0 |
+            delivered_upcall(N,delivered_epoch(N),delivered_within(N))
+
+        invariant [published_membership_contains_receiver]
+            delivered_upcall(N,E,V) -> delivered_upcall_member(N,E,V,N)
+
+        invariant [published_membership_version_is_not_future]
+            delivered_upcall(N,E,V) -> version_le(E,V,current_epoch(N),current_within(N))
+
+        invariant [operating_lease_delivery_is_nonzero]
+            delivered_operating_lease(N,T) -> time_lt(init_time,T)
+    }
+}
+
+export reliable_membership.start_ready
+export reliable_membership.queue_membership_upcall
+export reliable_membership.queue_operating_lease
+export reliable_membership.lose_pending_events
+export reliable_membership.publish_membership_upcall
+export reliable_membership.publish_operating_lease
+
+#interpret reliable_membership.member -> bv[2]
+#interpret reliable_membership.epoch -> bv[4]
+#interpret reliable_membership.time -> bv[4]
+
