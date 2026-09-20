@@ -1193,7 +1193,7 @@ func (z *HermesConfig) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields26zgensym_38280071042a4e6d_27 = 3
+	const maxFields26zgensym_38280071042a4e6d_27 = 6
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields26zgensym_38280071042a4e6d_27 uint32
@@ -1260,6 +1260,18 @@ doneWithStruct26zgensym_38280071042a4e6d_27:
 			if err != nil {
 				return
 			}
+		case "UseSimNet__boo":
+			found26zgensym_38280071042a4e6d_27[3] = true
+			z.UseSimNet, err = dc.ReadBool()
+			if err != nil {
+				return
+			}
+		case "EnableO3__boo":
+			found26zgensym_38280071042a4e6d_27[5] = true
+			z.EnableO3, err = dc.ReadBool()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -1283,16 +1295,16 @@ doneWithStruct26zgensym_38280071042a4e6d_27:
 }
 
 // fields of HermesConfig
-var decodeMsgFieldOrder26zgensym_38280071042a4e6d_27 = []string{"ReplicationDegree__int", "MessageLossTimeout__dur", "TCPonly_no_TLS__boo"}
+var decodeMsgFieldOrder26zgensym_38280071042a4e6d_27 = []string{"ReplicationDegree__int", "MessageLossTimeout__dur", "TCPonly_no_TLS__boo", "UseSimNet__boo", "", "EnableO3__boo"}
 
-var decodeMsgFieldSkip26zgensym_38280071042a4e6d_27 = []bool{false, false, false}
+var decodeMsgFieldSkip26zgensym_38280071042a4e6d_27 = []bool{false, false, false, false, true, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *HermesConfig) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 3
+		return 5
 	}
-	var fieldsInUse uint32 = 3
+	var fieldsInUse uint32 = 5
 	isempty[0] = (z.ReplicationDegree == 0) // number, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -1303,6 +1315,14 @@ func (z *HermesConfig) fieldsNotEmpty(isempty []bool) uint32 {
 	}
 	isempty[2] = (!z.TCPonly_no_TLS) // bool, omitempty
 	if isempty[2] {
+		fieldsInUse--
+	}
+	isempty[3] = (!z.UseSimNet) // bool, omitempty
+	if isempty[3] {
+		fieldsInUse--
+	}
+	isempty[5] = (!z.EnableO3) // bool, omitempty
+	if isempty[5] {
 		fieldsInUse--
 	}
 
@@ -1316,7 +1336,7 @@ func (z *HermesConfig) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_38280071042a4e6d_28 [3]bool
+	var empty_zgensym_38280071042a4e6d_28 [6]bool
 	fieldsInUse_zgensym_38280071042a4e6d_29 := z.fieldsNotEmpty(empty_zgensym_38280071042a4e6d_28[:])
 
 	// map header
@@ -1371,6 +1391,30 @@ func (z *HermesConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_38280071042a4e6d_28[3] {
+		// write "UseSimNet__boo"
+		err = en.Append(0xae, 0x55, 0x73, 0x65, 0x53, 0x69, 0x6d, 0x4e, 0x65, 0x74, 0x5f, 0x5f, 0x62, 0x6f, 0x6f)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBool(z.UseSimNet)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_38280071042a4e6d_28[5] {
+		// write "EnableO3__boo"
+		err = en.Append(0xad, 0x45, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x4f, 0x33, 0x5f, 0x5f, 0x62, 0x6f, 0x6f)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBool(z.EnableO3)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -1383,7 +1427,7 @@ func (z *HermesConfig) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [3]bool
+	var empty [6]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -1405,6 +1449,18 @@ func (z *HermesConfig) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendBool(o, z.TCPonly_no_TLS)
 	}
 
+	if !empty[3] {
+		// string "UseSimNet__boo"
+		o = append(o, 0xae, 0x55, 0x73, 0x65, 0x53, 0x69, 0x6d, 0x4e, 0x65, 0x74, 0x5f, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.UseSimNet)
+	}
+
+	if !empty[5] {
+		// string "EnableO3__boo"
+		o = append(o, 0xad, 0x45, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x4f, 0x33, 0x5f, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.EnableO3)
+	}
+
 	return
 }
 
@@ -1423,7 +1479,7 @@ func (z *HermesConfig) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) 
 
 	var field []byte
 	_ = field
-	const maxFields30zgensym_38280071042a4e6d_31 = 3
+	const maxFields30zgensym_38280071042a4e6d_31 = 6
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields30zgensym_38280071042a4e6d_31 uint32
@@ -1494,6 +1550,20 @@ doneWithStruct30zgensym_38280071042a4e6d_31:
 			if err != nil {
 				return
 			}
+		case "UseSimNet__boo":
+			found30zgensym_38280071042a4e6d_31[3] = true
+			z.UseSimNet, bts, err = nbs.ReadBoolBytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "EnableO3__boo":
+			found30zgensym_38280071042a4e6d_31[5] = true
+			z.EnableO3, bts, err = nbs.ReadBoolBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1517,13 +1587,13 @@ doneWithStruct30zgensym_38280071042a4e6d_31:
 }
 
 // fields of HermesConfig
-var unmarshalMsgFieldOrder30zgensym_38280071042a4e6d_31 = []string{"ReplicationDegree__int", "MessageLossTimeout__dur", "TCPonly_no_TLS__boo"}
+var unmarshalMsgFieldOrder30zgensym_38280071042a4e6d_31 = []string{"ReplicationDegree__int", "MessageLossTimeout__dur", "TCPonly_no_TLS__boo", "UseSimNet__boo", "", "EnableO3__boo"}
 
-var unmarshalMsgFieldSkip30zgensym_38280071042a4e6d_31 = []bool{false, false, false}
+var unmarshalMsgFieldSkip30zgensym_38280071042a4e6d_31 = []bool{false, false, false, false, true, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *HermesConfig) Msgsize() (s int) {
-	s = 1 + 23 + msgp.IntSize + 24 + msgp.DurationSize + 20 + msgp.BoolSize
+	s = 1 + 23 + msgp.IntSize + 24 + msgp.DurationSize + 20 + msgp.BoolSize + 15 + msgp.BoolSize + 14 + msgp.BoolSize
 	return
 }
 func (z *HermesConfig) Gstring() (r string) {
@@ -1531,6 +1601,8 @@ func (z *HermesConfig) Gstring() (r string) {
 	r += fmt.Sprintf(" ReplicationDegree: %v,\n", z.ReplicationDegree)
 	r += fmt.Sprintf("MessageLossTimeout: %v,\n", z.MessageLossTimeout)
 	r += fmt.Sprintf("    TCPonly_no_TLS: %v,\n", z.TCPonly_no_TLS)
+	r += fmt.Sprintf("         UseSimNet: %v,\n", z.UseSimNet)
+	r += fmt.Sprintf("          EnableO3: %v,\n", z.EnableO3)
 	r += "}\n"
 	return
 }
@@ -1645,7 +1717,7 @@ func (z *HermesTicket) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields34zgensym_38280071042a4e6d_35 = 11
+	const maxFields34zgensym_38280071042a4e6d_35 = 13
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields34zgensym_38280071042a4e6d_35 uint32
@@ -1919,9 +1991,9 @@ doneWithStruct34zgensym_38280071042a4e6d_35:
 }
 
 // fields of HermesTicket
-var decodeMsgFieldOrder34zgensym_38280071042a4e6d_35 = []string{"Key_zid00_rct", "Val_zid01_rct", "TS_zid02_rct", "FromID_zid03_str", "EpochV_zid04_rct", "Errs_zid05_str", "TicketID_zid06_str", "Op_zid07_rct", "PseudoTicketForAckAccum_zid08_boo", "", ""}
+var decodeMsgFieldOrder34zgensym_38280071042a4e6d_35 = []string{"Key_zid00_rct", "Val_zid01_rct", "TS_zid02_rct", "FromID_zid03_str", "EpochV_zid04_rct", "Errs_zid05_str", "TicketID_zid06_str", "Op_zid07_rct", "PseudoTicketForAckAccum_zid08_boo", "", "", "", ""}
 
-var decodeMsgFieldSkip34zgensym_38280071042a4e6d_35 = []bool{false, false, false, false, false, false, false, false, false, true, true}
+var decodeMsgFieldSkip34zgensym_38280071042a4e6d_35 = []bool{false, false, false, false, false, false, false, false, false, true, true, true, true}
 
 // fields of TS
 var decodeMsgFieldOrder38zgensym_38280071042a4e6d_39 = []string{"Version_zid00_i64", "CoordID_zid01_str"}
@@ -1986,7 +2058,7 @@ func (z *HermesTicket) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_38280071042a4e6d_43 [11]bool
+	var empty_zgensym_38280071042a4e6d_43 [13]bool
 	fieldsInUse_zgensym_38280071042a4e6d_44 := z.fieldsNotEmpty(empty_zgensym_38280071042a4e6d_43[:])
 
 	// map header
@@ -2207,7 +2279,7 @@ func (z *HermesTicket) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [11]bool
+	var empty [13]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -2317,7 +2389,7 @@ func (z *HermesTicket) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) 
 
 	var field []byte
 	_ = field
-	const maxFields49zgensym_38280071042a4e6d_50 = 11
+	const maxFields49zgensym_38280071042a4e6d_50 = 13
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields49zgensym_38280071042a4e6d_50 uint32
@@ -2615,9 +2687,9 @@ doneWithStruct49zgensym_38280071042a4e6d_50:
 }
 
 // fields of HermesTicket
-var unmarshalMsgFieldOrder49zgensym_38280071042a4e6d_50 = []string{"Key_zid00_rct", "Val_zid01_rct", "TS_zid02_rct", "FromID_zid03_str", "EpochV_zid04_rct", "Errs_zid05_str", "TicketID_zid06_str", "Op_zid07_rct", "PseudoTicketForAckAccum_zid08_boo", "", ""}
+var unmarshalMsgFieldOrder49zgensym_38280071042a4e6d_50 = []string{"Key_zid00_rct", "Val_zid01_rct", "TS_zid02_rct", "FromID_zid03_str", "EpochV_zid04_rct", "Errs_zid05_str", "TicketID_zid06_str", "Op_zid07_rct", "PseudoTicketForAckAccum_zid08_boo", "", "", "", ""}
 
-var unmarshalMsgFieldSkip49zgensym_38280071042a4e6d_50 = []bool{false, false, false, false, false, false, false, false, false, true, true}
+var unmarshalMsgFieldSkip49zgensym_38280071042a4e6d_50 = []bool{false, false, false, false, false, false, false, false, false, true, true, true, true}
 
 // fields of TS
 var unmarshalMsgFieldOrder53zgensym_38280071042a4e6d_54 = []string{"Version_zid00_i64", "CoordID_zid01_str"}
@@ -3698,7 +3770,7 @@ func (z *KeyMeta) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields82zgensym_38280071042a4e6d_83 = 6
+	const maxFields82zgensym_38280071042a4e6d_83 = 7
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields82zgensym_38280071042a4e6d_83 uint32
@@ -3886,9 +3958,9 @@ doneWithStruct82zgensym_38280071042a4e6d_83:
 }
 
 // fields of KeyMeta
-var decodeMsgFieldOrder82zgensym_38280071042a4e6d_83 = []string{"Key_zid00_rct", "TS_zid01_rct", "IsRMW_zid02_boo", "State_zid03_rct", "LastWriterID_zid04_str", "Val_zid05_rct"}
+var decodeMsgFieldOrder82zgensym_38280071042a4e6d_83 = []string{"Key_zid00_rct", "TS_zid01_rct", "IsRMW_zid02_boo", "State_zid03_rct", "LastWriterID_zid04_str", "Val_zid05_rct", ""}
 
-var decodeMsgFieldSkip82zgensym_38280071042a4e6d_83 = []bool{false, false, false, false, false, false}
+var decodeMsgFieldSkip82zgensym_38280071042a4e6d_83 = []bool{false, false, false, false, false, false, true}
 
 // fields of TS
 var decodeMsgFieldOrder85zgensym_38280071042a4e6d_86 = []string{"Version_zid00_i64", "CoordID_zid01_str"}
@@ -3936,7 +4008,7 @@ func (z *KeyMeta) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_38280071042a4e6d_89 [6]bool
+	var empty_zgensym_38280071042a4e6d_89 [7]bool
 	fieldsInUse_zgensym_38280071042a4e6d_90 := z.fieldsNotEmpty(empty_zgensym_38280071042a4e6d_89[:])
 
 	// map header
@@ -4080,7 +4152,7 @@ func (z *KeyMeta) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [6]bool
+	var empty [7]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -4155,7 +4227,7 @@ func (z *KeyMeta) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []
 
 	var field []byte
 	_ = field
-	const maxFields93zgensym_38280071042a4e6d_94 = 6
+	const maxFields93zgensym_38280071042a4e6d_94 = 7
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields93zgensym_38280071042a4e6d_94 uint32
@@ -4362,9 +4434,9 @@ doneWithStruct93zgensym_38280071042a4e6d_94:
 }
 
 // fields of KeyMeta
-var unmarshalMsgFieldOrder93zgensym_38280071042a4e6d_94 = []string{"Key_zid00_rct", "TS_zid01_rct", "IsRMW_zid02_boo", "State_zid03_rct", "LastWriterID_zid04_str", "Val_zid05_rct"}
+var unmarshalMsgFieldOrder93zgensym_38280071042a4e6d_94 = []string{"Key_zid00_rct", "TS_zid01_rct", "IsRMW_zid02_boo", "State_zid03_rct", "LastWriterID_zid04_str", "Val_zid05_rct", ""}
 
-var unmarshalMsgFieldSkip93zgensym_38280071042a4e6d_94 = []bool{false, false, false, false, false, false}
+var unmarshalMsgFieldSkip93zgensym_38280071042a4e6d_94 = []bool{false, false, false, false, false, false, true}
 
 // fields of TS
 var unmarshalMsgFieldOrder96zgensym_38280071042a4e6d_97 = []string{"Version_zid00_i64", "CoordID_zid01_str"}
