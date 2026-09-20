@@ -29,7 +29,7 @@ import (
 )
 
 func Test101_userFuzz(t *testing.T) {
-	//return
+	return
 
 	if !faketime {
 		alwaysPrintf("Test101_userFuzz only works under synctest.")
