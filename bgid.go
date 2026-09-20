@@ -1,4 +1,4 @@
-//go:build synctest
+//go:build synctest && pont
 
 package rpc25519
 

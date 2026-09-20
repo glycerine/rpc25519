@@ -1,9 +1,9 @@
-//go:build !synctest
+//go:build !synctest || !pont
 
 package rpc25519
 
 import (
-//"testing/synctest"
+// "testing/synctest"
 )
 
 var bubbleRootGoroNum uint64
