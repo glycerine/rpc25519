@@ -1043,16 +1043,16 @@ func (s *HermesNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDu
 // received by followers
 func (s *HermesNode) recvInvalidate(inv *INV) (err error) {
 
-	// Already implemented in node.go filtering, so won't
+	// Already implemented in Start() filtering, so won't
 	// be delivered here.
 	// "During this transition period, any live follower that has
 	// not yet received the latest m-update will simply drop the
 	// INV messages, because those messages are tagged with an
 	// epoch_id greater than the follower’s local epoch_id."
-	// => not needed:
-	//if inv.EpochV != s.EpochV {
-	//	return nil
-	//}
+	// => not needed, but we will assert it.
+	if inv.EpochV != s.EpochV {
+		panicf("should never happen that inv.EpochV(%v) != s.EpochV(%v) here", inv.EpochV, s.EpochV)
+	}
 
 	key := inv.Key
 	keym, ok := s.store[key]
@@ -1409,6 +1409,10 @@ func (s *HermesNode) deleteTicket(ticketID string, wasWrite bool) *HermesTicket 
 
 func (s *HermesNode) recvAck(ack *ACK) (err error) {
 
+	if ack.EpochV != s.EpochV {
+		panicf("should never happen that ack.EpochV(%v) != s.EpochV(%v) here", ack.EpochV, s.EpochV)
+	}
+
 	var tkt *HermesTicket
 	//vv("%v recvAck(ack='%v')", s.me, ack)
 	key := ack.Key
@@ -1644,6 +1648,10 @@ func (s *HermesNode) recvAck(ack *ACK) (err error) {
 }
 
 func (s *HermesNode) recvValidate(v *VALIDATE) (err error) {
+
+	if v.EpochV != s.EpochV {
+		panicf("should never happen that VALIDATE.EpochV(%v) != s.EpochV(%v) here", v.EpochV, s.EpochV)
+	}
 
 	key := v.Key
 	keym, ok := s.store[key]
@@ -2827,7 +2835,7 @@ func (s *HermesNode) Start(
 			switch frag.FragOp {
 
 			case INVmsg:
-				if time.Now().After(s.operLeaseUntilTm) {
+				if !s.hasOperatingLease() {
 					vv("%v: hermes node has no operating lease, ignoring INV (since %v)", s.name, time.Since(s.operLeaseUntilTm))
 					continue
 				}
@@ -2841,7 +2849,7 @@ func (s *HermesNode) Start(
 				}
 
 			case VALIDATEmsg:
-				if time.Now().After(s.operLeaseUntilTm) {
+				if !s.hasOperatingLease() {
 					vv("%v: hermes node has no operating lease, ignoring VALIDATE (since %v)", s.name, time.Since(s.operLeaseUntilTm))
 					continue
 				}
@@ -2853,7 +2861,7 @@ func (s *HermesNode) Start(
 					panicOn(err)
 				}
 			case ACKmsg:
-				if time.Now().After(s.operLeaseUntilTm) {
+				if !s.hasOperatingLease() {
 					vv("%v: hermes node has no operating lease, ignoring ACK (since %v)", s.name, time.Since(s.operLeaseUntilTm))
 					continue
 				}
