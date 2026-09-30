@@ -14,7 +14,7 @@
 type epoch
 
 # epocher is the foundation module. Other code should talk to epoch through it.
-object epocher = {
+module epocher = {
 
     # Strict order on epochs, as a relation rather than the built-in <. A relation
     # is EPR-friendly, and its name does not clash with the built-in < that epoch
@@ -141,6 +141,8 @@ object epocher = {
     }
 }
 
+instance epocherTestInstance : epocher
+
 # The environment is told about each fresh epoch through this callback. It is an
 # import: something outside the verified code provides it. It is here just so
 # we can observe in the terminal what the tick action below is doing.
@@ -150,7 +152,7 @@ import action report(e:epoch)
 export action tick = { 
    # Get a fresh epoch through the abstract interface. This call sees only the
    # specification of fresh_epoch, not the bv arithmetic.
-   var x := epocher.fresh_epoch; 
+   var x := epocherTestInstance.fresh_epoch; 
 
    # Report it to the environment. (so we can see it counting up in the terminal)
    # No real implementation is needed. We just want the side effect that the
