@@ -130,6 +130,26 @@ object epoch = {
             #    preserve it alone, since the increment can reach the max, so you would
             #    need a bound on the number of calls; (3) keep the assume and record
             #    it as a documented assumption of the implementation refinement.
+            #
+            # FAQ: assert versus assume?
+            #
+            # assume φ: the verifier takes φ as given on that path and 
+            # does not try to prove it. Executions where φ is false are simply excluded 
+            # from the proof. If φ can actually be false, the verification says 
+            # nothing about those runs.
+            #
+            # assert φ: a proof obligation. ivy_check must prove φ holds every time 
+            # control reaches that point. After that point φ can be used as a fact.
+            #
+            # and two related forms:
+            #
+            # require φ at the start of an action: a precondition. The obligation
+            # falls on whoever calls the action. For an exported action, it is an
+            # assumption about the environment.
+            #
+            # ensure φ after an action (as in your after fresh_epoch): a postcondition.
+            # The obligation falls on the action's implementation.
+            #
             assume next_epoch < 9223372036854775807;   # trusted: no wraparound
 
             # Return the current counter as the fresh epoch.

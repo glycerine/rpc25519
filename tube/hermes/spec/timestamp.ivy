@@ -2,8 +2,8 @@
 
 include epocher
 
-# "Logical timestamps Each write in Hermes is tagged 
-# with a monotonically-increasing per-key logical timestamp, 
+# "(hermes.pdf, page 204) Logical timestamps: Each write 
+# in Hermes is tagged with a monotonically-increasing per-key logical timestamp, 
 # implemented using Lamport clocks [61] and computed locally 
 # at the coordinator replica. The timestamp is a 
 # lexicographically ordered tuple of [v, cid] combining 
