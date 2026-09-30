@@ -11,30 +11,30 @@
 # verification condition in the file, including the whole membership protocol,
 # use bit-vector arithmetic and leave EPR. The interpretation is confined to
 # epocher.implementation further down.
-type epoch
 
 # epocher is the foundation module. Other code should talk to epoch through it.
-module epocher = {
+object epoch = {
+    type this
 
     # Strict order on epochs, as a relation rather than the built-in <. A relation
     # is EPR-friendly, and its name does not clash with the built-in < that epoch
     # gets once it is interpreted as bv[63] in the implementation.
-    relation lt(X:epoch, Y:epoch)
+    relation lt(X:this, Y:this)
 
     # "Y is the immediate successor of X". A relation, NOT a function epoch -> epoch:
     # a function from a sort to itself creates a stratification cycle and leaves EPR.
-    relation succ(X:epoch, Y:epoch)
+    relation succ(X:this, Y:this)
 
     # The least epoch.
-    individual zero : epoch
+    individual zero : this
 
     # The next epoch to be handed out. This is the only mutable state.
-    individual next_epoch : epoch
+    individual next_epoch : this
 
     # Declare fresh_epoch once, with no body. The spec constrains it via after/ensure
     # and the implementation supplies the only body. (Giving it a body in both places
     # was the "multiple implementations" error.)
-    action fresh_epoch returns (e:epoch)
+    action fresh_epoch returns (e:this)
 
     # Everything in this section is what OTHER isolates (the protocol) get to see.
     # It contains no arithmetic, so their VCs stay in EPR.
@@ -65,7 +65,7 @@ module epocher = {
         # next_epoch and the new next_epoch is e's immediate successor. So every
         # call returns a strictly larger epoch than all earlier calls. This is the
         # only thing the protocol can rely on about fresh_epoch.
-        after fresh_epoch returns (e:epoch) {
+        after fresh_epoch returns (e:this) {
             ensure succ(e, next_epoch)
         }
     }
@@ -77,7 +77,7 @@ module epocher = {
         # Give epoch a concrete 63-bit unsigned machine representation. This is what
         # lets ivy_to_cpp compile it. It is scoped to this section, so the protocol
         # isolates never see it.
-        interpret epoch -> bv[63]
+        interpret this -> bv[63]
 
         # Bridge the abstract relation to the built-in bit-vector order. With this,
         # the order axioms above are true facts about bv[63].
@@ -101,7 +101,7 @@ module epocher = {
         #definition succ(X,Y) = (Y = X + 1)
 
         # The only body of fresh_epoch. It returns the current counter and advances it.
-        implement fresh_epoch  returns (e:epoch) {
+        implement fresh_epoch  returns (e:this) {
 
             # TRUSTED ASSUMPTION: the counter is not at its maximum (2^63 - 1), so the
             # +1 below does not wrap around to 0.
@@ -141,7 +141,7 @@ module epocher = {
     }
 }
 
-instance epocherTestInstance : epocher
+#instance epocherTestInstance : epoch
 
 # The environment is told about each fresh epoch through this callback. It is an
 # import: something outside the verified code provides it. It is here just so
@@ -152,7 +152,7 @@ import action report(e:epoch)
 export action tick = { 
    # Get a fresh epoch through the abstract interface. This call sees only the
    # specification of fresh_epoch, not the bv arithmetic.
-   var x := epocherTestInstance.fresh_epoch; 
+   var x := epoch.fresh_epoch; 
 
    # Report it to the environment. (so we can see it counting up in the terminal)
    # No real implementation is needed. We just want the side effect that the

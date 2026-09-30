@@ -1,0 +1,25 @@
+#lang ivy1.7
+
+include epocher
+
+# "Logical timestamps Each write in Hermes is tagged 
+# with a monotonically-increasing per-key logical timestamp, 
+# implemented using Lamport clocks [61] and computed locally 
+# at the coordinator replica. The timestamp is a 
+# lexicographically ordered tuple of [v, cid] combining 
+# a key’s version number (v), which is incremented on every 
+# write, with the node id of the coordinator (cid). 
+#
+# a timestamp A: [vA, cidA] is higher than
+# a timestamp B: [vB, cidB], if either vA > vB or 
+# vA = vB and cidA > cidB. The coordID is the tie-breaker.
+
+# ts is a timestamp
+object ts = {
+    type this
+    var version : epoch
+    var cid   : epoch
+}
+
+# greater-than for ts timestamps
+function ts_gt(X:ts, Y:ts) = (X.version > Y.version) | ((X.version = Y.version) & (X.cid > Y.cid))
