@@ -10,11 +10,11 @@
 # "interpret" here: a top-level interpret (e.g. epoch -> bv[63]) would make every
 # verification condition in the file, including the whole membership protocol,
 # use bit-vector arithmetic and leave EPR. The interpretation is confined to
-# epoch_svc.implementation further down.
+# epocher.implementation further down.
 type epoch
 
-# epoch_svc is the foundation module. Other code should talk to epoch through it.
-object epoch_svc = {
+# epocher is the foundation module. Other code should talk to epoch through it.
+object epocher = {
 
     # Strict order on epochs, as a relation rather than the built-in <. A relation
     # is EPR-friendly, and its name does not clash with the built-in < that epoch
@@ -142,15 +142,18 @@ object epoch_svc = {
 }
 
 # The environment is told about each fresh epoch through this callback. It is an
-# import: something outside the verified code provides it.
+# import: something outside the verified code provides it. It is here just so
+# we can observe in the terminal what the tick action below is doing.
 import action report(e:epoch)
 
 # The exported entry point that the environment (or test harness) can call.
 export action tick = { 
    # Get a fresh epoch through the abstract interface. This call sees only the
    # specification of fresh_epoch, not the bv arithmetic.
-   var x := epoch_svc.fresh_epoch; 
+   var x := epocher.fresh_epoch; 
 
    # Report it to the environment. (so we can see it counting up in the terminal)
+   # No real implementation is needed. We just want the side effect that the
+   # ivy2cpp/ivy_to_cpp/ivy2golang fuzzer prints as it works.
    call report(x) 
 }
