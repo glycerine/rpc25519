@@ -16,10 +16,11 @@ include epocher
 
 # ts is a timestamp
 object ts = {
-    type this
-    var version : epoch
-    var cid   : epoch
+    type this = struct {
+        version : epoch,
+        cid     : epoch
+    }
 }
 
 # greater-than for ts timestamps
-function ts_gt(X:ts, Y:ts) = (X.version > Y.version) | ((X.version = Y.version) & (X.cid > Y.cid))
+function ts_gt(X:ts, Y:ts) = epoch.lt(Y.version, X.version) | ((X.version = Y.version) & epoch.lt(Y.cid, X.cid))
