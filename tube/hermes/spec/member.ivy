@@ -22,7 +22,7 @@ object epoch_svc = {
         after init { next_epoch := zero }
 
         # contract: e is the old next_epoch, and next_epoch is its successor
-        after fresh_epoch {
+        after fresh_epoch returns (e:epoch) {
             ensure succ(e, next_epoch)
         }
     }
