@@ -1,49 +1,156 @@
 #lang ivy1.7
-include order
+# Ivy language version 1.7 syntax (isolates, implement, etc.) is used below.
 
+# Pulls in Ivy's standard library file order.ivy. This spec no longer instantiates
+# anything from it (we state the order axioms by hand below), so this include is
+# currently unused. Harmless; remove it if you want a minimal file.
+#include order
+
+# Declare epoch as an uninterpreted sort at the top level. Deliberately NO
+# "interpret" here: a top-level interpret (e.g. epoch -> bv[63]) would make every
+# verification condition in the file, including the whole membership protocol,
+# use bit-vector arithmetic and leave EPR. The interpretation is confined to
+# epoch_svc.implementation further down.
 type epoch
 
+# epoch_svc is the foundation module. Other code should talk to epoch through it.
 object epoch_svc = {
+
+    # Strict order on epochs, as a relation rather than the built-in <. A relation
+    # is EPR-friendly, and its name does not clash with the built-in < that epoch
+    # gets once it is interpreted as bv[63] in the implementation.
     relation lt(X:epoch, Y:epoch)
+
+    # "Y is the immediate successor of X". A relation, NOT a function epoch -> epoch:
+    # a function from a sort to itself creates a stratification cycle and leaves EPR.
     relation succ(X:epoch, Y:epoch)
+
+    # The least epoch.
     individual zero : epoch
+
+    # The next epoch to be handed out. This is the only mutable state.
     individual next_epoch : epoch
 
-    # declared once, no body
+    # Declare fresh_epoch once, with no body. The spec constrains it via after/ensure
+    # and the implementation supplies the only body. (Giving it a body in both places
+    # was the "multiple implementations" error.)
     action fresh_epoch returns (e:epoch)
 
+    # Everything in this section is what OTHER isolates (the protocol) get to see.
+    # It contains no arithmetic, so their VCs stay in EPR.
     specification {
+
+        # lt is transitive.
         axiom lt(X,Y) & lt(Y,Z) -> lt(X,Z)
+
+        # lt is irreflexive.
         axiom ~lt(X,X)
+
+        # lt is total: any two epochs are equal or ordered.
         axiom lt(X,Y) | X = Y | lt(Y,X)
+
+        # zero is the minimum: nothing is below it.
         axiom ~lt(X, zero)
+
+        # succ is the immediate successor: Y is above X with nothing strictly between.
+        # All quantifiers are universal (Z is implicitly ∀), so this stays in EPR.
+        # NOTE: this axiom says the maximum element has NO successor (see the note
+        # on the definition of succ in the implementation section).
         axiom succ(X,Y) <-> (lt(X,Y) & ~(lt(X,Z) & lt(Z,Y)))
 
+        # Initially the next epoch to hand out is zero.
         after init { next_epoch := zero }
 
-        # contract: e is the old next_epoch, and next_epoch is its successor
+        # Contract for fresh_epoch: after it runs, the returned e is the old value of
+        # next_epoch and the new next_epoch is e's immediate successor. So every
+        # call returns a strictly larger epoch than all earlier calls. This is the
+        # only thing the protocol can rely on about fresh_epoch.
         after fresh_epoch returns (e:epoch) {
             ensure succ(e, next_epoch)
         }
     }
 
+    # Only used when this isolate itself is verified or compiled. This is the ONE
+    # place where bit-vector arithmetic appears.
     implementation {
-        interpret epoch -> bv[63]
-        definition lt(X,Y) = X < Y
-        definition zero = 0
-        definition succ(X,Y) = (Y = X + 1)
 
+        # Give epoch a concrete 63-bit unsigned machine representation. This is what
+        # lets ivy_to_cpp compile it. It is scoped to this section, so the protocol
+        # isolates never see it.
+        interpret epoch -> bv[63]
+
+        # Bridge the abstract relation to the built-in bit-vector order. With this,
+        # the order axioms above are true facts about bv[63].
+        definition lt(X,Y) = X < Y
+
+        # Bridge the abstract zero to the bit-vector 0.
+        # This must be a definition, not a bare declaration: a declared-but-undefined
+        # relation over bv[63] becomes runtime state, and the C++ test harness tries to
+        # enumerate all 2^63 values of it (the earlier compile error).
+        definition zero = 0
+
+        # succ as a definition, for the same reason as above.
+        # CAUTION: as written, succ(max, 0) is TRUE (+ wraps in bv[63]), yet the axiom
+        # in the specification says the maximum has no successor. If ivy_check
+        # includes that axiom here, it is false in this model, which could make proofs
+        # in this isolate vacuous. A safer definition is
+        definition succ(X,Y) = (X < Y & Y = X + 1)
+        # which agrees with the axiom at the maximum and makes the assume below
+        # do real work in proving the ensure.
+        # was (less safe):
+        #definition succ(X,Y) = (Y = X + 1)
+
+        # The only body of fresh_epoch. It returns the current counter and advances it.
         implement fresh_epoch  returns (e:epoch) {
+
+            # TRUSTED ASSUMPTION: the counter is not at its maximum (2^63 - 1), so the
+            # +1 below does not wrap around to 0.
+            #
+            # Why it is here: the spec promises epochs increase forever ("every epoch
+            # has a successor"). A 63-bit counter cannot keep that promise, because at
+            # the maximum +1 wraps to 0, which would break monotonicity. The assume
+            # says that state never occurs.
+            #
+            # Why assume rather than require: a require is an obligation on the caller,
+            # so tick and then the entire protocol would have to prove
+            # next_epoch < 2^63-1, which drags bit-vector reasoning into every
+            # protocol proof, the thing this file is designed to avoid.
+            #
+            # Trade-offs:
+            #  * Soundness: it is not proved. Everything verified holds only for
+            #    executions that stay below the limit. If the assumption is false,
+            #    the proofs say nothing about the wrapped-around behavior.
+            #  * Practicality: reaching 2^63 calls is not realistic. At a billion
+            #    epochs per second it takes about 290 years.
+            #  * No runtime check, as far as I know: the compiled code will not stop
+            #    or warn if the limit were hit. If you want that, add an explicit
+            #    check in the real deployment, outside the verified core.
+            #  * Alternatives: (1) require: proved but pushes the burden onto every
+            #    caller; (2) an invariant next_epoch < max: fresh_epoch cannot
+            #    preserve it alone, since the increment can reach the max, so you would
+            #    need a bound on the number of calls; (3) keep the assume and record
+            #    it as a documented assumption of the implementation refinement.
             assume next_epoch < 9223372036854775807;   # trusted: no wraparound
+
+            # Return the current counter as the fresh epoch.
             e := next_epoch;
+
+            # Advance the counter by one. Real arithmetic, but only in this section.
             next_epoch := next_epoch + 1
         }
     }
 }
 
+# The environment is told about each fresh epoch through this callback. It is an
+# import: something outside the verified code provides it.
 import action report(e:epoch)
+
+# The exported entry point that the environment (or test harness) can call.
 export action tick = { 
+   # Get a fresh epoch through the abstract interface. This call sees only the
+   # specification of fresh_epoch, not the bv arithmetic.
    var x := epoch_svc.fresh_epoch; 
+
+   # Report it to the environment. (so we can see it counting up in the terminal)
    call report(x) 
 }
-
