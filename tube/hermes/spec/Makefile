@@ -11,7 +11,7 @@ fuzz:
 	XTRACE_OFF=1 ivy2cpp target=test build=true epocher.ivy
 	./epocher iters=10
 
-gofuzz:
+gofuzz: clean
 	XTRACE_OFF=1 ivy2golang target=test build=true epocher.ivy
 	./epocher iters=10
 
