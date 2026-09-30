@@ -34,11 +34,14 @@ module totallyordered(t) = {
     axiom X:t >= Y <-> Y <= X
 }
 
-isolate reliable_membership = {
+type member
+type epoch
 
-    type member
-    type epoch
-    type time
+# we have expiring leases based on time
+type time
+    
+# rm for Reliable Membership
+isolate rm = {
 
     instance within_version : unbounded_sequence
 
@@ -240,14 +243,15 @@ isolate reliable_membership = {
     }
 }
 
-export reliable_membership.start_ready
-export reliable_membership.queue_membership_upcall
-export reliable_membership.queue_operating_lease
-export reliable_membership.lose_pending_events
-export reliable_membership.publish_membership_upcall
-export reliable_membership.publish_operating_lease
+export rm.start_ready
+export rm.queue_membership_upcall
+export rm.queue_operating_lease
+export rm.lose_pending_events
+export rm.publish_membership_upcall
+export rm.publish_operating_lease
 
-interpret reliable_membership.member -> bv[2]
-interpret reliable_membership.epoch -> bv[4]
-interpret reliable_membership.time -> bv[4]
+interpret member -> bv[3]
+interpret epoch -> bv[10]
+interpret time -> bv[12]
+
 

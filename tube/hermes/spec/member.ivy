@@ -1,0 +1,49 @@
+#lang ivy1.7
+include order
+
+type epoch
+
+object epoch_svc = {
+    relation lt(X:epoch, Y:epoch)
+    relation succ(X:epoch, Y:epoch)
+    individual zero : epoch
+    individual next_epoch : epoch
+
+    # declared once, no body
+    action fresh_epoch returns (e:epoch)
+
+    specification {
+        axiom lt(X,Y) & lt(Y,Z) -> lt(X,Z)
+        axiom ~lt(X,X)
+        axiom lt(X,Y) | X = Y | lt(Y,X)
+        axiom ~lt(X, zero)
+        axiom succ(X,Y) <-> (lt(X,Y) & ~(lt(X,Z) & lt(Z,Y)))
+
+        after init { next_epoch := zero }
+
+        # contract: e is the old next_epoch, and next_epoch is its successor
+        after fresh_epoch {
+            ensure succ(e, next_epoch)
+        }
+    }
+
+    implementation {
+        interpret epoch -> bv[63]
+        definition lt(X,Y) = X < Y
+        definition zero = 0
+        definition succ(X,Y) = (Y = X + 1)
+
+        implement fresh_epoch  returns (e:epoch) {
+            assume next_epoch < 9223372036854775807;   # trusted: no wraparound
+            e := next_epoch;
+            next_epoch := next_epoch + 1
+        }
+    }
+}
+
+import action report(e:epoch)
+export action tick = { 
+   var x := epoch_svc.fresh_epoch; 
+   call report(x) 
+}
+
