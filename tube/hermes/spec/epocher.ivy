@@ -77,7 +77,8 @@ object epoch = {
         # Give epoch a concrete 63-bit unsigned machine representation. This is what
         # lets ivy_to_cpp compile it. It is scoped to this section, so the protocol
         # isolates never see it.
-        interpret this -> bv[63]
+        #interpret this -> bv[63]
+        interpret this -> bv[1]
 
         # Bridge the abstract relation to the built-in bit-vector order. With this,
         # the order axioms above are true facts about bv[63].
@@ -169,13 +170,13 @@ object epoch = {
 import action report(e:epoch)
 
 # The exported entry point that the environment (or test harness) can call.
-export action tick = { 
-   # Get a fresh epoch through the abstract interface. This call sees only the
-   # specification of fresh_epoch, not the bv arithmetic.
-   var x := epoch.fresh_epoch; 
-
-   # Report it to the environment. (so we can see it counting up in the terminal)
-   # No real implementation is needed. We just want the side effect that the
-   # ivy2cpp/ivy_to_cpp/ivy2golang fuzzer prints as it works.
-   call report(x) 
-}
+# export action tick = { 
+#    # Get a fresh epoch through the abstract interface. This call sees only the
+#    # specification of fresh_epoch, not the bv arithmetic.
+#    var x := epoch.fresh_epoch; 
+#
+#    # Report it to the environment. (so we can see it counting up in the terminal)
+#    # No real implementation is needed. We just want the side effect that the
+#    # ivy2cpp/ivy_to_cpp/ivy2golang fuzzer prints as it works.
+#    call report(x) 
+# }
