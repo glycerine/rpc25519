@@ -77,8 +77,8 @@ object epoch = {
         # Give epoch a concrete 63-bit unsigned machine representation. This is what
         # lets ivy_to_cpp compile it. It is scoped to this section, so the protocol
         # isolates never see it.
-        #interpret this -> bv[63]
-        interpret this -> bv[1]
+        interpret this -> bv[63]
+        #interpret this -> bv[1]
 
         # Bridge the abstract relation to the built-in bit-vector order. With this,
         # the order axioms above are true facts about bv[63].
