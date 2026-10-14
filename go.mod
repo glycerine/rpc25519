@@ -3,7 +3,6 @@ module github.com/glycerine/rpc25519
 go 1.26.0
 
 require (
-	4d63.com/tz v1.2.0
 	github.com/apoorvam/goterminal v0.0.0-20180523175556-614d345c47e5
 	github.com/caio/go-tdigest v3.1.0+incompatible
 	github.com/cloudflare/circl v1.6.1
@@ -22,7 +21,7 @@ require (
 	github.com/glycerine/rate v0.0.1
 	github.com/glycerine/rbtree v0.2.1
 	github.com/glycerine/restic-chunker-mod v0.5.0
-	github.com/glycerine/yogadb v0.17.4
+	github.com/glycerine/yogadb v0.18.0
 	github.com/glycerine/zygomys/v9 v9.6.4
 	github.com/klauspost/compress v1.18.4
 	github.com/klauspost/cpuid/v2 v2.0.9
@@ -42,6 +41,7 @@ require (
 
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
+	4d63.com/tz v1.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/crlib v0.0.0-20251122031428-fe658a2dbda1 // indirect
 	github.com/cockroachdb/errors v1.11.3 // indirect
