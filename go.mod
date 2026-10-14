@@ -40,8 +40,6 @@ require (
 //replace github.com/glycerine/porcupine => /Users/jaten/go/src/github.com/glycerine/porcupine
 
 require (
-	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
-	4d63.com/tz v1.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/crlib v0.0.0-20251122031428-fe658a2dbda1 // indirect
 	github.com/cockroachdb/errors v1.11.3 // indirect
