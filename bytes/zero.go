@@ -2,15 +2,6 @@
 
 package bytes
 
-import "github.com/templexxx/cpu"
-
-// CPU feature detection flags
-var (
-	x86HasSSE2   = cpu.X86.HasSSE2
-	x86HasAVX2   = cpu.X86.HasAVX2
-	x86HasAVX512 = cpu.X86.HasAVX512F
-)
-
 // AllZero reports whether b consists entirely of zero bytes.
 // This simple version is on-par with the assembly, so
 // typically we prefer it for portability.
@@ -23,24 +14,7 @@ func AllZero(b []byte) bool {
 	return true
 }
 
-// AllZeroSIMD reports whether b consists entirely of zero bytes.
-// It uses assembly, which may or may not be faster.
-//
-//go:noescape
-func AllZeroSIMD(b []byte) bool
-
-// Internal implementations for different CPU features
-//
-//go:noescape
-func allZeroSSE2(b []byte) bool
-
-//go:noescape
-func allZeroAVX2(b []byte) bool
-
-//go:noescape
-func allZeroAVX512(b []byte) bool
-
-// LongestZeroSpan returns the start index and length of the longest continuous
+// SIMDLongestZeroSpan returns the start index and length of the longest continuous
 // span of zero bytes in the given slice. If no zeros are found, returns (0, 0).
 // If multiple spans of the same longest length exist, returns the first one.
 func SIMDLongestZeroSpan(b []byte) (start, length int64) {
