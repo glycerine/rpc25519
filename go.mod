@@ -12,7 +12,7 @@ require (
 	github.com/glycerine/cryrand v0.9.0
 	github.com/glycerine/fisherexact v0.3.6
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
-	github.com/glycerine/greenpack v0.541.0
+	github.com/glycerine/greenpack v0.542.0
 	github.com/glycerine/idem v0.20.7
 	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
