@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	//"runtime"
+	"runtime"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -874,9 +874,29 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 	// INVAR: isSparse0 true, source file is sparse.
 	// INVAR: statsz0 > 0
 
+	// Small APFS files may lose earlier holes when later data is written.
+	// On Tahoe 26.6 we added the following specialization for darwin,
+	// which was not needed on Sonoma 14.0.
+	// Rescan and re-punch after copying, using constant memory; large files keep only
+	// the streaming hole punching below.
+	if runtime.GOOS == "darwin" && statsz0 < PunchBelowBytes {
+		defer func() {
+			if err == nil {
+				// punchCopyHoles() is newly added below.
+				err = punchCopyHoles(src, dest, statsz0, didPrealloc)
+			}
+			if err == nil {
+				err = dest.Sync()
+			}
+		}()
+	}
+
 	if !didPrealloc {
 		// set the size, otherwise our file can end up too short.
-		dest.Truncate(statsz0)
+		err = dest.Truncate(statsz0)
+		if err != nil {
+			return
+		}
 	}
 
 	fileSize := statsz0
@@ -908,6 +928,9 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 					// })
 					_, err = Fallocate(dest, FALLOC_FL_PUNCH_HOLE, offset, sz)
 					panicOn(err)
+					if err != nil {
+						return
+					}
 				}
 				return
 			}
@@ -925,6 +948,9 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 			sz := dataBeg - offset
 			_, err = Fallocate(dest, FALLOC_FL_PUNCH_HOLE, offset, sz)
 			panicOn(err)
+			if err != nil {
+				return
+			}
 		}
 		if dataBeg >= fileSize {
 			return
@@ -990,6 +1016,43 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 	}
 
 	return
+}
+
+// punchCopyHoles rescans source extents without retaining a list of holes,
+// re-punching dest file if a hole is missing.
+func punchCopyHoles(src, dest *os.File, size int64, keepPrealloc bool) error {
+	fd := int(src.Fd())
+	for offset := int64(0); offset < size; {
+		hole, err := unix.Seek(fd, offset, unix.SEEK_HOLE)
+		if err == syscall.ENXIO || (err == nil && hole >= size) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		data, err := unix.Seek(fd, hole, unix.SEEK_DATA)
+		if err == syscall.ENXIO {
+			if keepPrealloc {
+				return nil
+			}
+			data = size
+		} else if err != nil {
+			return err
+		}
+		if data > size {
+			data = size
+		}
+		if data <= hole {
+			err = fmt.Errorf("CopySparseFile: SEEK_DATA did not advance past hole at %v", hole)
+			panic(err)
+			return err
+		}
+		if _, err := Fallocate(dest, FALLOC_FL_PUNCH_HOLE, hole, data-hole); err != nil {
+			return err
+		}
+		offset = data
+	}
+	return nil
 }
 
 // MustGenerateSparseTestFiles makes 15 test files in dir.
