@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	//"strconv"
 	"strings"
 	//"sync"
@@ -124,6 +125,9 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	//var newversBufio *bufio.Writer // comment for sparse
 	var newversFd *os.File
 	var newversFdUnwritPreallocDone bool
+	// Only small Darwin files need holes replayed after the last data write.
+	// This list is bounded by PunchBelowBytes and 4KB hole alignment.
+	var finalSparseHoles []sparsified.SparseSpan
 	var tmp string
 
 	j := 0 // index to new version, how much we have written.
@@ -537,6 +541,9 @@ takerForSelectLoop:
 								// if syncReq.GiverFileSize < sparsified.PunchBelowBytes {
 								_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_PUNCH_HOLE, startPos, n)
 								panicOn(err)
+								if runtime.GOOS == "darwin" && syncReq.GiverFileSize < sparsified.PunchBelowBytes {
+									finalSparseHoles = append(finalSparseHoles, sparsified.SparseSpan{Beg: startPos, Endx: startPos + n})
+								}
 								//}
 
 							}
@@ -656,12 +663,15 @@ takerForSelectLoop:
 				}
 				//newversBufio.Flush() // must be before newversFd.Close()
 
-				// vv("total number sparse holes seen = %v", len(totsparse))
-				// for _, span := range totsparse {
-				// 	sz := span.Endx - span.Beg
-				// 	_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_PUNCH_HOLE, span.Beg, sz)
-				// 	panicOn(err)
-				// }
+				// APFS may allocate across earlier holes during later writes.
+				// Replay only the aligned RLE0 holes, never UNWRIT preallocation.
+				for _, hole := range finalSparseHoles {
+					_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_PUNCH_HOLE, hole.Beg, hole.Endx-hole.Beg)
+					if err != nil {
+						return err
+					}
+				}
+				finalSparseHoles = nil
 
 				// debug, is it sparse before we rename it?
 				// only with the hole punching above.
