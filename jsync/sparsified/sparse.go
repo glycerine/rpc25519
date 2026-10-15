@@ -640,7 +640,7 @@ func SparseDiff(srcpath, destpath string) (err error) {
 		return fmt.Errorf("SparseDiff error: srcpath('%v') has isSparse=%v, but destpath('%v') has isSparse=%v", srcpath, isSparse0, destpath, isSparse1)
 	}
 	if disksz0 != disksz1 {
-		return fmt.Errorf("SparseDiff error: srcpath('%v') has disksz=%v (%v blocks of 512 bytes), but destpath('%v') has disksz=%v (%v blocks of 512 bytes)", srcpath, disksz0, (disksz0 / 512), destpath, disksz1, (disksz1 / 512))
+		return fmt.Errorf("SparseDiff error: srcpath('%v') has disksz=%v (%v blocks of 512 bytes), but destpath('%v') has disksz=%v (%v blocks of 512 bytes); difference src - dest => %v", srcpath, disksz0, (disksz0 / 512), destpath, disksz1, (disksz1 / 512), disksz0-disksz1)
 	}
 	if statsz0 != statsz1 {
 		return fmt.Errorf("SparseDiff error: srcpath('%v') has statsz=%v, but destpath('%v') has statsz=%v", srcpath, statsz0, destpath, statsz1)
