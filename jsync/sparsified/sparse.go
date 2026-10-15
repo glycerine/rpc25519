@@ -82,6 +82,9 @@ func (s *SparseSpan) Equal(r *SparseSpan) bool {
 	if s.IsHole != r.IsHole {
 		return false
 	}
+	if s.IsUnwrittenPrealloc != r.IsUnwrittenPrealloc {
+		return false
+	}
 	if s.Beg != r.Beg {
 		return false
 	}
@@ -100,13 +103,36 @@ func lastSparseSpanPreAlloc(slc []SparseSpan) bool {
 	return slc[n-1].IsUnwrittenPrealloc
 }
 
-// two nil SparseSpans are never equal; like NaN
+// logicalSpans consolidates adjacent spans with the same logical state.
+// FIEMAP flags and physical extent boundaries do not affect that state.
+// The input is ordered by file offset and is never modified.
+func logicalSpans(spans []SparseSpan) []SparseSpan {
+	var result []SparseSpan
+	for _, sp := range spans {
+		if len(result) > 0 {
+			last := &result[len(result)-1]
+			if last.Endx == sp.Beg && last.IsHole == sp.IsHole &&
+				last.IsUnwrittenPrealloc == sp.IsUnwrittenPrealloc {
+				last.Endx = sp.Endx
+				continue
+			}
+		}
+		result = append(result, sp)
+	}
+	return result
+}
+
+// Equal compares logical coverage and hole/preallocation state, ignoring
+// physical extent boundaries and FIEMAP flags. Two nil SparseSpans are never
+// equal, like NaN. An extra trailing unwritten span is allowed for block rounding.
 func (s *SparseSpans) Equal(r *SparseSpans) bool {
 	if s == nil || r == nil {
 		return false
 	}
-	ns := len(s.Slc)
-	nr := len(r.Slc)
+	left := logicalSpans(s.Slc)
+	right := logicalSpans(r.Slc)
+	ns := len(left)
+	nr := len(right)
 	if ns == 0 && nr == 0 {
 		return false // same as both nil
 	}
@@ -118,9 +144,9 @@ func (s *SparseSpans) Equal(r *SparseSpans) bool {
 	// allow one final pre-allocated unwritten,
 	// for non-4K block sized files. See test 007.
 	numMin := min(nr, ns)
-	longer := s.Slc
+	longer := left
 	if nr > ns {
-		longer = r.Slc
+		longer = right
 	}
 	if ns != nr {
 		// allow one final pre-allocated unwritten,
@@ -134,8 +160,8 @@ func (s *SparseSpans) Equal(r *SparseSpans) bool {
 		}
 	}
 	for i := range numMin {
-		ss := s.Slc[i]
-		rs := r.Slc[i]
+		ss := left[i]
+		rs := right[i]
 		if !rs.Equal(&ss) {
 			return false
 		}

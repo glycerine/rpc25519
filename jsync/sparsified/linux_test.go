@@ -252,6 +252,8 @@ func Test018_FieMapLinux_preallocated2(t *testing.T) {
 	//updatedSpec = spec
 	spec = updatedSpec
 
+	// Equal compares logical layout: physical fragmentation may split the
+	// unwritten tail into multiple adjacent FIEMAP extents.
 	// and finally, checking fiemap.
 	fieRead, err := FieMap(fd) // errno == 22 if just one pre-alloc.
 	panicOn(err)
