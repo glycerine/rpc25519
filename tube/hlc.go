@@ -105,8 +105,9 @@ func (hlc *HLC) String() string {
 
 	lc := int64(r & getLC)
 	count := int64(r & getCount)
+	// Test_HLC_Monotonicity expects UTC in string output, so use utcTz.
 	return fmt.Sprintf("HLC{Count: %v, LC:%v (%v)}",
-		count, lc, time.Unix(0, lc).Format(rfc3339MsecTz0))
+		count, lc, time.Unix(0, lc).In(utcTz).Format(rfc3339MsecTz0))
 }
 
 // AssembleHLC does the simple addition,
