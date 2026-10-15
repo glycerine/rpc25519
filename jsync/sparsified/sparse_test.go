@@ -395,7 +395,7 @@ func Test008_pre_allocated_file(t *testing.T) {
 	os.Remove(path2)
 	defer os.Remove(path2)
 
-	err = CopySparseFile(path, path2)
+	err = CopySparseFile(path, path2, false)
 	panicOn(err)
 
 	err = SparseDiff(path, path2)
@@ -425,7 +425,7 @@ func Test009_copy_sparse(t *testing.T) {
 		panicOn(err)
 		fd.Sync()
 
-		err = CopySparseFile(path, path2)
+		err = CopySparseFile(path, path2, false)
 		panicOn(err)
 
 		err = SparseDiff(path, path2)
@@ -495,7 +495,7 @@ func Test010_pre_allocated_file_some_data(t *testing.T) {
 	os.Remove(path2)
 	defer os.Remove(path2)
 
-	err = CopySparseFile(path, path2)
+	err = CopySparseFile(path, path2, false)
 	panicOn(err)
 
 	err = SparseDiff(path, path2)
@@ -542,7 +542,7 @@ func Test022_copy_GenerateSparseTestFiles(t *testing.T) {
 		_ = i
 		path2 := path + ".copy"
 		//vv("i=%v, path='%v'; path2='%v'", i, path, path2)
-		err = CopySparseFile(path, path2)
+		err = CopySparseFile(path, path2, false)
 		panicOn(err)
 
 		err = SparseDiff(path, path2)

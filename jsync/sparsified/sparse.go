@@ -759,7 +759,11 @@ func SparseDiff(srcpath, destpath string) (err error) {
 	return
 }
 
-func CopySparseFile(srcpath, destpath string) (err error) {
+// CopySparseFile originally did not fsync the destpath. ext4 deferred allocation
+// would at times therefore result in a SparseDiff showing differences. So now we fsync dest before returning
+// unless skipFsyncDest is true.
+// I used to mistakenly think that Close always fsyncs too, but it does not.
+func CopySparseFile(srcpath, destpath string, skipFsyncDest bool) (err error) {
 
 	src, err0 := os.Open(srcpath)
 	panicOn(err0)
@@ -773,7 +777,12 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 	if err1 != nil {
 		return fmt.Errorf("error in CopySparseFile: could not os.Create(destpath='%v'): '%v'", destpath, err1)
 	}
-	defer dest.Close()
+	defer func() {
+		if !skipFsyncDest {
+			dest.Sync()
+		}
+		dest.Close()
+	}()
 
 	sum0, err0 := SparseFileSize(src)
 	panicOn(err0)

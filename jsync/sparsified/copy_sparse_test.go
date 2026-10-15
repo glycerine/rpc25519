@@ -28,7 +28,7 @@ func TestCopySparseFileSmallHoles(t *testing.T) {
 			if err := fd.Close(); err != nil {
 				t.Fatal(err)
 			}
-			if err := CopySparseFile(src, dst); err != nil {
+			if err := CopySparseFile(src, dst, false); err != nil {
 				t.Fatal(err)
 			}
 			a, err := os.ReadFile(src)
@@ -49,7 +49,8 @@ func TestCopySparseFileSmallHoles(t *testing.T) {
 	}
 }
 
-// Sample allocation during copying as well as checking the final layout.
+// Sample file allocation on a background goroutine during copying as well
+// as checking the final layout.
 // Sampling cannot prove an absolute peak, but catches sustained full allocation.
 func Test2244_CopySparseFileLargeAllocation(t *testing.T) {
 	const size int64 = 1 << 30
@@ -103,7 +104,17 @@ func Test2244_CopySparseFileLargeAllocation(t *testing.T) {
 			}
 		}
 	}()
-	copyErr := CopySparseFile(src, dst)
+
+	// ext4 (linux) can delay allocation in dst, causing the SparseDiff() to fail unless we
+	// force allocation with a sync; hence we use false for skipFsyncDest in CopySparseFile() next.
+
+	// The symptom was:
+	// === RUN   Test2244_CopySparseFileLargeAllocation
+	// ...
+	// copy_sparse_test.go:129: SparseDiff error: srcpath('test2244_outdir/src') has disksz=69632 (136 blocks of 512 bytes), but destpath('test2244_outdir/dst') has disksz=65536 (128 blocks of 512 bytes); difference src - dest => 4096
+	// --- FAIL: Test2244_CopySparseFileLargeAllocation (0.00s)
+
+	copyErr := CopySparseFile(src, dst, false)
 	close(done)
 	result := <-observed
 	if copyErr != nil {
