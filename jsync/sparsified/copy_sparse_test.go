@@ -51,9 +51,14 @@ func TestCopySparseFileSmallHoles(t *testing.T) {
 
 // Sample allocation during copying as well as checking the final layout.
 // Sampling cannot prove an absolute peak, but catches sustained full allocation.
-func TestCopySparseFileLargeAllocation(t *testing.T) {
+func Test2244_CopySparseFileLargeAllocation(t *testing.T) {
 	const size int64 = 1 << 30
-	dir := t.TempDir()
+	dir := "test2244_outdir"
+	os.RemoveAll(dir)
+	os.MkdirAll(dir, 0700)
+	// cleanup
+	defer os.RemoveAll(dir)
+
 	src, dst := filepath.Join(dir, "src"), filepath.Join(dir, "dst")
 	fd, err := os.Create(src)
 	if err != nil {
