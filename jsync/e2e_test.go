@@ -21,7 +21,7 @@ var _ = time.Time{}
 
 func Test220_push_then_pull_idempotent(t *testing.T) {
 	//return
-	// intermittent hangs race or not, even only under realtime.
+	// intermittent hangs race or not, even only under realtime. Tahoe APFS shows red now too. ugh.
 	//if faketime {
 	//	t.Skip("think this is not setup for synctest atm.")
 	//}
