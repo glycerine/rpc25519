@@ -264,6 +264,26 @@ func Test018_FieMapLinux_preallocated2(t *testing.T) {
 		vv("fieRead =\n '%v'\n for path = '%v'\n\n vs spec=\n%v\n", fieRead, path, spec)
 
 		panic("fix this")
+
+		// linux: getting intermittant red here.
+		/*
+			linux_test.go:263 [goID 7] 2026-10-15 14:15:00.117 -0500 CDT bad:  fieRead NOT Equal spec
+
+			linux_test.go:264 [goID 7] 2026-10-15 14:15:00.117 -0500 CDT fieRead =
+			 'SparseSpans{
+			[00] SparseSpan{IsHole:false, Pre:false, Beg:0, Endx: 4_096} (1 pages of 4KB)
+			[01] SparseSpan{IsHole:false, Pre:true, Beg:4_096, Endx: 42_098_688} (10_277 pages of 4KB)
+			[02] SparseSpan{IsHole:false, Pre:true, Beg:42_098_688, Endx: 67_108_864} (6_106 pages of 4KB)
+			}
+			'
+			 for path = 'test018.outpath.pre_allocated2'
+
+			 vs spec=
+			SparseSpans{
+			[00] SparseSpan{IsHole:false, Pre:false, Beg:0, Endx: 4_096} (1 pages of 4KB)
+			[01] SparseSpan{IsHole:false, Pre:true, Beg:4_096, Endx: 67_108_864} (16_383 pages of 4KB)
+			}
+		*/
 	}
 
 	// fieRead2, err := FieMap2(fd)
