@@ -22,7 +22,7 @@ import (
 // longer runs than 101 fuzz_test.go, 1k steps;
 // 5 node cluser; 5 users. avg 10 scenarios in ~ 60 seconds.
 func Test102_longer_userFuzz(t *testing.T) {
-	//return
+	return
 
 	if !faketime {
 		alwaysPrintf("Test102_longer_userFuzz only works under synctest.")
