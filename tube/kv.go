@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/glycerine/rpc25519/tube/leased"
+	"github.com/glycerine/vfs"
 	"github.com/glycerine/yogadb"
 )
 
@@ -114,9 +115,16 @@ func (s *KVTable) String() (r string) {
 }
 
 type KVStore struct {
-	db     *yogadb.FlexDB `msg:"-"`
-	path   string         `msg:"-"`
-	noDisk bool           `msg:"-"`
+	db           *yogadb.FlexDB  `msg:"-"`
+	path         string          `msg:"-"`
+	noDisk       bool            `msg:"-"`
+	parTx        *yogadb.WriteTx `msg:"-"`
+	parAppReady  bool            `msg:"-"`
+	parAppIndex  int64           `msg:"-"`
+	parTxFailure error           `msg:"-"`
+	parFault     error           `msg:"-"`
+	parFaultPath string          `msg:"-"`
+	parFS        vfs.FS          `msg:"-"` // Per-store backend fault injection; nil uses disk.
 
 	// Leafz/Tables are populated only for portable state snapshots. The live
 	// store is yogadb; ordinary persistor saves leave these empty.
@@ -146,6 +154,13 @@ func (s *KVStore) Open(path string, noDisk bool) error {
 	if s == nil {
 		return nil
 	}
+	if s.parFault != nil {
+		return ErrPARRecovering
+	}
+	if s.parTx != nil {
+		return ErrPARConflict
+	}
+	s.parAppReady = false
 	loadSnapshot := s.SnapshotValid
 	tables := cloneKeys(s.Tables)
 	leafTables := cloneKeys(s.LeafTables)
@@ -159,6 +174,7 @@ func (s *KVStore) Open(path string, noDisk bool) error {
 		path = newKVStoreMemoryPath()
 	}
 	cfg := &yogadb.Config{
+		FS:                     s.parFS,
 		NoDisk:                 noDisk,
 		DisableBackgroundFlush: true,
 	}
@@ -170,7 +186,6 @@ func (s *KVStore) Open(path string, noDisk bool) error {
 	s.db = db
 	s.path = path
 	s.noDisk = noDisk
-
 	if loadSnapshot {
 		if err := s.replaceWithSnapshot(tables, leafTables, leafz); err != nil {
 			return err
@@ -184,6 +199,9 @@ func (s *KVStore) Open(path string, noDisk bool) error {
 }
 
 func (s *KVStore) Attach(path string, noDisk bool) error {
+	if s.parFault != nil {
+		return ErrPARRecovering
+	}
 	tables, leafTables, leafz, err := s.snapshotData()
 	if err != nil {
 		return err
@@ -196,8 +214,15 @@ func (s *KVStore) Attach(path string, noDisk bool) error {
 }
 
 func (s *KVStore) Close() {
-	if s == nil || s.db == nil {
+	if s == nil {
 		return
+	}
+	if s.db == nil {
+		return
+	}
+	if s.parTx != nil {
+		panicOn(s.parTx.Rollback())
+		s.parTx = nil
 	}
 	s.db.Close()
 	s.db = nil
@@ -218,7 +243,11 @@ func (s *KVStore) ensureDB() error {
 }
 
 func (s *KVStore) PostLoadHook() {
+	// Opening the in-memory transport image consumes its portable fields.
+	// Preserve them until Attach/Open installs the image at its durable path.
+	valid, tables, leafTables, leafz := s.SnapshotValid, s.Tables, s.LeafTables, s.Leafz
 	panicOn(s.Open("", true))
+	s.SnapshotValid, s.Tables, s.LeafTables, s.Leafz = valid, tables, leafTables, leafz
 }
 
 func cloneKeys(in []Key) []Key {
@@ -347,7 +376,7 @@ func (s *KVStore) MakeTable(table Key) error {
 	if err := s.ensureDB(); err != nil {
 		return err
 	}
-	return s.db.Update(func(tx *yogadb.WriteTx) error {
+	return s.parUpdate(func(tx *yogadb.WriteTx) error {
 		_, err := tx.Put(tablePrefix(table), []byte("table"), 0)
 		return err
 	})
@@ -362,7 +391,7 @@ func (s *KVStore) DeleteTable(table Key) error {
 	}
 	prefix := tablePrefix(table)
 	end := prefixEnd(prefix)
-	return s.db.Update(func(tx *yogadb.WriteTx) error {
+	return s.parUpdate(func(tx *yogadb.WriteTx) error {
 		_, _, err := tx.DeleteRange(true, prefix, end, true, false)
 		return err
 	})
@@ -381,20 +410,20 @@ func (s *KVStore) RenameTable(oldName, newName Key) error {
 	if oldName == newName {
 		return nil
 	}
-	return s.db.Update(func(tx *yogadb.WriteTx) error {
+	return s.parUpdate(func(tx *yogadb.WriteTx) error {
 		exists, err := tableExistsTx(tx, newName)
 		if err != nil {
 			return err
 		}
 		if exists {
-			return fmt.Errorf("error in rename table: target new table '%v' already exists.", newName)
+			return &parValidationError{fmt.Errorf("error in rename table: target new table '%v' already exists.", newName)}
 		}
 		exists, err = tableExistsTx(tx, oldName)
 		if err != nil {
 			return err
 		}
 		if !exists {
-			return fmt.Errorf("error in rename table: existing table '%v' not found.", oldName)
+			return &parValidationError{fmt.Errorf("error in rename table: existing table '%v' not found.", oldName)}
 		}
 
 		var leafz []*leased.Leaf
@@ -437,7 +466,7 @@ func (s *KVStore) PutLeaf(table Key, lf *leased.Leaf) error {
 	if err := s.ensureDB(); err != nil {
 		return err
 	}
-	return s.db.Update(func(tx *yogadb.WriteTx) error {
+	return s.parUpdate(func(tx *yogadb.WriteTx) error {
 		return putLeafTx(tx, table, lf)
 	})
 }
@@ -446,7 +475,7 @@ func (s *KVStore) DeleteLeaf(table, key Key) error {
 	if err := s.ensureDB(); err != nil {
 		return err
 	}
-	return s.db.Update(func(tx *yogadb.WriteTx) error {
+	return s.parUpdate(func(tx *yogadb.WriteTx) error {
 		return tx.Delete(compositeKey(table, key))
 	})
 }
@@ -457,7 +486,7 @@ func (s *KVStore) GetLeaf(table, key Key, autoDelete bool) (*leased.Leaf, error)
 	}
 	if autoDelete {
 		var out *leased.Leaf
-		err := s.db.Update(func(tx *yogadb.WriteTx) error {
+		err := s.parUpdate(func(tx *yogadb.WriteTx) error {
 			lf, found, err := getLeafTx(tx, table, key)
 			if err != nil || !found {
 				return err
@@ -483,7 +512,7 @@ func (s *KVStore) GetLeaf(table, key Key, autoDelete bool) (*leased.Leaf, error)
 		return out, nil
 	}
 	var out *leased.Leaf
-	err := s.db.View(func(tx *yogadb.ReadOnlyTx) error {
+	err := s.parView(func(tx yogadb.ReadOnlyDB) error {
 		lf, found, err := getLeafTx(tx, table, key)
 		if err != nil || !found {
 			return err
@@ -505,7 +534,7 @@ func (s *KVStore) scanTable(table Key, start Key, endx Key, descend bool, prefix
 		return nil, err
 	}
 	results := newKVScan()
-	err := s.db.Update(func(tx *yogadb.WriteTx) error {
+	err := s.parUpdate(func(tx *yogadb.WriteTx) error {
 		exists, err := tableExistsTx(tx, table)
 		if err != nil {
 			return err
@@ -669,6 +698,15 @@ func (s *KVStore) Merge(r *KVStore) {
 }
 
 func (s *KVStore) clone() (r *KVStore) {
+	if s != nil && s.parFault != nil {
+		// Inspection/cloning must not turn unavailable rows into a valid empty
+		// portable snapshot at the saved LastApplied boundary.
+		r = &KVStore{Tables: cloneKeys(s.Tables), LeafTables: cloneKeys(s.LeafTables),
+			Leafz: cloneLeaves(s.Leafz), SnapshotValid: s.SnapshotValid}
+		r.PostLoadHook()
+		r.parFault, r.parFaultPath = s.parFault, s.parFaultPath
+		return r
+	}
 	tables, leafTables, leafz, err := s.snapshotData()
 	panicOn(err)
 	r = &KVStore{
@@ -694,7 +732,7 @@ func (s *KVStore) snapshotData() (tables []Key, leafTables []Key, leafz []*lease
 	}
 	seen := make(map[Key]bool)
 	var scanErr error
-	err = s.db.View(func(tx *yogadb.ReadOnlyTx) error {
+	err = s.parView(func(tx yogadb.ReadOnlyDB) error {
 		tx.Ascend("", func(k string, val []byte, _ uint64, _ yogadb.HLC) bool {
 			table, key, ok := splitCompositeKey(k)
 			if !ok {
@@ -725,7 +763,7 @@ func (s *KVStore) replaceWithSnapshot(tables []Key, leafTables []Key, leafz []*l
 	if err := s.ensureDB(); err != nil {
 		return err
 	}
-	return s.db.Update(func(tx *yogadb.WriteTx) error {
+	return s.parUpdate(func(tx *yogadb.WriteTx) error {
 		if _, err := tx.Clear(true); err != nil {
 			return err
 		}

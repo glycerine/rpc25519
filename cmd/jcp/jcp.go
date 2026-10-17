@@ -285,7 +285,7 @@ func main() {
 		if !compressionAlgoOK(jcfg.CompressAlgo) {
 			msg := fmt.Sprintf("unrecognized magicCompressAlgo: '%v' ; "+
 				"valid choices: (default/empty string for none); s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11\n", jcfg.CompressAlgo)
-			fmt.Fprintf(os.Stderr, msg)
+			fmt.Fprintf(os.Stderr, "%v", msg)
 			os.Exit(1)
 		}
 		cfg.CompressionOff = (jcfg.CompressAlgo == "")

@@ -2,6 +2,7 @@ package tube
 
 import (
 	//"encoding/binary"
+	"errors"
 	"fmt"
 	"hash/crc64"
 	"io"
@@ -34,6 +35,10 @@ type raftWriteAheadLog struct {
 	begseekpos []int64 // beginning position of each record in file.
 	endpos     int64   // total bytes in file, seek to endpos to append after.
 	parlog     *parLog
+	parInv     *parInventory // recovery-only sparse inventory, never executable holes
+	parTxn     *parUndo      // enclosing snapshot installation owns publication
+	parAck     *AppendEntriesAck
+	parAckAE   *AppendEntries
 
 	logIndex *TermsRLE
 
@@ -44,8 +49,9 @@ type raftWriteAheadLog struct {
 	rpos int
 	wpos int
 
-	nodisk bool
-	name   string
+	failure error // terminal I/O failure; never append through a partial record
+	nodisk  bool
+	name    string
 
 	isTest               bool
 	testNum              int
@@ -89,6 +95,7 @@ func (s *TubeNode) DumpRaftWAL(w io.Writer) error {
 	if err != nil {
 		return err
 	}
+	defer wal.close()
 	fmt.Fprintf(w, "contents of disk raft wal '%v':\n", logPath)
 	if len(wal.raftLog) == 0 {
 		fmt.Fprintf(w, "(empty disk Raft log)\n")
@@ -129,6 +136,7 @@ func (s *TubeNode) RaftWALString() (r string) {
 	if err != nil {
 		return fmt.Sprintf("(error in RaftWALString: '%v')\n", err)
 	}
+	defer wal.close()
 	r = fmt.Sprintf("contents of disk raft wal of len %v '%v':\n", logPath, len(wal.raftLog))
 	if len(wal.raftLog) == 0 {
 		r += fmt.Sprintf("(empty disk Raft log)\n")
@@ -169,16 +177,41 @@ func (s *TubeNode) RaftWALString() (r string) {
 func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raftWriteAheadLog, err0 error) {
 	//vv("newRaftWriteAheadLog(path = '%v'); nodisk=%v; cfg.MyName='%v'", path, cfg.NoDisk, cfg.MyName)
 
+	opened := false
 	if cfg.isTest {
 		defer func() {
-			s.assertConsistentWalAndIndex(0)
+			if opened && s != nil && err0 == nil {
+				s.assertConsistentWalAndIndex(0)
+			}
 		}()
 	}
 
 	if cfg.NoDisk {
 		return cfg.newRaftWriteAheadLogMemoryOnlyTestingOnly()
 	}
+	if !readOnly {
+		if err := parRecoverUndo(path); err != nil {
+			return nil, err
+		}
+	}
+	var fd *os.File
+	var parlog *parLog
 	var parentDirFd *os.File
+	defer func() {
+		if !opened {
+			// Failed construction must not flush identifiers or leave handles
+			// behind, including the strict diagnostic loader's panic paths.
+			if fd != nil {
+				fd.Close()
+			}
+			if parlog != nil && parlog.fd != nil {
+				parlog.fd.Close()
+			}
+			if parentDirFd != nil {
+				parentDirFd.Close()
+			}
+		}
+	}()
 	if !readOnly {
 		// make dir if necessary
 		dir := filepath.Dir(path)
@@ -209,7 +242,7 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 		sz = fi.Size()
 	} // else file does not exist yet, most likely.
 
-	fd, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
+	fd, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +263,6 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 		return nil, err
 	}
 
-	var parlog *parLog
 	if !readOnly {
 		parlog, err = newParLog(path+".parlog", cfg.NoDisk)
 		if err != nil {
@@ -272,9 +304,11 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 	//vv("%v made newRaftWriteAheadLog(path = '%v'); nodisk=%v; cfg.MyName='%v'; noLogCompaction=%v", s.name, path, cfg.NoDisk, cfg.MyName, s.noLogCompaction)
 
 	if sz == 0 {
+		opened = true
 		return
 	}
 	err0 = s.loadPathHelper(fd, sz, readOnly)
+	opened = err0 == nil
 	return
 }
 
@@ -302,6 +336,7 @@ func (s *raftWriteAheadLog) loadPathHelper(fd *os.File, sz int64, readOnly bool)
 		s.begseekpos = append(s.begseekpos, curpos(s.fd))
 		e, err := s.loadRaftLogEntry(j, readOnly)
 		if err == io.EOF {
+			s.begseekpos = s.begseekpos[:len(s.begseekpos)-1]
 			//vv("breaking on EOF at j = %v", j)
 			break
 		}
@@ -356,44 +391,76 @@ func (s *raftWriteAheadLog) loadPathHelper(fd *os.File, sz int64, readOnly bool)
 	if sz2 != sz {
 		panic(fmt.Sprintf("expected sz2(%v) == sz(%v)", sz2, sz))
 	}
+	s.endpos = sz2
 	return nil
 }
 
 func (s *raftWriteAheadLog) close() (err error) {
+	parent := s.parentDirFd
+	s.parentDirFd = nil
+	defer func() {
+		if parent != nil {
+			err = errors.Join(err, parent.Close())
+		}
+	}()
 	if s.nodisk {
 		return s.close_NODISK()
 	}
-	err = s.parlog.close()
-	panicOn(err)
-	s.w.Flush()
-
-	// it turns out the Close does not also
-	// automatically fsync, so do it now.
-	err = s.fd.Sync()
-	if err != nil {
-		return
+	if s.fd == nil {
+		// Recovery can retain an identifier file while the data file is
+		// entirely missing. Release that handle without publishing anything.
+		if s.parlog != nil && s.parlog.fd != nil {
+			err := s.parlog.fd.Close()
+			s.parlog.fd = nil
+			return errors.Join(s.failure, err)
+		}
+		return s.failure
 	}
-	err = s.fd.Close()
-	if err != nil {
-		return
+	// Flush both files in data-before-identifier order, including a final batch
+	// constructed by compaction. Close descriptors even after an I/O error.
+	var flushErr error
+	if s.w != nil {
+		flushErr = s.w.Flush()
 	}
-	s.fd = nil
-	s.w = nil
-	return
-}
-
-func (s *raftWriteAheadLog) sync(needParentDirSync bool) error {
-	err := s.fd.Sync()
-	panicOn(err)
-
-	if needParentDirSync {
-		// need to sync parent directory for durability too.
-		if s.parentDirFd != nil {
-			err = s.parentDirFd.Sync()
-			panicOn(err)
+	if flushErr == nil {
+		flushErr = s.sync(false)
+	}
+	var parErr error
+	if s.parlog != nil {
+		if flushErr != nil && s.parlog.fd != nil {
+			// Never publish pending identifiers after the data sync failed.
+			parErr = s.parlog.fd.Close()
+			s.parlog.fd = nil
+		} else {
+			parErr = s.parlog.close()
 		}
 	}
-	return nil
+	closeErr := s.fd.Close()
+	s.fd, s.w = nil, nil
+	return errors.Join(flushErr, parErr, closeErr)
+}
+
+func (s *raftWriteAheadLog) sync(needParentDirSync bool) (err error) {
+	if s.failure != nil {
+		return s.failure
+	}
+	defer func() {
+		if err != nil {
+			s.failure = err
+		}
+	}()
+	if err = s.fd.Sync(); err != nil {
+		return
+	}
+	if s.parlog != nil {
+		if err = s.parlog.sync(); err != nil {
+			return
+		}
+	}
+	if needParentDirSync && s.parentDirFd != nil {
+		err = s.parentDirFd.Sync()
+	}
+	return
 }
 
 // get current position in file fd.
@@ -417,7 +484,20 @@ func (s *raftWriteAheadLog) saveRaftLogEntry(entry *RaftLogEntry) (nw int, err e
 }
 
 func (s *raftWriteAheadLog) saveRaftLogEntryDoFsync(entry *RaftLogEntry, doFsync bool) (nw int, err error) {
-	//vv("%v saveRaftLogEntryDoFsync called; entry = '%v'; doFsync = %v", s.name, entry, doFsync)
+	if s.parInv != nil {
+		return 0, ErrPARRecovering
+	}
+	if s.failure != nil {
+		return 0, s.failure
+	}
+	defer func() {
+		if err != nil {
+			s.failure = err
+		}
+	}()
+	if entry == nil || entry.Ticket == nil {
+		return 0, ErrPARIdentity
+	}
 	if s.nodisk {
 		return s.saveRaftLogEntry_NODISK(entry)
 	}
@@ -453,40 +533,56 @@ func (s *raftWriteAheadLog) saveRaftLogEntryDoFsync(entry *RaftLogEntry, doFsync
 	//}
 	entry.PrevTerm = llt
 	entry.PrevIndex = lli
-	s.logIndex.AddTerm(entry.Term)
 
 	//pos := curpos(s.fd)
 	//vv("saveRaftLogEntry called, pos = %v", pos)
 
-	posnow := curpos(s.fd)
-	s.begseekpos = append(s.begseekpos, posnow)
+	posnow, err := s.fd.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return
+	}
 	b, err := entry.MarshalMsg(nil)
-	panicOn(err)
+	if err != nil {
+		return
+	}
 
 	entry.msgbytes = b
 
 	bs := ByteSlice(b)
 	by2, err := bs.MarshalMsg(nil)
-	panicOn(err)
+	if err != nil {
+		return
+	}
 	nw0, err := s.fd.Write(by2)
-	panicOn(err)
+	if err != nil {
+		return nw0, err
+	}
+	if nw0 != len(by2) {
+		return nw0, io.ErrShortWrite
+	}
 	nw = nw0
 
 	var nw2 int
 	var b3string string
-	nw2, b3string, err = s.saveBlake3sumFor(b, doFsync, false)
-	panicOn(err)
+	nw2, b3string, err = s.saveBlake3sumFor(b, false, false)
+	if err != nil {
+		return
+	}
 	nw += nw2
-	// redundant: saveBlake3sumFor does this
-	// sync already if doFsync.
-	//err = s.sync()
-	//panicOn(err)
+	if err = s.parlog.stage1(entry, posnow, int64(nw0), int64(nw2), b3string); err != nil {
+		return
+	}
+	s.logIndex.AddTerm(entry.Term)
+	s.begseekpos = append(s.begseekpos, posnow)
 	s.raftLog = append(s.raftLog, entry)
 	// note that above we asserted s.lli+1 == entry.Index,
 	// so this is the same as s.lli = entry.Index:
 	s.lli++
 	s.llt = entry.Term
-	s.parlog.append1(entry, posnow, int64(nw0), int64(nw2), b3string)
+	s.endpos = posnow + int64(nw)
+	if doFsync {
+		err = s.sync(false)
+	}
 
 	return
 }
@@ -530,6 +626,7 @@ func (s *raftWriteAheadLog) loadRaftLogEntry(j int, readOnly bool) (ds *RaftLogE
 	ds.msgbytes = by
 
 	// read the checksum from disk
+	checksumPos := curpos(s.fd)
 	onDisk, err := s.loadBlake3sum()
 	panicOn(err)
 
@@ -552,43 +649,26 @@ func (s *raftWriteAheadLog) loadRaftLogEntry(j int, readOnly bool) (ds *RaftLogE
 	if !readOnly { // read-only log dump skips creating parLog.
 		// and check against the parlog blake3 hash too.
 		s.validateParLog(pos, j, h, ds)
+		pr, err := s.parlog.at(int64(j))
+		panicOn(err)
+		if pr.Len0 != checksumPos-pos || pr.Len2 != curpos(s.fd)-checksumPos {
+			panic(ErrPARBounds)
+		}
 	}
 
 	return
 }
 
-// TODO: par-log needs to handle both
-// a) snapshot state transfer, where we no longer start at 1; and
-//
-// b) compaction that can trim a prefix of log entries off.
-// I think we handle compaction now because we entirely re-write
-// both log and par file in Compact(). maybe. not sure.
+// Identifier slots describe physical WAL positions while their entry indices
+// remain logical, including after compaction or snapshot installation.
 func (s *raftWriteAheadLog) validateParLog(pos int64, j int, h string, ds *RaftLogEntry) {
 	pr, err := s.parlog.at(int64(j))
 	panicOn(err)
-
-	if h != pr.RLEblake3 {
-		pos_same := pos == pr.Offset
-		if !pos_same {
-			panic(fmt.Sprintf("reading j=%v from pos %v but parlog has Offset '%v'", j, pos, pr.Offset))
-		}
-		tktsame := ds.Ticket.TicketID == pr.TicketID
-		if !tktsame {
-			panic(fmt.Sprintf("reading j=%v parlog.TicketID='%v' but read locally TicketID='%v'", j, pr.TicketID, ds.Ticket.TicketID))
-		}
-		idxsame := ds.Index == pr.Index
-		if !idxsame {
-			panic(fmt.Sprintf("at j = %v, parlog Index = '%v' but RLE Index ='%v'", j, pr.Index, ds.Index))
-		}
-		termsame := ds.Term == pr.Term
-		if !termsame {
-			panic(fmt.Sprintf("at j = %v, parlog Term = '%v' but RLE Term ='%v'", j, pr.Term, ds.Term))
-		}
-		clustersame := ds.Ticket.ClusterID == pr.ClusterID
-		if !clustersame {
-			panic(fmt.Sprintf("parlog ClusterID = '%v' but RLE Ticket.ClusterID='%v'", pr.ClusterID, ds.Ticket.ClusterID))
-		}
-		panic(fmt.Sprintf("parlog blake3 hash mismatch in raftWriteAheadLog '%v' at j=%v; pos '%v'. ParRecord.RLEblake3 = '%v'; vs. re-computed-hash: '%v'; tktsame='%v', idxsame='%v', termsame='%v', clustersame='%v'", s.path, j, s.rpos, pr.RLEblake3, h, tktsame, idxsame, termsame, clustersame))
+	if err = parCheckIdentity(pr, ds, h); err != nil {
+		panic(err)
+	}
+	if pos != pr.Offset {
+		panic(ErrPARIdentity)
 	}
 }
 
@@ -665,16 +745,25 @@ func (s *raftWriteAheadLog) saveBlake3sumFor(by []byte, doFsync, needParentDirSy
 		Sum33Bchain: hChain,
 	}
 	b, err := blak.MarshalMsg(nil)
-	panicOn(err)
+	if err != nil {
+		return
+	}
 
 	bs := ByteSlice(b)
 	by2, err := bs.MarshalMsg(nil)
-	panicOn(err)
+	if err != nil {
+		return
+	}
 	nw, err = s.fd.Write(by2)
-	panicOn(err)
+	if err != nil {
+		return
+	}
+	if nw != len(by2) {
+		err = io.ErrShortWrite
+		return
+	}
 	if doFsync {
 		err = s.sync(needParentDirSync)
-		panicOn(err)
 	}
 	return
 }
@@ -702,6 +791,9 @@ func (s *raftWriteAheadLog) saveBlake3sumFor(by []byte, doFsync, needParentDirSy
 // overwriteEntries may call maybeCompact()
 // if log-compaction is on.
 func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry, isLeader bool, curCommitIndex, lastAppliedIndex int64, syncme *IndexTerm, node *TubeNode) (err error) {
+	if s.parInv != nil {
+		return ErrPARRecovering
+	}
 
 	//vv("%v begin overwriteEntries()[isAppend=%v] keepIndex=%v; len(raftLog)=%v: %v", s.name, s.isAppendLoggingHelper(keepIndex), keepIndex, len(s.raftLog), s.StringWithCommit(curCommitIndex))
 
@@ -802,6 +894,16 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 	if s.nodisk {
 		return s.overwriteEntries_NODISK(keepIndex, es, isLeader, curCommitIndex, lastAppliedIndex, keepCount, overwriteCount, syncme)
 	}
+	var undo *parUndo
+	if overwriteCount > 0 && s.parTxn == nil {
+		if err = s.sync(false); err != nil {
+			return err
+		}
+		undo, err = parBeginUndo(s.path)
+		if err != nil {
+			return err
+		}
+	}
 
 	origSz := curpos(s.fd)
 	mayNeedTruncate := false
@@ -827,11 +929,11 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 		// replacements := es[:overwriteCount] // panic: runtime error: slice bounds out of range [:51] with capacity 1
 		// below we will write the full es. here is just some debug checking
 		// for overwriting commited entries or self with self.
-		replacements := es[:min(overwriteCount, int64(len(es)-1))]
+		replacements := es[:min(overwriteCount, int64(len(es)))]
 		for i, e := range killed {
 
 			if s.noLogCompaction {
-				if replacements[i].Equal(killed[i]) {
+				if i < len(replacements) && replacements[i].Equal(killed[i]) {
 					panic(fmt.Sprintf("don't overwrite an entry with itself! i=%v, replacements[%v]='%v'; killed[%v]='%v'; especially because we want to avoid truncation of a good log by a smaller write.", i, i, replacements[i], i, killed[i]))
 				}
 				if e.Index <= curCommitIndex {
@@ -877,11 +979,18 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 		newSz := curpos(s.fd)
 		if newSz < origSz {
 			// get rid of any not overwritten garbage.
-			s.fd.Truncate(newSz)
+			if err = s.fd.Truncate(newSz); err != nil {
+				s.failure = err
+				return err
+			}
 		}
 	}
 	err = s.sync(false) // this is the fsync
 	panicOn(err)
+	if err = undo.finish(); err != nil {
+		s.failure = err
+		return err
+	}
 	//vv("%v raft log overwriteEntries() just did fsync", s.name)
 
 	if !s.noLogCompaction {
@@ -1151,6 +1260,9 @@ the proof of this claim."
 // keepIndex == 0 by convention means keep everything => NO-OP.
 // So any keepIndex <= 0 will be a NO-OP.
 func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm, node *TubeNode) (origPath, origParPath string, err0 error) {
+	if s.parInv != nil {
+		return "", "", ErrPARRecovering
+	}
 
 	//vv("%v Compact(keepIndex=%v) called.", s.name, keepIndex)
 
@@ -1217,8 +1329,24 @@ func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm, node *Tu
 
 	oldPath := s.path
 	oldParPath := s.parlog.path
+	if err0 = s.sync(false); err0 != nil {
+		return
+	}
+	var undo *parUndo
+	var err error
+	if s.parTxn == nil {
+		undo, err = parBeginUndo(oldPath)
+		if err != nil {
+			return "", "", err
+		}
+	}
 
-	err := s.close()
+	// Compaction keeps the directory handle while replacing both files.
+	// Ordinary close owns and releases it.
+	parentDirFd := s.parentDirFd
+	s.parentDirFd = nil
+	err = s.close()
+	s.parentDirFd = parentDirFd
 	panicOn(err)
 
 	// keep the path from growing too long after
@@ -1271,7 +1399,9 @@ func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm, node *Tu
 
 	for i := keep0; i < n; i++ {
 		// the close() just below will fsync at end, so skip fsyncs here.
-		s2.saveRaftLogEntryDoFsync(s.raftLog[i], false)
+		if _, err := s2.saveRaftLogEntryDoFsync(s.raftLog[i], false); err != nil {
+			panicOn(err)
+		}
 	}
 	err = s2.close()
 	panicOn(err)
@@ -1314,6 +1444,8 @@ func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm, node *Tu
 	}
 	// for the rename to be durable, we must fsync the parent dir.
 	err = s.parentDirFd.Sync()
+	panicOn(err)
+	err = undo.finish()
 	panicOn(err)
 
 	// update all internals to be using the compacted log
@@ -1391,6 +1523,13 @@ func (s *raftWriteAheadLog) assertConsistentWalAndIndex(keepIndex int64) {
 // mainline has installed a state snapshot to
 // bring our log into a "caught-up" status.
 func (s *raftWriteAheadLog) installedSnapshot(state *RaftState) {
+	var undo *parUndo
+	if !s.nodisk && s.parTxn == nil {
+		panicOn(s.sync(false))
+		var err error
+		undo, err = parBeginUndo(s.path)
+		panicOn(err)
+	}
 
 	//s.lli = state.CommitIndex
 	//s.llt = state.CommitIndexEntryTerm
@@ -1401,6 +1540,8 @@ func (s *raftWriteAheadLog) installedSnapshot(state *RaftState) {
 	s.llt = state.CompactionDiscardedLast.Term
 
 	s.raftLog = s.raftLog[:0]
+	s.begseekpos = nil
+	s.endpos = 0
 	s.logIndex = newTermsRLE()
 	s.logIndex.BaseC = s.lli
 	s.logIndex.Endi = s.lli
@@ -1417,10 +1558,11 @@ func (s *raftWriteAheadLog) installedSnapshot(state *RaftState) {
 		panicOn(err)
 		err = s.fd.Truncate(0)
 		panicOn(err)
-		s.sync(false)
+		panicOn(s.sync(false))
 	}
 	// also clear out the par log
-	s.parlog.truncate(0)
+	panicOn(s.parlog.truncate(0))
+	panicOn(undo.finish())
 }
 
 func (s *raftWriteAheadLog) getCompactBase() int64 {

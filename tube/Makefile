@@ -22,3 +22,9 @@ replay:
 
 ##rrclean:
 ##     rm -rf ~/.local/share/rr/ ## careful! deletes all old traces!
+
+# par_test.go takes 261 seconds (479 seconds under -race) so we leave it off by default,
+# making par_test.go need the build tag par in order to run. Thus we get back
+# our 30 second test run (under -tags synctest) that wer are used to.
+partest:
+	go test -v -tags synctest,par

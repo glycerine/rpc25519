@@ -202,7 +202,7 @@ func main() {
 				}
 			}()
 		}
-		return
+		return // unreachable. we know.
 	}
 
 	if *seconds > 0 {

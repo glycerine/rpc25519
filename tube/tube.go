@@ -456,6 +456,8 @@ const (
 	NotifyClientNewLeader          int = 17
 	ReliableMemberHeartBeatToCzar  int = 18
 	PruneRedundantCircuitReq       int = 19
+	PARQueryMsg                    int = 20
+	PARReplyMsg                    int = 21
 
 	// PAR means the leader must get log
 	// information from followers, but actually
@@ -506,6 +508,10 @@ func msgop(o int) string {
 		return "ReliableMemberHeartBeatToCzar"
 	case PruneRedundantCircuitReq: // 19
 		return "PruneRedundantCircuitReq"
+	case PARQueryMsg:
+		return "PARQuery"
+	case PARReplyMsg:
+		return "PARReply"
 	}
 	return fmt.Sprintf("unknown MsgOp: %v", o)
 }
@@ -760,6 +766,11 @@ func (s *TubeNode) Start(
 		if r != nil {
 			reason = fmt.Errorf("reason is panic on: '%v'", r)
 		}
+		// Readers can skip their departure notification during shutdown.
+		// The event loop still owns retiring their audit entries.
+		for _, cktP := range s.cktAuditByCID.GetValSlice() {
+			s.cleanupGoneCktP(cktP)
+		}
 		s.MyPeer.Close()
 		if s.cfg.UseSimNet {
 			simnet := s.cfg.RpcCfg.GetSimnet()
@@ -894,6 +905,7 @@ func (s *TubeNode) Start(
 		}
 
 		// make sure our wal and state are sycned at load time;
+		s.parAfterRestore()
 		// if we crashed before the state could be updated to match
 		// the wal, for instance.
 		s.state.CompactionDiscardedLast.Index = s.wal.logIndex.BaseC
@@ -1179,9 +1191,15 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		}
 
 		//vv("%v about wait at Start() select point; s.electionTimeoutCh=%p; s.nextElection in '%v'", s.name, s.electionTimeoutCh, time.Until(s.nextElection))
+		var parRecovery <-chan time.Time
+		if s.par != nil && s.par.active {
+			parRecovery = s.par.tick
+		}
 		select {
 		case <-s.hupRequestCIDsCh:
 			s.handleHUPLoggingCIDs()
+		case <-parRecovery:
+			s.parRecoveryStep()
 
 		case <-s.closeSocketsReopenLazilyCh:
 			s.handleCloseAutoClientSockets()
@@ -1241,19 +1259,11 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			//s.ay("%v s.testBeginPreVote fired", s.me())
 			s.beginPreVote()
 
-		case gonePeerID := <-s.peerLeftCh:
-			//s.ay("%v gonePeerID", s.me())
-			//vv("%v <-s.peerLeftCh, cktall gonePeerID: '%v'", s.name, alias(gonePeerID)) // not seen 031
-			cktP, ok := s.cktall[gonePeerID]
-			if ok {
-				//vv("%v <-s.peerLeftCh, cktall gone name: '%v'", s.name, cktP.PeerName)
-				s.deleteFromCktAll(cktP)
-				if cktP.ckt != nil {
-					cktP.ckt.Close(nil)
-				}
-			} else {
-				delete(s.peers, gonePeerID)
-			}
+		case goneCkt := <-s.peerLeftCh:
+			// A replacement for this peer may already be installed.
+			// Retire only the circuit whose reader exited.
+			s.cleanupGoneCktP(goneCkt)
+			s.deleteFromCktAll(goneCkt)
 		case ins := <-s.requestInpsect:
 			//s.ay("%v requestInspect", s.me())
 			s.inspectHandler(ins)
@@ -1659,6 +1669,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 			//now := time.Now()
 			switch frag.FragOp {
+			case PARQueryMsg, PARReplyMsg:
+				s.parHandle(frag, ckt)
 
 			case PruneRedundantCircuitReq:
 				s.handlePruneRedundantCircuit(frag, ckt)
@@ -2279,42 +2291,16 @@ func (s *TubeNode) handleNewCircuit(
 		//}
 
 		defer func() {
-			//vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.RemotePeerName) // , stack())
-
-			//vv("%v: (ckt '%v') defer running! finishing ckt for RemotePeer goro; from hostname '%v'; pid = %v", s.name, ckt.RemotePeerName, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID)
-			//}
-
-			allGone := s.cleanupGoneCktP(cktP)
-			// data race on s.cktall if: s.deleteFromCktAll(cktP); peerLeftCh below cleans up.
+			// Release the global debug reference even if the node has stopped
+			// or pruning already removed this circuit from its audit map.
+			debugGlobalCkt.Del(ckt.CircuitID)
 			ckt.Close(err0)
-
-			if allGone {
-				// subtract from peers, avoid race by using peerLeftCh.
-				//vv("%v reduce s.ckt peer set since peer went away: '%v'", s.me(), ckt.RemotePeerID)
-				// try to not have a race between shutdowns keep us
-				// from garbage collecting the ckt.
-				t0gc := time.Now()
-				_ = t0gc
-				peerLeftCh := s.peerLeftCh
-				select {
-				case peerLeftCh <- ckt.RemotePeerID:
-					//vv("peerLeftCh after %v", time.Since(t0gc))
-				case <-time.After(time.Millisecond * 10):
-					//vv("arg! could not send on peerLeftCh for 10ms")
-				case <-s.Halt.ReqStop.Chan:
-					// needed this or we can deadlock above and leak this goro.
-					peerLeftCh = nil
-				}
-				select {
-				case peerLeftCh <- ckt.RemotePeerID:
-				case <-done0:
-					//zz("%v: (ckt '%v') done0!", s.name, ckt.Name)
-				case <-s.Halt.ReqStop.Chan:
-					//zz("%v: (ckt '%v') top func halt.ReqStop seen", s.name, ckt.Name)
-				}
-				//if ckt.RemoteServiceName != TUBE_REPLICA {
-				//vv("%v: (ckt '%v') 999999999999 got-departing-ckt: from hostname '%v'; pid = %v; finished: ckt.CircuitID='%v'", s.name, ckt.Name, ckt.LpbFrom.Hostname, ckt.LpbFrom.PID, ckt.CircuitID) // not seen at all during our 1 member 1 tube (bounced) -> 9 ckts open test.
-				//}
+			// Let the node's event loop own all circuit bookkeeping,
+			// including duplicate sets shared with handleNewCircuit.
+			select {
+			case s.peerLeftCh <- cktP:
+			case <-done0:
+			case <-s.Halt.ReqStop.Chan:
 			}
 
 			cktP.perCktReaderHalt.RequestStop()
@@ -2402,7 +2388,8 @@ func (s *TubeNode) handleNewCircuit(
 	return
 }
 
-func (s *TubeNode) cleanupGoneCktP(cktP *cktPlus) (allGone bool) {
+// Called only by the node's event loop, like handleNewCircuit.
+func (s *TubeNode) cleanupGoneCktP(cktP *cktPlus) {
 
 	ckt := cktP.ckt
 	debugGlobalCkt.Del(ckt.CircuitID)
@@ -2416,19 +2403,23 @@ func (s *TubeNode) cleanupGoneCktP(cktP *cktPlus) (allGone bool) {
 		}
 	}
 
-	if cktP.dups != nil {
-		newSz := cktP.dups.Del(cktP)
-		//vv("deleted ckt to '%v' from dups, left newSz=%v", cktP.PeerName, newSz)
-		if newSz == 0 {
-			s.cktAuditByPeerID.Del(ckt.RemotePeerID)
-			cktP.dups = nil
-			allGone = true
-		}
-	} else {
-		s.cktAuditByPeerID.Del(ckt.RemotePeerID)
-		allGone = true
+	dups := cktP.dups
+	if dups != nil {
+		dups.Del(cktP)
+		cktP.dups = nil
 	}
-	return
+	prior, ok := s.cktAuditByPeerID.Get(ckt.RemotePeerID)
+	if ok && prior.ckt.CircuitID == ckt.CircuitID {
+		// Keep a surviving duplicate as the representative, so a later
+		// reconnect cannot resurrect the retired circuit in its dup set.
+		if dups != nil {
+			for _, remaining := range dups.GetKeySlice() {
+				s.cktAuditByPeerID.Set(ckt.RemotePeerID, remaining)
+				return
+			}
+		}
+		s.cktAuditByPeerID.Del(ckt.RemotePeerID)
+	}
 }
 
 func (s *TubeNode) globalPruneCktCheck() {
@@ -2561,20 +2552,38 @@ func (s *TubeNode) pruneDown(goner, keeper *cktPlus) {
 func (s *TubeNode) deleteFromCktAll(oldCktP *cktPlus) {
 	//vv("%v deleteFromCktAll called on '%v'", s.me(), oldCktP)
 	oldCktP.Close() // shut down watchdog
-	delete(s.peers, oldCktP.PeerID)
-	delete(s.cktall, oldCktP.PeerID)
+	// Peer IDs and names are reused on reconnect. Only remove mappings
+	// that still belong to this exact circuit (or pending watchdog).
+	matches := func(p *cktPlus) bool {
+		return p == oldCktP || (p != nil && p.ckt != nil && oldCktP.ckt != nil &&
+			p.ckt.CircuitID == oldCktP.ckt.CircuitID)
+	}
+	if current := s.cktall[oldCktP.PeerID]; matches(current) {
+		if current != oldCktP {
+			// Pruning can install a new wrapper for the same circuit.
+			current.Close()
+			current.isGone = true
+			current.goneTm = time.Now()
+		}
+		delete(s.peers, oldCktP.PeerID)
+		delete(s.cktall, oldCktP.PeerID)
+	}
 	if !oldCktP.isGone {
 		oldCktP.isGone = true
 		oldCktP.goneTm = time.Now()
 	}
-	delete(s.cktAllByName, oldCktP.PeerName)
+	if matches(s.cktAllByName[oldCktP.PeerName]) {
+		delete(s.cktAllByName, oldCktP.PeerName)
+	}
 
 	// do we want this generally? nope! park instead
 	//if oldCktP.ckt != nil {
 	//	oldCktP.ckt.Close(nil)
 	//}
 	// do we want? think so.
-	delete(s.cktReplica, oldCktP.PeerID)
+	if matches(s.cktReplica[oldCktP.PeerID]) {
+		delete(s.cktReplica, oldCktP.PeerID)
+	}
 
 	// cktAuditByName
 	ckt, ok := s.cktAuditByName.Get(oldCktP.PeerName)
@@ -3121,15 +3130,16 @@ type TubeNode struct {
 	ClusterID string `zid:"0"`
 
 	// comms
-	URL                    string `zid:"1"`
-	PeerID                 string `zid:"2"`
-	PeerServiceName        string `zid:"3"`
-	PeerServiceNameVersion string `zid:"4"`
+	par                    *parNode // local-only recovery state, owned by the node event loop
+	URL                    string   `zid:"1"`
+	PeerID                 string   `zid:"2"`
+	PeerServiceName        string   `zid:"3"`
+	PeerServiceNameVersion string   `zid:"4"`
 
 	pushToPeerURL    chan string
 	MyPeer           *rpc.LocalPeer `msg:"-"`
 	Halt             *idem.Halter   `msg:"-"`
-	peerLeftCh       chan string
+	peerLeftCh       chan *cktPlus
 	gotNewPeerListCh chan []string
 
 	hostname string
@@ -4251,6 +4261,16 @@ func (s *TubeNode) CloseWithReason(reason error) {
 // should be internally only
 func (s *TubeNode) shutdown() {
 	//vv("%v shutdown; started=%v; cluster: '%v'", s.name, s.started, s.cfg.ClusterID)
+	if s.wal != nil {
+		_ = s.wal.close()
+		if s.wal.parentDirFd != nil {
+			_ = s.wal.parentDirFd.Close()
+			s.wal.parentDirFd = nil
+		}
+	}
+	if s.saver != nil {
+		_ = s.saver.close()
+	}
 
 	if s.state != nil && s.state.KVstore != nil {
 		s.state.KVstore.Close()
@@ -4411,7 +4431,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		closeSessionRequestCh: make(chan *Ticket),
 		discoRequestCh:        make(chan *discoReq),
 		requestInpsect:        make(chan *Inspection),
-		peerLeftCh:            make(chan string),
+		peerLeftCh:            make(chan *cktPlus),
 
 		// bad if buffer=> 707 red no leader
 		setLeaderCktChan: make(chan *rpc.Circuit),
@@ -4692,6 +4712,9 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.Cfg = s.cfg
 	ins.LastLogIndex = s.lastLogIndex()
 	ins.LastLogTerm = s.lastLogTerm()
+	if s.wal != nil {
+		ins.LogIndexBaseC = s.wal.logIndex.BaseC
+	}
 	// (compaction means there is no correspondence between len(s.wal.raftLog)
 	// and LastLogIndex anymore).
 	if s.wal != nil && s.wal.raftLog != nil {
@@ -4701,7 +4724,6 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 			ins.LastLogLeaderName = rle.LeaderName
 			ins.LastLogTicketOp = rle.Ticket.Op
 		}
-		ins.LogIndexBaseC = s.wal.logIndex.BaseC
 	}
 
 	ins.ResponderPeerID = s.PeerID
@@ -4914,6 +4936,9 @@ func (s *TubeNode) followers() (r string) {
 // does _not_ add to s.Waiting, caller should if we return true.
 // we send the redirect back to the caller internally.
 func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
+	if s.parReject(tkt) {
+		return true
+	}
 	//vv("%v redirectToLeader() called by '%v'; s.clusterSize()=%v; s.state.MC=%v", s.me(), fileLine(2), s.clusterSize(), s.state.MC) // :1232 is from s.writeReqCh
 
 	// Arg! This makes 402 grow a cluster from 1 node
@@ -5541,6 +5566,9 @@ func (t TicketOp) String() (r string) {
 }
 
 func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
+	if s.parQueueCompletion(tkt, calledOnLeader, false) {
+		return
+	}
 
 	// idempotent to let CommitWhatWeCan possibly
 	// call us 2x to make sure all membership changes
@@ -6117,6 +6145,9 @@ func (s *TubeNode) resubmitStalledTickets(justMC bool) {
 // be already set on submission. Otherwise it
 // must be nil and we will copy s.state.MC for it.
 func (s *TubeNode) replicateTicket(tkt *Ticket) {
+	if s.parReject(tkt) {
+		return
+	}
 	//vv("%v top of replicateTicket. Op=%v, key='%v'; val='%v'; FromID='%v'; tkt='%v'", s.me(), tkt.Op, string(tkt.Key), string(tkt.Val), rpc.AliasDecode(tkt.FromID), tkt)
 
 	// for debugging purposes, we can append an extended Description
@@ -6228,7 +6259,9 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	}
 
 	// persist to disk. in replicateTicket.
-	s.wal.saveRaftLogEntry(entry)
+	if _, err := s.wal.saveRaftLogEntry(entry); err != nil {
+		panicOn(err) // never replicate or acknowledge an unsuccessful WAL write
+	}
 
 	// replicateTicket is only for the no-op zero now. Force a compaction?
 
@@ -6419,6 +6452,13 @@ func (s *TubeNode) clearBatchToSubmit(tellClients bool) {
 }
 
 func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
+	if s.parBlocked() {
+		for _, tkt := range s.batchToSubmit {
+			s.parReject(tkt)
+		}
+		s.clearBatchToSubmit(false)
+		return
+	}
 
 	//vv("%v top of replicateBatch with %v in batch", s.me(), len(s.batchToSubmit))
 	batch := s.batchToSubmit
@@ -6479,7 +6519,9 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 	var doFsync bool
 	for i, entry := range es {
 		doFsync = (i == last)
-		s.wal.saveRaftLogEntryDoFsync(entry, doFsync) // in replicateBatch
+		if _, err := s.wal.saveRaftLogEntryDoFsync(entry, doFsync); err != nil {
+			panicOn(err) // preserve fail-stop behavior until recovery handles it
+		}
 	}
 	// only compact occassionally, since it
 	// involves lots of slow fsyncs and file rewrites.
@@ -6694,6 +6736,9 @@ func (s *TubeNode) resetElectionTimeout(where string) time.Duration {
 // Two elections in a row due to the election
 // timer should NOT increment the term again!
 func (s *TubeNode) beginElection() {
+	if s.parCampaignBlocked() {
+		return
+	}
 	_, weOK := s.state.MC.PeerNames.Get2(s.name)
 	if !weOK {
 		//vv("%v in beginElection, mongo ignore: do not start an election since I am not in MC", s.me())
@@ -7251,6 +7296,9 @@ func (s *TubeNode) resetLeaderHeartbeat(where string) {
 }
 
 func (s *TubeNode) becomeLeader() {
+	if s.parBecomeLeader() {
+		return
+	}
 	//vv("%v becomeLeader top  at state.CurrentTerm:%v,  lli:%v  llt:%v  (name: %v)", s.me(), s.state.CurrentTerm, s.lastLogIndex(), s.lastLogTerm(), s.name)
 	//defer func() {
 	//	vv("%v end of becomeLeader", s.me())
@@ -7804,6 +7852,10 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 // To support background recovery of snapshot state,
 // if sendAck is false, then we will not ack back to sender/leader.
 func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOverwrote, numTruncated, numAppended int64) {
+	if s.parBlocked() {
+		s.parObserveAE(ae)
+		return
+	}
 
 	var ack *AppendEntriesAck
 	// the first Extends call reponses, so we can assert
@@ -8406,7 +8458,10 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 			// was:
 			// if keepCount < s.state.CommitIndex {
 			// now:
-			if keepCount < prevci {
+			// A received snapshot may carry commitment ahead of the WAL
+			// suffix that its accompanying AE is about to install. Protect
+			// existing committed entries, not entries not yet in this WAL.
+			if keepCount < min(prevci, rlogicalLen) {
 				vv("%v about to panic on log violation, here is our WAL for reference", s.me())
 				s.DumpRaftWAL(nil)
 				vv("%v and now here is the log violation panic:", s.name)
@@ -8469,7 +8524,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 				// general sanity assert to our AE logic
 				if s.cfg.NoLogCompaction {
 					//if keepCount < s.state.CommitIndex {
-					if keepCount < prevci {
+					if keepCount < min(prevci, rlogicalLen) {
 						panic(fmt.Sprintf("%v log violation: keepCount(%v) < s.state.CommitIndex(%v): overwriteEntries would kill a committed entry", s.me(), keepCount, s.state.CommitIndex))
 					}
 				}
@@ -8638,6 +8693,12 @@ func (s *TubeNode) ackAE(ack *AppendEntriesAck, ae *AppendEntries, sendAck bool)
 	if !sendAck {
 		return // no-op
 	}
+	if s.wal != nil && s.wal.parTxn != nil {
+		// Snapshot installation includes this AE. Its response must wait for
+		// durable publication of state, application rows, and both log files.
+		s.wal.parAck, s.wal.parAckAE = ack, ae
+		return
+	}
 	ackFrag := s.newFrag()
 	//vv("%v ackAE replying to ae.FromPeerName = '%v; ae.FromPeerID='%v'", s.me(), ae.FromPeerName, ae.FromPeerID)
 	bts, err := ack.MarshalMsg(nil)
@@ -8676,6 +8737,10 @@ func (s *TubeNode) ackAE(ack *AppendEntriesAck, ae *AppendEntries, sendAck bool)
 // This may use more bandwidth
 // than is strictly necessary.
 func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
+	if s.parBlocked() {
+		s.resetLeaderHeartbeat("PAR recovery")
+		return
+	}
 	if s.role != LEADER {
 		//vv("%v as non leader, ignoring stray leader hb timeout, nil out s.leaderSendsHeartbeatsCh", s.me())
 		s.leaderSendsHeartbeatsCh = nil
@@ -8907,6 +8972,9 @@ func (s *TubeNode) newAEtoPeer(toPeerID, toPeerName, toPeerServiceName, toPeerSe
 }
 
 func (s *TubeNode) sendAppendEntriesEmptyHeartbeat(peerID, peerName, peerServiceName, peerServiceNameVersion string) {
+	if s.parBlocked() {
+		return
+	}
 
 	if s.name == peerName {
 		return // no need to send to self
@@ -9205,6 +9273,9 @@ func (s *TubeNode) mustGetLastLogIndex() (lli int64) {
 }
 
 func (s *TubeNode) logUpToDateAsOurs(rv *RequestVote) (ans bool) {
+	if s.par != nil && s.par.unknown {
+		return false
+	}
 
 	//defer func() {
 	//vv("%v finishing logUpToDateAsOur(ans='%v');  ourMC(%v); rv.MC(%v)", s.me(), ans, s.state.MC.Short(), rv.MC.Short())
@@ -9276,7 +9347,7 @@ func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
 	// below, without a disk, that is always empty state,
 	// which was causing 065 shadow_test to lose its MC.
 	// Do we need to give 065 an s.saver??
-	if s.cfg.isTest { // 065 why was this here???: && s.saver != nil {
+	if s.cfg.isTest && (s.cfg.NoDisk || s.saver != nil) {
 
 		//vv("%v isTest true, s.saver = %p)", s.name, s.saver)
 		// allow testSetupFirstRaftLogEntryBootstrapLog()
@@ -9285,7 +9356,7 @@ func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
 	} else {
 		path = s.GetPersistorPath()
 		//vv("%v creating new saver for path='%v'", s.name, path)
-		s.saver, st, err = s.cfg.NewRaftStatePersistor(path, s, false)
+		s.saver, st, err = s.cfg.newRaftStatePersistor(path, s, false, true)
 		panicOn(err)
 		if err != nil {
 			return
@@ -9332,9 +9403,10 @@ func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
 		// might not have had anything on disk.
 		s.state.KVstore = newKVStore()
 	}
-	if !s.cfg.NoDisk {
+	panicOn(s.parRestorePortableApplication())
+	if !s.cfg.NoDisk && s.state.KVstore.parFault == nil && !s.state.KVstore.isPersistent() {
 		panicOn(s.state.KVstore.Open(s.GetKVStorePath(), false))
-	} else if s.state.KVstore.db == nil {
+	} else if s.cfg.NoDisk && s.state.KVstore.db == nil {
 		panicOn(s.state.KVstore.Open("", true))
 	}
 
@@ -9622,6 +9694,9 @@ func (s *TubeNode) skipAEBecauseNotReplica(followerID, followerName, followerSer
 // snapshot rather than log entries if they are
 // no longer available due to compression.
 func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerServiceName, followerServiceNameVersion string, beginIndex int64, numLimit int, ack *AppendEntriesAck) {
+	if s.parBlocked() {
+		return
+	}
 
 	if s.skipAEBecauseNotReplica(followerID,
 		followerName, followerServiceName) {
@@ -9770,6 +9845,12 @@ func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerService
 }
 
 func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circuit) (err0 error) {
+	if s.parBlocked() {
+		if ack.Term > s.state.CurrentTerm {
+			s.becomeFollower(ack.Term, ack.PeerMC, SAVE_STATE)
+		}
+		return nil
+	}
 
 	s.hlc.ReceiveMessageWithHLC(ack.FollowerHLC)
 
@@ -10266,6 +10347,14 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 // Return true if we just did s.saver.save(s.state); so
 // caller can avoid an fsync.
 func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
+	if s.parBlocked() {
+		return false
+	}
+	application, applicationErr := s.parBeginApplication()
+	panicOn(applicationErr)
+	if application != nil {
+		defer application.abort()
+	}
 	//vv("%v commitWhatWeCan; s.state.LastApplied(%v) s.state.CommitIndex(%v); if LastApplied < CommitIndex, we can commit.", s.me(), s.state.LastApplied, s.state.CommitIndex)
 	//defer func() {
 	//	vv("%v defer commitWhatWeCan; s.state.LastApplied(%v) s.state.CommitIndex(%v)", s.me(), s.state.LastApplied, s.state.CommitIndex)
@@ -10589,9 +10678,14 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 	}
 	if s.state.LastApplied > origLastApplied {
 		// need to persist LastApplied (and any kvstore changes).
-		s.saver.save(s.state)
+		if application != nil {
+			panicOn(application.commit(s.state))
+		}
+		_, err := s.saver.save(s.state)
+		panicOn(err)
 		saved = true
 	}
+	s.parCompleteApply()
 	return
 } // end of commitWhatWeCan()
 
@@ -10764,6 +10858,9 @@ func (s *TubeNode) otherNoop0applyActions(tkt0 *Ticket) {
 // commitWhatWeCan(); and now by
 // leaderDoneEarlyOnSessionStuff().
 func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
+	if s.parQueueCompletion(tkt, s.role == LEADER, true) {
+		return
+	}
 	//tkt.StateSnapshot = nil // do not replicate again!
 
 	calledOnLeader := s.role == LEADER
@@ -11068,6 +11165,9 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 // a very rare case.
 // The livelock on pre-voting we saw is hopefully avoided.
 func (s *TubeNode) beginPreVote() {
+	if s.parCampaignBlocked() {
+		return
+	}
 
 	if s.amShadowReplica() {
 		//vv("%v in beginPreVote, amShadowReplica ture: do not start a pre-vote since I am a shadow replica.", s.me())
@@ -11700,6 +11800,9 @@ func (s *TubeNode) resetPreVoteState(beginElec, haveLeader bool) {
 
 // used for READ, READ_KEYRANGE, READ_PREFIX_RANGE, and SHOW_KEYS now.
 func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bool {
+	if s.parReject(tkt) {
+		return true
+	}
 	if s.role != LEADER {
 		panic("must only be called on leader")
 	}
@@ -15624,7 +15727,7 @@ func (s *TubeNode) initWalOnce() (err error) {
 	// to do extra work to find the log, sorting the files.
 
 	logPath := s.cfg.DataDir + sep + "tube.wal.msgp"
-	s.wal, err = s.cfg.newRaftWriteAheadLog(logPath, false)
+	s.wal, err = s.cfg.openPARWAL(logPath)
 	//vv("%v s.wal logPath = '%v'", s.name, logPath)
 	panicOn(err)
 
@@ -17131,19 +17234,14 @@ func (s *TubeNode) mongoLeaderCanReconfig(curMC, newMC *MemberConfig, inCurrentC
 
 	// P1. Oplog Commitment: All oplog entries committed
 	// in terms <= T must be committed on some quorum of servers in C.m.
-	//
-	// Obviously technically this is impossible, since old
-	// entries are probably committed with a very old and
-	// gone set of servers. But the intent is
-	// ensure that all future leaders must have all
-	// committed entries (the Leader Completeness property
-	// of Raft, chapter 3, page 14, Figure 3.2). So noop0
-	// should suffice.
-
-	// I think the noop0 takes care of that.
-	// in mongoLeaderCanReconfig() here.
+	// The committed no-op establishes this leader's earlier-term prefix.
+	// PAR also checks replication on the current voter set: successive
+	// configurations can outlive the quorum that committed the original no-op.
 	if !s.initialNoop0HasCommitted {
 		return fmt.Errorf("P1 unmet, mongoLeaderCanReconfig cannot reconfig on '%v' since initialNoop0HasCommitted is false", s.name)
+	}
+	if !s.parReconfigurationReady(curMC) {
+		return ErrPARPrefixQuorum
 	}
 
 	if newMC != nil {
@@ -17364,6 +17462,15 @@ func (s *TubeNode) updateMCindex(commitIndex, commitIndexEntryTerm int64) {
 }
 
 func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circuit, caller string) {
+	if s.parBlocked() {
+		return
+	}
+	if s.state.LastApplied < s.state.CommitIndex {
+		// Restored commitment is already authoritative. Apply that prefix
+		// before snapshotting: recovering peers may need it before they can
+		// acknowledge this leader's still-uncommitted initial no-op.
+		s.commitWhatWeCan(s.role == LEADER)
+	}
 	//vv("%v top of handleRequestStateSnapshot(), caller='%v' to '%v'", s.name, caller, ckt.RemotePeerName) // seen 065
 
 	// do we want to set these here? yes I think so!
@@ -17586,20 +17693,14 @@ func (s *TubeNode) makeDurableReceivedSnapshot(snap *Snapshot) (state2 *RaftStat
 // We are called when <-s.ApplyNewStateSnapshotCh; and when
 // the above handleStateSnapshotEnclosed() invokes us.
 func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string, sendAck bool) {
+	if !s.parSnapshotAllowed(snap) {
+		return
+	}
+	wasRecovering := s.parBlocked()
 	//vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; state2.KVstore='%v'\n(state2.LastApplied='%v' state2.LastAppliedTerm='%v')\n( state.LastApplied='%v'  state.LastAppliedTerm='%v')", s.me(), caller, s.state.CommitIndex, state2.CommitIndex, state2.KVstore.String(), state2.LastApplied, state2.LastAppliedTerm, s.state.LastApplied, s.state.LastAppliedTerm)
 
-	// TODO: write snapshot to disk first (or not if memwal)
-	// and apply the AE to it before we blast the old log/state;
-	// so that we can atomically change over both
-	// state and wal to the new versions at once and before we blow
-	// away the old version. See the unfinished draft
-	// makeDurableReceivedSnapshot above for the issues
-	// it presents. It is almost better to bring up
-	// a whole new TubeNode with the state, and if it
-	// comes up fine, then change it into the membership
-	// and have the old TubeNode retire from the membership.
-	// Otherwise we could be offline for a very long
-	// time trying to get the state replayed?
+	// The checked before-image below makes the state/application/log handoff
+	// recoverable as a unit. AE acknowledgments wait until publication finishes.
 
 	// TODO: question: then, with the AE append now too,
 	// can we relax the CommitIndex not rolled back check
@@ -17679,6 +17780,22 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string, sendAck 
 		alwaysPrintf("%v we should never be rolling back Terms with state snapshots! state2.CurrentTerm(%v) != s.state.CurrentTerm(%v)", s.name, state2.CurrentTerm, s.state.CurrentTerm)
 		return
 	}
+	var undo *parUndo
+	if !s.cfg.NoDisk {
+		if !wasRecovering {
+			panicOn(s.wal.sync(false))
+		}
+		var err error
+		undo, err = parBeginUndo(s.wal.path, s.state)
+		panicOn(err)
+		s.wal.parTxn = undo
+		panicOn(s.parPrepareApplicationSnapshot())
+		if wasRecovering {
+			panicOn(s.wal.parPrepareSnapshotWAL())
+			s.par.active, s.par.unknown, s.par.round = false, false, nil
+			s.par.chunks = nil
+		}
+	}
 
 	s.state.CurrentTerm = state2.CurrentTerm
 
@@ -17757,7 +17874,8 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string, sendAck 
 		s.updateSessTableByClientName(nil)
 	}
 
-	s.saver.save(s.state)
+	_, saveErr := s.saver.save(s.state)
+	panicOn(saveErr)
 	s.wal.installedSnapshot(s.state)
 	s.assertCompactOK()
 
@@ -17766,6 +17884,16 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string, sendAck 
 		lli2, llt2 := s.wal.LastLogIndexAndTerm()
 		_, _ = lli2, llt2
 		//vv("%v applyNewStateSnapshot() has applied the snap.AE too; before [lli:%v llt:%v] -> [snapshotIncludedIndex = %v] -> now [lli:%v llt:%v]", s.me(), lli0, llt0, snapshotIncludedIndex, lli2, llt2)
+	}
+	panicOn(undo.finish())
+	s.wal.parTxn = nil
+	if wasRecovering {
+		s.par.pendingLeader = false
+		s.par.generation++
+	}
+	if ack, ae := s.wal.parAck, s.wal.parAckAE; ack != nil {
+		s.wal.parAck, s.wal.parAckAE = nil, nil
+		s.ackAE(ack, ae, true)
 	}
 
 	//vv("%v end of applyNewStateSnapshot from '%v'", s.me(), state2.PeerName)

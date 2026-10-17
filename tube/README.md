@@ -220,12 +220,8 @@ trade-off is enduring the same window of
 non-availability on leader crash:
 usually very much worth it.
 
-Protocol Aware Recovery (PAR)[5] is planned
-but not implemented;
-the wal.go and par.go files have some
-mechanism, but recovery and online
-checks have not been completed.
-See too the notes at the end of this [tube.go](https://github.com/glycerine/rpc25519/blob/master/tube/tube.go) file.
+Protocol Aware Recovery (PAR)[5] is
+implemented for recovery.
 Without PAR, your replicated consensus system
 is still subject to global data loss from
 a single disk sector fault, so yes, you

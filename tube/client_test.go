@@ -7,7 +7,140 @@ import (
 	"time"
 
 	"testing"
+
+	"github.com/glycerine/idem"
+	rpc "github.com/glycerine/rpc25519"
 )
+
+func TestCircuit_cleanup_identity(t *testing.T) {
+	for _, rewrap := range []bool{false, true} {
+		t.Run(fmt.Sprintf("rewrap=%v", rewrap), func(t *testing.T) {
+			bubbleOrNot(t, func(t *testing.T) {
+				node := &TubeNode{
+					Halt:             idem.NewHalter(),
+					peers:            map[string]*RaftNodeInfo{"peer": {}},
+					cktall:           make(map[string]*cktPlus),
+					cktAllByName:     make(map[string]*cktPlus),
+					cktReplica:       make(map[string]*cktPlus),
+					cktAuditByCID:    rpc.NewMutexmap[string, *cktPlus](),
+					cktAuditByPeerID: rpc.NewMutexmap[string, *cktPlus](),
+					cktAuditByName:   rpc.NewMutexmap[string, *rpc.Circuit](),
+				}
+				newCircuit := func(cid string) *cktPlus {
+					p := node.newCktPlus("name", TUBE_REPLICA)
+					p.PeerID = "peer"
+					p.ckt = &rpc.Circuit{CircuitID: cid, RemotePeerID: p.PeerID}
+					p.perCktWatchdogHalt.MarkDone() // No watchdog goroutine in this unit test.
+					return p
+				}
+				old, current := newCircuit("old"), newCircuit("current")
+				dups := rpc.NewMutexmap[*cktPlus, time.Time]()
+				for _, p := range []*cktPlus{old, current} {
+					p.dups = dups
+					dups.Set(p, time.Now())
+					node.cktAuditByCID.Set(p.ckt.CircuitID, p)
+				}
+				node.cktAuditByPeerID.Set("peer", old)
+				node.cktAuditByName.Set("name", current.ckt)
+				selected := current
+				if rewrap {
+					// handlePruneRedundantCircuit can call addToCktall again
+					// for the survivor, creating a new wrapper for the same CID.
+					selected = newCircuit(current.ckt.CircuitID)
+					selected.ckt = current.ckt
+				}
+				node.cktall["peer"], node.cktAllByName["name"], node.cktReplica["peer"] = selected, selected, selected
+				for repeat := 0; repeat < 2; repeat++ {
+					node.cleanupGoneCktP(old)
+					node.deleteFromCktAll(old)
+					byPeer, _ := node.cktAuditByPeerID.Get("peer")
+					byName, _ := node.cktAuditByName.Get("name")
+					if byPeer != current || byName != current.ckt || node.cktAuditByCID.Len() != 1 || dups.Len() != 1 {
+						t.Fatal("retired circuit was retained or replacement audit entry was lost")
+					}
+					if node.cktall["peer"] != selected || node.cktAllByName["name"] != selected || node.cktReplica["peer"] != selected || node.peers["peer"] == nil {
+						t.Fatal("retired circuit cleanup removed replacement routing state")
+					}
+					if selected.perCktWatchdogHalt.ReqStop.IsClosed() {
+						t.Fatal("retired circuit cleanup stopped replacement watchdog")
+					}
+				}
+				node.cleanupGoneCktP(current)
+				node.deleteFromCktAll(current)
+				if len(node.cktall)+len(node.cktAllByName)+len(node.cktReplica)+len(node.peers)+node.cktAuditByCID.Len()+node.cktAuditByPeerID.Len()+node.cktAuditByName.Len()+dups.Len() != 0 {
+					t.Fatal("last circuit cleanup left stale bookkeeping")
+				}
+				if !selected.perCktWatchdogHalt.ReqStop.IsClosed() {
+					t.Fatal("last circuit cleanup left its watchdog running")
+				}
+			})
+		})
+	}
+}
+
+func TestSession_delayed_circuit_cleanup(t *testing.T) {
+	for _, endpoint := range []string{"client", "leader"} {
+		t.Run(endpoint, func(t *testing.T) {
+			bubbleOrNot(t, func(t *testing.T) {
+				c, _, leadi, _ := SetupTestCluster(t, 3, 0, 707)
+				defer c.Close()
+				cfg := *c.Cfg
+				cfg.MyName, cfg.PeerServiceName = "reconnected_client", TUBE_CLIENT
+				cli := NewTubeNode(cfg.MyName, &cfg)
+				panicOn(cli.InitAndStart())
+				defer cli.Close()
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				leader := c.Nodes[leadi]
+				sess, _, err := cli.CreateNewSession(ctx, leader.name, leader.URL)
+				panicOn(err)
+				defer sess.Close()
+
+				node, peer := cli, leader
+				if endpoint == "leader" {
+					node, peer = leader, cli
+				}
+				remote, ok := node.MyPeer.Remotes.Get(peer.PeerID)
+				if !ok || remote.IncomingCkt == nil {
+					t.Fatal("missing established circuit")
+				}
+				current := remote.IncomingCkt
+				// Model a retired circuit whose departure notification was
+				// delayed until this working replacement had been installed.
+				// The peer is unchanged; only the circuit identity differs.
+				retired := node.newCktPlus(peer.name, peer.PeerServiceName)
+				retired.PeerID = peer.PeerID
+				retired.ckt = &rpc.Circuit{CircuitID: "retired-circuit", RemotePeerID: peer.PeerID,
+					RemotePeerName: peer.name, Halt: idem.NewHalter()}
+				retired.ckt.Halt.RequestStop()
+				retired.perCktWatchdogHalt.MarkDone()
+				for repeat := 0; repeat < 2; repeat++ {
+					select {
+					case node.peerLeftCh <- retired:
+					case <-ctx.Done():
+						t.Fatal(ctx.Err())
+					}
+					look := node.Inspect() // Barrier: the notification was handled.
+					look.State.KVstore.Close()
+					if current.IsClosed() {
+						t.Fatal("delayed cleanup closed the replacement circuit")
+					}
+					byID, ok := node.cktAuditByPeerID.Get(peer.PeerID)
+					if !ok || byID.ckt.CircuitID != current.CircuitID {
+						t.Fatal("delayed cleanup removed the replacement's audit entry")
+					}
+				}
+				if _, err := sess.Write(ctx, "", "reconnected", Val(endpoint), 0, "", 0, false); err != nil {
+					t.Fatal(err)
+				}
+				ticket, err := sess.Read(ctx, "", "reconnected", 0)
+				if err != nil || string(ticket.Val) != endpoint {
+					t.Fatal("replacement session no longer serves commands", err)
+				}
+			})
+		})
+	}
+}
 
 func TestSession_idle_recovery_before_command(t *testing.T) {
 	for _, state := range []string{"live", "disconnected", "expired"} {
