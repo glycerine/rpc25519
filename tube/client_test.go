@@ -9,6 +9,57 @@ import (
 	"testing"
 )
 
+func TestSession_idle_recovery_before_command(t *testing.T) {
+	for _, state := range []string{"live", "disconnected", "expired"} {
+		t.Run(state, func(t *testing.T) {
+			bubbleOrNot(t, func(t *testing.T) {
+				c, _, leadi, _ := SetupTestCluster(t, 3, 0, 707)
+				defer c.Close()
+				cfg := *c.Cfg
+				cfg.MyName = "idle_client"
+				cfg.PeerServiceName = TUBE_CLIENT
+				cli := NewTubeNode(cfg.MyName, &cfg)
+				panicOn(cli.InitAndStart())
+				defer cli.Close()
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				leader := c.Nodes[leadi]
+				sess, _, err := cli.CreateNewSession(ctx, leader.name, leader.URL)
+				panicOn(err)
+				defer sess.Close()
+
+				oldID := sess.SessionID
+				sess.lastCommand = time.Now().Add(-31 * time.Second)
+				switch state {
+				case "disconnected":
+					remote, ok := cli.MyPeer.Remotes.Get(sess.LeaderPeerID)
+					if !ok {
+						t.Fatal("missing leader circuit")
+					}
+					remote.IncomingCkt.Close(nil)
+				case "expired":
+					sess.SessionIndexEndxTm = time.Now().Add(-time.Second)
+				}
+				// A nil context also verifies that renewal preserves Session.ctx.
+				_, err = sess.Write(nil, "", "idle_key", Val(state), 0, "", 0, false)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if (sess.SessionID == oldID) != (state == "live") {
+					t.Fatalf("unexpected session renewal for %s", state)
+				}
+				tkt, err := sess.Read(ctx, "", "idle_key", 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(tkt.Val) != state {
+					t.Fatalf("first command after idle did not write %q: got %q", state, tkt.Val)
+				}
+			})
+		})
+	}
+}
+
 // GOTRACEBACK=all GOEXPERIMENT=synctest go test -v
 
 // work in progress on chapter 6 linearizability (linz)

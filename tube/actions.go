@@ -28,6 +28,49 @@ import (
 
 var ErrNeedNewSession = fmt.Errorf("need new session")
 
+// prepareCommand restores idle client sessions before submitting user work.
+// Like the Session action helpers, it must be called serially by the client.
+func (s *Session) prepareCommand(ctx context.Context) error {
+	if s.cli.PeerServiceName == TUBE_REPLICA || time.Since(s.lastCommand) <= 30*time.Second {
+		s.lastCommand = time.Now()
+		return nil
+	}
+	remote, ok := s.cli.MyPeer.Remotes.Get(s.LeaderPeerID)
+	if ok && remote.IncomingCkt != nil && !remote.IncomingCkt.IsClosed() && time.Now().Before(s.SessionIndexEndxTm) {
+		s.lastCommand = time.Now()
+		return nil
+	}
+
+	// Bound recovery even when the caller supplied a background context.
+	ctx5, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	fresh, redirect, err := s.cli.CreateNewSession(ctx5, s.LeaderName, s.LeaderURL)
+	if err != nil || redirect != nil {
+		if fresh != nil {
+			fresh.Close()
+		}
+		url, name, _, reallyLeader, _, findErr := s.cli.HelperFindLeader(ctx5, &s.cli.cfg, "", false, KEEP_CKT_ONLY_IF_LEADER)
+		if findErr != nil {
+			return findErr
+		}
+		if !reallyLeader {
+			return ErrNeedNewSession
+		}
+		fresh, _, err = s.cli.CreateNewSession(ctx5, name, url)
+	}
+	if err != nil {
+		return err
+	}
+	// Keep the caller's Session pointer and context valid, including ctx == s.ctx.
+	fresh.Close()
+	fresh.ctx, fresh.canc = s.ctx, s.canc
+	if s.LastKnownIndex > fresh.LastKnownIndex {
+		fresh.LastKnownIndex = s.LastKnownIndex
+	}
+	*s = *fresh
+	return nil
+}
+
 // The 9 fsm actions here, on both TubeNode and Session:
 // Read, Write, CAS,
 // ReadKeyRange, DeleteKey, ShowKeys,
@@ -917,7 +960,6 @@ func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, w
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.Write: cli is nil, Session.Errs='%v'", s.Errs)
 	}
-	s.SessionSerial++
 	if ctx == nil {
 		ctx = s.ctx
 
@@ -933,6 +975,10 @@ func (s *Session) CAS(ctx context.Context, table, key Key, oldVal, newVal Val, w
 			return
 		}
 	}
+	if err = s.prepareCommand(ctx); err != nil {
+		return nil, err
+	}
+	s.SessionSerial++
 	return s.cli.CAS(ctx, table, key, oldVal, newVal, waitForDur, s, newVtype, leaseDur, leaseAutoDel, oldVersionCAS, oldLeaseEpochCAS)
 }
 
@@ -941,11 +987,14 @@ func (s *Session) Write(ctx context.Context, table, key Key, val Val, waitForDur
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.Write: cli is nil, Session.Errs='%v'", s.Errs)
 	}
-	s.SessionSerial++
 	if ctx == nil {
 		ctx = s.ctx
 	}
 	//vv("submitting write with s.SessionSerial = %v", s.SessionSerial)
+	if err = s.prepareCommand(ctx); err != nil {
+		return nil, err
+	}
+	s.SessionSerial++
 	return s.cli.Write(ctx, table, key, val, waitForDur, s, vtype, leaseDur, leaseAutoDel)
 }
 
@@ -953,10 +1002,13 @@ func (s *Session) RenameTable(ctx context.Context, table, newTableName Key, wait
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.RenameTable: cli is nil, Session.Errs='%v'", s.Errs)
 	}
-	s.SessionSerial++
 	if ctx == nil {
 		ctx = s.ctx
 	}
+	if err = s.prepareCommand(ctx); err != nil {
+		return nil, err
+	}
+	s.SessionSerial++
 	return s.cli.RenameTable(ctx, table, newTableName, waitForDur, s)
 }
 
@@ -964,10 +1016,13 @@ func (s *Session) MakeTable(ctx context.Context, table Key, waitForDur time.Dura
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.MakeTable: cli is nil, Session.Errs='%v'", s.Errs)
 	}
-	s.SessionSerial++
 	if ctx == nil {
 		ctx = s.ctx
 	}
+	if err = s.prepareCommand(ctx); err != nil {
+		return nil, err
+	}
+	s.SessionSerial++
 	return s.cli.MakeTable(ctx, table, waitForDur, s)
 }
 
@@ -975,10 +1030,13 @@ func (s *Session) DeleteTable(ctx context.Context, table Key, waitForDur time.Du
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.DeleteTable: cli is nil, Session.Errs='%v'", s.Errs)
 	}
-	s.SessionSerial++
 	if ctx == nil {
 		ctx = s.ctx
 	}
+	if err = s.prepareCommand(ctx); err != nil {
+		return nil, err
+	}
+	s.SessionSerial++
 	return s.cli.DeleteTable(ctx, table, waitForDur, s)
 }
 
@@ -987,10 +1045,13 @@ func (s *Session) Read(ctx context.Context, table, key Key, waitForDur time.Dura
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.Read: cli is nil, Session.Errs='%v'", s.Errs)
 	}
-	s.SessionSerial++
 	if ctx == nil {
 		ctx = s.ctx
 	}
+	if err = s.prepareCommand(ctx); err != nil {
+		return nil, err
+	}
+	s.SessionSerial++
 	return s.cli.Read(ctx, table, key, waitForDur, s)
 }
 
@@ -999,10 +1060,13 @@ func (s *Session) DeleteKey(ctx context.Context, table, key Key, waitForDur time
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.DeleteKey: cli is nil, Session.Errs='%v'", s.Errs)
 	}
-	s.SessionSerial++
 	if ctx == nil {
 		ctx = s.ctx
 	}
+	if err = s.prepareCommand(ctx); err != nil {
+		return nil, err
+	}
+	s.SessionSerial++
 	return s.cli.DeleteKey(ctx, table, key, waitForDur, s)
 }
 
@@ -1012,10 +1076,13 @@ func (s *Session) ShowKeys(ctx context.Context, table Key, waitForDur time.Durat
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.ShowKeys: cli is nil, Session.Errs='%v'", s.Errs)
 	}
-	s.SessionSerial++
 	if ctx == nil {
 		ctx = s.ctx
 	}
+	if err = s.prepareCommand(ctx); err != nil {
+		return nil, err
+	}
+	s.SessionSerial++
 	return s.cli.ShowKeys(ctx, table, waitForDur, s)
 }
 
@@ -1023,10 +1090,13 @@ func (s *Session) ReadKeyRange(ctx context.Context, table, key, keyEndx Key, des
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.ReadKeyRange: cli is nil, Session.Errs='%v'", s.Errs)
 	}
-	s.SessionSerial++
 	if ctx == nil {
 		ctx = s.ctx
 	}
+	if err = s.prepareCommand(ctx); err != nil {
+		return nil, err
+	}
+	s.SessionSerial++
 	return s.cli.ReadKeyRange(ctx, table, key, keyEndx, descend, waitForDur, s)
 }
 
@@ -1034,10 +1104,13 @@ func (s *Session) ReadPrefixRange(ctx context.Context, table, prefix Key, descen
 	if s.cli == nil {
 		return nil, fmt.Errorf("error in Session.ReadPrefixRange: cli is nil, Session.Errs='%v'", s.Errs)
 	}
-	s.SessionSerial++
 	if ctx == nil {
 		ctx = s.ctx
 	}
+	if err = s.prepareCommand(ctx); err != nil {
+		return nil, err
+	}
+	s.SessionSerial++
 	return s.cli.ReadPrefixRange(ctx, table, prefix, descend, waitForDur, s)
 }
 

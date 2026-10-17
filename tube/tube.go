@@ -15723,6 +15723,18 @@ func (c *TubeCluster) showClusterGrid(assertFullConnectedNodeName string, expect
 }
 
 type Session struct {
+
+	// current server-side garbage collection policy is:
+	// servers protect themselves from accumulating idle client garbage
+	// by disconnecting idle client sessions after 60 seconds.
+	// Clients respect this and if they are resuming activity after
+	// being idle for more than 30 seconds, they check their session
+	// and re-establish it if necessary. The lastCommand time tells
+	// if this 30 second threshold has been crossed.
+	// lastCommand is local only; idle clients must check their
+	//  circuit before reuse.
+	lastCommand time.Time
+
 	ctx  context.Context
 	canc context.CancelFunc
 
@@ -15958,6 +15970,7 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderName, leaderURL s
 			// be ready for next use:
 			r.LastKnownIndex = r.SessionAssignedIndex
 			r.cli = s
+			r.lastCommand = time.Now()
 			r.ctx, r.canc = context.WithCancel(s.Ctx)
 		} else {
 			// why do we see this:
