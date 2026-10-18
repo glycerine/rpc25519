@@ -242,4 +242,4 @@ For a durable local state-machine storage, we use the YogaDB flexible-address-sp
 See https://github.com/glycerine/yogadb
 
 ------
-Copyright (C) 2025 Jason E. Aten, Ph.D. All rights reserved.
+Copyright (C) 2025-2026 Jason E. Aten, Ph.D. All rights reserved.
