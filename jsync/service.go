@@ -359,9 +359,10 @@ type RequestToSyncPath struct {
 	TakerFileMode uint32    `zid:"4"`
 
 	// new
-	GiverModTime  time.Time `zid:"31"`
-	GiverFileSize int64     `zid:"32"`
-	GiverFileMode uint32    `zid:"33"`
+	GiverModTime   time.Time      `zid:"31"`
+	GiverFileSize  int64          `zid:"32"`
+	GiverFileMode  uint32         `zid:"33"`
+	GiverOwnership *FileOwnership `zid:"37"`
 
 	Done *idem.IdemCloseChan `msg:"-"`
 
@@ -849,6 +850,7 @@ func (s *SyncService) Start(
 					syncReq.GiverModTime = fi.ModTime()
 					syncReq.GiverFileSize = fi.Size()
 					syncReq.GiverFileMode = uint32(fi.Mode())
+					syncReq.GiverOwnership = fileOwnership(fi)
 					if isSymLink {
 						syncReq.GiverScanFlags |= ScanFlagIsSymLink
 						target, err := os.Readlink(syncReq.GiverPath)

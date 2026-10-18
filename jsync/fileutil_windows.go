@@ -40,3 +40,6 @@ func getFileOwnerAndID(fi os.FileInfo) (fileOwner string, uid uint32) {
 	// }
 	return
 }
+
+func fileOwnership(fi os.FileInfo) *FileOwnership                             { return nil }
+func restoreOwnership(path string, owner *FileOwnership) (os.FileMode, error) { return 0, nil }

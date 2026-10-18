@@ -240,6 +240,7 @@ func (s *jsyncU) PushFromTo(fromLocalPath, toRemotePath string) (dataBytesMoved 
 		GiverFileSize:           fi.Size(),
 		GiverModTime:            fi.ModTime(),
 		GiverFileMode:           uint32(fi.Mode()),
+		GiverOwnership:          fileOwnership(fi),
 		Done:                    idem.NewIdemCloseChan(),
 		ToRemotePeerServiceName: "jsync_server",
 

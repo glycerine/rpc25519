@@ -257,8 +257,8 @@ takerForSelectLoop:
 					err = os.Chtimes(localPathToWrite, time.Time{}, syncReq2.GiverModTime)
 					panicOn(err)
 					// update mode too? not sure if we have it avail
-					if syncReq2.GiverFileMode != 0 {
-						err = os.Chmod(localPathToWrite, fs.FileMode(syncReq2.GiverFileMode))
+					if !syncReq.DryRun && (syncReq2.GiverFileMode != 0 || syncReq2.GiverOwnership != nil) {
+						err = restoreMetadata(localPathToWrite, syncReq2.GiverFileMode, syncReq2.GiverOwnership)
 						panicOn(err)
 					}
 					s.ackBackFINToGiver(ckt, frag)
@@ -326,6 +326,13 @@ takerForSelectLoop:
 					panicOn(os.Link(localPathToRead, localPathToWrite))
 				}
 
+				if !syncReq.DryRun && len(frag.Payload) > 0 {
+					meta := &File{}
+					_, err := meta.UnmarshalMsg(frag.Payload)
+					panicOn(err)
+					panicOn(restoreMetadata(localPathToWrite, meta.FileMode, meta.Ownership))
+				}
+
 				s.ackBackFINToGiver(ckt, frag)
 				if syncReq != nil {
 					syncReq.SizeModTimeMatch = true
@@ -381,10 +388,9 @@ takerForSelectLoop:
 				//path := syncReq.TakerPath
 				//path := localPathToRead
 				mode := precis.FileMode
-				if mode == 0 {
-					mode = 0600
+				if !syncReq.DryRun {
+					err = restoreMetadata(localPathToWrite, mode, &FileOwnership{UID: precis.FileOwnerID, GID: precis.FileGroupID, Username: precis.FileOwner, Groupname: precis.FileGroup})
 				}
-				err = os.Chmod(localPathToWrite, fs.FileMode(mode))
 				panicOn(err)
 
 				if !precis.ModTime.IsZero() {
@@ -716,11 +722,9 @@ takerForSelectLoop:
 				} else {
 
 					mode := goalPrecis.FileMode // panic here nil
-					if mode == 0 {
-						// unknown mode or new file, give sane default
-						mode = 0600
+					if !syncReq.DryRun {
+						err = restoreMetadata(localPathToWrite, mode, &FileOwnership{UID: goalPrecis.FileOwnerID, GID: goalPrecis.FileGroupID, Username: goalPrecis.FileOwner, Groupname: goalPrecis.FileGroup})
 					}
-					err = os.Chmod(localPathToWrite, fs.FileMode(mode))
 					panicOn(err)
 
 					err = os.Chtimes(localPathToWrite, time.Time{}, goalPrecis.ModTime)
@@ -794,10 +798,9 @@ takerForSelectLoop:
 					// also need to set the time/mode
 					// restore mode, modtime
 					mode := goalPrecis.FileMode
-					if mode == 0 {
-						mode = 0600
+					if !syncReq.DryRun {
+						err = restoreMetadata(localPathToWrite, mode, &FileOwnership{UID: goalPrecis.FileOwnerID, GID: goalPrecis.FileGroupID, Username: goalPrecis.FileOwner, Groupname: goalPrecis.FileGroup})
 					}
-					err = os.Chmod(localPathToWrite, fs.FileMode(mode))
 					panicOn(err)
 
 					err = os.Chtimes(localPathToWrite, time.Time{}, goalPrecis.ModTime)
@@ -846,6 +849,9 @@ takerForSelectLoop:
 						if localPathToWrite != localPathToRead {
 							//vv("hard linking 8 '%v' <- '%v'", localPathToRead, localPathToWrite)
 							panicOn(os.Link(localPathToRead, localPathToWrite))
+						}
+						if !syncReq.DryRun {
+							panicOn(restoreMetadata(localPathToWrite, syncReq.GiverFileMode, syncReq.GiverOwnership))
 						}
 						err := os.Chtimes(localPathToWrite, time.Time{},
 							syncReq.GiverModTime)
@@ -1163,16 +1169,14 @@ takerForSelectLoop:
 }
 
 func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit, frag *rpc.Fragment, mode uint32, localPathToRead, localPathToWrite string, bt *byteTracker) {
-	// but do match mode too
-	if mode != 0 && syncReq.GiverFileMode != mode && syncReq.GiverFileMode != 0 {
-		err := os.Chmod(localPathToWrite, fs.FileMode(syncReq.GiverFileMode))
-		panicOn(err)
-	}
-
 	if localPathToWrite != localPathToRead {
 		//vv("hard linking 1 '%v' <- '%v'",
 		//	localPathToRead, localPathToWrite)
 		panicOn(os.Link(localPathToRead, localPathToWrite))
+	}
+
+	if !syncReq.DryRun && (syncReq.GiverFileMode != 0 || syncReq.GiverOwnership != nil) {
+		panicOn(restoreMetadata(localPathToWrite, syncReq.GiverFileMode, syncReq.GiverOwnership))
 	}
 
 	ack := ckt.LpbFrom.NewFragment()
@@ -1207,6 +1211,8 @@ func (s *SyncService) takeSymlink(syncReq *RequestToSyncPath, localPathToWrite s
 	//  as the first element and modification time as the
 	//  second element."
 	//
+	_, err = restoreOwnership(localPathToWrite, syncReq.GiverOwnership)
+	panicOn(err)
 	updateLinkModTime(localPathToWrite, syncReq.GiverModTime)
 }
 

@@ -43,6 +43,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	bt := &byteTracker{}
 
 	//var needUpdate []*File
+	var directoryMetadata []*File
 	var totalExpectedFileCount int64
 	totFiles := 0
 	var seenGiverSendsTopDirListing bool
@@ -340,25 +341,15 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						totalExpectedFileCount = frag.FragPart
 					}
 					switch {
-					case f.ScanFlags&ScanFlagIsLeafDir != 0:
+					case f.IsDir():
 						if strings.HasPrefix(f.Path, "..") {
-							panic(fmt.Sprintf("leafdir cannot start "+
-								"with '..' or we will overwrite other"+
-								" processes files in staging! bad leafdir: '%v'",
-								f.Path))
+							panic(fmt.Sprintf("directory cannot start with '..': %q", f.Path))
 						}
 						takerCatalog.Del(f.Path)
 						fullpath := filepath.Join(tdir, f.Path)
 						err = os.MkdirAll(fullpath, 0700)
 						panicOn(err)
-						//vv("dirtaker made leafdir fullpath '%v'", fullpath)
-					case f.ScanFlags&ScanFlagIsMidDir != 0:
-
-						takerCatalog.Del(f.Path)
-						fullpath := filepath.Join(tdir, f.Path)
-						err = os.Chmod(fullpath, fs.FileMode(f.FileMode))
-						panicOn(err)
-						//vv("dirtaker set mode on dir = '%v'", f.Path)
+						directoryMetadata = append(directoryMetadata, f)
 					default:
 						// regular file.
 						totFiles++
@@ -481,6 +472,14 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							}
 						}
 					}
+					// The listing yields children before parents. Delay restrictive directory
+					// modes until all file transfers and deletions have completed.
+					if !reqDir.DryRun {
+						for _, f := range directoryMetadata {
+							panicOn(restoreMetadata(filepath.Join(reqDir.TopTakerDirFinal, f.Path), f.FileMode, f.Ownership))
+						}
+					}
+
 					if !reqDir.GiverDirModTime.IsZero() {
 						//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
 						err = os.Chtimes(reqDir.TopTakerDirFinal,
@@ -609,6 +608,9 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 			fd, err := os.Create(localPathToWrite)
 			panicOn(err)
 			fd.Close()
+			if !reqDir.DryRun {
+				panicOn(restoreMetadata(localPathToWrite, f.FileMode, f.Ownership))
+			}
 			err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
 			panicOn(err)
 
@@ -653,6 +655,9 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 				//vv("updating Lutimes for '%v'", localPathToWrite)
 				updateLinkModTime(localPathToWrite, f.ModTime)
 			}
+			if !reqDir.DryRun {
+				panicOn(restoreMetadata(localPathToWrite, f.FileMode, f.Ownership))
+			}
 			return // all symlinks done
 		}
 
@@ -670,6 +675,9 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 				// just adjust mod time and fin.
 				err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
 				panicOn(err)
+			}
+			if !reqDir.DryRun {
+				panicOn(restoreMetadata(localPathToWrite, f.FileMode, f.Ownership))
 			}
 		}
 	}
@@ -813,9 +821,10 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 					TopTakerDirFinal: reqDir.TopTakerDirFinal,
 					GiverDirAbs:      reqDir.GiverDir,
 
-					GiverFileSize: file.Size,
-					GiverModTime:  file.ModTime,
-					GiverFileMode: file.FileMode,
+					GiverFileSize:  file.Size,
+					GiverModTime:   file.ModTime,
+					GiverFileMode:  file.FileMode,
+					GiverOwnership: file.Ownership,
 
 					TakerFileSize: int64(precis.FileSize),
 					TakerModTime:  precis.ModTime,
@@ -837,7 +846,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				extraComing := false
 
 				if !precis.PathAbsent && precis.FileSize > 0 {
-					if syncReq.Chunks != nil {
+					if syncReq.Chunks == nil {
 						panic(fmt.Sprintf("assertion error: we should have chunks for an existing path; precis='%v'", precis))
 					}
 

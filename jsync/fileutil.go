@@ -124,3 +124,18 @@ func FileSizeModTime(name string) (sz int64, modTime time.Time, err error) {
 	}
 	return fi.Size(), fi.ModTime(), nil
 }
+
+// Chown can clear setuid/setgid bits, so always restore permissions afterward.
+// Never chmod symlinks: it would change the target rather than the link.
+func restoreMetadata(path string, mode uint32, owner *FileOwnership) error {
+	clearBits, err := restoreOwnership(path, owner)
+	if err != nil {
+		return err
+	}
+	// Unknown accounts must not acquire setuid/setgid privileges via fallback.
+	mode &^= uint32(clearBits)
+	if os.FileMode(mode)&os.ModeSymlink != 0 {
+		return nil
+	}
+	return os.Chmod(path, os.FileMode(mode))
+}

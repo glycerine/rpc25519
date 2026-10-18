@@ -180,6 +180,8 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					ack := myPeer.NewFragment()
 					ack.FragSubject = frag0.FragSubject
 					ack.FragOp = OpRsync_FileSizeModTimeMatch
+					ack.Payload, err = (&File{FileMode: uint32(fi.Mode()), Ownership: fileOwnership(fi)}).MarshalMsg(nil)
+					panicOn(err)
 
 					bt.bsend += ack.Msgsize()
 					_, err = ckt.SendOneWay(ack, 0, 0)
@@ -191,6 +193,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					syncReq.GiverModTime = mod
 					syncReq.GiverFileSize = sz
 					syncReq.GiverFileMode = uint32(fi.Mode())
+					syncReq.GiverOwnership = fileOwnership(fi)
 
 					// but also send them the checksum in case we can
 					// avoid sending a big file just b/c of mod time update.
@@ -614,38 +617,18 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 
 	fi, err := os.Stat(syncReq.GiverPath)
 	panicOn(err)
-	sz, mod, mode := fi.Size(), fi.ModTime(), uint32(fi.Mode())
+	sz, mod := fi.Size(), fi.ModTime()
 	if syncReq.TakerFileSize == sz && syncReq.TakerModTime.Equal(mod) {
 		//vv("remoteGiverAreDiffChunksNeeded(): size + modtime match. nothing to do, tell taker. syncReq.GiverPath = '%v'", syncReq.GiverPath)
 
-		// but do match mode too... advanced! leave out for now.
-		//
-		// Rationale: I'm just not sure we want the expense of doing a full file
-		// scan just because the mode bits disagree.
-		//
-		if false { // too advanced for now. start simpler.
-			if syncReq.TakerFileMode != mode {
-				updateMeta := ckt.LpbFrom.NewFragment()
-				updateMeta.FragOp = OpRsync_ToTakerMetaUpdateAtLeast
-				updateMeta.FragSubject = frag.FragSubject
+		// Include metadata even when the file data does not need transferring.
 
-				// computes full-file hash incrementally
-				precis, err := GetPrecis(rpc.Hostname, syncReq.GiverPath)
-				panicOn(err)
-
-				// send them the full file hash?
-				bts, err := precis.MarshalMsg(nil)
-				panicOn(err)
-				updateMeta.Payload = bts
-				bt.bsend += len(bts)
-				// returning false will ackBackFINToTaker
-				return false // nothing more needed
-			}
-		}
 		// let the taker know they can stop with this file.
 		ack := ckt.LpbFrom.NewFragment()
 		ack.FragSubject = frag.FragSubject
 		ack.FragOp = OpRsync_FileSizeModTimeMatch
+		ack.Payload, err = (&File{FileMode: uint32(fi.Mode()), Ownership: fileOwnership(fi)}).MarshalMsg(nil)
+		panicOn(err)
 
 		bt.bsend += ack.Msgsize()
 		_, err = ckt.SendOneWay(ack, 0, 0)

@@ -195,6 +195,7 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*File, bool] {
 									Path:      target,
 									Size:      fi.Size(),
 									FileMode:  uint32(fi.Mode()),
+									Ownership: fileOwnership(fi),
 									ModTime:   fi.ModTime(),
 									ScanFlags: scanFlags,
 									//IsSymLink: false,
@@ -224,6 +225,7 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*File, bool] {
 								Path:      resolveMe,
 								Size:      fi.Size(),
 								FileMode:  uint32(fi.Mode()),
+								Ownership: fileOwnership(fi),
 								ModTime:   fi.ModTime(),
 								ScanFlags: scanFlags,
 								//IsSymLink:       true,
@@ -254,10 +256,11 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*File, bool] {
 						fi, err := entry.Info()
 						panicOn(err)
 						rf := &File{
-							Path:     fullpath,
-							Size:     fi.Size(),
-							FileMode: uint32(fi.Mode()),
-							ModTime:  fi.ModTime(),
+							Path:      fullpath,
+							Size:      fi.Size(),
+							FileMode:  uint32(fi.Mode()),
+							Ownership: fileOwnership(fi),
+							ModTime:   fi.ModTime(),
 						}
 						if !yield(rf, true) {
 							return false
@@ -411,6 +414,7 @@ func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 									Path:      target,
 									Size:      fi.Size(),
 									FileMode:  uint32(fi.Mode()),
+									Ownership: fileOwnership(fi),
 									ModTime:   fi.ModTime(),
 									ScanFlags: scanFlags,
 									//IsSymLink: false,
@@ -440,6 +444,7 @@ func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 								Path:      resolveMe,
 								Size:      fi.Size(),
 								FileMode:  uint32(fi.Mode()),
+								Ownership: fileOwnership(fi),
 								ModTime:   fi.ModTime(),
 								ScanFlags: scanFlags,
 								//IsSymLink:       true,
@@ -470,10 +475,11 @@ func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 						fi, err := entry.Info()
 						panicOn(err)
 						rf := &File{
-							Path:     fullpath,
-							Size:     fi.Size(),
-							FileMode: uint32(fi.Mode()),
-							ModTime:  fi.ModTime(),
+							Path:      fullpath,
+							Size:      fi.Size(),
+							FileMode:  uint32(fi.Mode()),
+							Ownership: fileOwnership(fi),
+							ModTime:   fi.ModTime(),
 						}
 						if !yield(rf, true) {
 							return false
@@ -499,6 +505,7 @@ func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 				Path:      path,
 				Size:      fi.Size(),
 				FileMode:  uint32(fi.Mode()),
+				Ownership: fileOwnership(fi),
 				ModTime:   fi.ModTime(),
 				ScanFlags: scanFlags,
 			}
@@ -557,6 +564,7 @@ func (di *DirIter) ParallelOneWalkForAll(halt *idem.Halter, root string) (resCh 
 					Path:      path,
 					Size:      fi.Size(),
 					FileMode:  uint32(fi.Mode()),
+					Ownership: fileOwnership(fi),
 					ModTime:   fi.ModTime(),
 					ScanFlags: scanFlags,
 					//IsSymLink:       true,
@@ -582,6 +590,7 @@ func (di *DirIter) ParallelOneWalkForAll(halt *idem.Halter, root string) (resCh 
 						Path:      path,
 						Size:      fi.Size(),
 						FileMode:  uint32(fi.Mode()),
+						Ownership: fileOwnership(fi),
 						ModTime:   fi.ModTime(),
 						ScanFlags: scanFlags,
 					}
@@ -594,10 +603,11 @@ func (di *DirIter) ParallelOneWalkForAll(halt *idem.Halter, root string) (resCh 
 				} else {
 					// regular file
 					rf := &File{
-						Path:     path,
-						Size:     fi.Size(),
-						FileMode: uint32(fi.Mode()),
-						ModTime:  fi.ModTime(),
+						Path:      path,
+						Size:      fi.Size(),
+						FileMode:  uint32(fi.Mode()),
+						Ownership: fileOwnership(fi),
+						ModTime:   fi.ModTime(),
 					}
 					select {
 					case resCh <- rf:
@@ -669,6 +679,7 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 					Path:      path,
 					Size:      fi.Size(),
 					FileMode:  uint32(fi.Mode()),
+					Ownership: fileOwnership(fi),
 					ModTime:   fi.ModTime(),
 					ScanFlags: scanFlags,
 					//IsSymLink:       true,
@@ -699,6 +710,7 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 						Path:      path,
 						Size:      fi.Size(),
 						FileMode:  uint32(fi.Mode()),
+						Ownership: fileOwnership(fi),
 						ModTime:   fi.ModTime(),
 						ScanFlags: scanFlags,
 					}
@@ -716,10 +728,11 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 						path = ""
 					}
 					rf := &File{
-						Path:     path,
-						Size:     fi.Size(),
-						FileMode: uint32(fi.Mode()),
-						ModTime:  fi.ModTime(),
+						Path:      path,
+						Size:      fi.Size(),
+						FileMode:  uint32(fi.Mode()),
+						Ownership: fileOwnership(fi),
+						ModTime:   fi.ModTime(),
 					}
 					select {
 					case resCh <- rf:

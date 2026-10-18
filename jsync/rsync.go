@@ -889,6 +889,10 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 		precis.FileCry = hash.Blake3OfBytesString([]byte{})
 		return
 	}
+	// Capture metadata before any empty-file or sparse-file early return.
+	precis.FileMode = uint32(fi.Mode())
+	precis.FileOwner, precis.FileOwnerID = getFileOwnerAndID(fi)
+	precis.FileGroup, precis.FileGroupID = getFileGroupAndID(fi)
 	fileStatSz := fi.Size() // int64
 	precis.FileSize = fileStatSz
 

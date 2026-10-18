@@ -81,6 +81,19 @@ type File struct {
 	// parallelization on the taker end.
 	// Assigned in the order yielded.
 	Serial int64 `zid:"6"`
+
+	// Ownership is nil for senders/platforms without Unix ownership metadata.
+	Ownership *FileOwnership `zid:"7"`
+}
+
+// FileOwnership conveys source IDs and account names used to resolve ownership
+// on a root receiver. User and group IDs may differ between hosts.
+// A pointer distinguishes missing metadata from valid zero IDs.
+type FileOwnership struct {
+	UID       uint32 `zid:"0"`
+	GID       uint32 `zid:"1"`
+	Username  string `zid:"2"`
+	Groupname string `zid:"3"`
 }
 
 const (
@@ -339,10 +352,11 @@ func ScanDirTree(
 			path = path[pre:]
 
 			dir := &File{
-				Path:     path,
-				Size:     fi.Size(),
-				FileMode: uint32(fi.Mode()),
-				ModTime:  fi.ModTime(),
+				Path:      path,
+				Size:      fi.Size(),
+				FileMode:  uint32(fi.Mode()),
+				Ownership: fileOwnership(fi),
+				ModTime:   fi.ModTime(),
 			}
 
 			uses := dir.Msgsize()

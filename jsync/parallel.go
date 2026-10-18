@@ -181,6 +181,8 @@ func ChunkFile2(
 		HashName:    "blake3.33B",
 		FileMode:    uint32(fi.Mode()), // must! otherwise sync messes it up.
 	}
+	precis.FileOwner, precis.FileOwnerID = getFileOwnerAndID(fi)
+	precis.FileGroup, precis.FileGroupID = getFileGroupAndID(fi)
 	chunks0 = NewChunks(path)
 	chunks0.FileSize = precis.FileSize
 	chunks0.FileCry = precis.FileCry
