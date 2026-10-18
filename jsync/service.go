@@ -14,7 +14,7 @@ import (
 	"github.com/glycerine/rpc25519/jcdc"
 )
 
-//go:generate greenpack -no-dedup=true
+//go:generate greenpack
 
 // parallelChunking switches between ChunkFile (parallel.go)
 // and GetHashesOneByOne (rsync.go; serial).
@@ -111,6 +111,10 @@ type SyncService struct {
 	U rpc.UniversalCliSrv
 
 	ServiceName string
+
+	ownershipTransfers sync.Map // uint64 -> *ownershipTransfer
+	ownershipReady     chan *RequestToSyncPath
+	sourceAccounts     func() (*accountDB, error) // optional source-host fixture for tests
 
 	localProgressCh chan *ProgressUpdate
 }
@@ -264,6 +268,10 @@ var once sync.Once
 // everywhere, this makes the FragOp
 // assignments much more readable.
 func AliasRsyncOps() {
+	rpc.FragOpRegister(opOwnershipHello, "opOwnershipHello")
+	rpc.FragOpRegister(opOwnershipAccounts, "opOwnershipAccounts")
+	rpc.FragOpRegister(opOwnershipReady, "opOwnershipReady")
+	rpc.FragOpRegister(opOwnershipEnd, "opOwnershipEnd")
 	rpc.FragOpRegister(OpRsync_RequestRemoteToTake, "OpRsync_RequestRemoteToTake")
 	rpc.FragOpRegister(OpRsync_RequestRemoteToGive, "OpRsync_RequestRemoteToGive")
 
@@ -359,10 +367,14 @@ type RequestToSyncPath struct {
 	TakerFileMode uint32    `zid:"4"`
 
 	// new
-	GiverModTime   time.Time      `zid:"31"`
-	GiverFileSize  int64          `zid:"32"`
-	GiverFileMode  uint32         `zid:"33"`
-	GiverOwnership *FileOwnership `zid:"37"`
+	GiverModTime      time.Time          `zid:"31"`
+	GiverFileSize     int64              `zid:"32"`
+	GiverFileMode     uint32             `zid:"33"`
+	OwnershipConveyed bool               `zid:"37"`
+	UID               uint32             `zid:"38"`
+	GID               uint32             `zid:"39"`
+	OwnershipSession  uint64             `zid:"40"`
+	accounts          *OwnershipAccounts `msg:"-"`
 
 	Done *idem.IdemCloseChan `msg:"-"`
 
@@ -555,6 +567,7 @@ func NewSyncService(reqs chan *RequestToSyncPath) *SyncService {
 	return &SyncService{
 		Halt:              idem.NewHalter(),
 		SyncPathRequestCh: reqs,
+		ownershipReady:    make(chan *RequestToSyncPath),
 	}
 }
 
@@ -633,6 +646,9 @@ func (s *SyncService) Start(
 
 			switch rckt.Name {
 
+			case ownershipCircuitName:
+				go s.serveOwnership(ctx0, rckt)
+
 			case rsyncRemoteTakesString:
 				// we, the remote, take a file
 				go s.Taker(ctx0, rckt, myPeer, nil)
@@ -650,6 +666,9 @@ func (s *SyncService) Start(
 			}
 
 		case syncReq := <-s.SyncPathRequestCh:
+			go s.prepareOwnership(ctx0, myPeer, syncReq)
+
+		case syncReq := <-s.ownershipReady:
 			// we are the "local" getting this request from the cli client.go.
 
 			//vv("%v: sees requested on SyncPathRequestCh: '%#v'", name, syncReq)
@@ -850,7 +869,8 @@ func (s *SyncService) Start(
 					syncReq.GiverModTime = fi.ModTime()
 					syncReq.GiverFileSize = fi.Size()
 					syncReq.GiverFileMode = uint32(fi.Mode())
-					syncReq.GiverOwnership = fileOwnership(fi)
+					syncReq.OwnershipConveyed, syncReq.UID, syncReq.GID = fileOwnership(fi)
+					s.limitRequestOwnership(syncReq)
 					if isSymLink {
 						syncReq.GiverScanFlags |= ScanFlagIsSymLink
 						target, err := os.Readlink(syncReq.GiverPath)
@@ -936,6 +956,7 @@ func (s *SyncService) Start(
 						upperBound, rpc.UserMaxPayload-10_000, K))
 				}
 			}
+			s.limitRequestOwnership(syncReq)
 			data, err := syncReq.MarshalMsg(nil)
 			panicOn(err)
 

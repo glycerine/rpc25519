@@ -32,10 +32,10 @@ func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
 		var modTime time.Time
 
 		// SummarizeFile... rather than SummarizeBytes...
-		// so we can manually confirm owner name is present. Yes.
+		// so we can confirm numeric ownership metadata is present.
 		a, achunks, err := SummarizeFileInCDCHashes(host, path, true)
 
-		cv.So(a.FileOwner != "", cv.ShouldBeTrue)
+		cv.So(a.OwnershipConveyed, cv.ShouldBeTrue)
 
 		//vv("scan of file gave chunks: '%v'", achunks)
 		//cv.So(len(achunks.Chunks), cv.ShouldEqual, 24) // blob977k / FastCDC

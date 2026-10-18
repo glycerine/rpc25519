@@ -195,13 +195,13 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*File, bool] {
 									Path:      target,
 									Size:      fi.Size(),
 									FileMode:  uint32(fi.Mode()),
-									Ownership: fileOwnership(fi),
 									ModTime:   fi.ModTime(),
 									ScanFlags: scanFlags,
 									//IsSymLink: false,
 									//SymLinkTarget: resolveMe,
 									//FollowedSymlink: true,
 								}
+								rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 
 								if !yield(rf, true) {
 									return false
@@ -225,13 +225,13 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*File, bool] {
 								Path:      resolveMe,
 								Size:      fi.Size(),
 								FileMode:  uint32(fi.Mode()),
-								Ownership: fileOwnership(fi),
 								ModTime:   fi.ModTime(),
 								ScanFlags: scanFlags,
 								//IsSymLink:       true,
 								SymLinkTarget: target,
 								//FollowedSymlink: false,
 							}
+							rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 							if !yield(rf, true) {
 								return false
 							}
@@ -256,12 +256,12 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*File, bool] {
 						fi, err := entry.Info()
 						panicOn(err)
 						rf := &File{
-							Path:      fullpath,
-							Size:      fi.Size(),
-							FileMode:  uint32(fi.Mode()),
-							Ownership: fileOwnership(fi),
-							ModTime:   fi.ModTime(),
+							Path:     fullpath,
+							Size:     fi.Size(),
+							FileMode: uint32(fi.Mode()),
+							ModTime:  fi.ModTime(),
 						}
+						rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 						if !yield(rf, true) {
 							return false
 						}
@@ -414,13 +414,13 @@ func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 									Path:      target,
 									Size:      fi.Size(),
 									FileMode:  uint32(fi.Mode()),
-									Ownership: fileOwnership(fi),
 									ModTime:   fi.ModTime(),
 									ScanFlags: scanFlags,
 									//IsSymLink: false,
 									//SymLinkTarget: resolveMe,
 									//FollowedSymlink: true,
 								}
+								rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 
 								if !yield(rf, true) {
 									return false
@@ -444,13 +444,13 @@ func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 								Path:      resolveMe,
 								Size:      fi.Size(),
 								FileMode:  uint32(fi.Mode()),
-								Ownership: fileOwnership(fi),
 								ModTime:   fi.ModTime(),
 								ScanFlags: scanFlags,
 								//IsSymLink:       true,
 								SymLinkTarget: target,
 								//FollowedSymlink: false,
 							}
+							rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 							if !yield(rf, true) {
 								return false
 							}
@@ -475,12 +475,12 @@ func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 						fi, err := entry.Info()
 						panicOn(err)
 						rf := &File{
-							Path:      fullpath,
-							Size:      fi.Size(),
-							FileMode:  uint32(fi.Mode()),
-							Ownership: fileOwnership(fi),
-							ModTime:   fi.ModTime(),
+							Path:     fullpath,
+							Size:     fi.Size(),
+							FileMode: uint32(fi.Mode()),
+							ModTime:  fi.ModTime(),
 						}
+						rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 						if !yield(rf, true) {
 							return false
 						}
@@ -505,10 +505,10 @@ func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 				Path:      path,
 				Size:      fi.Size(),
 				FileMode:  uint32(fi.Mode()),
-				Ownership: fileOwnership(fi),
 				ModTime:   fi.ModTime(),
 				ScanFlags: scanFlags,
 			}
+			rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 			return yield(rf, true)
 		}
 
@@ -564,13 +564,13 @@ func (di *DirIter) ParallelOneWalkForAll(halt *idem.Halter, root string) (resCh 
 					Path:      path,
 					Size:      fi.Size(),
 					FileMode:  uint32(fi.Mode()),
-					Ownership: fileOwnership(fi),
 					ModTime:   fi.ModTime(),
 					ScanFlags: scanFlags,
 					//IsSymLink:       true,
 					SymLinkTarget: target,
 					//FollowedSymlink: false,
 				}
+				rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 				select {
 				case resCh <- rf:
 				case <-halt.ReqStop.Chan:
@@ -590,10 +590,10 @@ func (di *DirIter) ParallelOneWalkForAll(halt *idem.Halter, root string) (resCh 
 						Path:      path,
 						Size:      fi.Size(),
 						FileMode:  uint32(fi.Mode()),
-						Ownership: fileOwnership(fi),
 						ModTime:   fi.ModTime(),
 						ScanFlags: scanFlags,
 					}
+					rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 					select {
 					case resCh <- rf:
 					case <-halt.ReqStop.Chan:
@@ -603,12 +603,12 @@ func (di *DirIter) ParallelOneWalkForAll(halt *idem.Halter, root string) (resCh 
 				} else {
 					// regular file
 					rf := &File{
-						Path:      path,
-						Size:      fi.Size(),
-						FileMode:  uint32(fi.Mode()),
-						Ownership: fileOwnership(fi),
-						ModTime:   fi.ModTime(),
+						Path:     path,
+						Size:     fi.Size(),
+						FileMode: uint32(fi.Mode()),
+						ModTime:  fi.ModTime(),
 					}
+					rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 					select {
 					case resCh <- rf:
 					case <-halt.ReqStop.Chan:
@@ -679,13 +679,13 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 					Path:      path,
 					Size:      fi.Size(),
 					FileMode:  uint32(fi.Mode()),
-					Ownership: fileOwnership(fi),
 					ModTime:   fi.ModTime(),
 					ScanFlags: scanFlags,
 					//IsSymLink:       true,
 					SymLinkTarget: target,
 					//FollowedSymlink: false,
 				}
+				rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 				select {
 				case resCh <- rf:
 				case <-halt.ReqStop.Chan:
@@ -710,10 +710,10 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 						Path:      path,
 						Size:      fi.Size(),
 						FileMode:  uint32(fi.Mode()),
-						Ownership: fileOwnership(fi),
 						ModTime:   fi.ModTime(),
 						ScanFlags: scanFlags,
 					}
+					rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 					select {
 					case resCh <- rf:
 					case <-halt.ReqStop.Chan:
@@ -728,12 +728,12 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 						path = ""
 					}
 					rf := &File{
-						Path:      path,
-						Size:      fi.Size(),
-						FileMode:  uint32(fi.Mode()),
-						Ownership: fileOwnership(fi),
-						ModTime:   fi.ModTime(),
+						Path:     path,
+						Size:     fi.Size(),
+						FileMode: uint32(fi.Mode()),
+						ModTime:  fi.ModTime(),
 					}
+					rf.OwnershipConveyed, rf.UID, rf.GID = fileOwnership(fi)
 					select {
 					case resCh <- rf:
 					case <-halt.ReqStop.Chan:

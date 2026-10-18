@@ -13,7 +13,7 @@ import (
 	rpc "github.com/glycerine/rpc25519"
 )
 
-//go:generate greenpack -no-dedup=true
+//go:generate greenpack
 
 //msgp:ignore DirScanner
 type DirScanner struct {
@@ -82,18 +82,10 @@ type File struct {
 	// Assigned in the order yielded.
 	Serial int64 `zid:"6"`
 
-	// Ownership is nil for senders/platforms without Unix ownership metadata.
-	Ownership *FileOwnership `zid:"7"`
-}
-
-// FileOwnership conveys source IDs and account names used to resolve ownership
-// on a root receiver. User and group IDs may differ between hosts.
-// A pointer distinguishes missing metadata from valid zero IDs.
-type FileOwnership struct {
-	UID       uint32 `zid:"0"`
-	GID       uint32 `zid:"1"`
-	Username  string `zid:"2"`
-	Groupname string `zid:"3"`
+	// Ownership fields are omitted on the wire for unprivileged takers.
+	UID               uint32 `zid:"7"`
+	GID               uint32 `zid:"8"`
+	OwnershipConveyed bool   `zid:"9"`
 }
 
 const (
@@ -352,12 +344,12 @@ func ScanDirTree(
 			path = path[pre:]
 
 			dir := &File{
-				Path:      path,
-				Size:      fi.Size(),
-				FileMode:  uint32(fi.Mode()),
-				Ownership: fileOwnership(fi),
-				ModTime:   fi.ModTime(),
+				Path:     path,
+				Size:     fi.Size(),
+				FileMode: uint32(fi.Mode()),
+				ModTime:  fi.ModTime(),
 			}
+			dir.OwnershipConveyed, dir.UID, dir.GID = fileOwnership(fi)
 
 			uses := dir.Msgsize()
 

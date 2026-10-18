@@ -21,7 +21,7 @@ import (
 	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
-//go:generate greenpack -no-dedup=true
+//go:generate greenpack
 
 // Chunk is a segment of bytes from some file,
 // the location of which is given by [Beg, Endx).
@@ -371,16 +371,16 @@ type FilePrecis struct {
 	Host string `zid:"3"`
 	Path string `zid:"4"`
 
-	ModTime     time.Time `zid:"5"`
-	FileSize    int64     `zid:"6"`
-	FileMode    uint32    `zid:"7"`
-	FileOwner   string    `zid:"8"`
-	FileOwnerID uint32    `zid:"9"`
-	FileGroup   string    `zid:"10"`
-	FileGroupID uint32    `zid:"11"`
+	ModTime  time.Time `zid:"5"`
+	FileSize int64     `zid:"6"`
+	FileMode uint32    `zid:"7"`
+	UID      uint32    `zid:"8"`
+	GID      uint32    `zid:"9"`
+
+	OwnershipConveyed bool `zid:"10"`
 
 	// other data, extension mechanism. Not used presently; for future use.
-	FileMeta []byte `zid:"12"`
+	FileMeta []byte `zid:"11"`
 
 	// HashName is e.g. "blake3.33B". This should match the
 	// hash string prefix without any trailing "-" dash.
@@ -388,13 +388,13 @@ type FilePrecis struct {
 	// For example, if your hash strings look like
 	// "blake3.33B-89J1Jfa1AzfjiOcVOCLJXDsX3AANHWiSERgJwtaUSj8e"
 	// then your HashName is "blake3.33B".
-	HashName string `zid:"13"`
+	HashName string `zid:"12"`
 
-	FileCry string `zid:"14"`
+	FileCry string `zid:"13"`
 
-	IsSparse           bool  `zid:"15"` // at least one hole.
-	PreAllocUnwritBeg  int64 `zid:"16"`
-	PreAllocUnwritEndx int64 `zid:"17"`
+	IsSparse           bool  `zid:"14"` // at least one hole.
+	PreAllocUnwritBeg  int64 `zid:"15"`
+	PreAllocUnwritEndx int64 `zid:"16"`
 
 	// ChunkerName is e.g.
 	// "fastcdc-Stadia-Google-64bit-arbitrary-regression-jea"
@@ -402,12 +402,12 @@ type FilePrecis struct {
 	// It should encapsulate any settings and
 	// implementation version needed to allow it to be
 	// reproduced exactly.
-	ChunkerName string           `zid:"18"`
-	CDC_Config  *jcdc.CDC_Config `zid:"19"`
+	ChunkerName string           `zid:"17"`
+	CDC_Config  *jcdc.CDC_Config `zid:"18"`
 
 	// if the path does not actually exist on this
 	// side, then set this flag to indicate this fact.
-	PathAbsent bool `zid:"20"`
+	PathAbsent bool `zid:"19"`
 
 	// keep these separate so we don't
 	// send all the data all the time.
@@ -440,16 +440,13 @@ func (a *FilePrecis) Equal(b *FilePrecis) bool {
 	if a.FileMode != b.FileMode {
 		return false
 	}
-	if a.FileOwner != b.FileOwner {
+	if a.OwnershipConveyed != b.OwnershipConveyed {
 		return false
 	}
-	if a.FileOwnerID != b.FileOwnerID {
+	if a.UID != b.UID {
 		return false
 	}
-	if a.FileGroup != b.FileGroup {
-		return false
-	}
-	if a.FileGroupID != b.FileGroupID {
+	if a.GID != b.GID {
 		return false
 	}
 	if a.HashName != b.HashName {
@@ -839,13 +836,7 @@ func SummarizeFileInCDCHashes(host, path string, keepData bool) (precis *FilePre
 	precis.FileMode = uint32(fi.Mode())
 	precis.ModTime = modTime
 
-	fileOwner, uid := getFileOwnerAndID(fi)
-	fileGroup, gid := getFileGroupAndID(fi)
-
-	precis.FileOwnerID = uid
-	precis.FileGroupID = gid
-	precis.FileOwner = fileOwner
-	precis.FileGroup = fileGroup
+	precis.OwnershipConveyed, precis.UID, precis.GID = fileOwnership(fi)
 
 	return
 }
@@ -891,8 +882,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	}
 	// Capture metadata before any empty-file or sparse-file early return.
 	precis.FileMode = uint32(fi.Mode())
-	precis.FileOwner, precis.FileOwnerID = getFileOwnerAndID(fi)
-	precis.FileGroup, precis.FileGroupID = getFileGroupAndID(fi)
+	precis.OwnershipConveyed, precis.UID, precis.GID = fileOwnership(fi)
 	fileStatSz := fi.Size() // int64
 	precis.FileSize = fileStatSz
 
@@ -1309,13 +1299,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	precis.FileMode = uint32(fi.Mode())
 	precis.ModTime = modTime
 
-	fileOwner, uid := getFileOwnerAndID(fi)
-	fileGroup, gid := getFileGroupAndID(fi)
-
-	precis.FileOwnerID = uid
-	precis.FileGroupID = gid
-	precis.FileOwner = fileOwner
-	precis.FileGroup = fileGroup
+	precis.OwnershipConveyed, precis.UID, precis.GID = fileOwnership(fi)
 
 	h := blake3.New(64, nil)
 
@@ -1499,13 +1483,7 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 	precis.FileMode = uint32(fi.Mode())
 	precis.ModTime = modTime
 
-	fileOwner, uid := getFileOwnerAndID(fi)
-	fileGroup, gid := getFileGroupAndID(fi)
-
-	precis.FileOwnerID = uid
-	precis.FileGroupID = gid
-	precis.FileOwner = fileOwner
-	precis.FileGroup = fileGroup
+	precis.OwnershipConveyed, precis.UID, precis.GID = fileOwnership(fi)
 
 	precis.FileCry, err = hash.Blake3OfFile(path)
 	if err != nil {

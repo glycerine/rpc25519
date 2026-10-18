@@ -61,6 +61,9 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	_ = name // used when logging is on.
 
 	bt := &byteTracker{}
+	if syncReq != nil {
+		syncReq.accounts = s.accountMaps(syncReq.OwnershipSession)
+	}
 
 	defer func(syncReq *RequestToSyncPath) {
 		//vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
@@ -257,8 +260,8 @@ takerForSelectLoop:
 					err = os.Chtimes(localPathToWrite, time.Time{}, syncReq2.GiverModTime)
 					panicOn(err)
 					// update mode too? not sure if we have it avail
-					if !syncReq.DryRun && (syncReq2.GiverFileMode != 0 || syncReq2.GiverOwnership != nil) {
-						err = restoreMetadata(localPathToWrite, syncReq2.GiverFileMode, syncReq2.GiverOwnership)
+					if !syncReq.DryRun && (syncReq2.GiverFileMode != 0 || syncReq2.OwnershipConveyed) {
+						err = restoreMetadata(localPathToWrite, syncReq2.GiverFileMode, syncReq2.OwnershipConveyed, syncReq2.UID, syncReq2.GID, syncReq.accounts)
 						panicOn(err)
 					}
 					s.ackBackFINToGiver(ckt, frag)
@@ -330,7 +333,7 @@ takerForSelectLoop:
 					meta := &File{}
 					_, err := meta.UnmarshalMsg(frag.Payload)
 					panicOn(err)
-					panicOn(restoreMetadata(localPathToWrite, meta.FileMode, meta.Ownership))
+					panicOn(restoreMetadata(localPathToWrite, meta.FileMode, meta.OwnershipConveyed, meta.UID, meta.GID, syncReq.accounts))
 				}
 
 				s.ackBackFINToGiver(ckt, frag)
@@ -389,7 +392,7 @@ takerForSelectLoop:
 				//path := localPathToRead
 				mode := precis.FileMode
 				if !syncReq.DryRun {
-					err = restoreMetadata(localPathToWrite, mode, &FileOwnership{UID: precis.FileOwnerID, GID: precis.FileGroupID, Username: precis.FileOwner, Groupname: precis.FileGroup})
+					err = restoreMetadata(localPathToWrite, mode, precis.OwnershipConveyed, precis.UID, precis.GID, syncReq.accounts)
 				}
 				panicOn(err)
 
@@ -723,7 +726,7 @@ takerForSelectLoop:
 
 					mode := goalPrecis.FileMode // panic here nil
 					if !syncReq.DryRun {
-						err = restoreMetadata(localPathToWrite, mode, &FileOwnership{UID: goalPrecis.FileOwnerID, GID: goalPrecis.FileGroupID, Username: goalPrecis.FileOwner, Groupname: goalPrecis.FileGroup})
+						err = restoreMetadata(localPathToWrite, mode, goalPrecis.OwnershipConveyed, goalPrecis.UID, goalPrecis.GID, syncReq.accounts)
 					}
 					panicOn(err)
 
@@ -799,7 +802,7 @@ takerForSelectLoop:
 					// restore mode, modtime
 					mode := goalPrecis.FileMode
 					if !syncReq.DryRun {
-						err = restoreMetadata(localPathToWrite, mode, &FileOwnership{UID: goalPrecis.FileOwnerID, GID: goalPrecis.FileGroupID, Username: goalPrecis.FileOwner, Groupname: goalPrecis.FileGroup})
+						err = restoreMetadata(localPathToWrite, mode, goalPrecis.OwnershipConveyed, goalPrecis.UID, goalPrecis.GID, syncReq.accounts)
 					}
 					panicOn(err)
 
@@ -851,7 +854,7 @@ takerForSelectLoop:
 							panicOn(os.Link(localPathToRead, localPathToWrite))
 						}
 						if !syncReq.DryRun {
-							panicOn(restoreMetadata(localPathToWrite, syncReq.GiverFileMode, syncReq.GiverOwnership))
+							panicOn(restoreMetadata(localPathToWrite, syncReq.GiverFileMode, syncReq.OwnershipConveyed, syncReq.UID, syncReq.GID, syncReq.accounts))
 						}
 						err := os.Chtimes(localPathToWrite, time.Time{},
 							syncReq.GiverModTime)
@@ -868,6 +871,7 @@ takerForSelectLoop:
 				if syncReq == nil {
 					syncReq = &RequestToSyncPath{}
 					_, err := syncReq.UnmarshalMsg(frag.Payload)
+					syncReq.accounts = s.accountMaps(syncReq.OwnershipSession)
 					panicOn(err)
 					syncReq.Done = idem.NewIdemCloseChan()
 					bt.bread += len(frag.Payload)
@@ -1175,8 +1179,8 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 		panicOn(os.Link(localPathToRead, localPathToWrite))
 	}
 
-	if !syncReq.DryRun && (syncReq.GiverFileMode != 0 || syncReq.GiverOwnership != nil) {
-		panicOn(restoreMetadata(localPathToWrite, syncReq.GiverFileMode, syncReq.GiverOwnership))
+	if !syncReq.DryRun && (syncReq.GiverFileMode != 0 || syncReq.OwnershipConveyed) {
+		panicOn(restoreMetadata(localPathToWrite, syncReq.GiverFileMode, syncReq.OwnershipConveyed, syncReq.UID, syncReq.GID, syncReq.accounts))
 	}
 
 	ack := ckt.LpbFrom.NewFragment()
@@ -1211,7 +1215,7 @@ func (s *SyncService) takeSymlink(syncReq *RequestToSyncPath, localPathToWrite s
 	//  as the first element and modification time as the
 	//  second element."
 	//
-	_, err = restoreOwnership(localPathToWrite, syncReq.GiverOwnership)
+	_, err = restoreOwnership(localPathToWrite, syncReq.OwnershipConveyed, syncReq.UID, syncReq.GID, syncReq.accounts)
 	panicOn(err)
 	updateLinkModTime(localPathToWrite, syncReq.GiverModTime)
 }

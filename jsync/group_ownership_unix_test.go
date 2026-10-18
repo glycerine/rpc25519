@@ -8,6 +8,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -37,24 +38,19 @@ func TestRootTransferPreservesGroupNameAcrossDifferentGIDs(t *testing.T) {
 	if sourceGID == destinationGID {
 		sourceGID++
 	}
-	sourceGIDString := strconv.Itoa(sourceGID)
-	ownershipGroups.mu.Lock()
-	oldIDs := ownershipGroups.byID
-	ownershipGroups.byID = nil
-	ownershipGroups.mu.Unlock()
-	oldLookup := lookupFileGroupID
-	lookupFileGroupID = func(id string) (*user.Group, error) {
-		if id == sourceGIDString {
-			return &user.Group{Gid: sourceGIDString, Name: destinationGroup.Name}, nil
-		}
-		return oldLookup(id)
+	records, err := localAccounts()
+	must(err)
+	sourceGroups := make(map[int64]string, len(records.groups)+1)
+	for id, name := range records.groups {
+		sourceGroups[id] = name
 	}
-	defer func() {
-		lookupFileGroupID = oldLookup
-		ownershipGroups.mu.Lock()
-		ownershipGroups.byID = oldIDs
-		ownershipGroups.mu.Unlock()
-	}()
+	sourceGroups[int64(sourceGID)] = destinationGroup.Name
+	// Exceed a single account-table batch. The relevant ID may occur in any
+	// batch, but the complete table must arrive before file metadata is used.
+	for i := range 700 {
+		sourceGroups[int64(100000+i)] = fmt.Sprintf("unused-group-%d", i)
+	}
+	sourceRecords := newAccountDB(records.users, sourceGroups)
 
 	base := t.TempDir()
 	// Force new destinations to inherit the source numeric GID, so simply
@@ -71,12 +67,6 @@ func TestRootTransferPreservesGroupNameAcrossDifferentGIDs(t *testing.T) {
 	for _, path := range paths {
 		must(os.Lchown(filepath.Join(source, path), 0, sourceGID))
 	}
-	fi, err := os.Stat(filepath.Join(source, "nested", "data"))
-	must(err)
-	if name, gid := getFileGroupAndID(fi); name != destinationGroup.Name || gid != uint32(sourceGID) {
-		t.Fatalf("source group fixture: got %q (%d), want %q (%d)", name, gid, destinationGroup.Name, sourceGID)
-	}
-
 	cfg := rpc.NewConfig()
 	cfg.TCPonly_no_TLS = true
 	cfg.ServerAddr = "127.0.0.1:0"
@@ -95,6 +85,9 @@ func TestRootTransferPreservesGroupNameAcrossDifferentGIDs(t *testing.T) {
 	client, err := NewJsyncClient(cli)
 	must(err)
 	defer client.Close()
+	var sourceLoads atomic.Int32
+	client.rsyncd.sourceAccounts = func() (*accountDB, error) { sourceLoads.Add(1); return sourceRecords, nil }
+	server.rsyncd.sourceAccounts = func() (*accountDB, error) { return sourceRecords, nil }
 
 	checkGroup := func(path string) {
 		t.Helper()
@@ -112,6 +105,9 @@ func TestRootTransferPreservesGroupNameAcrossDifferentGIDs(t *testing.T) {
 	must(err)
 	for _, path := range paths {
 		checkGroup(filepath.Join(destination, path))
+	}
+	if n := sourceLoads.Load(); n != 1 {
+		t.Fatalf("directory transfer loaded source account maps %d times; want once for all file circuits", n)
 	}
 	// Metadata-only copies must resolve groups even when the bytes match.
 	must(os.Chown(filepath.Join(destination, "nested/data"), -1, sourceGID))
@@ -148,39 +144,15 @@ func TestRootTransferPreservesGroupNameAcrossDifferentGIDs(t *testing.T) {
 }
 
 func TestOwnershipMapsGroupNamesAcrossHosts(t *testing.T) {
-	idCalls, nameCalls := 0, 0
-	m := &ownershipGroupMap{
-		lookupID: func(id string) (*user.Group, error) {
-			idCalls++
-			if id == "20" {
-				return &user.Group{Gid: "20", Name: "staff"}, nil
-			}
-			return nil, fmt.Errorf("unknown source group")
-		},
-		lookupName: func(name string) (*user.Group, error) {
-			nameCalls++
-			if name == "staff" {
-				return &user.Group{Gid: "1001", Name: "staff"}, nil
-			}
-			return nil, fmt.Errorf("unknown destination group")
-		},
+	source := newAccountDB(nil, map[int64]string{20: "staff"})
+	destination := newAccountDB(nil, map[int64]string{1001: "staff"})
+	if gid, known := destination.destinationGID(source.groups[20]); gid != 1001 || !known {
+		t.Fatalf("destination GID = %d (%v), want 1001", gid, known)
 	}
-	for range 3 {
-		if name := m.groupname(20); name != "staff" {
-			t.Fatalf("source group name = %q", name)
+	for _, name := range []string{"", "missing-group", source.groups[12345]} {
+		if gid, known := destination.destinationGID(name); gid != 0 || known {
+			t.Fatalf("unknown group mapped to %d (%v)", gid, known)
 		}
-		if gid, known := m.destinationGID(m.groupname(20)); gid != 1001 || !known {
-			t.Fatalf("destination GID = %d (%v), want 1001", gid, known)
-		}
-		if gid, known := m.destinationGID("missing-group"); gid != 0 || known {
-			t.Fatalf("unknown group GID = %d (%v), want fallback 0", gid, known)
-		}
-		if gid, known := m.destinationGID(m.groupname(12345)); gid != 0 || known {
-			t.Fatalf("missing source group GID = %d (%v), want fallback 0", gid, known)
-		}
-	}
-	if idCalls != 2 || nameCalls != 2 {
-		t.Fatalf("lookups were not cached: source %d, destination %d", idCalls, nameCalls)
 	}
 }
 
@@ -203,8 +175,8 @@ func TestRootMissingDestinationGroupClearsSetgid(t *testing.T) {
 		// A known root owner keeps its legitimate setuid bit; group fallback
 		// must clear setgid without losing the remaining permission bits.
 		mode := os.FileMode(0751) | os.ModeSetgid | os.ModeSetuid
-		owner := &FileOwnership{UID: 0, GID: 1, Username: root.Username, Groupname: name}
-		if err := restoreMetadata(path, uint32(mode), owner); err != nil {
+		accounts := &OwnershipAccounts{Users: map[int64]string{0: root.Username}, Groups: map[int64]string{1: name}}
+		if err := restoreMetadata(path, uint32(mode), true, 0, 1, accounts); err != nil {
 			t.Fatal(err)
 		}
 		fi, err := os.Stat(path)

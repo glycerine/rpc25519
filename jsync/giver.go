@@ -180,7 +180,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					ack := myPeer.NewFragment()
 					ack.FragSubject = frag0.FragSubject
 					ack.FragOp = OpRsync_FileSizeModTimeMatch
-					ack.Payload, err = (&File{FileMode: uint32(fi.Mode()), Ownership: fileOwnership(fi)}).MarshalMsg(nil)
+					ack.Payload, err = s.senderFileMetadata(fi, syncReq.OwnershipSession).MarshalMsg(nil)
 					panicOn(err)
 
 					bt.bsend += ack.Msgsize()
@@ -193,7 +193,8 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					syncReq.GiverModTime = mod
 					syncReq.GiverFileSize = sz
 					syncReq.GiverFileMode = uint32(fi.Mode())
-					syncReq.GiverOwnership = fileOwnership(fi)
+					syncReq.OwnershipConveyed, syncReq.UID, syncReq.GID = fileOwnership(fi)
+					s.limitRequestOwnership(syncReq)
 
 					// but also send them the checksum in case we can
 					// avoid sending a big file just b/c of mod time update.
@@ -456,6 +457,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		//vv("end GetHashesOneByOne. elap = %v", time.Since(t1))
 	}
 	panicOn(err)
+	s.limitPrecisOwnership(goalPrecis, syncReq.OwnershipSession)
 	//vv("end ChunkFile. elap = %v; local = '%v'; \n goalPrecis = '%v'", time.Since(t1), local, goalPrecis)
 	// have UNWRIT here; and PreAllocUnwritBytes
 
@@ -627,7 +629,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		ack := ckt.LpbFrom.NewFragment()
 		ack.FragSubject = frag.FragSubject
 		ack.FragOp = OpRsync_FileSizeModTimeMatch
-		ack.Payload, err = (&File{FileMode: uint32(fi.Mode()), Ownership: fileOwnership(fi)}).MarshalMsg(nil)
+		ack.Payload, err = s.senderFileMetadata(fi, syncReq.OwnershipSession).MarshalMsg(nil)
 		panicOn(err)
 
 		bt.bsend += ack.Msgsize()

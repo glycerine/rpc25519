@@ -231,8 +231,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// after getting 23,
 				// send 26
 				// OpRsync_GiverSendsTopDirListing
-				haltDirScan, packOfFilesCh, totalFileCountCh, err := ScanDirTreeOnePass(
-					ctx0, reqDir.GiverDir)
+				haltDirScan, packOfFilesCh, totalFileCountCh, err := ScanDirTreeOnePass(ctx0, reqDir.GiverDir)
 				panicOn(err)
 				defer haltDirScan.ReqStop.Close()
 				var dirsum *DirSummary
@@ -253,6 +252,9 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						}
 
 						fragPOF := myPeer.NewFragment()
+						for _, f := range pof.Pack {
+							s.limitFileOwnership(f, reqDir.SR.OwnershipSession)
+						}
 						bts, err := pof.MarshalMsg(nil)
 						panicOn(err)
 						fragPOF.Payload = bts

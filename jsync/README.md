@@ -15,8 +15,12 @@ On Unix, jsync preserves file and directory permission bits. When the receiving
 process runs as root, it maps source owner and group names to destination
 accounts, including symlink ownership. User and group IDs may differ between
 hosts. Missing or unknown usernames fall back to UID 0 with setuid cleared;
-missing or unknown group names fall back to GID 0 with setgid cleared. Both
-lookups are cached. The receiver is `jsrv` for a push and `jcp` for a pull.
+missing or unknown group names fall back to GID 0 with setgid cleared.
+Account maps are loaded once per process from `/etc/passwd` and `/etc/group`
+and sent once at the beginning of a transfer to a root taker. Per-file metadata
+contains only `OwnershipConveyed`, `UID`, and `GID`; these are all zero and
+omitted from the wire for unprivileged takers. The receiver is `jsrv` for a
+push and `jcp` for a pull.
 Unprivileged receivers skip ownership changes. Ownership is applied before
 permissions so legitimate setuid/setgid bits survive `chown`.
 

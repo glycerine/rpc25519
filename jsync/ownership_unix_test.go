@@ -3,7 +3,6 @@
 package jsync
 
 import (
-	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -247,7 +246,7 @@ func TestNonRootReceiverSkipsOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	// An unprivileged receiver must not even attempt to become root.
-	if err := restoreMetadata(path, 0751, &FileOwnership{UID: 0, GID: 0}); err != nil {
+	if err := restoreMetadata(path, 0751, true, 0, 0, nil); err != nil {
 		t.Fatal(err)
 	}
 	after, err := os.Stat(path)
@@ -264,39 +263,15 @@ func TestNonRootReceiverSkipsOwnership(t *testing.T) {
 }
 
 func TestOwnershipMapsUsernamesAcrossHosts(t *testing.T) {
-	idCalls, nameCalls := 0, 0
-	m := &ownershipUserMap{
-		lookupID: func(id string) (*user.User, error) {
-			idCalls++
-			if id == "501" {
-				return &user.User{Uid: "501", Username: "jaten"}, nil
-			}
-			return nil, fmt.Errorf("unknown source UID")
-		},
-		lookupName: func(name string) (*user.User, error) {
-			nameCalls++
-			if name == "jaten" {
-				return &user.User{Uid: "1001", Username: "jaten"}, nil
-			}
-			return nil, fmt.Errorf("unknown destination username")
-		},
+	source := newAccountDB(map[int64]string{501: "jaten"}, nil)
+	destination := newAccountDB(map[int64]string{1001: "jaten"}, nil)
+	if uid, known := destination.destinationUID(source.users[501]); uid != 1001 || !known {
+		t.Fatalf("destination UID = %d (%v), want 1001", uid, known)
 	}
-	for range 3 {
-		if name := m.username(501); name != "jaten" {
-			t.Fatalf("source username = %q", name)
+	for _, name := range []string{"", "missing-user", source.users[12345]} {
+		if uid, known := destination.destinationUID(name); uid != 0 || known {
+			t.Fatalf("unknown user mapped to %d (%v)", uid, known)
 		}
-		if uid, known := m.destinationUID(m.username(501)); uid != 1001 || !known {
-			t.Fatalf("destination UID = %d, want 1001", uid)
-		}
-		if uid, known := m.destinationUID("missing-user"); uid != 0 || known {
-			t.Fatalf("missing account UID = %d, want root", uid)
-		}
-		if uid, known := m.destinationUID(m.username(12345)); uid != 0 || known {
-			t.Fatalf("unknown source account UID = %d, want root", uid)
-		}
-	}
-	if idCalls != 2 || nameCalls != 2 {
-		t.Fatalf("lookups were not cached: source %d, destination %d", idCalls, nameCalls)
 	}
 }
 
@@ -314,7 +289,7 @@ func TestRootMissingDestinationUserFallsBackToRoot(t *testing.T) {
 		if err := os.Chown(path, 1, 1); err != nil {
 			t.Fatal(err)
 		}
-		if err := restoreMetadata(path, uint32(0751|os.ModeSetuid), &FileOwnership{UID: 1, GID: 1, Username: name}); err != nil {
+		if err := restoreMetadata(path, uint32(0751|os.ModeSetuid), true, 1, 1, &OwnershipAccounts{Users: map[int64]string{1: name}}); err != nil {
 			t.Fatal(err)
 		}
 		fi, err := os.Stat(path)
@@ -330,5 +305,26 @@ func TestRootMissingDestinationUserFallsBackToRoot(t *testing.T) {
 		if fi.Mode().Perm() != 0751 {
 			t.Fatalf("fallback changed ordinary permissions: %v", fi.Mode())
 		}
+	}
+}
+
+func TestNumericOwnershipMetadataDoesNotAllocate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(path, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var conveyed bool
+	var uid, gid uint32
+	allocations := testing.AllocsPerRun(1000, func() { conveyed, uid, gid = fileOwnership(fi) })
+	if allocations != 0 {
+		t.Fatalf("numeric metadata allocated %v objects per file", allocations)
+	}
+	st := fi.Sys().(*syscall.Stat_t)
+	if !conveyed || uid != st.Uid || gid != st.Gid {
+		t.Fatalf("numeric metadata mismatch: %v %d:%d", conveyed, uid, gid)
 	}
 }

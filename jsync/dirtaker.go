@@ -53,6 +53,10 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	needUpdate := rpc.NewMutexmap[string, *File]()
 	takerCatalog := rpc.NewMutexmap[string, *File]()
 
+	if reqDir != nil {
+		reqDir.SR.accounts = s.accountMaps(reqDir.SR.OwnershipSession)
+	}
+
 	weAreRemoteTaker := (reqDir == nil)
 
 	if reqDir != nil {
@@ -137,6 +141,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 				bt.bread += len(frag.Payload)
 				sr := reqDir3.SR
+				sr.accounts = s.accountMaps(sr.OwnershipSession)
 				sr.GiverIsDir = false
 				sr.Done = idem.NewIdemCloseChan()
 
@@ -191,6 +196,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				if reqDir == nil {
 					// already set above: weAreRemoteTaker = true
 					reqDir = reqDir2
+					reqDir.SR.accounts = s.accountMaps(reqDir.SR.OwnershipSession)
 				} else {
 					// we are the local taker. We created the
 					// temp target dir in service Start(). The
@@ -476,7 +482,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					// modes until all file transfers and deletions have completed.
 					if !reqDir.DryRun {
 						for _, f := range directoryMetadata {
-							panicOn(restoreMetadata(filepath.Join(reqDir.TopTakerDirFinal, f.Path), f.FileMode, f.Ownership))
+							panicOn(restoreMetadata(filepath.Join(reqDir.TopTakerDirFinal, f.Path), f.FileMode, f.OwnershipConveyed, f.UID, f.GID, reqDir.SR.accounts))
 						}
 					}
 
@@ -609,7 +615,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 			panicOn(err)
 			fd.Close()
 			if !reqDir.DryRun {
-				panicOn(restoreMetadata(localPathToWrite, f.FileMode, f.Ownership))
+				panicOn(restoreMetadata(localPathToWrite, f.FileMode, f.OwnershipConveyed, f.UID, f.GID, reqDir.SR.accounts))
 			}
 			err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
 			panicOn(err)
@@ -656,7 +662,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 				updateLinkModTime(localPathToWrite, f.ModTime)
 			}
 			if !reqDir.DryRun {
-				panicOn(restoreMetadata(localPathToWrite, f.FileMode, f.Ownership))
+				panicOn(restoreMetadata(localPathToWrite, f.FileMode, f.OwnershipConveyed, f.UID, f.GID, reqDir.SR.accounts))
 			}
 			return // all symlinks done
 		}
@@ -677,7 +683,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 				panicOn(err)
 			}
 			if !reqDir.DryRun {
-				panicOn(restoreMetadata(localPathToWrite, f.FileMode, f.Ownership))
+				panicOn(restoreMetadata(localPathToWrite, f.FileMode, f.OwnershipConveyed, f.UID, f.GID, reqDir.SR.accounts))
 			}
 		}
 	}
@@ -821,10 +827,13 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 					TopTakerDirFinal: reqDir.TopTakerDirFinal,
 					GiverDirAbs:      reqDir.GiverDir,
 
-					GiverFileSize:  file.Size,
-					GiverModTime:   file.ModTime,
-					GiverFileMode:  file.FileMode,
-					GiverOwnership: file.Ownership,
+					GiverFileSize:     file.Size,
+					GiverModTime:      file.ModTime,
+					GiverFileMode:     file.FileMode,
+					OwnershipConveyed: file.OwnershipConveyed,
+					UID:               file.UID,
+					GID:               file.GID,
+					OwnershipSession:  reqDir.SR.OwnershipSession,
 
 					TakerFileSize: int64(precis.FileSize),
 					TakerModTime:  precis.ModTime,

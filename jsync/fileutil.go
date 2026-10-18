@@ -127,8 +127,8 @@ func FileSizeModTime(name string) (sz int64, modTime time.Time, err error) {
 
 // Chown can clear setuid/setgid bits, so always restore permissions afterward.
 // Never chmod symlinks: it would change the target rather than the link.
-func restoreMetadata(path string, mode uint32, owner *FileOwnership) error {
-	clearBits, err := restoreOwnership(path, owner)
+func restoreMetadata(path string, mode uint32, conveyed bool, uid, gid uint32, accounts *OwnershipAccounts) error {
+	clearBits, err := restoreOwnership(path, conveyed, uid, gid, accounts)
 	if err != nil {
 		return err
 	}
