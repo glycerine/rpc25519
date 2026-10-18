@@ -5,6 +5,8 @@ Author: Jason E. Aten, Ph.D.
 
 Initial release: 2025 September 18
 
+news: Protocol Aware Recovery (PAR) to avoid data loss when storage faults occur
+was implemented 2026 October 17.
 
 The rpc25519/tube/ subdirectory contains Tube, 
 a tested and working implementation of Diego Ongaro's Raft algorithm

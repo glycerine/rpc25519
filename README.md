@@ -1,6 +1,10 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* 2026 Oct 17: Tube, our RAFT implementation at rpc25519/tube,
+now provides Protocol Aware Recovery (PAR), to avoid
+data loss when storage faults occur.
+
 * 2026 Feb 26: rpc25519 v1.44.0: rpc and tube have been hardened
 by additional network "kinda-determinstic simulation
 testing" (kDST). The "kinda" is because the standard
