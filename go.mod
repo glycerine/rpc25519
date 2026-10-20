@@ -1,6 +1,6 @@
 module github.com/glycerine/rpc25519
 
-go 1.26.0
+go 1.27.3
 
 require (
 	github.com/apoorvam/goterminal v0.0.0-20180523175556-614d345c47e5
@@ -21,6 +21,7 @@ require (
 	github.com/glycerine/rate v0.0.1
 	github.com/glycerine/rbtree v0.2.1
 	github.com/glycerine/restic-chunker-mod v0.5.0
+	github.com/glycerine/vfs v0.3.3
 	github.com/glycerine/yogadb v0.18.0
 	github.com/glycerine/zygomys/v9 v9.6.4
 	github.com/klauspost/compress v1.18.4
@@ -50,7 +51,6 @@ require (
 	github.com/glycerine/fwd v1.1.4-beta.jea // indirect
 	github.com/glycerine/liner v0.0.0-20160121172638-72909af234e0 // indirect
 	github.com/glycerine/one_tree_rwmut v1.0.0 // indirect
-	github.com/glycerine/vfs v0.3.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
