@@ -329,6 +329,28 @@ func Test018b_FindSparseRegionsPreallocationEndpoint(t *testing.T) {
 	}
 }
 
+func Test018c_FindSparseRegionsClampsDataExtentToEOF(t *testing.T) {
+	path := "test018c.partial-final-block"
+	os.Remove(path)
+	defer os.Remove(path)
+
+	fd, err := os.Create(path)
+	panicOn(err)
+	defer fd.Close()
+
+	data := make([]byte, 4097)
+	_, err = fd.Write(data)
+	panicOn(err)
+	panicOn(fd.Sync())
+
+	_, spans, err := FindSparseRegions(fd)
+	panicOn(err)
+	want := &SparseSpans{Slc: []SparseSpan{{Beg: 0, Endx: int64(len(data))}}}
+	if !spans.Equal(want) {
+		t.Fatalf("FIEMAP block rounding escaped EOF:\ngot  %v\nwant %v", spans, want)
+	}
+}
+
 func Test019_FieMapLinux_empty_file(t *testing.T) {
 
 	// fiemap should not choke on an empty file.

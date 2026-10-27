@@ -11,7 +11,8 @@ func findPreallocatedRegions(fd *os.File, sum *SparseSum) (*SparseSpans, bool, e
 	if err != nil || spans == nil {
 		return nil, false, err
 	}
-	// With KEEP_SIZE preallocation, ext4 can temporarily report a recently
+	// FIEMAP reports block-sized extents, so clamp ordinary data and holes to
+	// EOF. With KEEP_SIZE preallocation, ext4 can temporarily report a recently
 	// written prefix as FIEMAP_EXTENT_UNWRITTEN until writeback completes. Bytes
 	// below EOF are the file's data prefix in the model supported by this
 	// package; only the beyond-EOF tail is the reservation being transferred.
@@ -29,6 +30,12 @@ func findPreallocatedRegions(fd *os.File, sum *SparseSum) (*SparseSpans, bool, e
 			}
 			continue
 		}
+		if !span.IsUnwrittenPrealloc {
+			if span.Beg >= sum.StatSize {
+				continue
+			}
+			span.Endx = min(span.Endx, sum.StatSize)
+		}
 		normalized = append(normalized, span)
 	}
 
@@ -37,6 +44,24 @@ func findPreallocatedRegions(fd *os.File, sum *SparseSum) (*SparseSpans, bool, e
 	// largest physical fragment.
 	spans.Slc = logicalSpans(normalized)
 
+	// ext4 may retain one speculative unwritten block past EOF after ordinary
+	// writes. It is indistinguishable in FIEMAP from a tiny KEEP_SIZE request,
+	// and the wire format already defines real preallocation as larger than one
+	// filesystem block. Do not turn that allocator detail into file semantics.
+	minPrealloc, err := MinSparseHoleSize(fd)
+	if err != nil || minPrealloc <= 0 {
+		minPrealloc = 4096
+	}
+	filtered := spans.Slc[:0]
+	for _, span := range spans.Slc {
+		if span.IsUnwrittenPrealloc && span.Beg >= sum.StatSize &&
+			span.Endx-span.Beg <= minPrealloc {
+			continue
+		}
+		filtered = append(filtered, span)
+	}
+	spans.Slc = filtered
+
 	var largest SparseSpan
 	for _, span := range spans.Slc {
 		if span.IsUnwrittenPrealloc && span.Endx-span.Beg > largest.Endx-largest.Beg {
@@ -44,7 +69,9 @@ func findPreallocatedRegions(fd *os.File, sum *SparseSum) (*SparseSpans, bool, e
 		}
 	}
 	if largest.Endx == 0 {
-		return nil, false, nil
+		// FIEMAP succeeded and authoritatively found no transferable
+		// preallocation. Do not fall back to interpreting st_blocks as offsets.
+		return spans, true, nil
 	}
 	sum.UnwritBegin = largest.Beg
 	sum.UnwritEndx = largest.Endx
