@@ -83,7 +83,7 @@ func FieMap2(fd *os.File) (spans *SparseSpans, err error) {
 	// that count.  Query the complete logical address space instead of using
 	// disksz as FIEMAP's end offset.
 	const allLogicalOffsets = ^uint64(0)
-	vv("sz = '%v'; vs disksz = %v", sz, disksz)
+	//vv("sz = '%v'; vs disksz = %v", sz, disksz)
 
 	reqExtentCount := extentBatchCount // guess will be less than
 
@@ -124,12 +124,12 @@ func FieMap2(fd *os.File) (spans *SparseSpans, err error) {
 
 	gotExtentCount := fiemapData.fm_mapped_extents
 
-	vv("look for holes in path: %v (Size: %v bytes)\n", fd.Name(), sz)
-	vv("asked for up to reqExtentCount = %v", reqExtentCount)
-	vv("Got back/found %v mapped extents.\n\n", gotExtentCount)
+	//vv("look for holes in path: %v (Size: %v bytes)\n", fd.Name(), sz)
+	//vv("asked for up to reqExtentCount = %v", reqExtentCount)
+	//vv("Got back/found %v mapped extents.\n\n", gotExtentCount)
 
 	if gotExtentCount == 0 {
-		vv("entirely sparse file: no extents at all (so just one hole)")
+		//vv("entirely sparse file: no extents at all (so just one hole)")
 		spans = &SparseSpans{
 			Slc: []SparseSpan{
 				SparseSpan{
@@ -152,10 +152,10 @@ func FieMap2(fd *os.File) (spans *SparseSpans, err error) {
 haveMoreExtents:
 	for {
 
-		vv("gotExtentCount = %v; sz = %v; errno = %#v; fiemapData = '%#v'", gotExtentCount, sz, errno, fiemapData)
+		//vv("gotExtentCount = %v; sz = %v; errno = %#v; fiemapData = '%#v'", gotExtentCount, sz, errno, fiemapData)
 
-		//vv("look for holes in path: %v (Size: %v bytes)\n", fd.Name(), sz)
-		//vv("found %v mapped extents.\n\n", gotExtentCount)
+		//////vv("look for holes in path: %v (Size: %v bytes)\n", fd.Name(), sz)
+		//////vv("found %v mapped extents.\n\n", gotExtentCount)
 
 		// To access the extents, we create a slice header pointing to the memory
 		// right after the main Fiemap struct fields.
@@ -164,12 +164,13 @@ haveMoreExtents:
 		))[:gotExtentCount:gotExtentCount]
 
 		lastFlags := uint32(extents[gotExtentCount-1].fe_flags)
-		vv("flags from last extent %v are %v", gotExtentCount-1, lastFlags)
+		//vv("flags from last extent %v are %v", gotExtentCount-1, lastFlags)
 		moreExtentsAvail = (lastFlags & FIEMAP_EXTENT_LAST) == 0
-		vv("moreExtentsAvail = %v", moreExtentsAvail)
+		//vv("moreExtentsAvail = %v", moreExtentsAvail)
 
 		for i, extent := range extents {
-			vv("i=%v, extent = '%#v'", i, extent)
+			_ = i
+			//vv("i=%v, extent = '%#v'", i, extent)
 
 			// Check for a hole between the end of
 			// the last extent and the start of this one.
@@ -179,7 +180,7 @@ haveMoreExtents:
 			if logical > offset {
 				holeStart := offset
 				holeLength := logical - offset
-				//vv("Hole found at offset %v with length %v bytes.\n", holeStart, holeLength)
+				//////vv("Hole found at offset %v with length %v bytes.\n", holeStart, holeLength)
 
 				span := SparseSpan{
 					IsHole: true,
@@ -189,7 +190,7 @@ haveMoreExtents:
 				}
 				spans.Slc = append(spans.Slc, span)
 			}
-			vv("on i = %v, logical(%v) <= offset(%v)", i, logical, offset)
+			//vv("on i = %v, logical(%v) <= offset(%v)", i, logical, offset)
 			span := SparseSpan{
 				IsHole: false,
 				Beg:    logical,
@@ -198,7 +199,7 @@ haveMoreExtents:
 			}
 			// pre-allocated?
 			if (extent.fe_flags & FIEMAP_EXTENT_UNWRITTEN) != 0 {
-				//vv("Unwritten extent (hole) at offset %v with length %v bytes.\n", logical, extent.fe_length)
+				//////vv("Unwritten extent (hole) at offset %v with length %v bytes.\n", logical, extent.fe_length)
 				span.IsUnwrittenPrealloc = true
 			}
 			spans.Slc = append(spans.Slc, span)
@@ -232,9 +233,9 @@ haveMoreExtents:
 
 			gotExtentCount = fiemapData.fm_mapped_extents
 
-			vv("ioctlCallCount=%v looked for holes in path: %v (Size: %v bytes)\n", ioctlCallCount, fd.Name(), sz)
-			vv("ioctlCallCount=%v asked for up to reqExtentCount = %v", ioctlCallCount, reqExtentCount)
-			vv("ioctlCallCount=%v Got back/found %v mapped extents.\n\n", ioctlCallCount, gotExtentCount)
+			//vv("ioctlCallCount=%v looked for holes in path: %v (Size: %v bytes)\n", ioctlCallCount, fd.Name(), sz)
+			//vv("ioctlCallCount=%v asked for up to reqExtentCount = %v", ioctlCallCount, reqExtentCount)
+			//vv("ioctlCallCount=%v Got back/found %v mapped extents.\n\n", ioctlCallCount, gotExtentCount)
 
 			if gotExtentCount == 0 {
 				panic("should never happen, since have more extents!")
@@ -248,7 +249,7 @@ haveMoreExtents:
 	} // end for moreExtentsAvail
 
 	// hole at the end?
-	//vv("after extents: sz = %v; offset = %v", sz, offset)
+	////vv("after extents: sz = %v; offset = %v", sz, offset)
 	if sz > offset {
 		spans.Slc = append(spans.Slc, SparseSpan{
 			IsHole: true,
