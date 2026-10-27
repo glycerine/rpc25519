@@ -30,10 +30,10 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/quic-go/quic-go v0.59.0
 	github.com/templexxx/cpu v0.1.1
-	golang.org/x/crypto v0.57.0
-	golang.org/x/net v0.60.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/term v0.46.0
+	golang.org/x/crypto v0.58.0
+	golang.org/x/net v0.62.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/term v0.47.0
 	golang.org/x/time v0.14.0
 )
 
@@ -66,6 +66,6 @@ require (
 	github.com/tidwall/btree v1.8.2-0.20251103153907-da3712be86f9 // indirect
 	github.com/tinylib/msgp v1.1.2 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
 )
