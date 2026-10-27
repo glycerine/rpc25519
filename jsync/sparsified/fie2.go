@@ -78,12 +78,12 @@ func FieMap2(fd *os.File) (spans *SparseSpans, err error) {
 	*/
 
 	sz := statsz
-	maxsz := sz
-	if disksz > sz {
-		maxsz = disksz
-	}
-	vv("sz = '%v'; vs disksz = %v; maxsz = %v", sz, disksz, maxsz)
-	// INVAR: maxsz > 0 because we return above otherwise.
+	// st_blocks is a count of allocated 512-byte blocks, not a logical file
+	// offset.  In particular, ext4 includes blocks used by the extent tree in
+	// that count.  Query the complete logical address space instead of using
+	// disksz as FIEMAP's end offset.
+	const allLogicalOffsets = ^uint64(0)
+	vv("sz = '%v'; vs disksz = %v", sz, disksz)
 
 	reqExtentCount := extentBatchCount // guess will be less than
 
@@ -100,7 +100,7 @@ func FieMap2(fd *os.File) (spans *SparseSpans, err error) {
 
 	// Populate the struct for the real call.
 	fiemapData.fm_start = 0                              // (in)
-	fiemapData.fm_length = C.__u64(maxsz)                // (in)
+	fiemapData.fm_length = C.__u64(allLogicalOffsets)    // (in)
 	fiemapData.fm_flags = 0                              // (in/out)
 	fiemapData.fm_extent_count = C.__u32(reqExtentCount) // (in)
 	fiemapData.fm_mapped_extents = 0                     // (out)
@@ -135,7 +135,7 @@ func FieMap2(fd *os.File) (spans *SparseSpans, err error) {
 				SparseSpan{
 					IsHole: true,
 					Beg:    0,
-					Endx:   maxsz,
+					Endx:   sz,
 				},
 			},
 		}
@@ -209,7 +209,7 @@ haveMoreExtents:
 		if moreExtentsAvail {
 			// re-fill, starting at offset
 			fiemapData.fm_start = C.__u64(offset)                // (in)
-			fiemapData.fm_length = C.__u64(maxsz)                // (in)
+			fiemapData.fm_length = C.__u64(allLogicalOffsets)    // (in)
 			fiemapData.fm_flags = 0                              // (in/out)
 			fiemapData.fm_extent_count = C.__u32(reqExtentCount) // (in)
 			fiemapData.fm_mapped_extents = 0                     // (out)
@@ -256,16 +256,6 @@ haveMoreExtents:
 			Endx:   sz,
 		})
 		offset = sz
-	}
-
-	// pre-alloc hole at the end?
-	//vv("after extents: disksz = %v; offset = %v", disksz, offset)
-	if disksz > offset {
-		spans.Slc = append(spans.Slc, SparseSpan{
-			IsHole: true,
-			Beg:    offset,
-			Endx:   disksz,
-		})
 	}
 
 	return

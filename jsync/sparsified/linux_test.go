@@ -295,6 +295,40 @@ func Test018_FieMapLinux_preallocated2(t *testing.T) {
 	// vv("fieRead after writing first page only = '%v'", fieRead2)
 }
 
+// st_blocks may include ext4 extent-tree metadata and is therefore not a
+// logical byte offset. Ensure the transfer-facing summary reports FIEMAP's
+// actual preallocation boundary after a prefix has been written.
+func Test018b_FindSparseRegionsPreallocationEndpoint(t *testing.T) {
+	const preallocEnd int64 = 1 << 26
+	path := "test018b.preallocated-prefix"
+	os.Remove(path)
+	defer os.Remove(path)
+
+	fd, err := os.Create(path)
+	panicOn(err)
+	defer fd.Close()
+
+	_, err = Fallocate(fd, FALLOC_FL_KEEP_SIZE, 0, preallocEnd)
+	panicOn(err)
+	_, err = fd.Write(oneZeroBlock4k[:])
+	panicOn(err)
+	panicOn(fd.Sync())
+
+	sum, spans, err := FindSparseRegions(fd)
+	panicOn(err)
+	if sum.UnwritBegin != 4096 || sum.UnwritEndx != preallocEnd {
+		t.Fatalf("wrong unwritten extent [%d, %d), want [4096, %d); disk size was %d",
+			sum.UnwritBegin, sum.UnwritEndx, preallocEnd, sum.DiskSize)
+	}
+	want := &SparseSpans{Slc: []SparseSpan{
+		{Beg: 0, Endx: 4096},
+		{IsUnwrittenPrealloc: true, Beg: 4096, Endx: preallocEnd},
+	}}
+	if !spans.Equal(want) {
+		t.Fatalf("wrong logical layout:\ngot  %v\nwant %v", spans, want)
+	}
+}
+
 func Test019_FieMapLinux_empty_file(t *testing.T) {
 
 	// fiemap should not choke on an empty file.

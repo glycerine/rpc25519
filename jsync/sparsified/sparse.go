@@ -418,6 +418,24 @@ func FindSparseRegions(fd *os.File) (sum *SparseSum, spans *SparseSpans, err err
 
 	//vv("sum = '%#v'", sum)
 
+	// DiskSize comes from st_blocks and can include filesystem metadata. It
+	// therefore cannot identify the logical end of a preallocated extent. On
+	// platforms with a logical extent API (FIEMAP on Linux), prefer that exact
+	// layout whenever the allocation count suggests preallocation.
+	if disksz > statsz {
+		var handled bool
+		var exactSpans *SparseSpans
+		exactSpans, handled, err = findPreallocatedRegions(fd, sum)
+		if err == nil && handled {
+			spans = exactSpans
+			return sum, spans, nil
+		}
+		// FIEMAP is not supported by every Linux filesystem. Preserve the
+		// portable st_blocks/SEEK_HOLE fallback in that case.
+		err = nil
+		spans = &SparseSpans{}
+	}
+
 	// maybe todo: get fiemap working?
 	// https://github.com/longhorn/sparse-tools/blob/master/sparse/fiemap.go
 	// and
@@ -643,7 +661,7 @@ func SparseDiff(srcpath, destpath string) (err error) {
 		return fmt.Errorf("SparseDiff error: could not open destpath '%v': '%v'", destpath, err)
 	}
 
-	sum0, err0 := SparseFileSize(src)
+	sum0, spans0, err0 := FindSparseRegions(src)
 	panicOn(err0)
 	if err0 != nil {
 		return fmt.Errorf("SparseDiff error from SparseFileSize(srcpath='%v'): '%v'", srcpath, err0)
@@ -652,7 +670,7 @@ func SparseDiff(srcpath, destpath string) (err error) {
 	disksz0 := sum0.DiskSize
 	statsz0 := sum0.StatSize
 
-	sum1, err1 := SparseFileSize(dest)
+	sum1, spans1, err1 := FindSparseRegions(dest)
 	panicOn(err1)
 	if err1 != nil {
 		return fmt.Errorf("SparseDiff error from SparseFileSize(destpath='%v'): '%v'", destpath, err1)
@@ -666,7 +684,12 @@ func SparseDiff(srcpath, destpath string) (err error) {
 		return fmt.Errorf("SparseDiff error: srcpath('%v') has isSparse=%v, but destpath('%v') has isSparse=%v", srcpath, isSparse0, destpath, isSparse1)
 	}
 	if disksz0 != disksz1 {
-		return fmt.Errorf("SparseDiff error: srcpath('%v') has disksz=%v (%v blocks of 512 bytes), but destpath('%v') has disksz=%v (%v blocks of 512 bytes); difference src - dest => %v", srcpath, disksz0, (disksz0 / 512), destpath, disksz1, (disksz1 / 512), disksz0-disksz1)
+		// st_blocks may differ solely because one file needs more filesystem
+		// metadata for its physical extent tree. Accept that difference only
+		// when the logical data/hole/preallocation layouts agree.
+		if spans0 == nil || spans1 == nil || !spans0.Equal(spans1) {
+			return fmt.Errorf("SparseDiff error: srcpath('%v') has disksz=%v (%v blocks of 512 bytes), but destpath('%v') has disksz=%v (%v blocks of 512 bytes); difference src - dest => %v; logical layouts differ:\nsrc: %v\ndest: %v", srcpath, disksz0, (disksz0 / 512), destpath, disksz1, (disksz1 / 512), disksz0-disksz1, spans0, spans1)
+		}
 	}
 	if statsz0 != statsz1 {
 		return fmt.Errorf("SparseDiff error: srcpath('%v') has statsz=%v, but destpath('%v') has statsz=%v", srcpath, statsz0, destpath, statsz1)
@@ -810,7 +833,7 @@ func CopySparseFile(srcpath, destpath string, skipFsyncDest bool) (err error) {
 		dest.Close()
 	}()
 
-	sum0, err0 := SparseFileSize(src)
+	sum0, _, err0 := FindSparseRegions(src)
 	panicOn(err0)
 	//vv("isSparse0 = %v; statsz0 = %v; disksz0 = %v; srcpath='%v'", isSparse0, statsz0, disksz0, srcpath)
 
@@ -820,6 +843,7 @@ func CopySparseFile(srcpath, destpath string, skipFsyncDest bool) (err error) {
 	isSparse0 := sum0.IsSparse
 	disksz0 := sum0.DiskSize
 	statsz0 := sum0.StatSize
+	preallocEnd := sum0.UnwritEndx
 
 	// sanity check
 	if disksz0 < 0 || statsz0 < 0 {
@@ -832,7 +856,11 @@ func CopySparseFile(srcpath, destpath string, skipFsyncDest bool) (err error) {
 	if statsz0 == 0 {
 		// disksz0 > 0, so we have pre-allocated but empty source file.
 		// pre-allocate in the dest to match src.
-		_, err = Fallocate(dest, FALLOC_FL_KEEP_SIZE, 0, disksz0)
+		if preallocEnd == 0 {
+			// Fallback for platforms without logical preallocation discovery.
+			preallocEnd = disksz0
+		}
+		_, err = Fallocate(dest, FALLOC_FL_KEEP_SIZE, 0, preallocEnd)
 		panicOn(err)
 		//vv("fallocate with FALLOC_FL_KEEP_SIZE offset=%v; sz=%v was ok. statsz==0", 0, disksz0)
 		return // done
@@ -840,7 +868,7 @@ func CopySparseFile(srcpath, destpath string, skipFsyncDest bool) (err error) {
 	// INVAR: statsz0 > 0
 
 	didPrealloc := false
-	if statsz0 < disksz0 {
+	if preallocEnd > 0 || statsz0 < disksz0 {
 		//vv("detected partly pre-allocated file")
 		// partially pre-allocated file.
 		// Almost the same as the above, but we also need
@@ -883,7 +911,11 @@ func CopySparseFile(srcpath, destpath string, skipFsyncDest bool) (err error) {
 		// since darwin lacks the same facility, we defer that
 		// for later optimization.
 
-		_, err = Fallocate(dest, FALLOC_FL_KEEP_SIZE, 0, disksz0)
+		if preallocEnd == 0 {
+			// Fallback for platforms without logical preallocation discovery.
+			preallocEnd = disksz0
+		}
+		_, err = Fallocate(dest, FALLOC_FL_KEEP_SIZE, 0, preallocEnd)
 		panicOn(err)
 		//vv("fallocate with FALLOC_FL_KEEP_SIZE offset=%v; sz=%v was ok. 0 < statsz0(%v) < disksz0(%v)", 0, disksz0, statsz0, disksz0)
 		didPrealloc = true
