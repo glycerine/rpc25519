@@ -63,9 +63,11 @@ github.com/glycerine/uart v0.12.16 h1:yyWJ8muzYdRROHE3wmU0oqM/AFMeWs03fgpVw0204D
 github.com/glycerine/uart v0.12.16/go.mod h1:aqhQKW/Ne4lZ8Zoy5q/fL4dd46F0Um18KXgk4zTooa0=
 github.com/glycerine/vfs v0.3.3 h1:Pn5J81CXT5mIqerH3tFKKk+TbJjefYZo23goy8nfUYo=
 github.com/glycerine/vfs v0.3.3/go.mod h1:uOfnz4vpwzlK0EXecyX19W9bxfpCRMbyYSQY4reEKtw=
+github.com/glycerine/vfs v0.4.2 h1:gJFPZ5dFP0Q3Hf59QzundFm3cN3f7lARwxQeyRY0Eh8=
 github.com/glycerine/vfs v0.4.2/go.mod h1:OAlo4xEAhI107MHenPWeNkdyb2+esPcNUjNPeNmr86U=
 github.com/glycerine/yogadb v0.20.5 h1:v9ysRuMquj5eD2z3O10e+IIgD73S0rxJ07jdQ1Q+c4U=
 github.com/glycerine/yogadb v0.20.5/go.mod h1:JWtxgBSXKT2iu2OKYv/wR1fAWzOgpW3xY38Y7SBKBFs=
+github.com/glycerine/yogadb v0.20.6 h1:NfDx5QwWoAKDkZQUIzn1wqGfJwdrmYGdklZWEGKgVEQ=
 github.com/glycerine/yogadb v0.20.6/go.mod h1:bmKP+XrLz9+MDbWdl7FxPPoMp9ebqge7E9nBC7LPjUk=
 github.com/glycerine/zygomys/v9 v9.6.4 h1:lhSoxXAuiW6vXvrFQh/PbwWEO81hv3cVrMUUZ7o5G1w=
 github.com/glycerine/zygomys/v9 v9.6.4/go.mod h1:+5AzbzmLb9nv3wrE44I7ilaV1dxkm3u2BmkA7+xKCbI=
