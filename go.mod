@@ -21,8 +21,8 @@ require (
 	github.com/glycerine/rate v0.0.1
 	github.com/glycerine/rbtree v0.2.1
 	github.com/glycerine/restic-chunker-mod v0.5.0
-	github.com/glycerine/vfs v0.3.3
-	github.com/glycerine/yogadb v0.20.5
+	github.com/glycerine/vfs v0.4.2
+	github.com/glycerine/yogadb v0.20.6
 	github.com/glycerine/zygomys/v9 v9.6.4
 	github.com/klauspost/compress v1.18.4
 	github.com/klauspost/cpuid/v2 v2.0.9
