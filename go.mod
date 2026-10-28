@@ -22,7 +22,7 @@ require (
 	github.com/glycerine/rbtree v0.2.1
 	github.com/glycerine/restic-chunker-mod v0.5.0
 	github.com/glycerine/vfs v0.3.3
-	github.com/glycerine/yogadb v0.18.0
+	github.com/glycerine/yogadb v0.20.5
 	github.com/glycerine/zygomys/v9 v9.6.4
 	github.com/klauspost/compress v1.18.4
 	github.com/klauspost/cpuid/v2 v2.0.9
@@ -63,7 +63,6 @@ require (
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/shurcooL/go v0.0.0-20200502201357-93f07166e636 // indirect
 	github.com/shurcooL/go-goon v1.0.0 // indirect
-	github.com/tidwall/btree v1.8.2-0.20251103153907-da3712be86f9 // indirect
 	github.com/tinylib/msgp v1.1.2 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	golang.org/x/text v0.43.0 // indirect
