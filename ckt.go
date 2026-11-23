@@ -683,6 +683,31 @@ func (ckt *Circuit) SendOneWay(frag *Fragment, errWriteDur time.Duration, keepFr
 // this fragment. Applications can set this to send
 // the same fragment to many destinations.
 func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Duration, keepFragIfPositive int) (madeNewAutoCli bool, err error) {
+	var msg *Message
+	msg, err = s.PrepareOneWay(ckt, frag, keepFragIfPositive)
+	if err != nil {
+		return
+	}
+	return s.SendPreparedOneWay(ckt, msg, errWriteDur)
+}
+
+// PrepareOneWay does the first, never-blocking, half of
+// SendOneWay: it converts frag into a Message addressed
+// on ckt (recycling frag unless keepFragIfPositive > 0).
+// Hand the result to SendPreparedOneWay, possibly from
+// another goroutine, since that hand-off can block for as
+// long as the remote peer does not drain its connection.
+func (ckt *Circuit) PrepareOneWay(frag *Fragment, keepFragIfPositive int) (msg *Message, err error) {
+	return ckt.LpbFrom.PrepareOneWay(ckt, frag, keepFragIfPositive)
+}
+
+// SendPreparedOneWay sends a Message from PrepareOneWay.
+func (ckt *Circuit) SendPreparedOneWay(msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, err error) {
+	return ckt.LpbFrom.SendPreparedOneWay(ckt, msg, errWriteDur)
+}
+
+// PrepareOneWay: see Circuit.PrepareOneWay.
+func (s *LocalPeer) PrepareOneWay(ckt *Circuit, frag *Fragment, keepFragIfPositive int) (msg *Message, err error) {
 
 	//if frag.Serial == 34 {
 	//	vv("SendOneWay sending frag.Serial 34; stack = %v; frag='%v'; ckt='%v'; LocalPeer='%v'", stack(), frag, ckt, s)
@@ -732,7 +757,7 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 		frag.FromPeerServiceNameVersion = ckt.LocalPeerServiceNameVersion
 	}
 
-	msg := ckt.ConvertFragmentToMessage(frag)
+	msg = ckt.ConvertFragmentToMessage(frag)
 	//vv("sending frag='%v' to (if To empty, send to:) ckt.RpbTo.NetAddr='%v'; msg='%v'", frag, ckt.RpbTo.NetAddr, msg)
 	s.addUserMeta(msg)
 
@@ -747,6 +772,11 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 		// just above to copy the frag.Args map rather than
 		// share it between the origin frag and the new Message.
 	}
+	return
+}
+
+// SendPreparedOneWay: see Circuit.SendPreparedOneWay.
+func (s *LocalPeer) SendPreparedOneWay(ckt *Circuit, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, err error) {
 
 	madeNewAutoCli, _, err = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur, false)
 	if err != nil {
