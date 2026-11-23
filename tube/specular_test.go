@@ -821,3 +821,49 @@ func Test1010_deposed_leader_with_stalled_mc_ticket_does_not_panic(t *testing.T)
 		t.Fatalf("stalled ticket not failed back to the client on step-down (Done closed=%v, Err=%v)", tkt2.Done.IsClosed(), tkt2.Err)
 	}
 }
+
+// Bug 11 (Medium): the czar loop panicked ("why am I czar on
+// failed write?") whenever a rejected czar-key CAS reported
+// this member's own name as the current czar. Specular's
+// trigger is the czar's own renewal being rejected as
+// non-increasing (a failover to a leader whose clock lags),
+// which simnet's shared clock cannot produce. A czar that
+// restarts (same name, new PeerID) while its previous lease
+// is still in force reaches the same panic deterministically.
+// Neither case is impossible, and neither may crash it.
+func Test1011_czar_does_not_panic_when_failed_write_names_itself(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+
+		c, _, _, _ := SetupTestCluster(t, 3, 0, 1011)
+		defer c.Close()
+
+		m0 := testStartOneMember(t, 0, c.Cfg)
+		if amCz := <-m0.TestingAmCzarCh; !amCz {
+			t.Fatalf("setup: first member should become czar")
+		}
+		// the czar process restarts at once; its lease
+		// (5s) is still in force under its name.
+		m0.Czar.Halt.RequestStop()
+		<-m0.Czar.Halt.Done.Chan
+		time.Sleep(100 * time.Millisecond)
+
+		again := testStartOneMember(t, 0, c.Cfg)
+		defer func() {
+			again.Czar.Halt.RequestStop()
+			<-again.Czar.Halt.Done.Chan
+		}()
+		// it must not crash; once the old lease lapses it
+		// becomes czar again.
+		deadline := time.After(time.Minute)
+		for {
+			select {
+			case amCz := <-again.TestingAmCzarCh:
+				if amCz {
+					return
+				}
+			case <-deadline:
+				t.Fatalf("restarted member never became czar again")
+			}
+		}
+	})
+}

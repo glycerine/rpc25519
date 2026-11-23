@@ -1179,8 +1179,28 @@ fullRestart:
 
 						left := time.Until(czarTkt.LeaseUntilTm)
 
-						vv("%v ugh: I should not be czar on a failed write; try again! Could be a staile lease of course (left=%v), but then why did the write give an error? err='%v'; ", name, left, err)
-						panic("why am I czar on failed write?")
+						// Specular Bug 11: this is possible, so do not
+						// panic. Either our own renewal was rejected
+						// as non-increasing (the stamping leader's
+						// clock lags our previous stamp, e.g. after a
+						// failover), and our lease still stands; or
+						// an earlier incarnation of us (same name,
+						// other PeerID) still holds the lease. Do not
+						// claim the czar-ship on a failed write: back
+						// off briefly and retry; the retry succeeds
+						// once the leader's clock passes our previous
+						// stamp, or the earlier lease lapses.
+						own := czarTkt.LeasorPeerID == cli.PeerID
+						vv("%v: failed czar write names us as czar (own lease=%v; left=%v); backing off and retrying. err='%v'", name, own, left, errCzarAttempt)
+						wait := 100 * time.Millisecond
+						if !own && left > wait {
+							wait = min(left, time.Second)
+						}
+						select {
+						case <-time.After(wait):
+						case <-czar.Halt.ReqStop.Chan:
+							return
+						}
 						continue fullRestart
 					}
 
