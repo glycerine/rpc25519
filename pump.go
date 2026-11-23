@@ -89,8 +89,11 @@ func (pb *LocalPeer) peerbackPump() {
 			// to enable background close, get independent of ckt:
 			frag.CircuitID = ckt.CircuitID
 			frag.FromPeerID = ckt.LocalPeerID
+			// the ack may be setting the remote identity right now.
+			ckt.idmut.Lock()
 			frag.ToPeerID = ckt.RemotePeerID
 			msg := ckt.ConvertFragmentToMessage(frag)
+			ckt.idmut.Unlock()
 			pb.FreeFragment(frag)
 
 			// note srv.go might panic if the peer port
