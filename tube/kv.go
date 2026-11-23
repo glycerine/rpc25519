@@ -480,42 +480,39 @@ func (s *KVStore) DeleteLeaf(table, key Key) error {
 	})
 }
 
+// GetLeaf reads one leaf. With autoDelete, an expired
+// auto-delete leaf reads as ErrKeyNotFound.
+//
+// Specular Bug 4: reads must never mutate replicated
+// state. GetLeaf used to move an expired auto-delete leaf
+// to the "dead" table and delete it, in a write
+// transaction decided by this replica's own clock; a
+// leader-local read did so outside the log, so replicas
+// diverged. Now expiry only hides the leaf from the reader.
 func (s *KVStore) GetLeaf(table, key Key, autoDelete bool) (*leased.Leaf, error) {
+	var now *time.Time
+	if autoDelete {
+		tm := time.Now()
+		now = &tm
+	}
+	return s.getLeafAsOf(table, key, now)
+}
+
+// getLeafAsOf reads one leaf; if now is not nil, an
+// auto-delete leaf expired as of now reads as
+// ErrKeyNotFound. It never changes the store.
+func (s *KVStore) getLeafAsOf(table, key Key, now *time.Time) (*leased.Leaf, error) {
 	if err := s.ensureDB(); err != nil {
 		return nil, err
-	}
-	if autoDelete {
-		var out *leased.Leaf
-		err := s.parUpdate(func(tx *yogadb.WriteTx) error {
-			lf, found, err := getLeafTx(tx, table, key)
-			if err != nil || !found {
-				return err
-			}
-			if lf.AutoDelete && table != "dead" && lf.Leasor != "" && lf.LeaseUntilTm.Before(time.Now()) {
-				if err := putLeafTx(tx, "dead", lf); err != nil {
-					return err
-				}
-				if err := tx.Delete(compositeKey(table, key)); err != nil {
-					return err
-				}
-				return nil
-			}
-			out = lf
-			return nil
-		})
-		if err != nil {
-			return nil, err
-		}
-		if out == nil {
-			return nil, ErrKeyNotFound
-		}
-		return out, nil
 	}
 	var out *leased.Leaf
 	err := s.parView(func(tx yogadb.ReadOnlyDB) error {
 		lf, found, err := getLeafTx(tx, table, key)
 		if err != nil || !found {
 			return err
+		}
+		if leafExpiredAutoDelete(table, lf, now) {
+			return nil // hidden from readers, but not deleted.
 		}
 		out = lf
 		return nil
@@ -529,12 +526,19 @@ func (s *KVStore) GetLeaf(table, key Key, autoDelete bool) (*leased.Leaf, error)
 	return out, nil
 }
 
+// leafExpiredAutoDelete reports whether a reader at time
+// now should treat lf as gone. It never changes the store.
+func leafExpiredAutoDelete(table Key, lf *leased.Leaf, now *time.Time) bool {
+	return now != nil && lf.AutoDelete && table != "dead" && lf.Leasor != "" && lf.LeaseUntilTm.Before(*now)
+}
+
 func (s *KVStore) scanTable(table Key, start Key, endx Key, descend bool, prefixMode bool, now *time.Time) (*KVScan, error) {
 	if err := s.ensureDB(); err != nil {
 		return nil, err
 	}
 	results := newKVScan()
-	err := s.parUpdate(func(tx *yogadb.WriteTx) error {
+	// Specular Bug 4: scans are reads; a read-only view.
+	err := s.parView(func(tx yogadb.ReadOnlyDB) error {
 		exists, err := tableExistsTx(tx, table)
 		if err != nil {
 			return err
@@ -570,7 +574,7 @@ func (s *KVStore) scanTable(table Key, start Key, endx Key, descend bool, prefix
 					scanErr = err
 					return false
 				}
-				if s.expireIfNeeded(tx, table, key, lf, now) {
+				if leafExpiredAutoDelete(table, lf, now) {
 					return true
 				}
 				results.InsertLeaf(lf)
@@ -594,7 +598,7 @@ func (s *KVStore) scanTable(table Key, start Key, endx Key, descend bool, prefix
 				scanErr = err
 				return false
 			}
-			if s.expireIfNeeded(tx, table, key, lf, now) {
+			if leafExpiredAutoDelete(table, lf, now) {
 				return true
 			}
 			results.InsertLeaf(lf)
@@ -606,17 +610,6 @@ func (s *KVStore) scanTable(table Key, start Key, endx Key, descend bool, prefix
 		return nil, err
 	}
 	return results, nil
-}
-
-func (s *KVStore) expireIfNeeded(tx *yogadb.WriteTx, table, key Key, lf *leased.Leaf, now *time.Time) bool {
-	if now == nil || !lf.AutoDelete || table == "dead" || lf.Leasor == "" || !lf.LeaseUntilTm.Before(*now) {
-		return false
-	}
-	if err := putLeafTx(tx, "dead", lf); err != nil {
-		panicOn(err)
-	}
-	panicOn(tx.Delete(compositeKey(table, key)))
-	return true
 }
 
 func (s *KVStore) ShowKeys(table Key) (*KVScan, error) {
@@ -788,11 +781,21 @@ func (s *KVStore) replaceWithSnapshot(tables []Key, leafTables []Key, leafz []*l
 	})
 }
 
+// readAsOf is the time at which a read decides lease
+// expiry: the log entry time for a logged command (the
+// same on every replica), else the local clock.
+func readAsOf(tkt *Ticket) time.Time {
+	if tkt != nil && !tkt.RaftLogEntryTm.IsZero() {
+		return tkt.RaftLogEntryTm
+	}
+	return time.Now()
+}
+
 func (state *RaftState) kvstoreRangeScan(tkt *Ticket, tktTable, tktKey, tktKeyEndx Key, descend bool) (results *KVScan, err error) {
 	if state == nil || state.KVstore == nil {
 		return nil, ErrKeyNotFound
 	}
-	now := time.Now()
+	now := readAsOf(tkt)
 	return state.KVstore.scanTable(tktTable, tktKey, tktKeyEndx, descend, false, &now)
 }
 
@@ -800,7 +803,7 @@ func (state *RaftState) kvstorePrefixScan(tkt *Ticket, tktTable, tktPrefix Key, 
 	if state == nil || state.KVstore == nil {
 		return nil, ErrKeyNotFound
 	}
-	now := time.Now()
+	now := readAsOf(tkt)
 	return state.KVstore.scanTable(tktTable, tktPrefix, "", descend, true, &now)
 }
 
@@ -816,7 +819,12 @@ func (state *RaftState) KVStoreReadLeaf(tkt *Ticket, tktTable, tktKey Key) (*lea
 	if state == nil || state.KVstore == nil {
 		return nil, ErrKeyNotFound
 	}
-	return state.KVstore.GetLeaf(tktTable, tktKey, true)
+	// Specular Bug 4: when applying a logged command, decide
+	// expiry from the log entry's time so every replica
+	// decides the same; only an unlogged (leader-local)
+	// read uses the local clock.
+	now := readAsOf(tkt)
+	return state.KVstore.getLeafAsOf(tktTable, tktKey, &now)
 }
 
 func (state *RaftState) ensureDeadzone() error {
