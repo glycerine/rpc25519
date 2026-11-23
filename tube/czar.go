@@ -149,11 +149,6 @@ type Czar struct {
 	// reach us, do not contend for the czar key before this time,
 	// so a reachable member can take it (CR-D-76).
 	stepDownUntil time.Time
-
-	// testingFreezeHeartbeat, when set by a test, makes the member
-	// skip its heartbeat pings, as a member stuck behind a dead
-	// network would; it misses what the cluster does meanwhile.
-	testingFreezeHeartbeat atomic.Bool
 }
 
 func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
@@ -1698,10 +1693,6 @@ fullRestart:
 
 				case <-czar.memberHeartBeatCh:
 					// in notCzar here.
-					if czar.testingFreezeHeartbeat.Load() {
-						czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
-						break
-					}
 
 					reply := &PingReply{} // ReliableMembershipList{}
 

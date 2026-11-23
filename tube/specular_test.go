@@ -750,12 +750,9 @@ func Test1016_czar_elected_after_dead_czar_with_newer_epoch(t *testing.T) {
 		}
 		time.Sleep(2 * time.Second)
 
-		// m1 is cut off, so it misses what happens next. (Its pings
-		// time out fast now (CR-D-75), and simnet isolation lets new
-		// auto-client dials through, so freeze its heartbeat too.)
+		// m1 is cut off, so it misses what happens next.
 		_, err := simnet.AlterHost(m1.Czar.cli.srvname, rpc.ISOLATE)
 		panicOn(err)
-		m1.Czar.testingFreezeHeartbeat.Store(true)
 
 		// the czar dies; after its lease expires another
 		// leasor takes the key (epoch 2) and then dies too.
@@ -781,7 +778,6 @@ func Test1016_czar_elected_after_dead_czar_with_newer_epoch(t *testing.T) {
 		// lease expired it must be able to become czar.
 		_, err = simnet.AlterHost(m1.Czar.cli.srvname, rpc.UNISOLATE)
 		panicOn(err)
-		m1.Czar.testingFreezeHeartbeat.Store(false)
 
 		deadline := time.After(time.Minute)
 		for {
