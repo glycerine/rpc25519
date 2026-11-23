@@ -2111,3 +2111,41 @@ func TestSilentReconnectedMemberDoesNotStallMembershipChange(t *testing.T) {
 		}
 	}
 }
+
+// CR-D-21: a membership change that timed out (its client told
+// it failed) stayed in the stalledOnSeenTkt queues and could be
+// re-run and applied later.
+func TestTimedOutMembershipChangeIsForgotten(t *testing.T) {
+	n := specularNode(t, "n0", LEADER, 2, []int64{1, 2}, "n0", "n1", "n2")
+	n.state.CommitIndex, n.state.CommitIndexEntryTerm = 2, 2
+	specularMarkApplied(n, 2)
+	n.state.MC.IsCommitted = true
+	n.leaderID, n.leaderName = n.PeerID, n.name
+	n.MyPeer = &rpc.LocalPeer{Halt: idem.NewHalter(), PeerServiceName: TUBE_REPLICA}
+	// no initial noop committed yet: the quorum check (P1) fails.
+	stale := &cktPlus{node: n, PeerName: "n1", PeerID: "n1_id", PeerServiceName: TUBE_REPLICA,
+		ckt: &rpc.Circuit{RemotePeerID: "n1_id", RemotePeerName: "n1", RemoteServiceName: TUBE_REPLICA,
+			CircuitID: "n1_ckt", Halt: idem.NewHalter(), RpbTo: &rpc.RemotePeer{BaseServerAddr: "simnet://n1"}}}
+	n.cktAllByName["n1"] = stale
+
+	tkt := n.NewTicket("remove n2", "", "", nil, n.PeerID, n.name, MEMBERSHIP_SET_UPDATE, -1, context.Background())
+	tkt.RemovePeerName = "n2"
+	n.changeMembership(tkt) // stalls, queued on n1
+	if len(stale.stalledOnSeenTkt) == 0 {
+		t.Fatal("setup: expected the change to stall on n1")
+	}
+	n.stalledMembershipConfigChangeTkt = nil
+	tkt.T0 = time.Now().Add(-time.Minute)
+	n.changeMembership(tkt) // times out: the client is told it failed
+	if tkt.Err == nil {
+		t.Fatal("setup: expected the timeout error")
+	}
+	if !tkt.finishTicketCalled {
+		t.Error("timed-out membership ticket was not finished")
+	}
+	for _, q := range stale.stalledOnSeenTkt {
+		if q == tkt {
+			t.Fatal("timed-out membership ticket is still queued for a later re-run")
+		}
+	}
+}
