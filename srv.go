@@ -1381,6 +1381,9 @@ type Server struct {
 	halt *idem.Halter
 
 	remote2pair *Mutexmap[string, *rwPair]
+
+	// autoCliDialMut serializes auto-client dials per destination.
+	autoCliDialMut sync.Map
 	pair2remote *Mutexmap[*rwPair, string]
 
 	// let fast orphan circuits find their slow/lazy created rwPair
@@ -2083,6 +2086,33 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 	return p
 }
 
+// registerAutoCliCleanup hands the auto-client's send loop the
+// hook that removes its routing entries when it dies. It
+// reports false if the client or server is already stopping.
+func (s *Server) registerAutoCliCleanup(cli *Client, key string, p *rwPair) bool {
+	gcMe := &autoCliInRwPair{
+		srv:  s,
+		key:  key,
+		pair: p,
+	}
+	select {
+	case cli.garbageCollectThisRwPairCh <- gcMe:
+		return true
+	case <-cli.halt.ReqStop.Chan:
+		// cli send loop is gone, so
+		// cli.garbageCollectThisRwPairCh will never be serviced.
+	case <-s.halt.ReqStop.Chan:
+	}
+	// prevent hangs on shutdown
+	p.halt.ReqStop.Close()
+	p.halt.Done.Close()
+	// and leave no tombstone route: a later send must find no
+	// connection, and so dial again (CR-D-42).
+	s.deletePair(p)
+	s.deleteFromAutoCli(cli)
+	return false
+}
+
 func (s *Server) deletePair(p *rwPair) {
 	s.mut.Lock() // hung here trying to shutdown a simnet server, 403 membership test
 	defer s.mut.Unlock()
@@ -2093,7 +2123,11 @@ func (s *Server) deletePair(p *rwPair) {
 	}
 	//vv("deleting pair: key='%v'; rwPair p.from = '%v'; isAutoCli=%v; caller=%v", key, p.from, p.isAutoCli, fileLine(2))
 	s.pair2remote.Del(p)
-	s.remote2pair.Del(key)
+	// compare-and-delete: a duplicate connection to the same
+	// address must not remove the live one's route (CR-D-42).
+	if cur, ok := s.remote2pair.Get(key); ok && cur == p {
+		s.remote2pair.Del(key)
+	}
 }
 
 var ErrNetConnectionNotFound = fmt.Errorf("error in SendMessage: net.Conn not found")
@@ -2350,6 +2384,20 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
 		panicOn(err1)
 
+		// One auto-client dial per destination at a time: two
+		// concurrent dials made duplicate connections whose
+		// routes overwrote each other, reordering a circuit's
+		// messages (CR-D-42). After waiting, use any connection
+		// the other dialer made.
+		dialMutAny, _ := s.autoCliDialMut.LoadOrStore(dest, &sync.Mutex{})
+		dialMut := dialMutAny.(*sync.Mutex)
+		dialMut.Lock()
+		defer dialMut.Unlock()
+		err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
+		if err != ErrNetConnectionNotFound {
+			return
+		}
+
 		// note: simnet depends on auto_cli_recognition_prefix
 		// to properly report auto-clients vs lone-cli in the
 		// reporting/diagnostics calls. Hence leave this prefix in place.
@@ -2446,25 +2494,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			}
 		}
 
-		gcMe := &autoCliInRwPair{
-			srv:  s,
-			key:  key,
-			pair: p,
-		}
-		select {
-		case cli.garbageCollectThisRwPairCh <- gcMe:
-		case <-cli.halt.ReqStop.Chan:
-			// cli send loop is gone, so
-			// cli.garbageCollectThisRwPairCh will never be serviced.
-
-			// prevent hangs on shutdown
-			p.halt.ReqStop.Close()
-			p.halt.Done.Close()
-			return
-		case <-s.halt.ReqStop.Chan:
-			// prevent hangs on shutdown
-			p.halt.ReqStop.Close()
-			p.halt.Done.Close()
+		if !s.registerAutoCliCleanup(cli, key, p) {
 			return
 		}
 
