@@ -429,3 +429,25 @@ func TestDeletePairOnlyRemovesItsOwnRoute(t *testing.T) {
 		t.Fatal("deleting a duplicate removed the live connection's route")
 	}
 }
+
+// CR-D-37: Circuit.Close(reason) sent its end-of-circuit
+// notice retyped as an ordinary CallPeerError, so the remote
+// never closed its end (or, unroutable, dropped the whole
+// connection).
+func TestCloseWithReasonStaysEndCircuit(t *testing.T) {
+	frag := NewFragment()
+	frag.Typ = CallPeerEndCircuit
+	frag.Err = "pruned redundant circuit"
+	msg := frag.ToMessage()
+	if msg.HDR.Typ != CallPeerEndCircuit {
+		t.Fatalf("close notice went out as %v, want CallPeerEndCircuit", msg.HDR.Typ)
+	}
+	if msg.JobErrs != frag.Err {
+		t.Fatalf("close reason lost: %q", msg.JobErrs)
+	}
+	user := NewFragment()
+	user.Err = "application error"
+	if user.ToMessage().HDR.Typ != CallPeerError {
+		t.Fatal("an ordinary error fragment must still be CallPeerError")
+	}
+}

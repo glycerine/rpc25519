@@ -923,7 +923,10 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	msg.JobSerz = frag.Payload
 	msg.JobErrs = frag.Err
 
-	if frag.Err != "" {
+	if frag.Err != "" && frag.Typ != CallPeerEndCircuit {
+		// A Close(reason) notice stays CallPeerEndCircuit, with
+		// the reason in JobErrs, so the remote ends its circuit
+		// instead of seeing an ordinary error (CR-D-37).
 		msg.HDR.Typ = CallPeerError
 	}
 
