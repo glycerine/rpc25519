@@ -733,3 +733,35 @@ func TestTCPDialHonorsConnectTimeout(t *testing.T) {
 		t.Fatalf("TCP dialer timeout %v, want ConnectTimeout %v", d.Timeout, cfg.ConnectTimeout)
 	}
 }
+
+// Test409's intermittent "expected cli sendch to have 12, got: 11":
+// SendOneWay(frag, 0, 0) returns once the frame is written, and the
+// sender records the send only afterwards. Waiting on the receiver
+// alone lets the test check the sender's counter before the last
+// send is recorded. Widen that window to make it deterministic.
+func Test409b_counts_wait_for_sender_bookkeeping(t *testing.T) {
+	if faketime {
+		t.Skip("skip under synctest, net calls will never settle.")
+	}
+	j := newTestJunk3("sendbook_409b", nil)
+	defer j.cleanup()
+	ctx := context.Background()
+	cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, "", nil, "peerName1", false)
+	panicOn(err)
+	defer cli_lpb.Close()
+	srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, "", nil, "peerName2", false)
+	panicOn(err)
+	defer srv_lpb.Close()
+
+	j.clis.startCircuitWith <- srv_lpb.URL()
+	<-j.srvs.dropcopy_reads
+	<-j.clis.dropcopy_sends // the circuit start is recorded
+
+	const N = 3
+	before := len(j.clis.sendch)
+	j.clis.afterSend = func() { time.Sleep(50 * time.Millisecond) }
+	sendAndAwait(j.clis, j.srvs, N, func() { j.clis.activeSideSendN <- N })
+	if got := len(j.clis.sendch); got != before+N {
+		t.Fatalf("checked the sender's counter before it recorded its sends: %v, want %v", got, before+N)
+	}
+}
