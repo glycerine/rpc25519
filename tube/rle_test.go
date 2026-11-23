@@ -281,7 +281,8 @@ func TestRleLogExtendsWithAdvancedBase(t *testing.T) {
 		},
 	}
 	leaderLog := &TermsRLE{
-		BaseC: 1,
+		BaseC:       1,
+		CompactTerm: 1,
 		Runs: []*TermRLE{
 			{Term: 3, Count: 2},
 		},
@@ -715,5 +716,17 @@ func TestRle3LogExtendsAfterCompaction(t *testing.T) {
 	}
 	if got, want := longestCommonPrefix, 2; got != int64(want) {
 		t.Fatalf("expected longestCommonPrefix to be 2, got %v", got)
+	}
+}
+
+func TestExtendsDivergenceAtLeaderSnapshotBoundary(t *testing.T) {
+	leader := &TermsRLE{BaseC: 2, CompactTerm: 3, Runs: []*TermRLE{{Term: 4, Count: 1}}}
+	follower := &TermsRLE{BaseC: 1, CompactTerm: 1, Runs: []*TermRLE{{Term: 2, Count: 2}}}
+	leader.fixTot()
+	follower.fixTot()
+
+	extends, common, snapshot := leader.Extends(follower)
+	if extends || common != follower.BaseC || !snapshot {
+		t.Fatalf("Extends = (%v, %d, %v), want (false, %d, true)", extends, common, snapshot, follower.BaseC)
 	}
 }

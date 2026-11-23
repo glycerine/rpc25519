@@ -7962,18 +7962,6 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 	//	//vv("%v: handleAppendEntries top; from '%v'; ae=%v", s.me(), ae.FromPeerName, ae)
 	//}
 
-	// assert that we update s.state.CommitIndex promptly upon learning
-	// of any update from leader. We were missing this on early
-	// return 2 (upToDate) below, and thus follower checks like P1
-	// could have lagged.
-	defer func(aeCommitIndex int64) {
-		//lli := s.wal.LastLogIndex()
-		shouldHaveCI := min(aeCommitIndex, largestCommonRaftIndex)
-		if s.state.CommitIndex < shouldHaveCI {
-			panic(fmt.Sprintf("%v why was not s.state.CommitIndex(%v) updated to be (%v)shouldHaveCI = min(aeCommitIndex(%v), largestCommonRaftIndex(%v))???", s.me(), s.state.CommitIndex, shouldHaveCI, aeCommitIndex, largestCommonRaftIndex))
-		}
-	}(ae.LeaderCommitIndex)
-
 	// assert that we got caught up if we could have.
 	// with compaction we were seeing not all logs keeping up.
 	// made 059 compact_test red, good.
@@ -8050,48 +8038,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 	followerLog := s.wal.getTermsRLE()
 	leaderLog := ae.LogTermsRLE
 	extends, largestCommonRaftIndex, needSnapshot = leaderLog.Extends(followerLog)
-	if largestCommonRaftIndexTerm > 0 {
-		largestCommonRaftIndexTerm = followerLog.getTermForIndex(largestCommonRaftIndex)
-	}
-
-	stateSaveNeeded := false
 	prevci := s.state.CommitIndex
-	//lli, llt := s.wal.LastLogIndexAndTerm()
-	lli2, llt2 := ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm
-
-	maxPossibleCI := largestCommonRaftIndex         // not lli
-	maxPossibleCIterm := largestCommonRaftIndexTerm // not llt
-	// take the minimum of what we have and the ae, because
-	// we want CommitIndex to not go longer than our log entries.
-
-	// Problem is: we can raise the commit index too high,
-	// because the tail terms might disagree on existing wal.
-	// So we need to limit maxPossibleCI to largestCommonRaftIndex too.
-	if lli2 < maxPossibleCI {
-		maxPossibleCI = lli2
-		maxPossibleCIterm = llt2
-	}
-	if maxPossibleCI > prevci {
-		// make 707 green with the new assert that CommitIndex has
-		// been updated (in the defer at top).
-		//vv("%v in handleAppendEntries: updating s.state.CommitIndex from %v -> %v (as min(ae.LeaderCommitIndex(%v), lli(%v)); and s.state.CommitIndexEntryTerm(%v) -> maxPossibleCIterm(%v)\n details:\n ae.LeaderCommitIndex = %v \n ae.LeaderCommitIndexEntryTerm = %v \n lli = %v; llt = %v \n ae.LeaderName='%v'; cur s.leaderName='%v'", s.me(), s.state.CommitIndex, maxPossibleCI, ae.LeaderCommitIndex, lli, s.state.CommitIndexEntryTerm, maxPossibleCIterm, ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm, lli, llt, ae.LeaderName, s.leaderName)
-
-		s.state.CommitIndex = maxPossibleCI
-		s.state.CommitIndexEntryTerm = maxPossibleCIterm
-		s.updateMCindex(maxPossibleCI, maxPossibleCIterm)
-		if !chatty802 {
-			if s != nil && s.saver != nil {
-				stateSaveNeeded = true
-				defer func() {
-					if stateSaveNeeded { // set to false just after commitWhatWeCan below
-						// better to apply immediately too, not just save.
-						s.host.commitWhatWeCan(false)
-						// commitWhatWeCan does: s.saver.save(s.state)
-					}
-				}()
-			}
-		}
-	}
 
 	// without this guard the leader itself
 	// can get a mistaken s.leaderName(!)
@@ -8319,29 +8266,6 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 	// set this immediately, so any rejection still conveys this essential info.
 	ack.LargestCommonRaftIndex = largestCommonRaftIndex
 
-	if upToDate {
-		s.host.choice("Logs are up to date")
-		ack.Rejected = false
-		ack.LogsMatchExactly = true
-		s.host.ackAE(ack, ae, sendAck)
-		//vv("%v early AE return 2", s.name)
-		return
-	}
-	// INVAR: logs differ in some way, and we are not up to date.
-
-	// Overall approach: if we cannot use everything sent, or still need
-	// more data afterwards, we should reject so
-	// leader sends us the necessary updates.
-	// Accepting (ack.Rejected = false) means the
-	// leader will leave us alone until heartbeat
-	// or a client txn. If we need to complete our
-	// log so that things can commit, it is urgent
-	// that we do so ASAP.
-
-	// if extends is true, then we might think we are good to apply
-	// anything from the leader log, except that there
-	// might be a gap! We cannot allow gaps, and must reject on them.
-	// Note this only checks ae.PrevLogIndex/Term.
 	reject, conflictTerm, conflictTerm1stIndex := s.host.logsAreMismatched(ae)
 	//reject, conflictTerm, conflictTerm1stIndex := s.logsAreMismatched(ae)
 	if conflictTerm > 0 {
@@ -8351,6 +8275,12 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 
 	s.host.choice("Logs differ: extends=%v, largestCommonRaftIndex=%v; reject=%v, conflictTerm=%v, conflictTerm1stIndex=%v", extends, largestCommonRaftIndex, reject, conflictTerm, conflictTerm1stIndex)
 
+	// Heartbeats also carry a previous entry. Only a retained previous
+	// entry can be compared directly with the sender's term.
+	if ae.PrevLogIndex > 0 && ae.PrevLogIndex >= followerLog.BaseC &&
+		followerLog.getTermForIndex(ae.PrevLogIndex) != ae.PrevLogTerm {
+		reject = true
+	}
 	if reject {
 		alsoGap := ae.PrevLogIndex > largestCommonRaftIndex
 		ack.RejectReason = fmt.Sprintf("ae.PrevLogIndex(%v) not compatible. conflictTerm=%v, conflictTerm1stIndex=%v; largestCommonRaftIndex=%v; alsoGap=%v (true if ae.PrevLogIndex(%v) > largestCommonRaftIndex(%v))", ae.PrevLogIndex, conflictTerm, conflictTerm1stIndex, largestCommonRaftIndex, alsoGap, ae.PrevLogIndex, largestCommonRaftIndex)
@@ -8377,7 +8307,51 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 
 		return
 	}
-	// If this is a heartbeat, definitely reject so we get data.
+	if largestCommonRaftIndexTerm > 0 {
+		largestCommonRaftIndexTerm = followerLog.getTermForIndex(largestCommonRaftIndex)
+	}
+
+	stateSaveNeeded := false
+	lli2, llt2 := ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm
+
+	maxPossibleCI := largestCommonRaftIndex         // not lli
+	maxPossibleCIterm := largestCommonRaftIndexTerm // not llt
+	// take the minimum of what we have and the ae, because
+	// we want CommitIndex to not go longer than our log entries.
+
+	// Problem is: we can raise the commit index too high,
+	// because the tail terms might disagree on existing wal.
+	// So we need to limit maxPossibleCI to largestCommonRaftIndex too.
+	if lli2 < maxPossibleCI {
+		maxPossibleCI = lli2
+		maxPossibleCIterm = llt2
+	}
+	if maxPossibleCI > prevci {
+		s.state.CommitIndex = maxPossibleCI
+		s.state.CommitIndexEntryTerm = maxPossibleCIterm
+		s.updateMCindex(maxPossibleCI, maxPossibleCIterm)
+		if !chatty802 {
+			if s != nil && s.saver != nil {
+				stateSaveNeeded = true
+				defer func() {
+					if stateSaveNeeded { // set to false just after commitWhatWeCan below
+						// better to apply immediately too, not just save.
+						s.host.commitWhatWeCan(false)
+						// commitWhatWeCan does: s.saver.save(s.state)
+					}
+				}()
+			}
+		}
+	}
+
+	if upToDate {
+		s.host.choice("Logs are up to date")
+		ack.Rejected = false
+		ack.LogsMatchExactly = true
+		s.host.ackAE(ack, ae, sendAck)
+		//vv("%v early AE return 2", s.name)
+		return
+	}
 	if numNew == 0 { // isHeartbeat equivalent
 		ack.RejectReason = fmt.Sprintf("heartbeat detected log update needed. extends=%v, largestCommonRaftIndex=%v", extends, largestCommonRaftIndex)
 		ack.Rejected = true
@@ -8638,84 +8612,16 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 	// me: so now they have been saved to disk, we
 	// can increment our s.state.CommitIndex.
 
-	// figure 3.1 says (section 3.5)
-	// [5] If leaderCommit > commitIndex, set
-	//       commitIndex = min(leaderCommit, index of last new entry)
-
-	// we aren't counting, we are being told the leader
-	// has counted, and we just accept that as fact.
-
-	//vv("%v got to ae.LeaderCommitIndex(%v) check vs s.state.CommitIndex(%v)", s.name, ae.LeaderCommitIndex, s.state.CommitIndex)
-	if ae.LeaderCommitIndex > s.state.CommitIndex {
-		// basic Raft says this in [5] above
-		//s.state.CommitIndex = min(ae.LeaderCommitIndex, ae.Entries[numNew-1].Index)
-		// but we've implemented alot of batching and
-		// deduping, and we don't want to be mistaken here
-		// because we avoided truncating a perfectly valid
-		// log tail, so we use our own our log's last index as the bound.
-		// If the AE got applied above, and extended the log,
-		// then it is already reflected in the log now.
-
-		// Same should apply to truncation, right?
-
-		lli, llt := s.wal.LastLogIndexAndTerm()
-
-		if !chatty802 {
-			if s.state.CommitIndex > prevci {
-				//vv("%v handle AE: s.state.CommitIndex advanced from %v -> %v (lli= %v)", s.me(), prevci, s.state.CommitIndex, lli)
-			}
-		}
-
-		newCI := min(ae.LeaderCommitIndex, lli)
-		s.host.choice("Updating commitIndex from %v to %v", prevci, newCI)
-
-		if newCI != s.state.CommitIndex {
-			//vv("%v updating s.state.CommitIndex from %v -> %v", s.name, s.state.CommitIndex, newCI)
-		}
-		// no: s.state.CommitIndex = min(ae.LeaderCommitIndex, lli)
-		// instead, to get the accurate CommitIndexEntryTerm:
-		lli2, llt2 := ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm
-		if lli < lli2 {
-			s.state.CommitIndex = lli
-			s.state.CommitIndexEntryTerm = llt
-		} else {
-			s.state.CommitIndex = lli2
-			s.state.CommitIndexEntryTerm = llt2
-		}
+	// The write matched or installed every entry through entriesIdxEnd.
+	// A longer local tail has no bearing on what the leader committed.
+	verified := max(largestCommonRaftIndex, entriesIdxEnd)
+	if ci := min(ae.LeaderCommitIndex, verified); ci > s.state.CommitIndex {
+		term := s.wal.logIndex.getTermForIndex(ci)
+		s.state.CommitIndex = ci
+		s.state.CommitIndexEntryTerm = term
+		s.updateMCindex(ci, term)
 	}
-	sawUpdate := prevci != s.state.CommitIndex
-	_ = sawUpdate
-	//vv("%v commitIndex sawUpdate=%v, going %v -> %v, b/c ae.LeaderCommitIndex = %v", s.me(), sawUpdate, prevci, s.state.CommitIndex, ae.LeaderCommitIndex)
-	// comment on the above from example/logcabin/RaftConensus.cc, which does:
-	//    in handleAppendEntries() line 1411:
-	// "Set our committed ID from the request's. In rare cases, this would make
-	// our committed ID decrease. For example, this could happen with a new
-	// leader who has not yet replicated one of its own entries. While that'd
-	// be perfectly safe, guarding against it with an if statement lets us
-	// make stronger assertions.
-	//    if (commitIndex < request.commit_index()) {
-	//        commitIndex = request.commit_index();
-	//        assert(commitIndex <= log->getLastLogIndex());
-	//        ...
-	//    }
 
-	// page 21
-	// The leader keeps track of the highest index it
-	// knows to be committed, and it includes that index
-	// in future AppendEntries RPCs (including heartbeats)
-	// so that the other servers eventually find out.
-	// Once a follower learns that a log entry is committed,
-	// it applies the entry to its local state machine (in log order).
-
-	// Apply (commit) commands: Fig 3.1
-	// "All servers: for commitIndex > lastApplied,
-	// increment lastApplied and apply
-	// log[lastApplied] to the [application] state machine."
-	//
-	// THIS IS THE COMMIT ON THE FOLLOWER.
-	//
-	// Application is immediate. It happens inside this call too.
-	// Application means the application's FSM executes the commands.
 	s.host.commitWhatWeCan(false)
 	stateSaveNeeded = false // no save again needed in defer.
 
@@ -10646,7 +10552,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		// onto the waiting client ticket (do.waiter), which is
 		// no longer the log's own copy (see prepOne).
 		var tkt *Ticket
-		if do.waiter != nil {
+		if calledOnLeader && do.waiter != nil {
 			tkt = do.waiter
 		} else {
 			tkt = do.Ticket.applyCopy()
@@ -10675,7 +10581,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 			tkt.Applied = true
 			tkt.AsOfLogIndex = applyIdx
 			tkt.Stage += ":dup_session_serial_skipped_in_apply"
-			if tkt.FromID == s.PeerID {
+			if tkt.FromID == s.PeerID && (calledOnLeader || do.waiter == nil) {
 				s.FinishTicket(tkt, calledOnLeader)
 			} else if calledOnLeader {
 				s.respondToClientTicketApplied(tkt)
@@ -10882,7 +10788,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		// after refresh above has had a chance.
 		s.garbageCollectOldSessions()
 
-		if tkt.FromID == s.PeerID {
+		if tkt.FromID == s.PeerID && (calledOnLeader || do.waiter == nil) {
 			//vv("%v commitWhatWeCan (from self), calling FinishTicket for tkt4=%v", s.me(), tkt.TicketID[:4])
 			s.FinishTicket(tkt, calledOnLeader) // deleting from WAF while waiting for reply! 2nd call on leader
 		} else {

@@ -973,3 +973,42 @@ func Test1013_read_lease_does_not_count_shadows(t *testing.T) {
 		t.Fatalf("expected a read lease once voter n2 (with the leader, 2 of 3) has a fresh ping")
 	}
 }
+
+func TestRejectedHeartbeatCannotAdvanceCommit(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		leaderTerm, prevTerm int64
+	}{
+		{"old term", 2, 1},
+		{"previous term mismatch", 3, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := specularNode(t, "f", FOLLOWER, 3, []int64{1}, "l", "f")
+			host := &ackCaptureHost{hoster: &TubeSim{wal: f.wal, state: f.state, node: f}}
+			f.host = host
+			f.handleAppendEntries(&AppendEntries{
+				LeaderName: "l", LeaderID: "l_id", LeaderTerm: tc.leaderTerm,
+				PrevLogIndex: 1, PrevLogTerm: tc.prevTerm, LogTermsRLE: f.wal.getTermsRLE(),
+				LeaderCommitIndex: 1, LeaderCommitIndexEntryTerm: 1,
+			}, true)
+			if len(host.acks) != 1 || !host.acks[0].Rejected || f.state.CommitIndex != 0 {
+				t.Fatalf("rejected heartbeat must leave commit index at zero, got index %d, acks %v", f.state.CommitIndex, host.acks)
+			}
+		})
+	}
+}
+
+func TestFollowerApplyLeavesFormerLeaderWaiterPending(t *testing.T) {
+	f := specularNode(t, "f", FOLLOWER, 2, []int64{1}, "l", "f")
+	e, err := f.wal.GetEntry(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.Ticket.FromID = f.PeerID
+	e.waiter = e.Ticket.applyCopy()
+	specularApplyAll(f)
+	if f.state.LastApplied != 1 || e.waiter.Applied || e.waiter.Committed || e.waiter.finishTicketCalled {
+		t.Fatalf("follower applied through %d, waiter committed=%v applied=%v finished=%v",
+			f.state.LastApplied, e.waiter.Committed, e.waiter.Applied, e.waiter.finishTicketCalled)
+	}
+}

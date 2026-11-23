@@ -511,6 +511,13 @@ func (leaderLog *TermsRLE) Extends(followerLog *TermsRLE) (extends bool, largest
 
 	// both leader and follower have stuff; but might be compacted on either.
 
+	// Raft's log matching property proves the compacted prefix only
+	// when the follower has the same term at the snapshot boundary.
+	if leaderLog.BaseC > followerLog.BaseC && followerLog.Endi >= leaderLog.BaseC &&
+		followerLog.getTermForIndex(leaderLog.BaseC) != leaderLog.CompactTerm {
+		return false, followerLog.BaseC, NEED_LEADER_SNAPSHOT
+	}
+
 	// Track current position in both logs
 	// m = master, f = follower
 	m := leaderLog.BaseC
