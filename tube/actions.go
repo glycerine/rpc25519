@@ -573,7 +573,10 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 			panic("tkt.RaftLogEntryTm should not be zero")
 		}
 	}
-	clockDriftBound := s.cfg.ClockDriftBound
+	clockDriftBound := tkt.logClockDriftBound()
+	if dry {
+		clockDriftBound = s.cfg.ClockDriftBound
+	}
 	tktTable := tkt.Table
 	tktKey := tkt.Key
 	tktVal := tkt.Val
@@ -629,7 +632,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 		// that is strictly monotonically increasing.
 		tkt.Err = fmt.Errorf(rejectedWritePrefix+" because rejecting tkt with LogIndex <= leaf.WriteRaftLogIndex. TicketID:'%v'; LogIndex='%v'; leaf.WriteRaftLogIndex='%v' (desc: '%v')", tkt.TicketID, tkt.LogIndex, leaf.WriteRaftLogIndex, tkt.Desc)
 		if !testingImmut {
-			s.writeFailedSetCurrentVal(tkt, leaf)
+			s.writeFailedSetCurrentVal(tkt, leaf, clockDriftBound)
 		}
 		return false
 	}
@@ -679,7 +682,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 		if lte(leaseUntilTm, leaf.LeaseUntilTm) {
 			tkt.Err = fmt.Errorf(rejectedWritePrefix+" because non-increasing LeaseUntilTm rejected. table='%v'; key='%v'; current leasor='%v' (LeasorPeerID: '%v'); leaf.LeaseUntilTm='%v' >= tkt.LeaseUntilTm='%v'; rejecting attempted tkt.Leasor='%v' at now/tkt.RaftLogEntryTm='%v');", tktTable, tktKey, leaf.Leasor, leaf.LeasorPeerID, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaseUntilTm.Format(rfc3339NanoNumericTZ0pad), tkt.Leasor, now.Format(rfc3339NanoNumericTZ0pad))
 			if !testingImmut {
-				s.writeFailedSetCurrentVal(tkt, leaf)
+				s.writeFailedSetCurrentVal(tkt, leaf, clockDriftBound)
 			}
 			return false
 		}
@@ -756,14 +759,14 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 	// we also reply with the Val/Leasor info so the contendor
 	// knows who got here first (and thus is 'elected').
 	if !testingImmut {
-		s.writeFailedSetCurrentVal(tkt, leaf)
+		s.writeFailedSetCurrentVal(tkt, leaf, clockDriftBound)
 	}
 
 	//vv("%v reject write to already leased key '%v' (held by '%v', rejecting '%v'); KVstore now len=%v", st.name, tktKey, leaf.Leasor, tkt.Leasor, st.KVstore.Len())
 	return false
 }
 
-func (s *TubeNode) writeFailedSetCurrentVal(tkt *Ticket, leaf *leased.Leaf) {
+func (s *TubeNode) writeFailedSetCurrentVal(tkt *Ticket, leaf *leased.Leaf, clockDriftBound time.Duration) {
 
 	// a copy would be safer, but consumes a whole
 	// lot of memory when we are just going to
@@ -781,7 +784,7 @@ func (s *TubeNode) writeFailedSetCurrentVal(tkt *Ticket, leaf *leased.Leaf) {
 	tkt.LeaseEpochT0 = leaf.LeaseEpochT0
 
 	// include the clockDriftBound so they can just wait until.
-	tkt.LeaseUntilTm = leaf.LeaseUntilTm.Add(s.cfg.ClockDriftBound)
+	tkt.LeaseUntilTm = leaf.LeaseUntilTm.Add(clockDriftBound)
 	tkt.LeaseEpoch = leaf.LeaseEpoch
 	tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 	tkt.VersionRead = leaf.Version
@@ -801,7 +804,7 @@ func (s *TubeNode) doDeleteKey(tkt *Ticket) {
 			doDelete = true
 		} else if leaf.Leasor == tkt.Leasor {
 			doDelete = true
-		} else if tkt.RaftLogEntryTm.After(leaf.LeaseUntilTm.Add(s.cfg.ClockDriftBound)) {
+		} else if tkt.RaftLogEntryTm.After(leaf.LeaseUntilTm.Add(tkt.logClockDriftBound())) {
 			doDelete = true
 		} else {
 			tkt.Err = fmt.Errorf("prior lease on key is not expired. table='%v'; key='%v'; Leasor='%v'; LeaseUntilTm='%v'", tkt.Table, tkt.Key, leaf.Leasor, nice(leaf.LeaseUntilTm))
