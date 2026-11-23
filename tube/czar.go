@@ -63,6 +63,10 @@ func (s CzarState) String() string {
 // via Raft by writing to the key "czar"
 // in the configured RMember.TableSpace.
 type Czar struct {
+	// findLeaderBackoff paces retries when no Tube leader can be
+	// found (CR-D-70).
+	findLeaderBackoff *expBackoff
+
 	slow bool // use sessions and refresh members/ dir in raft?
 
 	Halt *idem.Halter `msg:"-"`
@@ -156,6 +160,8 @@ func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Durati
 		cli:             cli,
 		requestPingCh:   make(chan *pingReqReply),
 		blake:           blake3.New(64, nil),
+		findLeaderBackoff: newExpBackoff(expBackoffConfig{InitialDelay: 100 * time.Millisecond,
+			MaxDelay: 5 * time.Second, Factor: 2, Jitter: 0.2}),
 	}
 	// table hermes, key "czar"
 	//s.leaseDurCzar = time.Second * 10
@@ -941,12 +947,20 @@ fullRestart:
 			//vv("%v: cliCfg.Node2Addr = '%#v'", name, cliCfg.Node2Addr)
 			leaderURL, leaderName, _, reallyLeader, _, err := cli.HelperFindLeader(ctx, cliCfg, "", requireOnlyContact, KEEP_CKT_ONLY_IF_LEADER) // KEEP_CKT_UP) // KEEP_CKT_ONLY_IF_LEADER)
 			//vv("%v: helper said: leaderURL = '%v'; reallyLeader=%v; err='%v'", name, leaderURL, reallyLeader, err)
-			panicOn(err)
-			if !reallyLeader {
-				vv("%v: arg. we see not really leader? why?", name)
+			if err != nil || !reallyLeader {
+				// No reachable Tube leader yet: never panic, never
+				// hot-loop; back off (jittered, capped) and retry
+				// unless asked to stop (CR-D-70).
+				vv("%v: no Tube leader found (err='%v'); backing off", name, err)
 				cli.closeAutoClientSockets()
+				select {
+				case <-time.After(czar.findLeaderBackoff.next()):
+				case <-czar.Halt.ReqStop.Chan:
+					return
+				}
 				continue fullRestart
 			}
+			czar.findLeaderBackoff.reset()
 			// should have updated our notion of leader, else on leader change we can be stuck
 			// see peerListReplyHandler() tube.go:13234
 			insp := cli.Inspect()

@@ -120,7 +120,7 @@ transcripts). This keeps only findings **not already fixed** by the first round
 | 66 | CR-D-67 | R FIXED | `setVers` resets `t0` on every membership change, so dead members inherited from the czar-key snapshot are never expired under churn. | Reset `t0` only when the czar epoch changes. |
 | 67 | CR-D-68 | M FIXED | The member lease (6 s) can outlive the czar lease (5 s), so a member dropped by a new czar can serve stale hermes reads. | Cap member leases at `CzarLeaseUntilTm - drift`. |
 | 68 | CR-D-69 | R FIXED | `HelperFindLeader` returns the last leader in random map order, not the highest-term one; the czar `panicf`s when it disagrees with the client. | Return the highest-term choice; don't panic on disagreement. |
-| 69 | CR-D-70 | R | A member that can't reach the Tube cluster panics (with no `InitialLeaderName`) or hot-loops without delay. | Handle the error; add a halt-aware jittered backoff. |
+| 69 | CR-D-70 | R FIXED | A member that can't reach the Tube cluster panics (with no `InitialLeaderName`) or hot-loops without delay. | Handle the error; add a halt-aware jittered backoff. |
 | 74 | CR-D-75 | R | The member's heartbeat `Czar.Ping` uses a nil context, so the 20 s default timeout exceeds both lease durations. | Bound it with a ctx, e.g. `2*memberHeartBeatDur`, cancelled on halt. |
 | 76 | CR-D-77 | R | The member's czar ping client dials with no connect timeout (`ConnectTimeout` 0; `runClientTCP` ignores it) and blocks about 135 s against a dead host. | Set a connect timeout below the lease; use `StartWithCtx`; honor the timeout in rpc25519. |
 | 75 | CR-D-76 | R | A czar that reaches Tube but not its members renews forever and can never be deposed. | Record member-unreachable evidence in Tube; the czar steps down on it. |

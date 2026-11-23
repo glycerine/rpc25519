@@ -2713,3 +2713,30 @@ func TestResolveLeaderReturnsHighestTerm(t *testing.T) {
 		t.Fatalf("resolved leader %v (%v), want the highest-term leader 'new'", name, url)
 	}
 }
+
+// CR-D-70: a member that could not reach the Tube cluster, with no
+// InitialLeaderName configured, panicOn'd HelperFindLeader's error
+// in its goroutine and took the whole process down.
+func TestMemberSurvivesUnreachableTubeCluster(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		c, _, _, _ := SetupTestCluster(t, 3, 0, 1070)
+		defer c.Close()
+		for i := range c.Nodes {
+			c.IsolateNode(i)
+		}
+		cliCfg := *c.Cfg
+		cliCfg.MyName = t.Name() + "_m"
+		cliCfg.PeerServiceName = TUBE_CLIENT
+		cliCfg.ClockDriftBound = 500 * time.Millisecond
+		cliCfg.InitialLeaderName = ""
+		mem := NewRMember(t.Name(), &cliCfg)
+		mem.Start()
+		time.Sleep(20 * time.Second) // keeps failing to find a leader
+		mem.Czar.Halt.RequestStop()
+		select {
+		case <-mem.Czar.Halt.Done.Chan:
+		case <-time.After(30 * time.Second):
+			t.Fatal("member did not stop on request while retrying")
+		}
+	})
+}
