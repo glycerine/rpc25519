@@ -165,20 +165,10 @@ func (s *TermsRLE) Truncate(keepIndex int64, syncme *IndexTerm) {
 		case keepIndex == thisRunEnd:
 			// wipe out all after this run
 			s.Runs = s.Runs[:i+1]
-			s.CompactTerm = s.Runs[i].Term
-			if syncme != nil {
-				//syncme.Index = s.BaseC
-				syncme.Term = s.CompactTerm
-			}
 			return
 		case keepIndex < thisRunEnd:
 			s.Runs = s.Runs[:i+1]                       // have to split the run
 			s.Runs[i].Count -= (thisRunEnd - keepIndex) // split the run, keeping head.
-			s.CompactTerm = s.Runs[i].Term
-			if syncme != nil {
-				//syncme.Index = s.BaseC
-				syncme.Term = s.CompactTerm
-			}
 			return
 		}
 		base = thisRunEnd
