@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/quic-go/quic-go"
 )
 
 // Bug 9 (Medium): when a peer restarts, frames still sent on
@@ -303,5 +305,35 @@ func TestQUICClientKeepAliveAndPingStats(t *testing.T) {
 	}
 	if cli.PingStats(serverAddr.String()).LastPingSentTmu == 0 {
 		t.Fatal("no keepalive recorded as sent")
+	}
+}
+
+// CR-D-86: Close lowered the shared QUIC socket's count on
+// every call, so a repeated Close (or one by a client that
+// never took a reference) closed the socket under other users,
+// and a negative count panicked with the mutex held.
+func TestQUICCloseReleasesSharedSocketOncePerHolder(t *testing.T) {
+	udp, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	panicOn(err)
+	defer udp.Close()
+	cfg := NewConfig()
+	cfg.UseQUIC = true
+	cfg.shared.quicTransport = &quic.Transport{Conn: udp}
+	cfg.shared.shareCount = 1 // held by a running server
+
+	cli, err := NewClient("crd86", cfg)
+	panicOn(err)
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("Close of a never-started QUIC client panicked: %v", r)
+			}
+		}()
+		cli.Close()
+		cli.Close()
+	}()
+	if cfg.shared.isClosed || cfg.shared.shareCount != 1 {
+		t.Fatalf("closing a client that held no reference released the shared socket: count %v closed %v",
+			cfg.shared.shareCount, cfg.shared.isClosed)
 	}
 }

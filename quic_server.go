@@ -74,6 +74,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	if !s.cfg.NoSharePortQUIC && s.cfg.shared.quicTransport != nil {
 		transport = s.cfg.shared.quicTransport
 		s.cfg.shared.shareCount++
+		s.holdsSharedQUIC = true
 		//vv("s.cfg.shared.shareCount is now %v on server '%v'", s.cfg.shared.shareCount, s.name)
 		s.cfg.shared.mut.Unlock()
 	} else {
@@ -89,6 +90,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 		}
 		s.cfg.shared.quicTransport = transport
 		s.cfg.shared.shareCount++
+		s.holdsSharedQUIC = true
 		//vv("s.cfg.shared.shareCount is now %v on server '%v'", s.cfg.shared.shareCount, s.name)
 		s.cfg.shared.mut.Unlock()
 	}
