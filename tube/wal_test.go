@@ -471,3 +471,25 @@ func TestWALOverwriteProtectsCommittedAndAppliedEntries(t *testing.T) {
 		}
 	}
 }
+
+func TestDiskWALOverwriteAtInstalledSnapshot(t *testing.T) {
+	cfg := &TubeConfig{}
+	w, err := cfg.newRaftWriteAheadLog(filepath.Join(t.TempDir(), "wal"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.close()
+	st := &RaftState{CompactionDiscardedLast: IndexTerm{Index: 5, Term: 2}}
+	w.installedSnapshot(st)
+	entry := &RaftLogEntry{Index: 6, Term: 3, Ticket: &Ticket{TicketID: rpc.NewCallID("")}}
+	if _, err := w.saveRaftLogEntry(entry); err != nil {
+		t.Fatal(err)
+	}
+	replacement := &RaftLogEntry{Index: 6, Term: 4, Ticket: &Ticket{TicketID: rpc.NewCallID("")}}
+	if err := w.overwriteEntries(5, []*RaftLogEntry{replacement}, false, 5, 5, &st.CompactionDiscardedLast, nil); err != nil {
+		t.Fatal(err)
+	}
+	if replacement.PrevIndex != 5 || replacement.PrevTerm != 2 || w.LastLogTerm() != 4 {
+		t.Fatalf("replacement prev=(%d, %d), WAL last term=%d", replacement.PrevIndex, replacement.PrevTerm, w.LastLogTerm())
+	}
+}
