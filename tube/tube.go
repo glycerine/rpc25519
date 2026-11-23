@@ -750,6 +750,15 @@ func (s *TubeNode) Start(
 
 ) (err0 error) {
 
+	// rpc25519 starts a new LocalPeer, and calls Start again, for
+	// a circuit-start naming a stale PeerID. The event loop owns
+	// s, so a second concurrent loop must not touch it.
+	if !s.startRunning.CompareAndSwap(false, true) {
+		alwaysPrintf("%v refusing a second concurrent TubeNode.Start (new PeerID '%v')", s.name, myPeer.PeerID)
+		return ErrAlreadyStarted
+	}
+	defer s.startRunning.Store(false)
+
 	s.Ctx = myPeer.Ctx
 	//vv("%v (PeerID: '%v') top of TubeNode.Start(); newCircuitCh = %p ; s.MyPeer.NewCircuitCh = %p [last two equal = %v]", s.name, myPeer.PeerID, newCircuitCh, myPeer.NewCircuitCh, newCircuitCh == myPeer.NewCircuitCh)
 
@@ -2626,8 +2635,11 @@ func (cfg *TubeConfig) Init(quiet, isTest bool) {
 		// be sure we only start one replica peer per process.
 		// rpc25519 will give us back an error if we try to
 		// by accident (each server or client on its own gets one).
-		rpcCfg.LimitedServiceNames = []string{string(TUBE_REPLICA)}
-		rpcCfg.LimitedServiceMax = []int{1}
+		// Clients and hermes members too: each runs the Start of
+		// one specific TubeNode, which must never run twice, as
+		// a remote circuit-start for a stale PeerID would do (CR-D-34).
+		rpcCfg.LimitedServiceNames = []string{string(TUBE_REPLICA), string(TUBE_CLIENT), "hermes"}
+		rpcCfg.LimitedServiceMax = []int{1, 1, 1}
 
 		cfg.RpcCfg = rpcCfg
 	}
@@ -3150,6 +3162,10 @@ type TubeNode struct {
 
 	pushToPeerURL    chan string
 	MyPeer           *rpc.LocalPeer `msg:"-"`
+
+	// startRunning guards against a second concurrent Start
+	// loop on the same node (CR-D-34).
+	startRunning atomic.Bool
 	Halt             *idem.Halter   `msg:"-"`
 	peerLeftCh       chan *cktPlus
 	gotNewPeerListCh chan []string
