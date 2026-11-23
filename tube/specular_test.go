@@ -1379,3 +1379,67 @@ func TestRestartHonorsPreviousElectionTimeout(t *testing.T) {
 		}
 	})
 }
+
+func TestLeaseApplyUsesReplicatedDriftBound(t *testing.T) {
+	for _, op := range []TicketOp{WRITE, CAS, DELETE_KEY} {
+		for _, tc := range []struct {
+			label                      string
+			leaderBound, followerBound time.Duration
+			legacy, wantAccepted       bool
+		}{
+			{"zero", 0, time.Second, false, true},
+			{"long", time.Second, 0, false, false},
+			{"legacy", 0, 0, true, false},
+		} {
+			t.Run(fmt.Sprintf("%v/%s", op, tc.label), func(t *testing.T) {
+				leader := specularNode(t, "n1", LEADER, 1, nil, "n1", "n2")
+				f := specularNode(t, "n2", FOLLOWER, 1, nil, "n1", "n2")
+				leader.cfg.ClockDriftBound, f.cfg.ClockDriftBound = tc.leaderBound, tc.followerBound
+				t0 := time.Now()
+				until := t0.Add(time.Second)
+				f.doWrite(specularLeaseWrite("first", 1, t0, until))
+				now := until.Add(350 * time.Millisecond)
+				tkt := specularLeaseWrite("next", 2, now, now.Add(time.Second))
+				tkt.Op, tkt.Leasor, tkt.FromID = op, "c2", "c2_id"
+				entry := &RaftLogEntry{Index: 2, Term: 1, Tm: now, Ticket: tkt}
+				if !tc.legacy {
+					entry = leader.prepOne(tkt, now, 2, 0)
+				}
+				wire, err := entry.MarshalMsg(nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var recv RaftLogEntry
+				if _, err := recv.UnmarshalMsg(wire); err != nil {
+					t.Fatal(err)
+				}
+				result := recv.Ticket
+				switch op {
+				case WRITE:
+					f.doWrite(result)
+				case CAS:
+					f.doCAS(result)
+				case DELETE_KEY:
+					f.doDeleteKey(result)
+				}
+				if (result.Err == nil) != tc.wantAccepted {
+					t.Fatalf("accepted=%v, want %v (apply error %v)", result.Err == nil, tc.wantAccepted, result.Err)
+				}
+				leaf, err := f.state.KVstore.GetLeaf("t", "czar", false)
+				if op == DELETE_KEY && tc.wantAccepted {
+					if err != ErrKeyNotFound {
+						t.Fatalf("deleted key: got %v, want missing", err)
+					}
+					return
+				}
+				wantOwner := "c1"
+				if tc.wantAccepted {
+					wantOwner = "c2"
+				}
+				if err != nil || leaf.Leasor != wantOwner {
+					t.Fatalf("got leaf %v, error %v, want owner %s", leaf, err, wantOwner)
+				}
+			})
+		}
+	}
+}

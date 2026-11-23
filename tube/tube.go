@@ -2679,7 +2679,8 @@ type RaftNodeInfo struct {
 	// guard against unique local configuration changes
 	MinElectionTimeoutDur time.Duration `zid:"13"`
 
-	MC *MemberConfig `zid:"14"`
+	MC                    *MemberConfig `zid:"14"`
+	driftMismatchReported bool
 }
 
 type LogEntrySpan struct {
@@ -3766,13 +3767,14 @@ type AppendEntriesAck struct {
 
 	PeerMC *MemberConfig `zid:"33"`
 
-	PeerCompactionDiscardedLastIndex   int64 `zid:"34"`
-	PeerCompactionDiscardedLastTerm    int64 `zid:"35"`
-	NeedSnapshotGap                    bool  `zid:"36"`
-	SuppliedLeaderCommitIndexEntryTerm int64 `zid:"37"`
-	SuppliedCompactIndex               int64 `zid:"38"`
-	SuppliedCompactTerm                int64 `zid:"39"`
-	FollowerHLC                        HLC   `zid:"40"`
+	PeerCompactionDiscardedLastIndex   int64          `zid:"34"`
+	PeerCompactionDiscardedLastTerm    int64          `zid:"35"`
+	NeedSnapshotGap                    bool           `zid:"36"`
+	SuppliedLeaderCommitIndexEntryTerm int64          `zid:"37"`
+	SuppliedCompactIndex               int64          `zid:"38"`
+	SuppliedCompactTerm                int64          `zid:"39"`
+	FollowerHLC                        HLC            `zid:"40"`
+	ClockDriftBound                    *time.Duration `zid:"41"`
 }
 
 func (ack *AppendEntriesAck) clone() (p *AppendEntriesAck) {
@@ -5452,6 +5454,11 @@ type Ticket struct {
 	PrevLeaseVal   Val    `zid:"77"`
 	PrevLeaseVtype string `zid:"78"`
 
+	// Stamped by the leader. The presence bit distinguishes a configured
+	// zero from WAL entries written before this field existed.
+	LeaseClockDriftBound    time.Duration `zid:"82"`
+	HasLeaseClockDriftBound bool          `zid:"83"`
+
 	OldLeaseEpochCAS int64 `zid:"79"` // For CAS: old leaf.LeaseEpoch (tested for).
 
 	// should we return early and stop waiting
@@ -6339,6 +6346,8 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64, logHLC HLC) *RaftLogEntry {
 
 	tkt.LogIndex = idx // tkt.LogIndex is assigned here.
+	tkt.LeaseClockDriftBound = s.cfg.ClockDriftBound
+	tkt.HasLeaseClockDriftBound = true
 	if tkt.Op == SESS_NEW {
 		tkt.NewSessReq.SessionAssignedIndex = idx
 	}
@@ -8061,6 +8070,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 		AEID:                  ae.AEID,
 		Term:                  s.state.CurrentTerm,
 		MinElectionTimeoutDur: s.cachedMinElectionTimeoutDur,
+		ClockDriftBound:       new(s.cfg.ClockDriftBound),
 
 		// For LargestCommonRaftIndex, lets declare that
 		// -1 means unknown, by the convention I just invented.
@@ -9866,6 +9876,13 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 		s.peers[ack.FromPeerID] = foll
 	}
 
+	if ack.ClockDriftBound != nil {
+		mismatch := *ack.ClockDriftBound != s.cfg.ClockDriftBound
+		if mismatch && !foll.driftMismatchReported {
+			alwaysPrintf("%v replica %q reports ClockDriftBound %v, leader uses %v", s.me(), foll.PeerName, *ack.ClockDriftBound, s.cfg.ClockDriftBound)
+		}
+		foll.driftMismatchReported = mismatch
+	}
 	foll.LastHeardAnything = now // in handleAppendEntriesAck
 	foll.MC = ack.PeerMC         //.Clone()
 
@@ -12094,9 +12111,9 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	amLeasor := leaseInForce && (leaf.Leasor == tkt.Leasor)
 	//vv("hasLease = %v; leaseInForce = %v; amLeasor = %v", hasLease, leaseInForce, amLeasor) // false, false
 	if leaseInForce && !amLeasor {
-		tkt.Err = fmt.Errorf(rejectedWritePrefix+" to leased key CAS. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tkt.Table, tkt.Key, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), s.cfg.ClockDriftBound)
+		tkt.Err = fmt.Errorf(rejectedWritePrefix+" to leased key CAS. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tkt.Table, tkt.Key, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), tkt.logClockDriftBound())
 
-		s.writeFailedSetCurrentVal(tkt, leaf)
+		s.writeFailedSetCurrentVal(tkt, leaf, tkt.logClockDriftBound())
 		return
 	}
 
@@ -12132,7 +12149,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 			tkt.Err = fmt.Errorf(rejectedWritePrefix+" CAS on OldVersionCAS='%v' vs current Version='%v'", tkt.OldVersionCAS, leaf.Version)
 			tkt.CASwapped = false
 
-			s.writeFailedSetCurrentVal(tkt, leaf)
+			s.writeFailedSetCurrentVal(tkt, leaf, tkt.logClockDriftBound())
 			return
 		}
 	case tkt.OldLeaseEpochCAS > 0:
@@ -12141,7 +12158,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 			tkt.Err = fmt.Errorf(rejectedWritePrefix+" CAS on OldLeaseEpochCAS='%v' vs current LeaseEpoch='%v'", tkt.OldLeaseEpochCAS, leaf.LeaseEpoch)
 			tkt.CASwapped = false
 
-			s.writeFailedSetCurrentVal(tkt, leaf)
+			s.writeFailedSetCurrentVal(tkt, leaf, tkt.logClockDriftBound())
 			return
 		}
 	case len(tkt.OldVal) > 0:
@@ -12156,7 +12173,7 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 			tkt.CASwapped = false
 			tkt.Err = fmt.Errorf(rejectedWritePrefix + " CAS on tkt.OldVal != current leaf.Val")
 
-			s.writeFailedSetCurrentVal(tkt, leaf)
+			s.writeFailedSetCurrentVal(tkt, leaf, tkt.logClockDriftBound())
 			return
 		}
 
@@ -12173,11 +12190,20 @@ func (s *TubeNode) doCAS(tkt *Ticket) {
 	}
 }
 
+// Older logs used the deployment default of 500ms on uniformly configured
+// clusters. Replay needs one fixed value even if local settings have changed.
+func (tkt *Ticket) logClockDriftBound() time.Duration {
+	if !tkt.HasLeaseClockDriftBound {
+		return 500 * time.Millisecond
+	}
+	return tkt.LeaseClockDriftBound
+}
+
 func (s *TubeNode) validLease(tkt *Ticket, leaf *leased.Leaf) bool {
 	if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
 		return false
 	}
-	if tkt.RaftLogEntryTm.After(leaf.LeaseUntilTm.Add(s.cfg.ClockDriftBound)) {
+	if tkt.RaftLogEntryTm.After(leaf.LeaseUntilTm.Add(tkt.logClockDriftBound())) {
 		return false
 	}
 	return true
