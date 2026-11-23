@@ -10019,7 +10019,11 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 		case ack.LargestCommonRaftIndex >= 0: // hmm... always true? or -1 ?
 			// we could: follower.MatchIndex = ack.LargestCommonRaftIndex
 			// and if it changed release some waiters, too.
-			if ack.LargestCommonRaftIndex > foll.MatchIndex {
+			// LargestCommonRaftIndex is relative to the leader
+			// log in the AE; only trust it if that AE is from
+			// our current term (Specular Bug 1).
+			if ack.SuppliedLeaderLastTerm == s.state.CurrentTerm &&
+				ack.LargestCommonRaftIndex > foll.MatchIndex {
 				foll.MatchIndex = ack.LargestCommonRaftIndex
 				s.leaderAdvanceCommitIndex()
 			}
@@ -10106,8 +10110,18 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 		// the expiration of NoFaultTolDur.
 
 		check := s.advanceCheckForced()
-		if ack.PeerLogLastIndex > foll.MatchIndex {
-			foll.MatchIndex = ack.PeerLogLastIndex
+		// Specular Bug 1: MatchIndex must only cover entries
+		// known to match OUR log. ack.PeerLogLastIndex is the
+		// follower's whole log, which can include a divergent
+		// uncommitted suffix from an older term (e.g. the
+		// "nothing new after clipping" accept). The follower
+		// computes LargestCommonRaftIndex against the leader
+		// log carried in the AE, so it is exactly what this
+		// ack proves; and it is never above PeerLogLastIndex.
+		proven := min(ack.LargestCommonRaftIndex, ack.PeerLogLastIndex)
+		if ack.SuppliedLeaderLastTerm == s.state.CurrentTerm &&
+			proven > foll.MatchIndex {
+			foll.MatchIndex = proven
 			check = true
 		}
 		if check {
@@ -12642,7 +12656,13 @@ func (s *TubeNode) insaneTooOldOrNew(frag *rpc.Fragment) (drop bool, dropReason 
 }
 
 func (s *TubeNode) newFrag() (frag *rpc.Fragment) {
-	frag = s.MyPeer.NewFragment()
+	if s.MyPeer == nil {
+		// standalone node in unit tests (specular_test.go);
+		// it has no circuits, so nothing is actually sent.
+		frag = rpc.NewFragment()
+	} else {
+		frag = s.MyPeer.NewFragment()
+	}
 	frag.Created = time.Now()
 	frag.FromPeerName = s.name
 	frag.SetUserArg("ClusterID", s.ClusterID)
