@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/glycerine/idem"
 	"github.com/quic-go/quic-go"
 )
 
@@ -335,5 +336,36 @@ func TestQUICCloseReleasesSharedSocketOncePerHolder(t *testing.T) {
 	if cfg.shared.isClosed || cfg.shared.shareCount != 1 {
 		t.Fatalf("closing a client that held no reference released the shared socket: count %v closed %v",
 			cfg.shared.shareCount, cfg.shared.isClosed)
+	}
+}
+
+// recordingU records the auto-dial policy of each send.
+type recordingU struct {
+	UniversalCliSrv
+	forbidAutoCli []bool
+}
+
+func (u *recordingU) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration, forbidAutoCli bool) (bool, *LoopComm, error) {
+	u.forbidAutoCli = append(u.forbidAutoCli, forbidAutoCli)
+	return false, nil, ErrNetConnectionNotFound
+}
+
+// CR-D-29: a send on a circuit whose connection had died
+// dialed a new auto-client synchronously, with no connect
+// timeout, on the caller's goroutine (Tube's event loop).
+// A circuit only exists on its connection: it must not dial.
+func TestCircuitSendNeverAutoDials(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	u := &recordingU{}
+	lpb := &LocalPeer{Halt: idem.NewHalter(), Ctx: ctx, U: u, PeerID: "me"}
+	ckt := &Circuit{Context: ctx, CircuitID: "c1", LocalPeerID: "me", RemotePeerID: "them",
+		LpbFrom: lpb, RpbTo: &RemotePeer{NetAddr: "tcp://127.0.0.1:9", PeerID: "them"}}
+	_, err := lpb.SendOneWay(ckt, NewFragment(), -1, 1)
+	if !errors.Is(err, ErrNetConnectionNotFound) {
+		t.Fatalf("send on a circuit without a connection returned %v", err)
+	}
+	if len(u.forbidAutoCli) != 1 || !u.forbidAutoCli[0] {
+		t.Fatalf("circuit send allowed an auto-client dial: %v", u.forbidAutoCli)
 	}
 }

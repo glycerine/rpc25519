@@ -748,7 +748,13 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 		// share it between the origin frag and the new Message.
 	}
 
-	madeNewAutoCli, _, err = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur, false)
+	// A circuit rides on its connection: if that connection is
+	// gone, the circuit is dead. Never dial a new auto-client
+	// here; that ran a connect with no timeout on the caller's
+	// goroutine, which for Tube is its event loop (CR-D-29).
+	// New circuits are made by NewCircuitToPeerURL and friends.
+	const forbidAutoCli = true
+	madeNewAutoCli, _, err = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur, forbidAutoCli)
 	if err != nil {
 		return
 	}
