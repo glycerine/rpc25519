@@ -227,6 +227,25 @@ func (s *Czar) setVersUpcall(v *RMVersionTuple, list *ReliableMembershipList, no
 	return s.setVers(v, list, true, note)
 }
 
+// adoptPingReply installs a czar's Ping reply. If it is rejected
+// (say, non-monotone after a Tube restart), it drops the client to
+// that czar and resets the czar state, as every other NotCzar exit
+// does, and asks for a full restart. Restarting with the stale
+// client left the member waiting on a select that could never
+// fire (CR-D-66).
+func (s *Czar) adoptPingReply(vers *RMVersionTuple, members *ReliableMembershipList, note string, cli **rpc.Client) (restart bool) {
+	if err := s.setVersUpcall(vers, members, note); err != nil {
+		vv("%v: ping reply rejected: '%v'; reconnecting", s.name, err)
+		if *cli != nil {
+			(*cli).Close()
+		}
+		*cli = nil
+		s.cState.Store(int32(UnknownCzarState))
+		return true
+	}
+	return false
+}
+
 func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, upcall bool, note string) (err error) {
 	return s.setVersAt(time.Now(), v, list, upcall, note)
 }
@@ -1493,10 +1512,9 @@ fullRestart:
 						panicf("err was nil, how can pingReplyToFill be nil??")
 					}
 
-					err = czar.setVersUpcall(pingReplyToFill.Vers, pingReplyToFill.Members, "notCzar: Ping reply")
-					if err != nil {
-						// non-monotone error on tube servers restart hmm...
-						vv("%v: see err = '%v', doing full restart", name, err) // seen!?!
+					if czar.adoptPingReply(pingReplyToFill.Vers, pingReplyToFill.Members, "notCzar: Ping reply", &rpcClientToCzar) {
+						rpcClientToCzarDoneCh = nil
+						time.Sleep(time.Second)
 						continue fullRestart
 					}
 
@@ -1612,10 +1630,8 @@ fullRestart:
 						}
 					}
 
-					err = czar.setVersUpcall(reply.Vers, reply.Members, "notCzar: memberHeartBeatCh member heartbeat Ping reply")
-					if err != nil {
-						// non-monotone error on tube servers restart hmm...
-						vv("%v: see err = '%v', doing full restart", name, err)
+					if czar.adoptPingReply(reply.Vers, reply.Members, "notCzar: memberHeartBeatCh member heartbeat Ping reply", &rpcClientToCzar) {
+						rpcClientToCzarDoneCh = nil
 						continue fullRestart
 					}
 
