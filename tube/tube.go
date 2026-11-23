@@ -6521,6 +6521,11 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 		return
 	}
 
+	if s.role != LEADER {
+		s.clearBatchToSubmit(true)
+		return
+	}
+
 	//vv("%v top of replicateBatch with %v in batch", s.me(), len(s.batchToSubmit))
 	batch := s.batchToSubmit
 	s.clearBatchToSubmit(false)
@@ -8185,6 +8190,15 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 	// INVAR: ae.LeaderTerm >= s.state.CurrentTerm
 	s.lastLegitAppendEntries = time.Now()
 
+	if ae.LeaderTerm == s.state.CurrentTerm && s.role == LEADER {
+		alwaysPrintf("%v: Raft election safety violation: received AppendEntries from leader %q (%s) in our term %d",
+			s.name, ae.LeaderName, ae.LeaderID, ae.LeaderTerm)
+		// Step-down notifications should direct clients to the sender.
+		s.leaderName, s.leaderID, s.leaderURL, s.leaderTerm = ae.LeaderName, ae.LeaderID, ae.LeaderURL, ae.LeaderTerm
+		s.leaderWasUpdated()
+		s.host.becomeFollower(ae.LeaderTerm, nil, SKIP_SAVE)
+	}
+
 	// don't apply the membership until it is in the log!
 	// BUT problem is that new nodes who just get
 	// heartbeat need to discover the cluster. So
@@ -8206,20 +8220,10 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 		s.host.becomeFollower(ae.LeaderTerm, ae.MC, SAVE_STATE)
 		// below set s.leader
 
-	} else {
-		// INVAR: ae.LeaderTerm == s.state.CurrentTerm, since
-		// we already returned above when ae.LeaderTerm < s.state.CurrentTerm.
-		// looking at StepDown() RaftConsensus.cc:2909
-		if s.role != FOLLOWER {
-			// without discarding our votes or changing our term, whoa.
-			s.host.choice("Stepping down to follower role")
-			s.role = FOLLOWER // RaftConsensus.cc:2925
-			// just in case we were leader until just now
-			//if s.cfg.testNum != 802 {
-			//	//vv("%v handleAE: step down to follower, so nil out s.leaderSendsHeartbeatsCh", s.name)
-			//}
-			s.leaderSendsHeartbeatsCh = nil
-		}
+	} else if s.role == CANDIDATE {
+		s.host.choice("Stepping down to follower role")
+		s.role = FOLLOWER
+		s.leaderSendsHeartbeatsCh = nil
 	}
 	s.resetPreVoteState(false, true) // in handleAppendEntries()
 	s.host.resetElectionTimeout("handleAppendEntries >= term seen.")

@@ -1286,3 +1286,32 @@ func TestVoterKeepsFirstCandidateInSameTermAfterRestart(t *testing.T) {
 		t.Fatalf("node_2 recorded vote %q for term %d, want node_0_id for term 4", state.VotedFor, state.HaveVotedTerm)
 	}
 }
+
+func TestSameTermLeaderConflictClearsPendingWork(t *testing.T) {
+	n := specularNode(t, "n1", LEADER, 3, []int64{2}, "n1", "n2", "n3")
+	n.host = &ackCaptureHost{hoster: n}
+	n.leaderName, n.leaderID = n.name, n.PeerID
+	n.state.HaveVoted, n.state.VotedFor = true, n.PeerID
+	stalled := specularStalledMCTicket(n, "stalled")
+	n.stalledMembershipConfigChangeTkt = []*Ticket{stalled}
+	n.batchToSubmit = []*Ticket{n.NewTicket("queued", "", "", nil, n.PeerID, n.name, NOOP, -1, context.Background())}
+	n.handleAppendEntries(&AppendEntries{
+		LeaderTerm: 3, LeaderID: "n2_id", LeaderName: "n2", LogTermsRLE: n.wal.getTermsRLE(),
+	}, true)
+	if n.role != FOLLOWER || n.leaderName != "n2" || !n.state.HaveVoted || n.state.VotedFor != n.PeerID {
+		t.Fatalf("unexpected step-down state: role=%v leader=%q vote=%q", n.role, n.leaderName, n.state.VotedFor)
+	}
+	if len(n.batchToSubmit) != 0 || !stalled.Done.IsClosed() || stalled.Err == nil {
+		t.Fatalf("pending batch=%d, stalled membership error=%v", len(n.batchToSubmit), stalled.Err)
+	}
+}
+
+func TestFollowerCannotFlushLeaderBatch(t *testing.T) {
+	n := specularNode(t, "n1", FOLLOWER, 3, nil, "n1")
+	tkt := n.NewTicket("queued", "", "", nil, n.PeerID, n.name, NOOP, -1, context.Background())
+	n.batchToSubmit = []*Ticket{tkt}
+	n.replicateBatch()
+	if n.wal.LastLogIndex() != 0 || tkt.Committed || len(n.batchToSubmit) != 0 {
+		t.Fatalf("follower flushed stale batch: last index=%d committed=%v queued=%d", n.wal.LastLogIndex(), tkt.Committed, len(n.batchToSubmit))
+	}
+}
