@@ -1055,3 +1055,19 @@ func TestDiskFollowerRepairsSuffixAfterMatchingPreviousEntry(t *testing.T) {
 		t.Fatalf("catch-up left WAL at (%d, %d), acks %v", w.lli, w.llt, host.acks)
 	}
 }
+
+func TestFollowerCommitTermAtVerifiedPrefix(t *testing.T) {
+	f := specularNode(t, "f", FOLLOWER, 4, []int64{2, 3}, "l", "f")
+	f.host = &ackCaptureHost{hoster: &TubeSim{wal: f.wal, state: f.state, node: f}}
+	leaderLog := &TermsRLE{Runs: []*TermRLE{{Term: 2, Count: 1}, {Term: 4, Count: 1}}}
+	leaderLog.fixTot()
+	f.handleAppendEntries(&AppendEntries{
+		LeaderName: "l", LeaderID: "l_id", LeaderTerm: 4,
+		LogTermsRLE: leaderLog, LeaderCommitIndex: 2, LeaderCommitIndexEntryTerm: 4,
+	}, true)
+	if f.state.CommitIndex != 1 || f.state.CommitIndexEntryTerm != 2 ||
+		f.state.MC.CommitIndex != 1 || f.state.MC.CommitIndexEntryTerm != 2 {
+		t.Fatalf("commit=(%d,%d), membership commit=(%d,%d), want (1,2)",
+			f.state.CommitIndex, f.state.CommitIndexEntryTerm, f.state.MC.CommitIndex, f.state.MC.CommitIndexEntryTerm)
+	}
+}

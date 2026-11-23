@@ -7891,6 +7891,27 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 	}
 }
 
+// advanceFollowerCommit publishes the verified index and its corresponding
+// term together. The leader can supply the term of its own commit point if
+// that entry has already been compacted locally.
+func (s *TubeNode) advanceFollowerCommit(ae *AppendEntries, verified int64) bool {
+	ci := min(ae.LeaderCommitIndex, verified)
+	if ci <= s.state.CommitIndex {
+		return false
+	}
+	term := s.wal.logIndex.getTermForIndex(ci)
+	if term < 0 && ci == ae.LeaderCommitIndex {
+		term = ae.LeaderCommitIndexEntryTerm
+	}
+	if term <= 0 {
+		return false
+	}
+	s.state.CommitIndex = ci
+	s.state.CommitIndexEntryTerm = term
+	s.updateMCindex(ci, term)
+	return true
+}
+
 // AppendEntries has:
 // Term
 // PrevLogIndex // index of log entry immediately preceeding new ones
@@ -7919,7 +7940,6 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 	// on them in our defer.
 	var extends, needSnapshot bool
 	var largestCommonRaftIndex int64
-	var largestCommonRaftIndexTerm int64
 
 	s.hlc.ReceiveMessageWithHLC(ae.LeaderHLC)
 
@@ -8283,41 +8303,13 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 
 		return
 	}
-	if largestCommonRaftIndexTerm > 0 {
-		largestCommonRaftIndexTerm = followerLog.getTermForIndex(largestCommonRaftIndex)
-	}
-
-	stateSaveNeeded := false
-	lli2, llt2 := ae.LeaderCommitIndex, ae.LeaderCommitIndexEntryTerm
-
-	maxPossibleCI := largestCommonRaftIndex         // not lli
-	maxPossibleCIterm := largestCommonRaftIndexTerm // not llt
-	// take the minimum of what we have and the ae, because
-	// we want CommitIndex to not go longer than our log entries.
-
-	// Problem is: we can raise the commit index too high,
-	// because the tail terms might disagree on existing wal.
-	// So we need to limit maxPossibleCI to largestCommonRaftIndex too.
-	if lli2 < maxPossibleCI {
-		maxPossibleCI = lli2
-		maxPossibleCIterm = llt2
-	}
-	if maxPossibleCI > prevci {
-		s.state.CommitIndex = maxPossibleCI
-		s.state.CommitIndexEntryTerm = maxPossibleCIterm
-		s.updateMCindex(maxPossibleCI, maxPossibleCIterm)
-		if !chatty802 {
-			if s != nil && s.saver != nil {
-				stateSaveNeeded = true
-				defer func() {
-					if stateSaveNeeded { // set to false just after commitWhatWeCan below
-						// better to apply immediately too, not just save.
-						s.host.commitWhatWeCan(false)
-						// commitWhatWeCan does: s.saver.save(s.state)
-					}
-				}()
+	applyOnReturn := s.advanceFollowerCommit(ae, largestCommonRaftIndex) && !chatty802 && s.saver != nil
+	if applyOnReturn {
+		defer func() {
+			if applyOnReturn {
+				s.host.commitWhatWeCan(false)
 			}
-		}
+		}()
 	}
 
 	if upToDate {
@@ -8549,15 +8541,9 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 	// The write matched or installed every entry through entriesIdxEnd.
 	// A longer local tail has no bearing on what the leader committed.
 	verified := max(largestCommonRaftIndex, entriesIdxEnd)
-	if ci := min(ae.LeaderCommitIndex, verified); ci > s.state.CommitIndex {
-		term := s.wal.logIndex.getTermForIndex(ci)
-		s.state.CommitIndex = ci
-		s.state.CommitIndexEntryTerm = term
-		s.updateMCindex(ci, term)
-	}
-
+	s.advanceFollowerCommit(ae, verified)
 	s.host.commitWhatWeCan(false)
-	stateSaveNeeded = false // no save again needed in defer.
+	applyOnReturn = false
 
 	// update these so leader has an accurate picture on success too.
 	localFirstIndex, localFirstTerm, localLastIndex,
