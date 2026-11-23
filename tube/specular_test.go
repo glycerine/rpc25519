@@ -2389,3 +2389,39 @@ func TestVersionEqualToleratesNilPeerNames(t *testing.T) {
 		t.Fatal("an empty set equals a populated one")
 	}
 }
+
+// CR-D-50: a lagging follower copies MC.CommitIndex from a newer
+// leader before catching up. Restarted then, it was fenced as PAR
+// unknown (no vote, no campaign) although its disk was intact.
+// Fence only on a locally earned witness of durable appends.
+func TestLaggingFollowerRestartIsNotFenced(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		high   int64 // highest index this replica durably appended
+		fenced bool
+	}{
+		{"never held the entries", 2, false},
+		{"lost a suffix it had appended", 5, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := specularParDiskFixture(t, 2)
+			cfg := &TubeConfig{ClusterID: "par-test"}
+			wal, err := cfg.openPARWAL(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mc := &MemberConfig{PeerNames: NewOmap[string, *PeerDetail](), CommitIndex: 5}
+			mc.PeerNames.Set("f", &PeerDetail{Name: "f", PeerID: "id-f"})
+			node := &TubeNode{cfg: *cfg, name: "f", PeerID: "id-f", ClusterID: "par-test",
+				PeerServiceName: TUBE_REPLICA, wal: wal,
+				state: &RaftState{CurrentTerm: 1, CommitIndex: 2, LastApplied: 2, LastAppliedTerm: 1, MC: mc,
+					DurableAppendHigh: tc.high}}
+			defer func() { node.wal.close() }()
+			node.parAfterRestore()
+			if node.parBlocked() != tc.fenced {
+				t.Fatalf("fenced=%v, want %v (lli %v, MC.CommitIndex 5, durable high %v)",
+					node.parBlocked(), tc.fenced, node.wal.lli, tc.high)
+			}
+		})
+	}
+}

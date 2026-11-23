@@ -3014,6 +3014,12 @@ type RaftState struct {
 	// could still be relying on for its read lease.
 	RestartVoteDelay time.Duration `zid:"24"`
 
+	// DurableAppendHigh is the last index this replica had durably
+	// appended and identified, as of its latest WAL sync. With
+	// MC.CommitIndex (which can be copied from a leader before we
+	// catch up) it bounds what a restart may claim we lost (CR-D-50).
+	DurableAppendHigh int64 `zid:"25"`
+
 	// ====================================
 	// Raft: Volatile state on leaders (reinitilized after election)
 	//   re-initialized after election (e.g. the
@@ -16033,6 +16039,9 @@ func (s *TubeNode) initWalOnce() (err error) {
 
 	logPath := s.cfg.DataDir + sep + "tube.wal.msgp"
 	s.wal, err = s.cfg.openPARWAL(logPath)
+	if err == nil && s.wal != nil {
+		s.wal.onDurable = s.noteDurableAppend
+	}
 	//vv("%v s.wal logPath = '%v'", s.name, logPath)
 	panicOn(err)
 
