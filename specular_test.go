@@ -388,3 +388,44 @@ func TestNewCircuitHandOffFailureClosesCircuit(t *testing.T) {
 		t.Fatal("undelivered circuit left open")
 	}
 }
+
+// CR-D-42: an auto-client whose send loop died before its
+// cleanup hook was installed stayed in remote2pair as a
+// tombstone, so its address was never dialed again.
+func TestDeadAutoClientLeavesNoTombstone(t *testing.T) {
+	cfg := NewConfig()
+	srv := NewServer("crd42", cfg)
+	// never started; nothing to close
+	cli := &Client{halt: idem.NewHalter(), garbageCollectThisRwPairCh: make(chan *autoCliInRwPair)}
+	cli.halt.ReqStop.Close() // send loop already gone
+	p := &rwPair{halt: idem.NewHalter()}
+	key := "tcp://127.0.0.1:9"
+	srv.remote2pair.Set(key, p)
+	srv.pair2remote.Set(p, key)
+	srv.autoClients = append(srv.autoClients, cli)
+	if srv.registerAutoCliCleanup(cli, key, p) {
+		t.Fatal("registered cleanup on a dead auto-client")
+	}
+	if _, ok := srv.remote2pair.Get(key); ok {
+		t.Fatal("dead auto-client left a tombstone route")
+	}
+	if len(srv.autoClients) != 0 {
+		t.Fatal("dead auto-client still listed")
+	}
+}
+
+// CR-D-42: when a duplicate connection to the same address
+// died, deletePair removed the live connection's route too.
+func TestDeletePairOnlyRemovesItsOwnRoute(t *testing.T) {
+	srv := NewServer("crd42b", NewConfig())
+	// never started; nothing to close
+	key := "tcp://127.0.0.1:9"
+	live, dup := &rwPair{}, &rwPair{}
+	srv.pair2remote.Set(dup, key)
+	srv.remote2pair.Set(key, live) // the route belongs to live
+	srv.pair2remote.Set(live, key)
+	srv.deletePair(dup)
+	if got, ok := srv.remote2pair.Get(key); !ok || got != live {
+		t.Fatal("deleting a duplicate removed the live connection's route")
+	}
+}
