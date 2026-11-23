@@ -152,17 +152,14 @@ Every item above is fixed and committed with a regression test, and
 `go test -v -tags synctest` passes in tube/, rpc25519/, tube/hermes and jsync.
 Follow-ups that are outside the required test run:
 
-- **par-tagged suite (`go test -tags 'synctest par' -run TestPar`).**
-  - `TestPar_application_completion_waits_for_state_save` already failed at
-    ef8d8e63, before this round of fixes.
-  - `TestPar_live_membership_transition_and_damaged_restart` and
-    `TestPar_live_removed_replica_snapshot_after_reconfiguration` regressed at
-    d55d6692 (CR-D-81).
-  - `TestPar_live_recovering_leader_crosses_partition_and_reconfiguration`
-    regressed at 9537e3dc (CR-D-18).
-  - Two other regressions in this suite are already fixed: a nil-PeerNames panic
-    (25c7bf83) and the restart-window harness wait (181db8b6). b047d4df also fixed
-    a related restart-rejoin problem in CR-D-81.
+- **par-tagged suite (`go test -tags 'synctest par' -run TestPar`):** all
+  59 tests pass as of 141677cd. Its four remaining failures were fixed by
+  d0ffed24 (finish the waiting original ticket), be1364fb (simnet RST to a
+  restarted server), 4ff67a66 (redial a shadow at its shadow-set address) and
+  141677cd (defer, not drop, campaigns in the CR-D-18 restart window).
+  Earlier regressions here were fixed by 25c7bf83, 181db8b6 and b047d4df.
+- **Simnet isolation (4cd98da2):** an isolated host's new auto-clients are now
+  isolated too; before, an isolated node could talk again by dialing.
 - **CR-D-27:** the PAR membership tests are still gated behind `-tags par`.
 - **CR-D-87:** fixed upstream in idem v0.21.0, where `Halter.RemoveChild` now
   unlinks the ReqStop child and clears the parent. rpc25519 now calls
