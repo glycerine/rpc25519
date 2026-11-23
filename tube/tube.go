@@ -18971,6 +18971,13 @@ func (s *TubeNode) assertCompactOK() {
 			s.wal.logIndex.CompactTerm)
 
 	}
+	if s.wal.logIndex.BaseC > 0 && len(s.wal.raftLog) > 0 {
+		first := s.wal.raftLog[0]
+		if first.PrevIndex == s.wal.logIndex.BaseC && first.PrevTerm != s.wal.logIndex.CompactTerm {
+			panicf("%v compacted term %d at index %d disagrees with first retained entry's previous term %d",
+				s.name, s.wal.logIndex.CompactTerm, first.PrevIndex, first.PrevTerm)
+		}
+	}
 }
 
 // update leader meta data a s.MyPeer so that

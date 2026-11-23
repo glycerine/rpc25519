@@ -749,3 +749,15 @@ func TestTermIndexIteratorFromCompactBase(t *testing.T) {
 		}
 	}
 }
+
+func TestTruncatePreservesCompactTerm(t *testing.T) {
+	for _, keep := range []int64{7, 8} {
+		log := &TermsRLE{BaseC: 5, CompactTerm: 3, Runs: []*TermRLE{{Term: 4, Count: 3}, {Term: 5, Count: 1}}}
+		log.fixTot()
+		var boundary IndexTerm
+		log.Truncate(keep, &boundary)
+		if log.CompactTerm != 3 || boundary.Term != 3 || boundary.Index != 5 {
+			t.Errorf("Truncate(%d): compact term %d, state boundary %v, want (5, 3)", keep, log.CompactTerm, boundary)
+		}
+	}
+}
