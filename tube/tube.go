@@ -7116,7 +7116,7 @@ func (s *TubeNode) tallyPreVote(vote *Vote) {
 	// it should not be able to win a pre-vote.
 	//
 	// mongo reconfig: is our config >= their config. If not, exit.
-	if vote.MC != nil && vote.MC.VersionGT(s.state.MC) {
+	if vote.MC != nil && (vote.MC.VersionGT(s.state.MC) || vote.MC.conflictsWith(s.state.MC)) {
 		//vv("%v mongo ignore pre-vote from: '%v' since vote.MC(%v) > s.state.MC(%v); vote.VoteGranted=%v", s.me(), vote.FromPeerName, vote.MC.Short(), s.state.MC.Short(), vote.VoteGranted)
 		return
 	}
@@ -7292,7 +7292,7 @@ func (s *TubeNode) tallyVote(vote *Vote) {
 		return
 	}
 	// mongo reconfig: is our config >= their config
-	if vote.MC != nil && vote.MC.VersionGT(s.state.MC) {
+	if vote.MC != nil && (vote.MC.VersionGT(s.state.MC) || vote.MC.conflictsWith(s.state.MC)) {
 		//vv("%v mongo ignore vote received since vote.MC.VersionGT(our MC); from: '%v'", s.me(), vote.FromPeerName)
 		if vote.VoteGranted {
 			return
@@ -7827,6 +7827,10 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 // helper for handleAppendEntries. deals with
 // MC update.
 func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *AppendEntriesAck) {
+	if ae.MC == nil {
+		return
+	}
+
 
 	if s.state != nil && s.state.Known != nil && ae.MC != nil {
 		s.state.Known.merge(ae.MC)
@@ -7840,7 +7844,7 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 	}
 
 	if s.state.MC != nil &&
-		s.state.MC.VersionGTE(ae.MC) {
+		s.state.MC.VersionGT(ae.MC) {
 		//vv("%v: no change in member config; ae = '%v'", s.me(), ae)
 		return // no change in membership
 	}
@@ -7872,7 +7876,7 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 		s.state.ShadowReplicas = ae.ShadowReplicas
 	}
 	// actually adopt the update
-	_, ignored := s.setMC(ae.MC, "aeMemberConfigHelper")
+	_, ignored := s.installMemberConfig(ae.MC, "aeMemberConfigHelper", true)
 	if ignored {
 		panic("what? why ignored?")
 	}
@@ -9194,7 +9198,7 @@ func (s *TubeNode) logUpToDateAsOurs(rv *RequestVote) (ans bool) {
 	if s.state != nil &&
 		s.state.MC != nil &&
 		// Algorithm 1, page 6, line 26 of mongo paper:
-		s.state.MC.VersionGT(rv.MC) {
+		(rv.MC == nil || s.state.MC.VersionGT(rv.MC) || s.state.MC.conflictsWith(rv.MC)) {
 
 		//vv("%v logUpToDateAsOur fails: mongo condition: requestor (%v) is behind us. ourMC(%v) > rv.MC(%v)", s.me(), rv.FromPeerName, s.state.MC.Short(), rv.MC.Short())
 		return false
@@ -13866,9 +13870,16 @@ func (i *MemberConfig) VersionGTE(j *MemberConfig) bool {
 	return false
 }
 
+func (i *MemberConfig) sameVersionNumber(j *MemberConfig) bool {
+	return i.ConfigTerm == j.ConfigTerm && i.ConfigVersion == j.ConfigVersion
+}
+
 func (i *MemberConfig) VersionEqual(j *MemberConfig) bool {
-	return i.ConfigTerm == j.ConfigTerm &&
-		i.ConfigVersion == j.ConfigVersion
+	return i.sameVersionNumber(j) && i.SamePeers(j)
+}
+
+func (i *MemberConfig) conflictsWith(j *MemberConfig) bool {
+	return i.sameVersionNumber(j) && !i.SamePeers(j)
 }
 
 func (i *MemberConfig) TermsEqual(j *MemberConfig) bool {
@@ -14295,6 +14306,8 @@ func (s *TubeNode) NewFirstRaftLogEntryBootstrap() *FirstRaftLogEntryBootstrap {
 		Done:      make(chan struct{}),
 	}
 	b.NewConfig.RaftLogIndex = 1
+	// Keep the first populated config newer than an unconfigured peer.
+	b.NewConfig.ConfigVersion = 1
 	return b
 }
 
@@ -14908,6 +14921,10 @@ func (s *TubeNode) replyToForwardedTicketWithError(tkt *Ticket) {
 
 // calls s.adjustCktReplicaForNewMembership() at the end.
 func (s *TubeNode) setMC(members *MemberConfig, caller string) (amInLatest, ignoredMemberConfigBecauseSuperceded bool) {
+	return s.installMemberConfig(members, caller, false)
+}
+
+func (s *TubeNode) installMemberConfig(members *MemberConfig, caller string, authoritative bool) (amInLatest, ignoredMemberConfigBecauseSuperceded bool) {
 
 	defer func() {
 		if s != nil && s.state != nil && s.state.MC != nil {
@@ -14928,7 +14945,7 @@ func (s *TubeNode) setMC(members *MemberConfig, caller string) (amInLatest, igno
 	// are we plyaing back the log but have newer config
 	// already from AE giving us the latest?
 	if s.state.MC != nil &&
-		s.state.MC.VersionGTE(members) {
+		s.state.MC.VersionGTE(members) && !(authoritative && s.state.MC.conflictsWith(members)) {
 		//s.state.MC.RaftLogIndex > members.RaftLogIndex {
 		//vv("%v ignoring replay of old membership change: '%v', as we already have: '%v'", s.me(), members.Short(), s.state.MC.Short())
 		ignoredMemberConfigBecauseSuperceded = true
@@ -18267,6 +18284,13 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 	calledOnLeader := s.role == LEADER // for FinishTicket below too.
 
 	if tkt.ForceChangeMC {
+		if !calledOnLeader && s.leaderID != "" && s.leaderID != s.PeerID {
+			peer := s.cktall[s.leaderID]
+			recent, _ := s.haveStickyLeader(&RequestVote{})
+			if recent || (peer != nil && peer.atomicIsUp.Load()) {
+				return s.redirectToLeader(tkt)
+			}
+		}
 		return s.forceChangeMC(tkt, calledOnLeader)
 	}
 	if tkt.AddPeerName == "" {
@@ -18386,6 +18410,12 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 	// INVAR: target is in s.state.MC, if removing.
 	// and is not, if adding.
 	changeMade := false
+	beginChange := func() {
+		s.state.MC = s.state.MC.CloneForUpdate(s)
+		s.state.MC.ConfigVersion++
+		s.state.MC.IsCommitted = false
+		changeMade = true
+	}
 	defer func() {
 		if changeMade {
 			s.saver.save(s.state)
@@ -18397,11 +18427,10 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 
 			detail := s.getMyDetails()
 
-			s.state.MC.ConfigVersion++
+			beginChange()
 			s.state.MC.setNameDetail(s.name, detail, s)
 			s.state.ShadowReplicas.PeerNames.Delkey(s.name)
 			s.state.Known.PeerNames.Set(s.name, detail)
-			changeMade = true
 
 			//vv("%v forcing MC add rather than redirectToLeader. added me='%v'; now MC='%v'", s.me(), s.name, s.state.MC)
 
@@ -18419,10 +18448,9 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 		}
 		if ok {
 
-			s.state.MC.ConfigVersion++
+			beginChange()
 			s.state.MC.setNameDetail(target, detail, s)
 			s.state.ShadowReplicas.PeerNames.Delkey(target)
-			changeMade = true
 
 			//vv("%v forcing MC add rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
 
@@ -18435,12 +18463,12 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 		return true
 	}
 	// remove
-	if tkt.AddPeerName == s.name {
+	if tkt.RemovePeerName == s.name {
 		// remove myself
 
 		detail := s.getMyDetails()
 
-		s.state.MC.ConfigVersion++
+		beginChange()
 		s.state.MC.PeerNames.Delkey(s.name)
 
 		// assume if we are force removing that
@@ -18449,7 +18477,6 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 		//s.state.ShadowReplicas.PeerNames.Set(s.name, detail)
 
 		s.state.Known.PeerNames.Set(s.name, detail)
-		changeMade = true
 
 		//vv("%v forcing MC remove of myself('%v') rather than redirectToLeader. now MC='%v'", s.me(), s.name, s.state.MC)
 
@@ -18457,9 +18484,8 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 		return true
 	}
 	// remove, not me
-	s.state.MC.ConfigVersion++
+	beginChange()
 	s.state.MC.PeerNames.Delkey(target)
-	changeMade = true
 
 	// assume if we are force removing that
 	// the node is dead and gone, and we do not
