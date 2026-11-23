@@ -9088,21 +9088,16 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) bool {
 	if ckt != nil {
 		if peer != ckt.RemotePeerID {
 
-			// this looked like a simple re-direct; a client tried to
-			// start a new session, the frag was forwarded to the leader
-			// instead of a follower. But... let's make sure!
-
-			if true {
-				if frag.FragSubject == "RedirectTicketToLeader" {
-					tmpTkt := &Ticket{}
-					_, err := tmpTkt.UnmarshalMsg(frag.Payload)
-					panicOn(err)
-					vv("about to panic on frag.FromPeerID(%v) != ckt.RemotePeerID(%v); on a 'RedirectTicketToLeader' here is the original Ticket: '%v'", frag.FromPeerID, ckt.RemotePeerID, tmpTkt)
-
-				}
-				vv("%v: %v sanity check failed, frag should be from ckt. frag.FromPeerID='%v' but ckt.RemotePeerID='%v'; \n frag='%v'\n ckt = '%v'", s.me(), nice(time.Now()), peer, ckt.RemotePeerID, frag, ckt) // just saw again.
-				panic("fix this mis-directed fragment!")
+			// Seen when the leader dials a stale client URL that a new
+			// process now serves under another PeerID. The frag does not
+			// belong to this circuit: drop it and close the circuit so
+			// the client reconnects under its current identity.
+			alwaysPrintf("%v dropping frag from PeerID '%v' (%v) on circuit '%v' to PeerID '%v'; closing that circuit", s.me(), rpc.AliasDecode(peer), frag.FromPeerName, ckt.CircuitID, rpc.AliasDecode(ckt.RemotePeerID))
+			if cktP, ok := s.cktall[ckt.RemotePeerID]; ok && cktP.ckt == ckt {
+				s.deleteFromCktAll(cktP)
 			}
+			ckt.Close(fmt.Errorf("frag from PeerID '%v' on circuit to PeerID '%v'", peer, ckt.RemotePeerID))
+			return false
 		}
 	}
 
