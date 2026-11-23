@@ -14048,7 +14048,7 @@ func (z *RaftState) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields202zgensym_8df0a91a1f250219_203 = 24
+	const maxFields202zgensym_8df0a91a1f250219_203 = 25
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields202zgensym_8df0a91a1f250219_203 uint32
@@ -14467,6 +14467,12 @@ doneWithStruct202zgensym_8df0a91a1f250219_203:
 			if err != nil {
 				return
 			}
+		case "RestartVoteDelay_zid24_dur":
+			found202zgensym_8df0a91a1f250219_203[24] = true
+			z.RestartVoteDelay, err = dc.ReadDuration()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -14490,9 +14496,9 @@ doneWithStruct202zgensym_8df0a91a1f250219_203:
 }
 
 // fields of RaftState
-var decodeMsgFieldOrder202zgensym_8df0a91a1f250219_203 = []string{"Serial_zid00_i64", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerID_zid04_str", "ClusterID_zid05_str", "CurrentTerm_zid06_i64", "VotedFor_zid07_str", "VotedForName_zid08_str", "HaveVoted_zid09_boo", "HaveVotedTerm_zid10_i64", "CommitIndex_zid11_i64", "CommitIndexEntryTerm_zid12_i64", "LastApplied_zid13_i64", "LastAppliedTerm_zid14_i64", "KVstore_zid15_ptr", "MC_zid16_ptr", "Known_zid17_ptr", "Observers_zid18_ptr", "ShadowReplicas_zid19_ptr", "LastSaveTimestamp_zid20_tim", "CompactionDiscardedLast_zid21_rct", "SessTable_zid22_map", "LastAppliedLogHLC_zid23_rct"}
+var decodeMsgFieldOrder202zgensym_8df0a91a1f250219_203 = []string{"Serial_zid00_i64", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerID_zid04_str", "ClusterID_zid05_str", "CurrentTerm_zid06_i64", "VotedFor_zid07_str", "VotedForName_zid08_str", "HaveVoted_zid09_boo", "HaveVotedTerm_zid10_i64", "CommitIndex_zid11_i64", "CommitIndexEntryTerm_zid12_i64", "LastApplied_zid13_i64", "LastAppliedTerm_zid14_i64", "KVstore_zid15_ptr", "MC_zid16_ptr", "Known_zid17_ptr", "Observers_zid18_ptr", "ShadowReplicas_zid19_ptr", "LastSaveTimestamp_zid20_tim", "CompactionDiscardedLast_zid21_rct", "SessTable_zid22_map", "LastAppliedLogHLC_zid23_rct", "RestartVoteDelay_zid24_dur"}
 
-var decodeMsgFieldSkip202zgensym_8df0a91a1f250219_203 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip202zgensym_8df0a91a1f250219_203 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
 // fields of IndexTerm
 var decodeMsgFieldOrder204zgensym_8df0a91a1f250219_205 = []string{"Index_zid00_i64", "Term_zid01_i64"}
@@ -14502,9 +14508,9 @@ var decodeMsgFieldSkip204zgensym_8df0a91a1f250219_205 = []bool{false, false}
 // fieldsNotEmpty supports omitempty tags
 func (z *RaftState) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 24
+		return 25
 	}
-	var fieldsInUse uint32 = 24
+	var fieldsInUse uint32 = 25
 	isempty[0] = (z.Serial == 0) // number, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -14601,6 +14607,10 @@ func (z *RaftState) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[23] {
 		fieldsInUse--
 	}
+	isempty[24] = false
+	if isempty[24] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -14612,7 +14622,7 @@ func (z *RaftState) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_208 [24]bool
+	var empty_zgensym_8df0a91a1f250219_208 [25]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_209 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_208[:])
 
 	// map header
@@ -15024,6 +15034,18 @@ func (z *RaftState) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_8df0a91a1f250219_208[24] {
+		// write "RestartVoteDelay_zid24_dur"
+		err = en.Append(0xba, 0x52, 0x65, 0x73, 0x74, 0x61, 0x72, 0x74, 0x56, 0x6f, 0x74, 0x65, 0x44, 0x65, 0x6c, 0x61, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x32, 0x34, 0x5f, 0x64, 0x75, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteDuration(z.RestartVoteDelay)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -15036,7 +15058,7 @@ func (z *RaftState) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [24]bool
+	var empty [25]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -15271,6 +15293,12 @@ func (z *RaftState) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendInt64(o, int64(z.LastAppliedLogHLC))
 	}
 
+	if !empty[24] {
+		// string "RestartVoteDelay_zid24_dur"
+		o = append(o, 0xba, 0x52, 0x65, 0x73, 0x74, 0x61, 0x72, 0x74, 0x56, 0x6f, 0x74, 0x65, 0x44, 0x65, 0x6c, 0x61, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x32, 0x34, 0x5f, 0x64, 0x75, 0x72)
+		o = msgp.AppendDuration(o, z.RestartVoteDelay)
+	}
+
 	return
 }
 
@@ -15289,7 +15317,7 @@ func (z *RaftState) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o 
 
 	var field []byte
 	_ = field
-	const maxFields212zgensym_8df0a91a1f250219_213 = 24
+	const maxFields212zgensym_8df0a91a1f250219_213 = 25
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields212zgensym_8df0a91a1f250219_213 uint32
@@ -15751,6 +15779,13 @@ doneWithStruct212zgensym_8df0a91a1f250219_213:
 				}
 				z.LastAppliedLogHLC = HLC(zgensym_8df0a91a1f250219_217)
 			}
+		case "RestartVoteDelay_zid24_dur":
+			found212zgensym_8df0a91a1f250219_213[24] = true
+			z.RestartVoteDelay, bts, err = nbs.ReadDurationBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -15774,9 +15809,9 @@ doneWithStruct212zgensym_8df0a91a1f250219_213:
 }
 
 // fields of RaftState
-var unmarshalMsgFieldOrder212zgensym_8df0a91a1f250219_213 = []string{"Serial_zid00_i64", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerID_zid04_str", "ClusterID_zid05_str", "CurrentTerm_zid06_i64", "VotedFor_zid07_str", "VotedForName_zid08_str", "HaveVoted_zid09_boo", "HaveVotedTerm_zid10_i64", "CommitIndex_zid11_i64", "CommitIndexEntryTerm_zid12_i64", "LastApplied_zid13_i64", "LastAppliedTerm_zid14_i64", "KVstore_zid15_ptr", "MC_zid16_ptr", "Known_zid17_ptr", "Observers_zid18_ptr", "ShadowReplicas_zid19_ptr", "LastSaveTimestamp_zid20_tim", "CompactionDiscardedLast_zid21_rct", "SessTable_zid22_map", "LastAppliedLogHLC_zid23_rct"}
+var unmarshalMsgFieldOrder212zgensym_8df0a91a1f250219_213 = []string{"Serial_zid00_i64", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerID_zid04_str", "ClusterID_zid05_str", "CurrentTerm_zid06_i64", "VotedFor_zid07_str", "VotedForName_zid08_str", "HaveVoted_zid09_boo", "HaveVotedTerm_zid10_i64", "CommitIndex_zid11_i64", "CommitIndexEntryTerm_zid12_i64", "LastApplied_zid13_i64", "LastAppliedTerm_zid14_i64", "KVstore_zid15_ptr", "MC_zid16_ptr", "Known_zid17_ptr", "Observers_zid18_ptr", "ShadowReplicas_zid19_ptr", "LastSaveTimestamp_zid20_tim", "CompactionDiscardedLast_zid21_rct", "SessTable_zid22_map", "LastAppliedLogHLC_zid23_rct", "RestartVoteDelay_zid24_dur"}
 
-var unmarshalMsgFieldSkip212zgensym_8df0a91a1f250219_213 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip212zgensym_8df0a91a1f250219_213 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
 // fields of IndexTerm
 var unmarshalMsgFieldOrder214zgensym_8df0a91a1f250219_215 = []string{"Index_zid00_i64", "Term_zid01_i64"}
@@ -15828,7 +15863,7 @@ func (z *RaftState) Msgsize() (s int) {
 			}
 		}
 	}
-	s += 28 + msgp.Int64Size
+	s += 28 + msgp.Int64Size + 27 + msgp.DurationSize
 	return
 }
 func (z *RaftState) Gstring() (r string) {
@@ -15857,6 +15892,7 @@ func (z *RaftState) Gstring() (r string) {
 	r += fmt.Sprintf("CompactionDiscardedLast: %v,\n", z.CompactionDiscardedLast)
 	r += fmt.Sprintf("              SessTable: %v,\n", z.SessTable)
 	r += fmt.Sprintf("      LastAppliedLogHLC: %v,\n", z.LastAppliedLogHLC)
+	r += fmt.Sprintf("       RestartVoteDelay: %v,\n", z.RestartVoteDelay)
 	r += "}\n"
 	return
 }

@@ -708,6 +708,7 @@ func (s *raftStatePersistor) parRestoreApplication(state *RaftState, portable bo
 	checkpoint.KVstore = kv
 	checkpoint.CurrentTerm, checkpoint.VotedFor, checkpoint.VotedForName = state.CurrentTerm, state.VotedFor, state.VotedForName
 	checkpoint.HaveVoted, checkpoint.HaveVotedTerm = state.HaveVoted, state.HaveVotedTerm
+	checkpoint.RestartVoteDelay = state.RestartVoteDelay
 	checkpoint.PeerID = state.PeerID
 	if state.CommitIndex > checkpoint.CommitIndex {
 		checkpoint.CommitIndex, checkpoint.CommitIndexEntryTerm = state.CommitIndex, state.CommitIndexEntryTerm
