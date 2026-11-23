@@ -1012,3 +1012,46 @@ func TestFollowerApplyLeavesFormerLeaderWaiterPending(t *testing.T) {
 			f.state.LastApplied, e.waiter.Committed, e.waiter.Applied, e.waiter.finishTicketCalled)
 	}
 }
+
+// Use the production log check while capturing the acknowledgement locally.
+type diskCatchupHost struct {
+	ackCaptureHost
+	follower *TubeNode
+}
+
+func (h *diskCatchupHost) logsAreMismatched(ae *AppendEntries) (bool, int64, int64) {
+	return h.follower.logsAreMismatched(ae)
+}
+
+func TestDiskFollowerRepairsSuffixAfterMatchingPreviousEntry(t *testing.T) {
+	f := specularNode(t, "f", FOLLOWER, 3, nil, "l", "f")
+	cfg := &TubeConfig{}
+	w, err := cfg.newRaftWriteAheadLog(filepath.Join(t.TempDir(), "wal"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.close()
+	f.wal = w
+	for _, e := range createLogEntries(1, 4, 1) {
+		e.Ticket.TicketID = rpc.NewCallID("")
+		if _, err := w.saveRaftLogEntry(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.state.CommitIndex = 1
+	f.state.LastApplied = 1
+	host := &diskCatchupHost{ackCaptureHost: ackCaptureHost{hoster: &TubeSim{wal: w, state: f.state, node: f}}, follower: f}
+	f.host = host
+	terms := &TermsRLE{Runs: []*TermRLE{{Term: 1, Count: 1}, {Term: 3, Count: 1}}}
+	terms.fixTot()
+	replacement := createLogEntries(2, 3, 3)
+	replacement[0].Ticket.TicketID = rpc.NewCallID("")
+	f.handleAppendEntries(&AppendEntries{
+		LeaderName: "l", LeaderID: "l_id", LeaderTerm: 3,
+		PrevLogIndex: 1, PrevLogTerm: 1, Entries: replacement,
+		LeaderCommitIndex: 1, LeaderCommitIndexEntryTerm: 1, LogTermsRLE: terms,
+	}, true)
+	if len(host.acks) != 1 || host.acks[0].Rejected || w.lli != 2 || w.llt != 3 {
+		t.Fatalf("catch-up left WAL at (%d, %d), acks %v", w.lli, w.llt, host.acks)
+	}
+}
