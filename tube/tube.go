@@ -6112,7 +6112,7 @@ func (s *TubeNode) resubmitStalledTickets(justMC bool) {
 	var resub []*Ticket
 	var both []*Ticket
 	if !justMC {
-		for _, tkt := range s.WaitingAtLeader.all() {
+		for _, tkt := range s.WaitingAtLeader.allIncludingUnindexed() {
 			//vv("appending to both tkt='%v'", tkt.Short())
 			both = append(both, tkt)
 		}
@@ -7574,7 +7574,7 @@ func (s *TubeNode) becomeLeader() {
 	noopTkt.Stage += ":replicateTicket_for_noopTkt_called"
 
 	// take over any WaitingAtFollow too
-	for _, v := range s.WaitingAtFollow.all() {
+	for _, v := range s.WaitingAtFollow.allIncludingUnindexed() {
 		v.Stage += ":transfer_WAF_to_WAL"
 		s.WaitingAtLeader.set(v.TicketID, v)
 	}
@@ -11129,7 +11129,7 @@ func (s *TubeNode) tellClientsImNotLeader() {
 		panic("should only be called by non-LEADER")
 	}
 
-	for _, tkt := range s.WaitingAtLeader.all() {
+	for _, tkt := range s.WaitingAtLeader.allIncludingUnindexed() {
 		tkt.Stage += ":tellClientsImNotLeader_"
 
 		frag := s.newFrag()
