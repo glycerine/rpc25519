@@ -1941,20 +1941,27 @@ func TestWatchdogReconnectsSilentReplicaCircuit(t *testing.T) {
 		defer c.Close()
 		simnet := c.Cfg.RpcCfg.GetSimnet()
 		lead := c.Nodes[leadi]
+		var foll *TubeNode
+		for _, n := range c.Nodes {
+			if n != lead {
+				foll = n
+				break
+			}
+		}
 		// drain any reconnects from startup.
 		for len(lead.testWatchdogTimeoutReconnectCh) > 0 {
 			<-lead.testWatchdogTimeoutReconnectCh
 		}
-		// Isolate the leader: its circuits to the followers go
-		// silent, and only its watchdog can notice.
-		_, err := simnet.AlterHost(lead.srvname, rpc.ISOLATE)
+		// Isolate a follower: the leader's circuit to it goes
+		// silent, and only the leader's watchdog can notice.
+		_, err := simnet.AlterHost(foll.srvname, rpc.ISOLATE)
 		panicOn(err)
 		time.Sleep(30 * time.Second) // well past followerDownDur
-		_, err = simnet.AlterHost(lead.srvname, rpc.UNISOLATE)
+		_, err = simnet.AlterHost(foll.srvname, rpc.UNISOLATE)
 		panicOn(err)
 		time.Sleep(5 * time.Second)
 		if len(lead.testWatchdogTimeoutReconnectCh) == 0 {
-			t.Fatalf("%v's watchdog never tried to reconnect its silent replica circuits", lead.name)
+			t.Fatalf("leader's watchdog never tried to reconnect the circuit to %v while it was silent", foll.name)
 		}
 	})
 }
