@@ -1633,3 +1633,48 @@ func TestDryRunAllowsTakeoverOfExpiredLease(t *testing.T) {
 		t.Fatalf("dry run rejected takeover of a lease that expired %v ago: %v", time.Since(logTm.Add(5*time.Second)), take.Err)
 	}
 }
+
+// CR-D-4: a replacement circuit from the same follower
+// incarnation reset the leader's replication record.
+func TestReplacementCircuitKeepsFollowerProgress(t *testing.T) {
+	n := specularNode(t, "n1", LEADER, 2, []int64{1, 2, 2, 2, 2}, "n1", "n2", "n3")
+	n.MyPeer = &rpc.LocalPeer{Halt: idem.NewHalter()} // for the circuit watchdogs
+	defer n.Halt.RequestStop()
+	circuit := func(id string) *rpc.Circuit {
+		return &rpc.Circuit{RemotePeerName: "n2", RemotePeerID: "n2_id", RemoteServiceName: TUBE_REPLICA,
+			CircuitID: id, Halt: idem.NewHalter(), RpbTo: &rpc.RemotePeer{BaseServerAddr: "simnet://n2"},
+			LpbFrom: &rpc.LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *rpc.Circuit, 1)}}
+	}
+	if _, rejected := n.addToCktall(circuit("ckt_a")); rejected {
+		t.Fatal("setup: first circuit rejected")
+	}
+	foll := n.peers["n2_id"]
+	foll.MatchIndex, foll.LargestCommonRaftIndex = 5, 5
+	if _, rejected := n.addToCktall(circuit("ckt_b")); rejected {
+		t.Fatal("setup: replacement circuit rejected")
+	}
+	if got := n.peers["n2_id"]; got == nil || got.MatchIndex != 5 || got.LargestCommonRaftIndex != 5 {
+		t.Fatalf("replacement circuit reset follower progress: %+v", got)
+	}
+}
+
+// CR-D-4: a late accepted ack lowered the leader's record
+// of the follower's common prefix within the term.
+func TestStaleAckDoesNotLowerCommonPrefix(t *testing.T) {
+	lead := specularNode(t, "n2", LEADER, 2, []int64{1, 2, 2, 2, 2}, "n1", "n2", "n3")
+	lead.state.CommitIndex = 5
+	lead.state.CommitIndexEntryTerm = 2
+	specularMarkApplied(lead, 5)
+	lead.leaderID, lead.leaderName = lead.PeerID, lead.name
+	foll := lead.newRaftNodeInfo("n1_id", "n1", TUBE_REPLICA, "")
+	foll.MatchIndex, foll.LargestCommonRaftIndex = 5, 5
+	lead.peers["n1_id"] = foll
+	ack := &AppendEntriesAck{ClusterID: lead.ClusterID, FromPeerID: "n1_id", FromPeerName: "n1",
+		FromPeerServiceName: TUBE_REPLICA, AEID: "old-ae", Term: 2, SuppliedLeader: lead.PeerID,
+		SuppliedLeaderLastTerm: 2, LargestCommonRaftIndex: 3, PeerLogLastIndex: 3, PeerLogLastTerm: 2,
+		MinElectionTimeoutDur: lead.cfg.MinElectionDur}
+	lead.handleAppendEntriesAck(ack, nil)
+	if got := lead.peers["n1_id"].LargestCommonRaftIndex; got != 5 {
+		t.Fatalf("stale accepted ack lowered LargestCommonRaftIndex 5 -> %v", got)
+	}
+}
