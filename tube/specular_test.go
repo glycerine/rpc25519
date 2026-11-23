@@ -1203,6 +1203,7 @@ func TestReplicaJoinCannotReplaceLiveNamesake(t *testing.T) {
 	defer n.Halt.RequestStop()
 	incumbent := &cktPlus{PeerName: "node_2", PeerID: "original_id", PeerServiceName: TUBE_REPLICA,
 		ckt: &rpc.Circuit{Halt: idem.NewHalter()}}
+	incumbent.lastSeenTm = time.Now() // live: heard from recently
 	n.cktAllByName[incumbent.PeerName] = incumbent
 	n.cktall[incumbent.PeerID] = incumbent
 	incoming := &rpc.Circuit{RemotePeerName: incumbent.PeerName, RemotePeerID: "new_id", RemoteServiceName: TUBE_REPLICA,
@@ -1211,6 +1212,33 @@ func TestReplicaJoinCannotReplaceLiveNamesake(t *testing.T) {
 	_, rejected := n.addToCktall(incoming)
 	if !rejected || n.cktAllByName[incumbent.PeerName] != incumbent || n.cktall[incoming.RemotePeerID] != nil {
 		t.Fatal("a second replica took over a live replica's name")
+	}
+}
+
+// Regression from d55d6692: a replica restarted under its own name
+// (new PeerID) was rejected for as long as the dead process's circuit
+// had not been noticed closed, so it could not rejoin or get a
+// snapshot. An incumbent silent past followerDownDur gives way.
+func TestRestartedReplicaReplacesSilentNamesake(t *testing.T) {
+	n := specularNode(t, "node_0", LEADER, 1, nil, "node_0", "node_2")
+	defer n.Halt.RequestStop()
+	n.MyPeer = &rpc.LocalPeer{Halt: idem.NewHalter()} // for the circuit watchdogs
+	old := n.newCktPlus("node_2", TUBE_REPLICA)
+	old.PeerID = "original_id"
+	old.ckt = &rpc.Circuit{RemotePeerID: "original_id", RemotePeerName: "node_2", RemoteServiceName: TUBE_REPLICA,
+		CircuitID: "old_circuit", Halt: idem.NewHalter(), RpbTo: &rpc.RemotePeer{BaseServerAddr: "simnet://old"},
+		LpbFrom: &rpc.LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *rpc.Circuit, 1)}}
+	old.lastSeenTm = time.Now().Add(-time.Hour) // the old process died long ago
+	n.cktAllByName["node_2"] = old
+	n.cktall["original_id"] = old
+	incoming := &rpc.Circuit{RemotePeerName: "node_2", RemotePeerID: "restarted_id", RemoteServiceName: TUBE_REPLICA,
+		CircuitID: "new_circuit", Halt: idem.NewHalter(), RpbTo: &rpc.RemotePeer{BaseServerAddr: "simnet://new"},
+		LpbFrom: &rpc.LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *rpc.Circuit, 1)}}
+	if _, rejected := n.addToCktall(incoming); rejected {
+		t.Fatal("restarted replica rejected because its dead predecessor's circuit lingered")
+	}
+	if got := n.cktAllByName["node_2"]; got == nil || got.PeerID != "restarted_id" {
+		t.Fatal("restarted replica did not take over its own name")
 	}
 }
 

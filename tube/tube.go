@@ -16958,9 +16958,23 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	if s.PeerServiceName == TUBE_REPLICA && ckt.RemoteServiceName == TUBE_REPLICA {
 		name := ckt.RemotePeerName
 		owner := s.cktAllByName[name]
-		if (name == s.name && ckt.RemotePeerID != s.PeerID) ||
-			(owner != nil && owner.isReplica() && owner.PeerID != ckt.RemotePeerID &&
-				owner.ckt != nil && !owner.ckt.IsClosed()) {
+		namesake := owner != nil && owner.isReplica() && owner.PeerID != ckt.RemotePeerID &&
+			owner.ckt != nil && !owner.ckt.IsClosed()
+		if namesake {
+			// Only a namesake we have heard from recently is live.
+			// A replica restarted under its own name (new PeerID)
+			// must be able to replace its dead predecessor, whose
+			// circuit can linger unnoticed (regression from d55d6692).
+			owner.lastSeenMut.Lock()
+			heard := owner.lastSeenTm
+			owner.lastSeenMut.Unlock()
+			if time.Since(heard) >= s.followerDownDur() {
+				alwaysPrintf("%v replica '%v' rejoined as PeerID '%v'; retiring its silent predecessor '%v'", s.me(), name, rpc.AliasDecode(ckt.RemotePeerID), rpc.AliasDecode(owner.PeerID))
+				s.deleteFromCktAll(owner)
+				namesake = false
+			}
+		}
+		if (name == s.name && ckt.RemotePeerID != s.PeerID) || namesake {
 			ckt.Close(fmt.Errorf("replica name %q is already in use", name))
 			return nil, true
 		}
