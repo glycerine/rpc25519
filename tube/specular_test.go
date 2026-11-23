@@ -438,3 +438,44 @@ func Test1005_same_serial_retry_executes_once(t *testing.T) {
 		t.Fatalf("Bug 5: cached reply for serial 1 was replaced by the retry's execution: TicketID=%v Err=%v", cached.TicketID, cached.Err)
 	}
 }
+
+// Bug 6 (High): session expiry during apply used each
+// replica's own clock (LastAppliedLogHLC was advanced with
+// ReceiveMessageWithHLC, which takes the max with the local
+// wall clock), so replicas whose clocks differ deleted
+// different sessions at the same applied index.
+func Test1006_session_gc_during_apply_uses_log_time(t *testing.T) {
+
+	// the SESS_NEW was logged an hour ago with a 3 second
+	// session; this replica is only now applying it (it
+	// lagged, or its clock runs ahead). As of the log entry
+	// the session is live, so every replica must keep it.
+	t1 := time.Now().Add(-time.Hour)
+	sess := specularSessNew("s1", 2, t1)
+	sess.NewSessReq.SessRequestedInitialDur = 3 * time.Second
+	sess.NewSessReq.SessionIndexEndxTm = t1.Add(3 * time.Second)
+
+	var applied []bool
+	for _, name := range []string{"r1", "r2"} {
+		node := specularNode(t, name, FOLLOWER, 1, []int64{1}, "r1", "r2")
+		specularMarkApplied(node, 1)
+		e := &RaftLogEntry{Index: 2, Term: 1, Tm: t1, LogHLC: AssembleHLC(t1.UnixNano(), 0), Ticket: sess.applyCopy()}
+		_, err := node.wal.saveRaftLogEntry(e)
+		panicOn(err)
+		if name == "r2" {
+			// r2's apply clock was already ahead (e.g. it
+			// applied other entries stamped later by
+			// a previous leader); that must not matter either.
+			node.state.LastAppliedLogHLC = AssembleHLC(t1.Add(-time.Second).UnixNano(), 0)
+		}
+		specularApplyAll(node)
+		_, ok := node.state.SessTable["s1"]
+		applied = append(applied, ok)
+		if !ok {
+			t.Errorf("Bug 6: replica %v deleted session s1 while applying its creation; as of the log entry (t1) it ends at t1+3s", name)
+		}
+		if got := node.state.LastAppliedLogHLC.ToTime48(); got.After(t1.Add(time.Second)) {
+			t.Errorf("Bug 6: replica %v apply clock %v ran past the log's time %v (local clock mixed in)", name, got, t1)
+		}
+	}
+}
