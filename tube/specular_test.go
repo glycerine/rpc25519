@@ -1901,3 +1901,30 @@ func TestCASReturnsErrorsForCancelledContextAndSession(t *testing.T) {
 	try("cancelled ctx", cancelled, nil, context.Canceled)
 	try("closed session", context.Background(), &Session{ctx: cancelled}, ErrNeedNewSession)
 }
+
+// CR-D-30: the watchdog's periodic liveness check never ran
+// (pack was never assigned), so a circuit that went silent was
+// never reconnected by the watchdog.
+func TestWatchdogReconnectsSilentReplicaCircuit(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		c, _, leadi, _ := SetupTestCluster(t, 3, 0, 1030)
+		defer c.Close()
+		simnet := c.Cfg.RpcCfg.GetSimnet()
+		lead := c.Nodes[leadi]
+		// drain any reconnects from startup.
+		for len(lead.testWatchdogTimeoutReconnectCh) > 0 {
+			<-lead.testWatchdogTimeoutReconnectCh
+		}
+		// Isolate the leader: its circuits to the followers go
+		// silent, and only its watchdog can notice.
+		_, err := simnet.AlterHost(lead.srvname, rpc.ISOLATE)
+		panicOn(err)
+		time.Sleep(30 * time.Second) // well past followerDownDur
+		_, err = simnet.AlterHost(lead.srvname, rpc.UNISOLATE)
+		panicOn(err)
+		time.Sleep(5 * time.Second)
+		if len(lead.testWatchdogTimeoutReconnectCh) == 0 {
+			t.Fatalf("%v's watchdog never tried to reconnect its silent replica circuits", lead.name)
+		}
+	})
+}
