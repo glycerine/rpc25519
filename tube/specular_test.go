@@ -1612,3 +1612,24 @@ func TestTableOpsHonorLiveLeases(t *testing.T) {
 		}
 	}
 }
+
+// CR-D-58: the leader's dry run compared lease expiry
+// against the zero RaftLogEntryTm, so a takeover of an
+// expired lease never reached the log.
+func TestDryRunAllowsTakeoverOfExpiredLease(t *testing.T) {
+	n := specularNode(t, "n1", LEADER, 1, []int64{1}, "n1")
+	specularMarkApplied(n, 1)
+	n.cfg.ClockDriftBound = 500 * time.Millisecond
+	logTm := time.Now().Add(-time.Minute)
+	w := specularLeaseWrite("w2", 2, logTm, logTm.Add(5*time.Second))
+	_, err := n.wal.saveRaftLogEntry(&RaftLogEntry{Index: 2, Term: 1, Tm: logTm, Ticket: w})
+	panicOn(err)
+	specularApplyAll(n)
+
+	take := &Ticket{TicketID: "take", Op: WRITE, Table: "t", Key: "czar",
+		Val: Val("c2 is czar"), Leasor: "c2", FromID: "c2_id", FromName: "c2",
+		LeaseRequestDur: 5 * time.Second}
+	if !n.kvstoreWouldWriteLease(take) {
+		t.Fatalf("dry run rejected takeover of a lease that expired %v ago: %v", time.Since(logTm.Add(5*time.Second)), take.Err)
+	}
+}

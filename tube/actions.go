@@ -667,8 +667,10 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 	// lease end points must be strictly monotically increasing
 
 	now := tkt.RaftLogEntryTm
-	if dry {
-		now = time.Now() // stand in for tkt.RaftLogEntryTm on dry run.
+	if dry && now.IsZero() {
+		// the leader's dry run happens before prepOne assigns
+		// tkt.RaftLogEntryTm; the local clock stands in for it.
+		now = time.Now()
 	}
 	if tkt.LeaseRequestDur == 0 { // was UntilTm.IsZero() {
 		// not extending lease, going to non-leased. skip down.
@@ -718,8 +720,9 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 	// be from current leader's clock, so also
 	// include clock drift bound.
 	okAfter := leaf.LeaseUntilTm.Add(clockDriftBound)
-	expiredDur := tkt.RaftLogEntryTm.Sub(okAfter)
-	if expiredDur > 0 { // tkt.RaftLogEntryTm.After(okAfter) {
+	// now is tkt.RaftLogEntryTm, or the local clock on a leader dry run.
+	expiredDur := now.Sub(okAfter)
+	if expiredDur > 0 {
 		// prior lease expired, allow write.
 		if dry {
 			return true
@@ -751,7 +754,7 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 		return true
 	}
 	// key is already leased by a different leasor, and lease has not expired: reject.
-	tkt.Err = fmt.Errorf(rejectedWritePrefix+" to leased key. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, tkt.RaftLogEntryTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(tkt.RaftLogEntryTm), clockDriftBound)
+	tkt.Err = fmt.Errorf(rejectedWritePrefix+" to leased key. table='%v'; key='%v'; current leasor='%v'; leasedUntilTm='%v'; LeaseEpoch='%v'; rejecting attempted tkt.Leasor='%v' at now/tkt.RaftLogEntryTm='%v' (left on lease: '%v'); ClockDriftBound='%v'", tktTable, tktKey, leaf.Leasor, leaf.LeaseUntilTm.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseEpoch, tkt.Leasor, now.Format(rfc3339NanoNumericTZ0pad), leaf.LeaseUntilTm.Sub(now), clockDriftBound)
 
 	// to allow simple client czar election (not the
 	// raft leader election but an application level
