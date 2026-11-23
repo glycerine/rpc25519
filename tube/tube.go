@@ -15646,6 +15646,12 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 
 	var url, peerID, netAddr string
 	detail, ok := s.state.MC.PeerNames.Get2(peerName)
+	if !ok && s.state.ShadowReplicas != nil {
+		// a shadow replica (say, one removed from the config) is
+		// redialed too; its address is in the shadow set.
+		detail, ok = s.state.ShadowReplicas.PeerNames.Get2(peerName)
+		ok = ok && detail.URL != ""
+	}
 	if ok {
 		url = detail.URL
 		peerID = detail.PeerID
