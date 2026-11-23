@@ -330,6 +330,19 @@ func Test601_client_session_serial_contiguous(t *testing.T) {
 
 const globalUseSimnet = true
 
+// Bootstrap the single voter before submitting client operations.
+func startSingleVoterTestCluster(c *TubeCluster) {
+	node := c.Nodes[0]
+	boot := node.NewFirstRaftLogEntryBootstrap()
+	boot.NewConfig.BootCount = 1
+	boot.NewConfig.PeerNames.Set(node.name, &PeerDetail{Name: node.name, URL: "boot.blank"})
+	boot.DoElection = true
+	node.testBootstrapLogCh <- boot
+	c.BootMC = boot.NewConfig
+	c.Start()
+	<-boot.Done
+}
+
 func Test001_no_replicas_write_new_value(t *testing.T) {
 
 	bubbleOrNot(t, func(t *testing.T) {
@@ -341,7 +354,7 @@ func Test001_no_replicas_write_new_value(t *testing.T) {
 		c := NewCluster(t.Name(), cfg)
 		nodes := c.Nodes
 
-		c.Start()
+		startSingleVoterTestCluster(c)
 		defer c.Close()
 
 		// TODO add back in once writes are working.
@@ -409,7 +422,7 @@ func Benchmark_101_no_replicas_write_new_value(b *testing.B) {
 	c := NewCluster(b.Name(), cfg)
 	nodes := c.Nodes
 
-	c.Start()
+	startSingleVoterTestCluster(c)
 	defer c.Close()
 
 	// TODO add back in once writes are working.

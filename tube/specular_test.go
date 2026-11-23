@@ -1117,3 +1117,32 @@ func TestBootstrapSelfAddRefusesVisibleLeader(t *testing.T) {
 		t.Fatalf("visible leader: self-add left role=%v members=%d err=%v", n.role, n.state.MC.Len(), tkt.Err)
 	}
 }
+
+func TestInstallEmptyMCLeavesLeaderMembershipIntact(t *testing.T) {
+	n := specularNode(t, "l", LEADER, 2, nil, "l", "f")
+	before := n.state.MC.Clone()
+	saver, _, err := n.cfg.NewRaftStatePersistor("", n, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer saver.close()
+	n.saver = saver
+	frag := &rpc.Fragment{}
+	frag.SetUserArg("target", n.name)
+	n.handleInstallEmptyMC(frag, nil)
+	if n.state.MC.Len() != before.Len() || n.state.MC.ConfigVersion != before.ConfigVersion {
+		t.Fatalf("leader config changed from %v to %v", before.Short(), n.state.MC.Short())
+	}
+}
+
+func TestBatchNeedsSoleSelfVoterToCommitLocally(t *testing.T) {
+	for _, members := range [][]string{nil, {"other"}} {
+		n := specularNode(t, "l", LEADER, 2, nil, members...)
+		tkt := n.NewTicket("probe local commit", "", "", nil, n.PeerID, n.name, NOOP, -1, context.Background())
+		n.batchToSubmit = []*Ticket{tkt}
+		n.replicateBatch()
+		if n.state.CommitIndex != 0 || tkt.Committed {
+			t.Errorf("members %v: local ticket committed at %d", members, n.state.CommitIndex)
+		}
+	}
+}
