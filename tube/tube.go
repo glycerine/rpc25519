@@ -5722,6 +5722,11 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 	}
 
 	prior, already := waiting.get2(tkt.TicketID)
+	if already && prior != tkt && prior.finishTicketCalled {
+		// the waiting original was already finished (say, with a
+		// step-down error); its caller may have read it. Leave it.
+		already = false
+	}
 	if already && prior != tkt {
 
 		prior.Stage += ":FinishTicket_am_prior_copy_from_tkt"
@@ -5783,6 +5788,9 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 			}
 			prior.DoneClosedOnPeerID = s.PeerID
 			prior.Stage += ":FinishTicket_prior_Done_Closed"
+			// the waiting original is finished too, not only the
+			// applied copy, so no later path finishes it again.
+			prior.finishTicketCalled = true
 			prior.Done.Close()
 		} else {
 			prior.Stage += ":FinishTicket_prior_Done_was_nil"
