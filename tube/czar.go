@@ -134,6 +134,11 @@ type Czar struct {
 	blake *blake3.Hasher
 
 	testingCrashIfNotMonotone bool // czar_test 809.
+
+	// testingFreezeHeartbeat, when set by a test, makes the member
+	// skip its heartbeat pings, as a member stuck behind a dead
+	// network would; it misses what the cluster does meanwhile.
+	testingFreezeHeartbeat atomic.Bool
 }
 
 func NewCzar(tableSpace, name string, cli *TubeNode, clockDriftBound time.Duration) (s *Czar) {
@@ -264,6 +269,17 @@ func (s *Czar) memberLeaseUntil(now time.Time) time.Time {
 		}
 	}
 	return until
+}
+
+// heartbeatPingTimeout bounds a member's heartbeat Czar.Ping well
+// inside the leases it renews; without it the rpc default (20s)
+// outlasted both the member and czar leases (CR-D-75).
+func (s *Czar) heartbeatPingTimeout() time.Duration {
+	d := 2 * s.memberHeartBeatDur
+	if limit := min(s.memberLeaseDur, s.leaseDurCzar) / 2; d > limit {
+		d = limit
+	}
+	return d
 }
 
 func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, upcall bool, note string) (err error) {
@@ -1582,12 +1598,18 @@ fullRestart:
 
 				case <-czar.memberHeartBeatCh:
 					// in notCzar here.
+					if czar.testingFreezeHeartbeat.Load() {
+						czar.memberHeartBeatCh = time.After(czar.memberHeartBeatDur)
+						break
+					}
 
 					reply := &PingReply{} // ReliableMembershipList{}
 
 					// We might be talking to a stale random member who
 					// is no longer czar, so check the reply czar LeaseUntilTm
-					err = rpcClientToCzar.Call("Czar.Ping", czar.myDetail, reply, nil)
+					ctxPing, cancPing := context.WithTimeout(ctx, czar.heartbeatPingTimeout())
+					err = rpcClientToCzar.Call("Czar.Ping", czar.myDetail, reply, ctxPing)
+					cancPing()
 					////vv("member called to Czar.Ping, err='%v'", err)
 					if err != nil {
 						vv("%v: connection refused to (old?) czar, transition to UnknownCzarState and write/elect a new czar", name)

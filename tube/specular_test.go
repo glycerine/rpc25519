@@ -750,9 +750,12 @@ func Test1016_czar_elected_after_dead_czar_with_newer_epoch(t *testing.T) {
 		}
 		time.Sleep(2 * time.Second)
 
-		// m1 is cut off, so it misses what happens next.
+		// m1 is cut off, so it misses what happens next. (Its pings
+		// time out fast now (CR-D-75), and simnet isolation lets new
+		// auto-client dials through, so freeze its heartbeat too.)
 		_, err := simnet.AlterHost(m1.Czar.cli.srvname, rpc.ISOLATE)
 		panicOn(err)
+		m1.Czar.testingFreezeHeartbeat.Store(true)
 
 		// the czar dies; after its lease expires another
 		// leasor takes the key (epoch 2) and then dies too.
@@ -778,6 +781,7 @@ func Test1016_czar_elected_after_dead_czar_with_newer_epoch(t *testing.T) {
 		// lease expired it must be able to become czar.
 		_, err = simnet.AlterHost(m1.Czar.cli.srvname, rpc.UNISOLATE)
 		panicOn(err)
+		m1.Czar.testingFreezeHeartbeat.Store(false)
 
 		deadline := time.After(time.Minute)
 		for {
@@ -2739,4 +2743,17 @@ func TestMemberSurvivesUnreachableTubeCluster(t *testing.T) {
 			t.Fatal("member did not stop on request while retrying")
 		}
 	})
+}
+
+// CR-D-75: the member's heartbeat Czar.Ping had no context, so the
+// rpc default of 20s applied: longer than the member and czar
+// leases it was meant to renew.
+func TestHeartbeatPingIsBoundedByTheLeases(t *testing.T) {
+	n := specularNode(t, "m1", CLIENT, 0, nil, "n0")
+	cz := NewCzar("hermes", "m1", n, 500*time.Millisecond)
+	d := cz.heartbeatPingTimeout()
+	if d <= 0 || d >= cz.memberLeaseDur || d >= cz.leaseDurCzar {
+		t.Fatalf("heartbeat ping timeout %v must be positive and below the member lease %v and czar lease %v",
+			d, cz.memberLeaseDur, cz.leaseDurCzar)
+	}
 }
