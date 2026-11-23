@@ -202,6 +202,7 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	}
 
 	cpair := &cliPairState{}
+	c.cpair = cpair // as on the TCP and TLS paths; keepalives and PingStats use it.
 	go c.runSendLoop(wrap, cpair)
 	c.runReadLoop(wrap, cpair)
 }

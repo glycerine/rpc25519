@@ -547,6 +547,12 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 				//vv("srv sent rpc25519 keep alive. err='%v'; keepAliveWriteTimeout='%v'", err, keepAliveWriteTimeout)
 				if err != nil {
 					alwaysPrintf("server had problem sending keep alive: '%v'", err)
+					if errors.Is(err, ErrPartialFrameWritten) {
+						// the stream now holds a partial frame.
+						stopReason = fmt.Sprintf("rwPair send loop keepalive: %v", err)
+						conn.Close()
+						return
+					}
 				} else {
 					s.lastPingSentTmu.Store(now.UnixNano())
 				}

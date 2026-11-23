@@ -343,6 +343,12 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 			return ErrSendTimeout
 		}
 	}
+	if timeout != nil && *timeout > 0 {
+		// keepalives: one deadline for the whole frame, so a
+		// frame cut short is reported as ErrPartialFrameWritten
+		// rather than silently left on the wire (CR-D-85).
+		deadline = time.Now().Add(*timeout)
+	}
 
 	// serialize message to bytes
 	bytesMsg, err := msg.AsGreenpack(w.buf)
