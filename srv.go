@@ -1336,6 +1336,10 @@ func (s *Server) processWork(job *job) {
 // The net/rpc API is implemented as a layer on top of the rpc25519.Message
 // based API. Both can be used concurrently if desired.
 type Server struct {
+	// holdsSharedQUIC: this server holds one reference on
+	// cfg.shared, released once by Close (CR-D-86).
+	holdsSharedQUIC bool
+
 	mut sync.Mutex
 
 	//StartSimNet   chan *SimNetConfig
@@ -2864,11 +2868,10 @@ func (s *Server) Close() error {
 
 	if s.cfg.UseQUIC {
 		s.cfg.shared.mut.Lock()
-		if !s.cfg.shared.isClosed { // since Server.Close() might be called more than once.
+		// Release only a reference this server took, and only once.
+		if s.holdsSharedQUIC && !s.cfg.shared.isClosed {
+			s.holdsSharedQUIC = false
 			s.cfg.shared.shareCount--
-			if s.cfg.shared.shareCount < 0 {
-				panic("server count should never be < 0")
-			}
 			//vv("s.cfg.shared.shareCount = '%v' for '%v'", s.cfg.shared.shareCount, s.name)
 			if s.cfg.shared.shareCount == 0 {
 				s.cfg.shared.quicTransport.Conn.Close()

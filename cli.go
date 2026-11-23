@@ -1465,6 +1465,10 @@ func NewConfig() *Config {
 
 // A Client starts requests, and (might) wait for responses.
 type Client struct {
+	// holdsSharedQUIC: this client holds one reference on
+	// cfg.shared, released once by Close (CR-D-86).
+	holdsSharedQUIC bool
+
 	cfg *Config
 	mut sync.Mutex
 
@@ -2081,11 +2085,11 @@ func (c *Client) Close() error {
 			//vv("cli quicConn.CloseWithError(0) sent.")
 		}
 		c.cfg.shared.mut.Lock()
-		if !c.cfg.shared.isClosed { // since Client.Close() might be called more than once.
+		// Release only a reference this client took, and only once:
+		// Close may be called more than once, or before Start.
+		if c.holdsSharedQUIC && !c.cfg.shared.isClosed {
+			c.holdsSharedQUIC = false
 			c.cfg.shared.shareCount--
-			if c.cfg.shared.shareCount < 0 {
-				panic("client count should never be < 0")
-			}
 			//vv("c.cfg.shared.shareCount = '%v' for '%v'", c.cfg.shared.shareCount, c.name)
 			if c.cfg.shared.shareCount == 0 {
 				c.cfg.shared.quicTransport.Conn.Close()
