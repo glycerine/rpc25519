@@ -6365,7 +6365,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		// persistor state on disk. So save it.
 		needSave = true
 	}
-	if s.clusterSize() > 1 {
+	if !s.soleVoter() {
 		// add to Waiting. NB in replicateTicket(); we are leader.
 		//vv("%v wait for AppendEntries to complete; tkt='%v'", s.me(), tkt.Short())
 		s.WaitingAtLeader.set(tkt.TicketID, tkt)
@@ -6526,7 +6526,6 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 		return
 	}
 
-	clusterSz := s.clusterSize()
 	var idx int64
 
 	lli, llt := s.wal.LastLogIndexAndTerm()
@@ -6589,7 +6588,7 @@ func (s *TubeNode) replicateBatch() (needSave, didSave bool) {
 		s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
 	}
 
-	if clusterSz > 1 {
+	if !s.soleVoter() {
 		for _, tkt := range batch {
 			s.WaitingAtLeader.set(tkt.TicketID, tkt)
 			tkt.Stage += fmt.Sprintf(":_batch_normal_replication_added_to_WaitingAtLeader[tkt.Term: %v, tkt.LogIndex: %v]", tkt.Term, tkt.LogIndex)
@@ -8956,7 +8955,7 @@ func (es Entries) span() (r *LogEntrySpan) {
 
 func (s *TubeNode) bcastAppendEntries(es []*RaftLogEntry, prevLogIndex, prevLogTerm int64) {
 
-	if s.clusterSize() <= 1 {
+	if len(s.peers) == 0 || s.soleVoter() {
 		//vv("%v bcastAppendEntries exit early: nobody else to send to", s.me())
 		return
 	}
@@ -18180,6 +18179,10 @@ func (s *TubeNode) getStateSnapshot(skipLog bool) (snapshot *Snapshot) {
 	return
 }
 
+func (s *TubeNode) soleVoter() bool {
+	return s.clusterSize() == 1 && s.weAreMemberOfCurrentMC()
+}
+
 func (s *TubeNode) weAreMemberOfCurrentMC() bool {
 	if s == nil || s.state == nil || s.state.MC == nil {
 		return false
@@ -18925,6 +18928,10 @@ func (s *TubeNode) pruneRedundantCircuitMessageTo(sendOnCkt *rpc.Circuit, victim
 func (s *TubeNode) handleInstallEmptyMC(frag *rpc.Fragment, ckt *rpc.Circuit) {
 	target, ok := frag.GetUserArg("target")
 	if ok && target == s.name {
+		if s.role == LEADER {
+			alwaysPrintf("%v refusing empty membership request from %q while leader", s.name, frag.FromPeerName)
+			return
+		}
 		alwaysPrintf("installing empty MC per request from '%v'", frag.FromPeerName)
 		vers := s.state.MC.ConfigVersion
 		s.state.MC = s.NewMemberConfig("InstallEmptyMC")
