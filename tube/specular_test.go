@@ -5,6 +5,7 @@ package tube
 // its bug (red), then went green with the fix.
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -478,4 +479,43 @@ func Test1006_session_gc_during_apply_uses_log_time(t *testing.T) {
 			t.Errorf("Bug 6: replica %v apply clock %v ran past the log's time %v (local clock mixed in)", name, got, t1)
 		}
 	}
+}
+
+// Bug 7 (High): the logless reconfiguration installed the
+// new membership locally and acknowledged the client at
+// once, before any quorum had adopted it. A newer leader's
+// configuration then silently superseded the acknowledged
+// change. The client must only be told "done" once the new
+// configuration is loglessly committed (Q1/Q2 met for it).
+func Test1007_reconfig_ack_waits_for_new_config_commit(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+
+		c, _, leadi, _ := SetupTestCluster(t, 3, 0, 1007)
+		defer c.Close()
+		if leadi != 0 {
+			t.Fatalf("expected node_0 to lead, got %v", leadi)
+		}
+		// let the leader cache both followers' current
+		// config and term (Q1/Q2 for the current config).
+		time.Sleep(3 * time.Second)
+
+		leader := c.Nodes[0]
+		goner := c.Nodes[2]
+
+		// from now on, neither follower hears the leader,
+		// so no quorum can ever adopt the new config.
+		c.DeafDrop(map[int]float64{1: 1.0, 2: 1.0}, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		insp, _, err := leader.RemovePeerIDFromCluster(ctx, false, false, goner.name, goner.PeerID, TUBE_REPLICA, goner.BaseServerHostPort(), leader.URL, 2*time.Second)
+		if err == nil {
+			mc := ""
+			if insp != nil && insp.MC != nil {
+				mc = insp.MC.Short()
+			}
+			t.Fatalf("Bug 7: removal of %v was acknowledged although no quorum adopted the new config (%v)", goner.name, mc)
+		}
+		vv("good: unadopted reconfig not acknowledged: %v", err)
+	})
 }
