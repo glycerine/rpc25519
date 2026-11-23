@@ -29,6 +29,9 @@ var nextCircuitSN int64
 //
 //msgp:ignore Circuit
 type Circuit struct {
+	// delPosted: Close posts the removal to the send loop once (CR-D-92).
+	delPosted atomic.Bool
+
 	CircuitSN int64
 	T0        time.Time
 
@@ -106,6 +109,10 @@ type LoopComm struct {
 	cktServedAdd          chan *Circuit // talks to a send loop
 	cktServedDel          chan *Circuit // talks to a send loop
 	closePairIfNoCircuits chan struct{} // talks to a send loop
+
+	// sendLoopGone is closed once the send loop that services
+	// these channels has stopped (CR-D-92).
+	sendLoopGone <-chan struct{}
 }
 
 func (ckt *Circuit) String() string {
@@ -1367,10 +1374,13 @@ func (h *Circuit) Close(reason error) {
 
 	if h.loopy == nil {
 		//vv("not-great: ckt.loopy nil at end of Circuit.Close(), cktID='%v'", h.CircuitID)
-	} else {
+	} else if h.delPosted.CompareAndSwap(false, true) {
+		// Post the removal once; and never wait on a send
+		// loop that has stopped servicing cktServedDel (CR-D-92).
 		select {
 		case h.loopy.cktServedDel <- h:
 		case <-h.LpbFrom.Halt.ReqStop.Chan:
+		case <-h.loopy.sendLoopGone:
 		}
 	}
 
