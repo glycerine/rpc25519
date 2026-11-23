@@ -1315,3 +1315,67 @@ func TestFollowerCannotFlushLeaderBatch(t *testing.T) {
 		t.Fatalf("follower flushed stale batch: last index=%d committed=%v queued=%d", n.wal.LastLogIndex(), tkt.Committed, len(n.batchToSubmit))
 	}
 }
+
+func TestRestartHonorsPreviousElectionTimeout(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		dir := t.TempDir()
+		boot := func(timeout, drift time.Duration) *TubeNode {
+			n := specularNode(t, "node_2", FOLLOWER, 2, nil, "node_0", "node_1", "node_2")
+			n.cfg.NoDisk, n.cfg.DataDir, n.cfg.isTest = false, dir, false
+			n.cfg.MinElectionDur, n.cfg.ClockDriftBound = timeout, drift
+			n.t0 = time.Now()
+			if err := n.onRestartRecoverPersistentRaftStateFromDisk(); err != nil {
+				t.Fatal(err)
+			}
+			return n
+		}
+		closeNode := func(n *TubeNode) {
+			n.saver.close()
+			n.state.KVstore.Close()
+		}
+		const timeout = 2 * time.Second
+		const drift = 300 * time.Millisecond
+		first := boot(timeout, drift)
+		// This node could now advertise its timeout in heartbeat acks.
+		if _, err := first.saver.save(first.state); err != nil {
+			t.Fatal(err)
+		}
+		closeNode(first)
+
+		request := &RequestVote{IsPreVote: true, FromPeerName: "node_0", FromPeerID: "node_0_id",
+			FromPeerServiceName: TUBE_REPLICA, CandidatesTerm: 3}
+		for attempt := 0; attempt < 2; attempt++ {
+			n := boot(200*time.Millisecond, 10*time.Millisecond)
+			request.MC = n.state.MC
+			time.Sleep(timeout + drift - time.Nanosecond)
+			if sticky, _ := n.haveStickyLeader(request); !sticky {
+				t.Error("pre-vote eligible before the previous lease window elapsed")
+			}
+			request.IsPreVote = false
+			n.handleRequestVote(request, nil)
+			if n.state.HaveVoted {
+				t.Fatalf("granted vote to %s during the restart holdoff", n.state.VotedForName)
+			}
+			n.beginPreVote()
+			if n.preVoteTerm != 0 {
+				t.Fatal("started a pre-vote using our own vote during restart holdoff")
+			}
+			n.beginElection()
+			if n.state.HaveVoted {
+				t.Fatal("cast a self-vote during restart holdoff")
+			}
+			if attempt == 1 {
+				time.Sleep(time.Nanosecond)
+				if sticky, _ := n.haveStickyLeader(request); sticky {
+					t.Fatal("pre-vote still refused at lease expiry")
+				}
+				n.handleRequestVote(request, nil)
+				if n.state.VotedForName != request.FromPeerName {
+					t.Fatal("eligible vote refused after lease expiry")
+				}
+			}
+			request.IsPreVote = true
+			closeNode(n)
+		}
+	})
+}

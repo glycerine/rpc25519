@@ -3003,6 +3003,10 @@ type RaftState struct {
 
 	LastAppliedLogHLC HLC `zid:"23"`
 
+	// Local election timeout plus clock drift that a pre-restart leader
+	// could still be relying on for its read lease.
+	RestartVoteDelay time.Duration `zid:"24"`
+
 	// ====================================
 	// Raft: Volatile state on leaders (reinitilized after election)
 	//   re-initialized after election (e.g. the
@@ -3334,6 +3338,7 @@ type TubeNode struct {
 	// cached election timeout param,
 	// these don't change after startup,
 	// so cache rather than recompute.
+	restartVoteDeadline         time.Time
 	cachedMinElectionTimeoutDur time.Duration
 	cachedMaxElectionTimeoutDur time.Duration
 
@@ -6830,7 +6835,7 @@ func (s *TubeNode) persistSelfVote() {
 // Two elections in a row due to the election
 // timer should NOT increment the term again!
 func (s *TubeNode) beginElection() {
-	if s.parCampaignBlocked() {
+	if time.Now().Before(s.restartVoteDeadline) || s.parCampaignBlocked() {
 		return
 	}
 	_, weOK := s.state.MC.PeerNames.Get2(s.name)
@@ -7838,7 +7843,6 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 		return
 	}
 
-
 	if s.state != nil && s.state.Known != nil && ae.MC != nil {
 		s.state.Known.merge(ae.MC)
 	}
@@ -7944,6 +7948,13 @@ func (s *TubeNode) advanceFollowerCommit(ae *AppendEntries, verified int64) bool
 // To support background recovery of snapshot state,
 // if sendAck is false, then we will not ack back to sender/leader.
 func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOverwrote, numTruncated, numAppended int64) {
+	// Once the old promise expires, future restarts only need the current
+	// window. The next ordinary state save can safely publish the reduction.
+	if !s.restartVoteDeadline.IsZero() && !time.Now().Before(s.restartVoteDeadline) {
+		s.state.RestartVoteDelay = s.cachedMinElectionTimeoutDur + s.cfg.ClockDriftBound
+		s.restartVoteDeadline = time.Time{}
+	}
+
 	if s.parBlocked() {
 		s.parObserveAE(ae)
 		return
@@ -9264,6 +9275,7 @@ func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
 	//}()
 
 	var st *RaftState
+	var restoredFromDisk bool
 
 	var path string
 	// if we force s.cfg.NewRaftStatePersistor()
@@ -9280,6 +9292,7 @@ func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
 		path = s.GetPersistorPath()
 		//vv("%v creating new saver for path='%v'", s.name, path)
 		s.saver, st, err = s.cfg.newRaftStatePersistor(path, s, false, true)
+		restoredFromDisk = st != nil && !s.cfg.NoDisk
 		panicOn(err)
 		if err != nil {
 			return
@@ -9402,6 +9415,19 @@ func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
 	// cache these frequently accessed timeout periods.
 	s.cachedMinElectionTimeoutDur = s.minElectionTimeoutDur()
 	s.cachedMaxElectionTimeoutDur = s.maxElectionTimeoutDur()
+
+	delay := s.cachedMinElectionTimeoutDur + s.cfg.ClockDriftBound
+	if restoredFromDisk || s.state.RestartVoteDelay > 0 {
+		s.restartVoteDeadline = time.Now().Add(max(s.state.RestartVoteDelay, delay))
+	}
+	if delay > s.state.RestartVoteDelay {
+		// Persist a longer promise before advertising this configuration.
+		s.state.RestartVoteDelay = delay
+		_, err = s.saver.save(s.state)
+		if err != nil {
+			return err
+		}
+	}
 
 	//vv("%v using election '%v', heartbeat '%v'", s.me(), s.cachedMinElectionTimeoutDur, s.cfg.HeartbeatDur)
 
@@ -11245,7 +11271,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 // a very rare case.
 // The livelock on pre-voting we saw is hopefully avoided.
 func (s *TubeNode) beginPreVote() {
-	if s.parCampaignBlocked() {
+	if time.Now().Before(s.restartVoteDeadline) || s.parCampaignBlocked() {
 		return
 	}
 
@@ -11493,7 +11519,7 @@ func (s *TubeNode) handleRequestVote(reqVote *RequestVote, ckt0 *rpc.Circuit) {
 				//s.state.HaveVoted = true
 				//s.state.HaveVotedTerm = reqVote.CandidatesTerm
 				needStateSave = true
-				vote.Reason = fmt.Sprintf("%v deny vote to '%v' because have sticky-leader (%v). AE sets: s.lastLegitAppendEntries(%v).After(denyAfterIfLeaderSeen(%v)); reqVote='%v'", s.me(), reqVote.FromPeerID, rpc.AliasDecode(s.leaderID), s.lastLegitAppendEntries, denyTm, reqVote)
+				vote.Reason = fmt.Sprintf("%v deny vote to '%v' because have sticky-leader (%v). last accepted heartbeat %v, vote deadline %v; reqVote='%v'", s.me(), reqVote.FromPeerID, rpc.AliasDecode(s.leaderID), s.lastLegitAppendEntries, denyTm, reqVote)
 				//vv("%v handleRequestVote: has sticky leader: '%v'; on reqVote='%v'", s.me(), vote.Reason, reqVote)
 
 			} else {
@@ -12597,7 +12623,14 @@ func (s *TubeNode) choice(format string, a ...interface{}) {
 // a special flag to indicate this behavior
 // ('I have permission to disrupt the
 // leader--it told me to!')."
-func (s *TubeNode) haveStickyLeader(reqVote *RequestVote) (recentLeader bool, denyTm time.Time) {
+func (s *TubeNode) haveStickyLeader(reqVote *RequestVote) (bool, time.Time) {
+	if time.Now().Before(s.restartVoteDeadline) {
+		return true, s.restartVoteDeadline
+	}
+	return s.recentlyHeardLeader(reqVote)
+}
+
+func (s *TubeNode) recentlyHeardLeader(reqVote *RequestVote) (recentLeader bool, denyTm time.Time) {
 
 	// Leader stickiness - prevent flip-flopping
 	// between leaders.
@@ -12626,9 +12659,9 @@ func (s *TubeNode) haveStickyLeader(reqVote *RequestVote) (recentLeader bool, de
 
 	//clockDriftBound := s.clockDriftBound // time.Millisecond * 500 // even less chance of granting vote...
 	// page 42 says minElectionTimeout
-	denyAfterIfLeaderSeen := time.Now().Add(-s.minElectionTimeoutDur() - s.cfg.ClockDriftBound)
-	if s.lastLegitAppendEntries.After(denyAfterIfLeaderSeen) {
-		denyTm = denyAfterIfLeaderSeen
+	deadline := s.lastLegitAppendEntries.Add(s.minElectionTimeoutDur() + s.cfg.ClockDriftBound)
+	if time.Now().Before(deadline) {
+		denyTm = deadline
 		recentLeader = true
 		return
 	}
@@ -14506,7 +14539,6 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			return
 		}
 	}
-
 
 	// our Rule: only increment the ConfigVersion when
 	// the set of _names_ has changed. The details of
@@ -18255,7 +18287,7 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 	if tkt.ForceChangeMC {
 		if !calledOnLeader && s.leaderID != "" && s.leaderID != s.PeerID {
 			peer := s.cktall[s.leaderID]
-			recent, _ := s.haveStickyLeader(&RequestVote{})
+			recent, _ := s.recentlyHeardLeader(&RequestVote{})
 			if recent || (peer != nil && peer.atomicIsUp.Load()) {
 				return s.redirectToLeader(tkt)
 			}
@@ -18288,7 +18320,7 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 	}
 	// Self-add can bootstrap an isolated replica. A live leader or another
 	// connected replica can supply the authoritative cluster membership.
-	recentLeader, _ := s.haveStickyLeader(&RequestVote{})
+	recentLeader, _ := s.recentlyHeardLeader(&RequestVote{})
 	visible := recentLeader && s.role != LEADER
 	for _, peer := range s.cktall {
 		if peer.PeerName != s.name && peer.PeerServiceName == TUBE_REPLICA && peer.atomicIsUp.Load() {
