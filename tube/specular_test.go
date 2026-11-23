@@ -2842,3 +2842,39 @@ func TestLeaderRedialsShadowReplicaAtItsAddress(t *testing.T) {
 		t.Fatalf("leader redialed shadow n2 at %+v, want netAddr simnet://srv_n2", recon)
 	}
 }
+
+// TestPar_live_recovering_leader_crosses_partition_and_reconfiguration:
+// CR-D-18 delays a restarted replica's campaigns until its restart
+// vote deadline, but beginElection/beginPreVote dropped a request
+// made inside that window. Without an election timer running (an
+// explicit request, or NoInitialLeaderTimeout), nothing campaigned.
+func TestCampaignInRestartWindowIsDeferredNotDropped(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		for _, election := range []bool{true, false} {
+			n := specularNode(t, "node_0", FOLLOWER, 4, nil, "node_0", "node_1", "node_2")
+			n.restartVoteDeadline = time.Now().Add(200 * time.Millisecond)
+			if election {
+				n.beginElection()
+			} else {
+				n.beginPreVote()
+			}
+			if n.role != FOLLOWER || n.state.CurrentTerm != 4 {
+				t.Fatalf("campaigned inside the restart window: role=%v term=%v", n.role, n.state.CurrentTerm)
+			}
+			if n.deferredCampaignCh == nil {
+				t.Fatalf("election=%v: campaign request inside the restart window was dropped", election)
+			}
+			<-n.deferredCampaignCh
+			if time.Now().Before(n.restartVoteDeadline) {
+				t.Fatal("deferred campaign fired before the restart vote deadline")
+			}
+			n.runDeferredCampaign()
+			if election && (n.role != CANDIDATE || n.state.CurrentTerm != 5) {
+				t.Fatalf("deferred election did not run: role=%v term=%v", n.role, n.state.CurrentTerm)
+			}
+			if !election && n.preVoteTerm != 5 {
+				t.Fatalf("deferred pre-vote did not run: preVoteTerm=%v", n.preVoteTerm)
+			}
+		}
+	})
+}

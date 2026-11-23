@@ -1259,6 +1259,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			s.shutdown()
 			return rpc.ErrHaltRequested
 			//return ErrShutDown
+		case <-s.deferredCampaignCh:
+			s.runDeferredCampaign()
+
 		case <-s.testBeginElection:
 			//s.ay("%v s.testBeginElection fired", s.me())
 			//vv("%v s.testBeginElection fired", s.me())
@@ -3389,6 +3392,15 @@ type TubeNode struct {
 	// these don't change after startup,
 	// so cache rather than recompute.
 	restartVoteDeadline         time.Time
+
+	// deferredCampaignCh fires at restartVoteDeadline when a
+	// campaign was requested inside the restart window; then
+	// deferredElection says whether it was an election (else a
+	// pre-vote). The window delays such a request, it does not
+	// drop it: with no election timer running, nothing else would
+	// ever campaign.
+	deferredCampaignCh <-chan time.Time
+	deferredElection   bool
 	cachedMinElectionTimeoutDur time.Duration
 	cachedMaxElectionTimeoutDur time.Duration
 
@@ -6911,8 +6923,38 @@ func (s *TubeNode) persistSelfVote() {
 // become a candidate, send out RequestVote
 // Two elections in a row due to the election
 // timer should NOT increment the term again!
+// deferCampaignToRestartDeadline reports whether we are still inside
+// the restart vote window (CR-D-18); if so it schedules the requested
+// campaign for the window's end. An election request wins over a
+// pre-vote request pending at the same time.
+func (s *TubeNode) deferCampaignToRestartDeadline(election bool) bool {
+	wait := time.Until(s.restartVoteDeadline)
+	if wait <= 0 {
+		return false
+	}
+	if s.deferredCampaignCh == nil {
+		s.deferredCampaignCh = time.After(wait)
+		s.deferredElection = election
+	} else if election {
+		s.deferredElection = true
+	}
+	return true
+}
+
+// runDeferredCampaign runs the campaign deferred by
+// deferCampaignToRestartDeadline, once its window has passed.
+func (s *TubeNode) runDeferredCampaign() {
+	s.deferredCampaignCh = nil
+	if s.deferredElection {
+		s.deferredElection = false
+		s.beginElection()
+	} else {
+		s.beginPreVote()
+	}
+}
+
 func (s *TubeNode) beginElection() {
-	if time.Now().Before(s.restartVoteDeadline) || s.parCampaignBlocked() {
+	if s.deferCampaignToRestartDeadline(true) || s.parCampaignBlocked() {
 		return
 	}
 	_, weOK := s.state.MC.PeerNames.Get2(s.name)
@@ -11410,7 +11452,7 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 // a very rare case.
 // The livelock on pre-voting we saw is hopefully avoided.
 func (s *TubeNode) beginPreVote() {
-	if time.Now().Before(s.restartVoteDeadline) || s.parCampaignBlocked() {
+	if s.deferCampaignToRestartDeadline(false) || s.parCampaignBlocked() {
 		return
 	}
 
