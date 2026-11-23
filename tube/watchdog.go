@@ -221,11 +221,18 @@ func (c *cktPlus) startWatchdog() {
 		if c.ckt != nil {
 			isUp = true
 			lastSeen = time.Now()
+			// Remember how to reach the peer, so the periodic
+			// check below can replace this circuit if it goes
+			// silent (CR-D-30).
+			if c.PeerBaseServerAddr != "" {
+				pack = newReconnect(c.PeerBaseServerAddr, c.PeerBaseServerAddr, "", "startWatchdog")
+			}
 		}
 		c.atomicIsUp.Store(isUp)
 		//vv("%v watchdog init isUp=%v for '%v'", s.me(), isUp, c.PeerName)
 
 		var lastReconnAttempt time.Time // don't attempt reconn too often
+		var lastReconnFailed bool       // retry a pending entry only after a failure
 		var been time.Duration          // since heard from remote
 		followDown := s.followerDownDur()
 		recomputeIsUp := func() bool {
@@ -260,14 +267,17 @@ func (c *cktPlus) startWatchdog() {
 			}
 			c.requestReconnectMut.Unlock()
 			if req != nil {
-				// yep!
+				// yep! Keep it, so a failed attempt is retried
+				// on later ticks rather than abandoned.
+				pack = req
 				isUp, err = c.reconnect(req, fmt.Sprintf("requestReconnect: submit='%v'", nice(req.submit)))
 				c.atomicIsUp.Store(isUp)
+				lastReconnFailed = !isUp
 
 				now = time.Now()
+				tick.Reset(refresh)
 				if isUp {
 					lastSeen = now
-					tick.Reset(refresh)
 				} else {
 					if dieOnConnectionRefused && refused(err) {
 						c.atomicConnRefused.Store(true)
@@ -299,6 +309,11 @@ func (c *cktPlus) startWatchdog() {
 				if pack == nil {
 					continue
 				}
+				if c.ckt == nil && !lastReconnFailed {
+					// a pending entry whose attempt succeeded: the
+					// new circuit has its own watchdog.
+					continue
+				}
 				c.lastSeenMut.Lock()
 				// c.lastSeenTm is set by seen() and seenIndirect().
 				externalLastSeenTm := c.lastSeenTm
@@ -318,7 +333,8 @@ func (c *cktPlus) startWatchdog() {
 						continue
 					}
 
-					if s.cfg.isTest {
+					if s.cfg.isTest && c.ckt != nil {
+						// a live circuit went silent (not a pending retry).
 						panicAtCap(s.testWatchdogTimeoutReconnectCh) <- time.Now()
 					}
 
@@ -328,6 +344,7 @@ func (c *cktPlus) startWatchdog() {
 					isUp, err = c.reconnect(pack, "tick.C")
 					//vv("%v on <-tick.C reconnect('%v') -> isUp=%v", s.name, pack.addr, isUp)
 					c.atomicIsUp.Store(isUp)
+					lastReconnFailed = !isUp
 					now = time.Now()
 					if isUp {
 						lastSeen = now
