@@ -10081,7 +10081,10 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 
 		// easy quorum tracking, so we step down if
 		// we cannot ping a majority of cluster (section 6.2)
-		s.leaderFullPongPQ.add(foll.LastFullPong) // sort on RecvTm
+		// Specular Bug 13: only voters count toward that quorum.
+		if s.isVotingMemberOfCurrentMC(ack.FromPeerName) {
+			s.leaderFullPongPQ.add(foll.LastFullPong) // sort on RecvTm
+		}
 
 		// the most essential thing: longest common prefix
 		// lets us know exactly what they need.
@@ -12566,6 +12569,12 @@ func (s *TubeNode) leaderCanServeReadsLocally() (canServe bool, untilTm time.Tim
 	// Specular Bug 15: one record per replica name.
 	for _, info := range s.peersOnePerName() {
 		if info.PeerServiceName != TUBE_REPLICA {
+			continue
+		}
+		// Specular Bug 13: only voters of our current config
+		// promise not to elect another leader during the
+		// lease; a non-voting shadow's ack is no such promise.
+		if !s.isVotingMemberOfCurrentMC(info.PeerName) {
 			continue
 		}
 		if info.MinElectionTimeoutDur == 0 ||
@@ -17774,6 +17783,17 @@ func (s *TubeNode) onLeaderIsCurrentMCcommitted() (curCommited bool) {
 	s.updateMCindex(s.state.CommitIndex, s.state.CommitIndexEntryTerm)
 
 	return true
+}
+
+// isVotingMemberOfCurrentMC reports whether name is a voting
+// member of our current membership config (Specular Bug 13).
+// With no config yet (early bootstrap, tests) everyone counts.
+func (s *TubeNode) isVotingMemberOfCurrentMC(name string) bool {
+	if s.state == nil || s.state.MC == nil {
+		return true
+	}
+	det, ok := s.state.MC.PeerNames.Get2(name)
+	return ok && (det == nil || !det.NonVoting)
 }
 
 // failStalledMembershipTickets answers every stalled
