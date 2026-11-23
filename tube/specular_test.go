@@ -1879,3 +1879,25 @@ func TestAddWithStalePeerIDUsesLiveCircuit(t *testing.T) {
 		t.Fatalf("expected the live circuit's PeerID for n2, got %v", det)
 	}
 }
+
+// CR-D-78: CAS panicked (panicf before its return) on a
+// cancelled context or a closed session.
+func TestCASReturnsErrorsForCancelledContextAndSession(t *testing.T) {
+	n := specularNode(t, "c1", CLIENT, 0, nil, "n1")
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	try := func(name string, ctx context.Context, sess *Session, want error) {
+		t.Helper()
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("%v: CAS panicked: %v", name, r)
+			}
+		}()
+		_, err := n.CAS(ctx, "t", "k", nil, Val("v"), 0, sess, "", 0, false, 0, 0)
+		if !errors.Is(err, want) {
+			t.Errorf("%v: CAS returned %v, want %v", name, err, want)
+		}
+	}
+	try("cancelled ctx", cancelled, nil, context.Canceled)
+	try("closed session", context.Background(), &Session{ctx: cancelled}, ErrNeedNewSession)
+}

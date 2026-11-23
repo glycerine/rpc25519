@@ -183,14 +183,13 @@ func (s *TubeNode) Write(ctx context.Context, table, key Key, val Val, waitForDu
 func (s *TubeNode) CAS(ctx context.Context, table, key Key, oldval, newval Val, waitForDur time.Duration, sess *Session, newVtype string, leaseDur time.Duration, leaseAutoDel bool, oldVersionCAS, oldLeaseEpochCAS int64) (tkt *Ticket, err error) {
 
 	if ctx.Err() != nil {
-		panicf("%v: TubeNode.CAS sees already cancelled ctx, bailing early", s.name) // not seen
-		err = ErrNeedNewSession
+		err = ctx.Err()
 		return
 	}
 	if sess != nil && sess.ctx.Err() != nil {
-		panicf("%v: TubeNode.CAS sees already cancelled sess.ctx, bailing early", s.name) // seen a ton
+		// the session was closed (or its node shut down).
 		err = ErrNeedNewSession
-		return // was firing _every_ time!
+		return
 	}
 	//vv("%v past top two CAS session checks", s.name) // not seen.
 
