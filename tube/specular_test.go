@@ -2610,3 +2610,34 @@ func TestCzarSetVersUsesTheCheckedInstant(t *testing.T) {
 		t.Fatalf("setVers re-read the clock instead of using the checked instant: %v", err)
 	}
 }
+
+// CR-D-65: expireSilentNodes ignored its fromList and rebuilt the
+// list from s.members, dropping a newcomer that handlePing had
+// just added in the same call; the member then panicked.
+func TestExpireSilentNodesKeepsNewcomerFromFromList(t *testing.T) {
+	n := specularNode(t, "c1", CLIENT, 0, nil, "n0")
+	cz := NewCzar("hermes", "czar", n, 500*time.Millisecond)
+	now := time.Now()
+	from := cz.members.Clone()
+	from.PeerNames.Set("newcomer", &PeerDetailPlus{Det: &PeerDetail{Name: "newcomer"},
+		RMemberLeaseUntilTm: now.Add(time.Minute)})
+	cz.heard["newcomer"] = now
+	changed, newlist := cz.expireSilentNodes(from)
+	if changed && newlist != nil {
+		if _, ok := newlist.PeerNames.Get2("newcomer"); !ok {
+			t.Fatal("expireSilentNodes dropped the newcomer it was given")
+		}
+	}
+	// and a silent node in fromList is expired from fromList, not from s.members
+	from.PeerNames.Set("silent", &PeerDetailPlus{Det: &PeerDetail{Name: "silent"}})
+	changed, newlist = cz.expireSilentNodes(from)
+	if !changed || newlist == nil {
+		t.Fatal("silent node in fromList was not expired")
+	}
+	if _, ok := newlist.PeerNames.Get2("newcomer"); !ok {
+		t.Fatal("expiring a silent node dropped the newcomer")
+	}
+	if _, ok := newlist.PeerNames.Get2("silent"); ok {
+		t.Fatal("silent node kept")
+	}
+}
