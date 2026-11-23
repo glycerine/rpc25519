@@ -808,8 +808,19 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			// after leader restarts as follower...
 			// just regular CallPeerTraffic ! why
 			// did not the notifies above get it?
-			stopReason = fmt.Sprintf("CallPeerTraffic|CallPeerError|CallPeerTrafficWithServiceFallback s.halt=%p ; req='%v'", s.halt, req)
-			return
+			//
+			// Specular Bug 9: that is a frame for a circuit or
+			// local peer we do not have, typically one of a
+			// restarted peer's old incarnation, routed here by
+			// address. Drop it; do not tear down this healthy
+			// connection (and every circuit on it).
+			select {
+			case <-s.halt.ReqStop.Chan:
+				stopReason = fmt.Sprintf("CallPeerTraffic|CallPeerError|CallPeerTrafficWithServiceFallback during shutdown s.halt=%p ; req='%v'", s.halt, req)
+				return
+			default:
+			}
+			continue
 		}
 
 		// Idea: send the job to the central work queue, so
