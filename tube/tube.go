@@ -1575,337 +1575,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			fragCkt2.frag = nil
 			fragCkt2.ckt = nil
 
-			s.countFrag++
-			//s.ay("%v <-net sees %v [%v] (seen: %v) total=%v", s.me(), msgop(frag.FragOp), frag.Typ, s.statString(frag), s.countFrag)
-
-			//vv("%v <-net sees %v [%v] (seen: %v) total=%v; frag=%v", s.me(), msgop(frag.FragOp), frag.Typ, s.statString(frag), s.countFrag, frag)
-
-			// centralize rejecting ancient/too far
-			// in the future/wrong cluster garbage.
-			if drop, reason := s.insaneTooOldOrNew(frag); drop {
-				_ = reason
-				alwaysPrintf("dropping frag outside our window: %v", reason)
-				// can be from SESS_END for instance.
-				continue // ignore it
+			if err0 = s.handleArrivingFrag(frag, ckt); err0 != nil {
+				return
 			}
-			if drop, reason := s.notOurClusterAndNotCircuitStart(frag); drop {
-				_ = reason
-				alwaysPrintf("dropping frag not in our cluster: %v", reason)
-				panic("what? no cluster tests yet!")
-				continue
-			}
-			if !s.peerJoin(frag, ckt) {
-				continue
-			}
-
-			//now := time.Now()
-			switch frag.FragOp {
-			case PARQueryMsg, PARReplyMsg:
-				s.parHandle(frag, ckt)
-
-			case PruneRedundantCircuitReq:
-				s.handlePruneRedundantCircuit(frag, ckt)
-
-			case NotifyClientNewLeader:
-				// only for clients
-				if s.role != CLIENT {
-					panicf("%v only send NotifyClientNewLeader to clients. PeerServiceName = '%v'", s.me(), s.cfg.PeerServiceName)
-				}
-				s.leaderName, _ = frag.GetUserArg("leaderName")
-				s.leaderID, _ = frag.GetUserArg("leaderID")
-				s.leaderURL, _ = frag.GetUserArg("leaderURL")
-				term, ok := frag.GetUserArg("leaderTerm")
-				if ok && term != "" {
-					s.leaderTerm = mustAtoi64(term)
-				} else {
-					s.leaderTerm = 0 // unknown
-				}
-				s.leaderWasUpdated()
-				//vv("%v got NotifyClientNewLeader: '%v'", s.name, s.leaderName)
-
-				// also take the MC payload so we know all the tube nodes
-				if len(frag.Payload) > 0 {
-					mc := &MemberConfig{}
-					_, err := mc.UnmarshalMsg(frag.Payload)
-					panicOn(err)
-					s.clientInstallNewTubeClusterMC(mc)
-				}
-
-			case InstallEmptyMC:
-				s.handleInstallEmptyMC(frag, ckt)
-
-			case RequestStateSnapshot:
-				//vv("%v sees frag.FragOp RequestStateSnapshot", s.name)
-				s.handleRequestStateSnapshot(frag, ckt, fmt.Sprintf("frag.FragOp=RequestStateSnapshot from '%v'", frag.FromPeerName))
-
-			case StateSnapshotEnclosed:
-				s.handleStateSnapshotEnclosed(frag, ckt, fmt.Sprintf("frag with FragOp==StateSnapshotEnclosed from '%v'", ckt.RemotePeerName))
-
-			case CircuitSetupHasBaseServerAddr:
-				// the first frag of a new circuit setup.
-				baseServerHostPort, ok := frag.GetUserArg("baseServerHostPort")
-				_ = baseServerHostPort
-				if ok {
-					//vv("%v new first frag from baseServerHostPort='%v'", s.me(), baseServerHostPort)
-				}
-			case PeerListReq:
-				err = s.peerListRequestHandler(frag, ckt)
-				if err != nil {
-					panic(err)
-					return err
-				}
-			case PeerListReply:
-				err = s.peerListReplyHandler(frag)
-				if err != nil {
-					panic(err)
-					return err
-				}
-
-			case RequestPreVoteMsg:
-				//s.ay("%v RequestPreVoteMsg", s.me())
-
-				reqPreVote := &RequestVote{}
-				_, err := reqPreVote.UnmarshalMsg(frag.Payload)
-				panicOn(err)
-
-				if frag.FromPeerID == s.PeerID {
-					panic("should not see frag from self")
-				}
-				if reqPreVote.ClusterID != s.ClusterID {
-					//vv("%v wrong ClusterID reqPreVote='%v'", s.me(), reqPreVote)
-					panic("wrong ClusterID")
-					continue // drop
-				}
-				//vv("%v sees RequestPreVote '%v'", s.me(), reqPreVote)
-				s.handleRequestPreVote(reqPreVote, ckt)
-
-			case PreVoteMsg:
-				//s.ay("%v PreVoteMsg", s.me())
-
-				preVote := &Vote{}
-				_, err := preVote.UnmarshalMsg(frag.Payload)
-				panicOn(err)
-				if preVote.ClusterID != s.ClusterID {
-					//vv("%v wrong ClusterID preVote='%v'", s.me(), preVote)
-					panic("wrong ClusterID")
-					continue // drop it
-				}
-				//vv("%v sees RequestPreVote '%v'", s.me(), preVote)
-				s.tallyPreVote(preVote)
-
-			case LeaderToClientTicketAppliedMsg:
-				//vv("%v LeaderToClientTicketAppliedMsg", s.me())
-
-				answer := &Ticket{}
-				_, err := answer.UnmarshalMsg(frag.Payload)
-				panicOn(err)
-
-				if answer.ClusterID != s.ClusterID {
-					//vv("%v wrong ClusterID answer='%v'", s.me(), answer)
-					alwaysPrintf("%v wrong ClusterID answer.ClusterID='%v' vs s.ClusterID='%v'", s.me(), answer.ClusterID, s.ClusterID)
-					continue
-				}
-
-				s.hlc.ReceiveMessageWithHLC(answer.CreateHLC)
-
-				// note now that when the "client" is also a
-				// peer, it will have closed done and continued
-				// the local Ticket as soon as it was applied.
-				// This is the leader telling us again, in case
-				// we were an external client (not participating
-				// in Raft). So this is actually very common.
-				question, ok := s.WaitingAtFollow.get2(answer.TicketID)
-				//vv("%v sees LeaderToClientTicketAppliedMsg: ok=%v; answer='%v'\n question=%v'", s.me(), ok, answer, question)
-				if ok {
-					answer.Stage += ":LeaderToClientTicketApplied_answer_found"
-				} else {
-					//vv("%v drat! got answer, no question found. answer= %v;", s.me(), answer)
-					answer.Stage += ":LeaderToClientTicketApplied_answer_no_question_found"
-					q2, ok2 := s.WaitingAtLeader.get2(answer.TicketID)
-					if ok2 {
-						answer.Stage += ":LeaderToClientTicketApplied_q2_match_in_WaitingAL"
-						question = q2
-					} else {
-						//vv("%v drat2! got answer, no q2 found in WaitAL either. answer= %v;", s.me(), answer)
-						answer.Stage += ":LeaderToClientTicketApplied_drat2_no_q2_found_in_WaitAL"
-						continue
-					}
-				}
-
-				// the client (Read/Write) is waiting for
-				// the question.Done channel, and then will
-				// read question.Val, so we have copy to
-				// observed-from-the-transaction value
-				// over the the question where they expect get it.
-				s.answerToQuestionTicket(answer, question)
-				//vv("%v calling FinishTicket on question tkt='%v'", s.me(), question)
-				s.FinishTicket(question, false)
-
-			case RedirectTicketToLeaderMsg:
-				//vv("%v RedirectTicketToLeaderMsg", s.me())
-
-				tkt := &Ticket{}
-				_, err := tkt.UnmarshalMsg(frag.Payload)
-				panicOn(err)
-				//vv("%v RedirectTicketToLeaderMsg; tkt=%v", s.me(), tkt)
-
-				if tkt.ClusterID != s.ClusterID {
-					alwaysPrintf("%v wrong ClusterID in RedirectTicketToLeaderMsg tkt'%v'", s.me(), tkt)
-					panic("wrong ClusterID")
-					continue
-				}
-				s.hlc.ReceiveMessageWithHLC(tkt.CreateHLC)
-
-				// in case RedirectTicketToLeaderMsg
-				if s.bootstrappedOrForcedMembership(tkt) {
-					//vv("%v continue after bootstrappedOrForcedMembership true", s.name)
-					continue
-				}
-
-				// has leader changed in the meantime?
-				// was seeing lots of double redirects from members...
-				// Now we tell them actual new leader instead,
-				// to avoid alot of double forwarding/excess
-				// network bandwidth consumption.
-				// Implemented here:
-				if s.role != LEADER {
-					tkt.Err = fmt.Errorf("error: I am not leader. I ('%v') think leader is '%v'", s.name, s.leaderName)
-					tkt.LeaderID = s.leaderID
-					tkt.LeaderName = s.leaderName
-					tkt.LeaderURL = s.leaderURL
-
-					s.replyToForwardedTicketWithError(tkt)
-					s.FinishTicket(tkt, false)
-					continue
-				}
-
-				// vesus:
-				// no need to add to Waiting, just forward it on;
-				// leader will reply directly.
-				if s.redirectToLeader(tkt) {
-					vv("%v from was-leader redirect again to new leader '%v' for tkt=%v", s.me(), s.leaderName, tkt)
-
-					continue // followers do not replicate tickets.
-				}
-				// INVAR: we are the leader.
-				s.commandSpecificLocalActionsThenReplicateTicket(tkt, "RedirectTicketToLeaderMsg")
-
-			case RequestVoteMsg:
-				//s.ay("%v sees RequestVoteMsg", s.me())
-
-				reqVote := &RequestVote{}
-				_, err := reqVote.UnmarshalMsg(frag.Payload)
-				panicOn(err)
-
-				if frag.FromPeerID == s.PeerID {
-					panic("should not see frag from self")
-				}
-				if reqVote.ClusterID != s.ClusterID {
-					panic("wrong ClusterID")
-					// drop or reply? probably drop.
-				}
-				s.handleRequestVote(reqVote, ckt)
-				continue
-
-			case VoteMsg:
-				//s.ay("%v VoteMsg", s.me())
-
-				vote := &Vote{}
-				_, err := vote.UnmarshalMsg(frag.Payload)
-				panicOn(err)
-				if vote.ClusterID != s.ClusterID {
-					//vv("%v wrong ClusterID VoteMsg='%v'", s.me(), vote)
-					panic("wrong ClusterID")
-					continue
-				}
-				s.tallyVote(vote)
-
-			case AppendEntriesMsg:
-				//s.ay("%v AppendEntriesMsg", s.me())
-
-				ae := &AppendEntries{}
-				_, err := ae.UnmarshalMsg(frag.Payload)
-				panicOn(err)
-				//zz("%v got AppendEntries '%v'", s.me(), ae)
-
-				if ae.ClusterID != s.ClusterID {
-					//vv("%v wrong ClusterID ae='%v'", s.me(), ae)
-					panic("wrong ClusterID")
-					continue // drop
-				}
-				s.handleAppendEntries(ae, true)
-
-				// Ugh. checking isFollowerKaput causes
-				// pre-mature shutdown of node_4
-				// trying to joint the cluster for the first time.
-				// some kind of logical race.
-				//
-				// is the current MC both committed and without us?
-				// chicken and egg though: why would leader tell us,
-				// if we are not in the membership?
-				// we could move replica to observer and send observers
-				// the latest MC.
-				//if false { // off for 065 shadow replicas
-				//	if s.isFollowerKaput() {
-				//		alwaysPrintf("%v isFollowerKaput() true, returing from TubeNode.Start()", s.me())
-				//		return
-				//	}
-				//}
-
-			case AppendEntriesAckMsg:
-				//s.ay("%v AppendEntriesAckMsg", s.me())
-
-				aeAck := &AppendEntriesAck{}
-				_, err := aeAck.UnmarshalMsg(frag.Payload)
-				panicOn(err)
-				if aeAck.ClusterID != s.ClusterID {
-					//vv("%v wrong ClusterID aeAck='%v'", s.me(), aeAck)
-					panic("wrong ClusterID")
-					continue // drop
-				}
-				err0 = s.handleAppendEntriesAck(aeAck, ckt)
-				if err0 != nil {
-					return // try shutdown on commited MC without us.
-				}
-
-			case 0: // , FirstFragIsReplica:
-				//vv("%v case 0 || FirstFragIsReplica; FragOp='%v'", s.me(), msgop(frag.FragOp))
-				if frag.Typ == rpc.CallPeerStartCircuit {
-					//zz("%v do stuff for new replica joining here. from = '%v'", s.me(), rpc.AliasDecode(frag.FromPeerID))
-					s.peerJoin(frag, nil)
-					continue
-				}
-			case TellClientSteppedDown:
-				//s.ay("%v sees TellClientSteppedDown, redirect tickets to new leader?", s.me())
-				leaderID, ok := frag.GetUserArg("leaderID")
-				if ok && leaderID != "" {
-					s.leaderID = leaderID
-				}
-				leaderName, ok := frag.GetUserArg("leaderName")
-				if ok && leaderName != "" {
-					s.leaderName = leaderName
-				}
-				leaderURL, ok := frag.GetUserArg("leaderURL")
-				if ok && leaderURL != "" {
-					s.leaderURL = leaderURL
-				}
-				leaderTerm, ok := frag.GetUserArg("leaderTerm")
-				if ok && leaderTerm != "" {
-					s.leaderTerm = mustAtoi64(leaderTerm)
-				}
-				s.leaderWasUpdated()
-				//vv("%v TODO: submit tickets to new leader instead.", s.me())
-
-			case ObserveMembershipChange:
-				s.handleObserveMembershipChange(frag, ckt)
-
-			//case ReliableMemberHeartBeatToCzar:
-			//	s.handleReliableMemberHeartBeatToCzar(frag, ckt)
-
-			default:
-				panic(fmt.Sprintf("unknown raft message: not CallPeerStartCircuit frag.FragOp='%v'; frag='%v'", frag.FragOp, frag.String()))
-			}
-			//s.ay("%v after switch on frag.FragOp!", s.me())
 
 		case ckt := <-cktHasDied:
 			_ = ckt
@@ -2065,6 +1737,358 @@ func (s *TubeNode) clientInstallNewTubeClusterMC(mc *MemberConfig) {
 	s.state.MC = mc
 }
 
+// dropFrag logs why frag is being ignored. Garbage, foreign or
+// misrouted traffic must never take down the replica.
+func (s *TubeNode) dropFrag(frag *rpc.Fragment, why string, args ...any) error {
+	alwaysPrintf("%v dropping %v frag from '%v' (%v): %v", s.me(), msgop(frag.FragOp), frag.FromPeerName, rpc.AliasDecode(frag.FromPeerID), fmt.Sprintf(why, args...))
+	return nil
+}
+
+// handleArrivingFrag processes one fragment that arrived on a
+// circuit. A non-nil error asks Start to return.
+func (s *TubeNode) handleArrivingFrag(frag *rpc.Fragment, ckt *rpc.Circuit) error {
+	var err error
+	_ = err
+	s.countFrag++
+	//s.ay("%v <-net sees %v [%v] (seen: %v) total=%v", s.me(), msgop(frag.FragOp), frag.Typ, s.statString(frag), s.countFrag)
+
+	//vv("%v <-net sees %v [%v] (seen: %v) total=%v; frag=%v", s.me(), msgop(frag.FragOp), frag.Typ, s.statString(frag), s.countFrag, frag)
+
+	// centralize rejecting ancient/too far
+	// in the future/wrong cluster garbage.
+	if drop, reason := s.insaneTooOldOrNew(frag); drop {
+		_ = reason
+		alwaysPrintf("dropping frag outside our window: %v", reason)
+		// can be from SESS_END for instance.
+		return nil // ignore it
+	}
+	if drop, reason := s.notOurClusterAndNotCircuitStart(frag); drop {
+		_ = reason
+		alwaysPrintf("dropping frag not in our cluster: %v", reason)
+		return nil
+	}
+	if !s.peerJoin(frag, ckt) {
+		return nil
+	}
+
+	//now := time.Now()
+	switch frag.FragOp {
+	case PARQueryMsg, PARReplyMsg:
+		s.parHandle(frag, ckt)
+
+	case PruneRedundantCircuitReq:
+		s.handlePruneRedundantCircuit(frag, ckt)
+
+	case NotifyClientNewLeader:
+		// only for clients
+		if s.role != CLIENT {
+			return s.dropFrag(frag, "NotifyClientNewLeader is only for clients; PeerServiceName = '%v'", s.cfg.PeerServiceName)
+		}
+		s.leaderName, _ = frag.GetUserArg("leaderName")
+		s.leaderID, _ = frag.GetUserArg("leaderID")
+		s.leaderURL, _ = frag.GetUserArg("leaderURL")
+		term, ok := frag.GetUserArg("leaderTerm")
+		if ok && term != "" {
+			s.leaderTerm = mustAtoi64(term)
+		} else {
+			s.leaderTerm = 0 // unknown
+		}
+		s.leaderWasUpdated()
+		//vv("%v got NotifyClientNewLeader: '%v'", s.name, s.leaderName)
+
+		// also take the MC payload so we know all the tube nodes
+		if len(frag.Payload) > 0 {
+			mc := &MemberConfig{}
+			_, err := mc.UnmarshalMsg(frag.Payload)
+			if err != nil {
+				return s.dropFrag(frag, "undecodable payload: %v", err)
+			}
+			s.clientInstallNewTubeClusterMC(mc)
+		}
+
+	case InstallEmptyMC:
+		s.handleInstallEmptyMC(frag, ckt)
+
+	case RequestStateSnapshot:
+		//vv("%v sees frag.FragOp RequestStateSnapshot", s.name)
+		s.handleRequestStateSnapshot(frag, ckt, fmt.Sprintf("frag.FragOp=RequestStateSnapshot from '%v'", frag.FromPeerName))
+
+	case StateSnapshotEnclosed:
+		s.handleStateSnapshotEnclosed(frag, ckt, fmt.Sprintf("frag with FragOp==StateSnapshotEnclosed from '%v'", ckt.RemotePeerName))
+
+	case CircuitSetupHasBaseServerAddr:
+		// the first frag of a new circuit setup.
+		baseServerHostPort, ok := frag.GetUserArg("baseServerHostPort")
+		_ = baseServerHostPort
+		if ok {
+			//vv("%v new first frag from baseServerHostPort='%v'", s.me(), baseServerHostPort)
+		}
+	case PeerListReq:
+		err = s.peerListRequestHandler(frag, ckt)
+		if err != nil {
+			return s.dropFrag(frag, "peer list request: %v", err)
+		}
+	case PeerListReply:
+		err = s.peerListReplyHandler(frag)
+		if err != nil {
+			return s.dropFrag(frag, "peer list reply: %v", err)
+		}
+
+	case RequestPreVoteMsg:
+		//s.ay("%v RequestPreVoteMsg", s.me())
+
+		reqPreVote := &RequestVote{}
+		_, err := reqPreVote.UnmarshalMsg(frag.Payload)
+		if err != nil {
+			return s.dropFrag(frag, "undecodable payload: %v", err)
+		}
+
+		if frag.FromPeerID == s.PeerID {
+			return s.dropFrag(frag, "frag claims to be from self")
+		}
+		if reqPreVote.ClusterID != s.ClusterID {
+			//vv("%v wrong ClusterID reqPreVote='%v'", s.me(), reqPreVote)
+			return s.dropFrag(frag, "wrong ClusterID in payload")
+		}
+		//vv("%v sees RequestPreVote '%v'", s.me(), reqPreVote)
+		s.handleRequestPreVote(reqPreVote, ckt)
+
+	case PreVoteMsg:
+		//s.ay("%v PreVoteMsg", s.me())
+
+		preVote := &Vote{}
+		_, err := preVote.UnmarshalMsg(frag.Payload)
+		if err != nil {
+			return s.dropFrag(frag, "undecodable payload: %v", err)
+		}
+		if preVote.ClusterID != s.ClusterID {
+			//vv("%v wrong ClusterID preVote='%v'", s.me(), preVote)
+			return s.dropFrag(frag, "wrong ClusterID in payload")
+		}
+		//vv("%v sees RequestPreVote '%v'", s.me(), preVote)
+		s.tallyPreVote(preVote)
+
+	case LeaderToClientTicketAppliedMsg:
+		//vv("%v LeaderToClientTicketAppliedMsg", s.me())
+
+		answer := &Ticket{}
+		_, err := answer.UnmarshalMsg(frag.Payload)
+		if err != nil {
+			return s.dropFrag(frag, "undecodable payload: %v", err)
+		}
+
+		if answer.ClusterID != s.ClusterID {
+			//vv("%v wrong ClusterID answer='%v'", s.me(), answer)
+			alwaysPrintf("%v wrong ClusterID answer.ClusterID='%v' vs s.ClusterID='%v'", s.me(), answer.ClusterID, s.ClusterID)
+			return nil
+		}
+
+		s.hlc.ReceiveMessageWithHLC(answer.CreateHLC)
+
+		// note now that when the "client" is also a
+		// peer, it will have closed done and continued
+		// the local Ticket as soon as it was applied.
+		// This is the leader telling us again, in case
+		// we were an external client (not participating
+		// in Raft). So this is actually very common.
+		question, ok := s.WaitingAtFollow.get2(answer.TicketID)
+		//vv("%v sees LeaderToClientTicketAppliedMsg: ok=%v; answer='%v'\n question=%v'", s.me(), ok, answer, question)
+		if ok {
+			answer.Stage += ":LeaderToClientTicketApplied_answer_found"
+		} else {
+			//vv("%v drat! got answer, no question found. answer= %v;", s.me(), answer)
+			answer.Stage += ":LeaderToClientTicketApplied_answer_no_question_found"
+			q2, ok2 := s.WaitingAtLeader.get2(answer.TicketID)
+			if ok2 {
+				answer.Stage += ":LeaderToClientTicketApplied_q2_match_in_WaitingAL"
+				question = q2
+			} else {
+				//vv("%v drat2! got answer, no q2 found in WaitAL either. answer= %v;", s.me(), answer)
+				answer.Stage += ":LeaderToClientTicketApplied_drat2_no_q2_found_in_WaitAL"
+				return nil
+			}
+		}
+
+		// the client (Read/Write) is waiting for
+		// the question.Done channel, and then will
+		// read question.Val, so we have copy to
+		// observed-from-the-transaction value
+		// over the the question where they expect get it.
+		s.answerToQuestionTicket(answer, question)
+		//vv("%v calling FinishTicket on question tkt='%v'", s.me(), question)
+		s.FinishTicket(question, false)
+
+	case RedirectTicketToLeaderMsg:
+		//vv("%v RedirectTicketToLeaderMsg", s.me())
+
+		tkt := &Ticket{}
+		_, err := tkt.UnmarshalMsg(frag.Payload)
+		if err != nil {
+			return s.dropFrag(frag, "undecodable payload: %v", err)
+		}
+		//vv("%v RedirectTicketToLeaderMsg; tkt=%v", s.me(), tkt)
+
+		if tkt.ClusterID != s.ClusterID {
+			alwaysPrintf("%v wrong ClusterID in RedirectTicketToLeaderMsg tkt'%v'", s.me(), tkt)
+			return s.dropFrag(frag, "wrong ClusterID in payload")
+		}
+		s.hlc.ReceiveMessageWithHLC(tkt.CreateHLC)
+
+		// in case RedirectTicketToLeaderMsg
+		if s.bootstrappedOrForcedMembership(tkt) {
+			//vv("%v continue after bootstrappedOrForcedMembership true", s.name)
+			return nil
+		}
+
+		// has leader changed in the meantime?
+		// was seeing lots of double redirects from members...
+		// Now we tell them actual new leader instead,
+		// to avoid alot of double forwarding/excess
+		// network bandwidth consumption.
+		// Implemented here:
+		if s.role != LEADER {
+			tkt.Err = fmt.Errorf("error: I am not leader. I ('%v') think leader is '%v'", s.name, s.leaderName)
+			tkt.LeaderID = s.leaderID
+			tkt.LeaderName = s.leaderName
+			tkt.LeaderURL = s.leaderURL
+
+			s.replyToForwardedTicketWithError(tkt)
+			s.FinishTicket(tkt, false)
+			return nil
+		}
+
+		// vesus:
+		// no need to add to Waiting, just forward it on;
+		// leader will reply directly.
+		if s.redirectToLeader(tkt) {
+			vv("%v from was-leader redirect again to new leader '%v' for tkt=%v", s.me(), s.leaderName, tkt)
+
+			return nil // followers do not replicate tickets.
+		}
+		// INVAR: we are the leader.
+		s.commandSpecificLocalActionsThenReplicateTicket(tkt, "RedirectTicketToLeaderMsg")
+
+	case RequestVoteMsg:
+		//s.ay("%v sees RequestVoteMsg", s.me())
+
+		reqVote := &RequestVote{}
+		_, err := reqVote.UnmarshalMsg(frag.Payload)
+		if err != nil {
+			return s.dropFrag(frag, "undecodable payload: %v", err)
+		}
+
+		if frag.FromPeerID == s.PeerID {
+			return s.dropFrag(frag, "frag claims to be from self")
+		}
+		if reqVote.ClusterID != s.ClusterID {
+			return s.dropFrag(frag, "wrong ClusterID in payload")
+		}
+		s.handleRequestVote(reqVote, ckt)
+		return nil
+
+	case VoteMsg:
+		//s.ay("%v VoteMsg", s.me())
+
+		vote := &Vote{}
+		_, err := vote.UnmarshalMsg(frag.Payload)
+		if err != nil {
+			return s.dropFrag(frag, "undecodable payload: %v", err)
+		}
+		if vote.ClusterID != s.ClusterID {
+			//vv("%v wrong ClusterID VoteMsg='%v'", s.me(), vote)
+			return s.dropFrag(frag, "wrong ClusterID in payload")
+		}
+		s.tallyVote(vote)
+
+	case AppendEntriesMsg:
+		//s.ay("%v AppendEntriesMsg", s.me())
+
+		ae := &AppendEntries{}
+		_, err := ae.UnmarshalMsg(frag.Payload)
+		if err != nil {
+			return s.dropFrag(frag, "undecodable payload: %v", err)
+		}
+		//zz("%v got AppendEntries '%v'", s.me(), ae)
+
+		if ae.ClusterID != s.ClusterID {
+			//vv("%v wrong ClusterID ae='%v'", s.me(), ae)
+			return s.dropFrag(frag, "wrong ClusterID in payload")
+		}
+		s.handleAppendEntries(ae, true)
+
+		// Ugh. checking isFollowerKaput causes
+		// pre-mature shutdown of node_4
+		// trying to joint the cluster for the first time.
+		// some kind of logical race.
+		//
+		// is the current MC both committed and without us?
+		// chicken and egg though: why would leader tell us,
+		// if we are not in the membership?
+		// we could move replica to observer and send observers
+		// the latest MC.
+		//if false { // off for 065 shadow replicas
+		//	if s.isFollowerKaput() {
+		//		alwaysPrintf("%v isFollowerKaput() true, returing from TubeNode.Start()", s.me())
+		//		return
+		//	}
+		//}
+
+	case AppendEntriesAckMsg:
+		//s.ay("%v AppendEntriesAckMsg", s.me())
+
+		aeAck := &AppendEntriesAck{}
+		_, err := aeAck.UnmarshalMsg(frag.Payload)
+		if err != nil {
+			return s.dropFrag(frag, "undecodable payload: %v", err)
+		}
+		if aeAck.ClusterID != s.ClusterID {
+			//vv("%v wrong ClusterID aeAck='%v'", s.me(), aeAck)
+			return s.dropFrag(frag, "wrong ClusterID in payload")
+		}
+		if err0 := s.handleAppendEntriesAck(aeAck, ckt); err0 != nil {
+			return err0 // try shutdown on commited MC without us.
+		}
+
+	case 0: // , FirstFragIsReplica:
+		//vv("%v case 0 || FirstFragIsReplica; FragOp='%v'", s.me(), msgop(frag.FragOp))
+		if frag.Typ == rpc.CallPeerStartCircuit {
+			//zz("%v do stuff for new replica joining here. from = '%v'", s.me(), rpc.AliasDecode(frag.FromPeerID))
+			s.peerJoin(frag, nil)
+			return nil
+		}
+	case TellClientSteppedDown:
+		//s.ay("%v sees TellClientSteppedDown, redirect tickets to new leader?", s.me())
+		leaderID, ok := frag.GetUserArg("leaderID")
+		if ok && leaderID != "" {
+			s.leaderID = leaderID
+		}
+		leaderName, ok := frag.GetUserArg("leaderName")
+		if ok && leaderName != "" {
+			s.leaderName = leaderName
+		}
+		leaderURL, ok := frag.GetUserArg("leaderURL")
+		if ok && leaderURL != "" {
+			s.leaderURL = leaderURL
+		}
+		leaderTerm, ok := frag.GetUserArg("leaderTerm")
+		if ok && leaderTerm != "" {
+			s.leaderTerm = mustAtoi64(leaderTerm)
+		}
+		s.leaderWasUpdated()
+		//vv("%v TODO: submit tickets to new leader instead.", s.me())
+
+	case ObserveMembershipChange:
+		s.handleObserveMembershipChange(frag, ckt)
+
+	//case ReliableMemberHeartBeatToCzar:
+	//	s.handleReliableMemberHeartBeatToCzar(frag, ckt)
+
+	default:
+		return s.dropFrag(frag, "unknown FragOp")
+	}
+	return nil
+}
+
 func (s *TubeNode) handleNewCircuit(
 	ckt *rpc.Circuit,
 	done0 <-chan struct{},
@@ -2073,8 +2097,10 @@ func (s *TubeNode) handleNewCircuit(
 	cktHasDied chan *rpc.Circuit,
 
 ) (wantReturn error) {
-	if ckt.RemotePeerID == "" {
-		panic(fmt.Sprintf("cannot have ckt.RemotePeerID empty: ckt='%v'", ckt))
+	if ckt.RemotePeerID == "" || ckt.RemotePeerName == "" {
+		alwaysPrintf("%v rejecting circuit '%v' with empty RemotePeerID('%v') or RemotePeerName('%v')", s.me(), ckt.CircuitID, ckt.RemotePeerID, ckt.RemotePeerName)
+		ckt.Close(fmt.Errorf("circuit needs a RemotePeerID and RemotePeerName"))
+		return nil
 	}
 
 	//vv("%v 11111111111 handleNewCircuit sees ckt='%v'", s.name, ckt) // not seen for dropped frag ckt.
@@ -2083,9 +2109,7 @@ func (s *TubeNode) handleNewCircuit(
 	// via getCircuitToLeader() in member/czar.go, our TUBE_REPLICA node
 	// we can indeed end up with an empty ckt.RemotePeerName string.
 	// We think we fixed this but assert still:
-	if ckt.RemotePeerName == "" {
-		panic(fmt.Sprintf("cannot have ckt.RemotePeerName empty: ckt='%v'", ckt))
-	}
+	// (rejected above when empty)
 	//vv("%v top handleNewCircuit ckt from '%v' (RemotePeerID='%v')", s.name, ckt.RemotePeerName, ckt.RemotePeerID)
 
 	// below we work hard to distinguish
@@ -13609,16 +13633,19 @@ func (s *TubeNode) peerListReplyHandler(frag *rpc.Fragment) error {
 
 	insp := &Inspection{}
 	_, err := insp.UnmarshalMsg(frag.Payload)
-	panicOn(err)
+	if err != nil {
+		return err
+	}
 	//vv("%v see frag.PeerListReplyHandler 1: frag = '%v' -> insp='%v'", s.me(), frag, insp)
 
 	fcid, ok := frag.GetUserArg("fragCallID")
 	if !ok {
-		panic(fmt.Sprintf("%v fragCallID must be set on the PeerListReply, frag lacks it: '%v'", s.name, frag))
+		return fmt.Errorf("fragCallID must be set on the PeerListReply")
 	}
 	itkt, ok2 := s.remoteInspectRegistryMap[fcid]
 	if !ok2 {
-		panic(fmt.Sprintf("%v s.remoteInspectRegistryMap[fcid='%v'] not found, reply without prior request? like bug!", s.name, fcid))
+		// e.g. a late reply after the request gave up.
+		return fmt.Errorf("no pending peer list request for fragCallID '%v'", fcid)
 	}
 	delete(s.remoteInspectRegistryMap, fcid)
 	itkt.insp = insp

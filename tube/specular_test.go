@@ -1745,3 +1745,54 @@ func TestOversizedKeyInLogFailsTicketAtApply(t *testing.T) {
 		t.Fatalf("LastApplied %v, want 2", n.state.LastApplied)
 	}
 }
+
+// CR-D-79: foreign, malformed or misrouted frags panicked
+// the replica event loop instead of being dropped.
+func TestReplicaDropsForeignAndMalformedFrags(t *testing.T) {
+	n := specularNode(t, "n1", FOLLOWER, 1, nil, "n1", "n2", "n3")
+	n.cktall["c_id"] = &cktPlus{node: n, PeerName: "c", PeerID: "c_id", PeerServiceName: TUBE_CLIENT}
+	frag := func(op int, payload []byte) *rpc.Fragment {
+		f := n.newFrag()
+		f.Typ = rpc.CallPeerTraffic
+		f.FromPeerID, f.FromPeerName = "c_id", "c"
+		f.FragOp = op
+		f.Payload = payload
+		return f
+	}
+	foreignVote, err := (&RequestVote{ClusterID: "456", FromPeerID: "c_id"}).MarshalMsg(nil)
+	panicOn(err)
+	foreign := frag(AppendEntriesMsg, nil)
+	foreign.SetUserArg("ClusterID", "456")
+	cases := map[string]*rpc.Fragment{
+		"foreign ClusterID":                  foreign,
+		"unknown FragOp":                     frag(9999, nil),
+		"NotifyClientNewLeader at replica":   frag(NotifyClientNewLeader, nil),
+		"undecodable AppendEntries":          frag(AppendEntriesMsg, []byte("garbage")),
+		"foreign ClusterID in payload":       frag(RequestVoteMsg, foreignVote),
+		"PeerListReply without fragCallID":   frag(PeerListReply, nil),
+		"undecodable RedirectTicketToLeader": frag(RedirectTicketToLeaderMsg, []byte{0xc1}),
+	}
+	for name, f := range cases {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%v: replica panicked instead of dropping: %v", name, r)
+				}
+			}()
+			if err := n.handleArrivingFrag(f, nil); err != nil {
+				t.Errorf("%v: dropping a frag asked Start to return: %v", name, err)
+			}
+		}()
+	}
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("circuit with empty RemotePeerName panicked: %v", r)
+			}
+		}()
+		ckt := &rpc.Circuit{RemotePeerID: "x_id", CircuitID: "x", Halt: idem.NewHalter(),
+			RpbTo:   &rpc.RemotePeer{BaseServerAddr: "simnet://x"},
+			LpbFrom: &rpc.LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *rpc.Circuit, 1)}}
+		n.handleNewCircuit(ckt, nil, nil, nil, nil)
+	}()
+}
