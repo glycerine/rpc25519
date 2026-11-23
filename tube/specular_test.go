@@ -330,3 +330,47 @@ func Test1003_rejected_lease_write_does_not_mutate_log_entry(t *testing.T) {
 			leafL.Version, leafL.LeaseUntilTm, leafF.Version, leafF.LeaseUntilTm)
 	}
 }
+
+// Bug 4 (High): a leader-local lease read deleted expired
+// auto-delete keys outside the log (GetLeaf with autoDelete
+// ran a write transaction using the local clock), so the
+// leader's store lost a key that the followers still held
+// at the same applied index.
+func Test1004_read_does_not_auto_delete_outside_log(t *testing.T) {
+
+	node := specularNode(t, "n1", LEADER, 1, []int64{1}, "n1", "n2")
+	specularMarkApplied(node, 1)
+
+	// a leased, auto-delete key whose lease has long expired.
+	t0 := time.Now().Add(-time.Hour)
+	w := specularLeaseWrite("w2", 2, t0, t0.Add(time.Second))
+	w.LeaseAutoDel = true
+	_, err := node.wal.saveRaftLogEntry(&RaftLogEntry{Index: 2, Term: 1, Tm: t0, Ticket: w})
+	panicOn(err)
+	specularApplyAll(node)
+
+	if _, err := node.state.KVstore.GetLeaf("t", "czar", false); err != nil {
+		t.Fatalf("setup: leased write not applied: %v", err)
+	}
+
+	// leader-local read (leaderServedLocalRead calls doReadKey)
+	rd := &Ticket{TicketID: "r1", Op: READ, Table: "t", Key: "czar"}
+	node.doReadKey(rd)
+	// and a range scan, which has the same hazard.
+	rg := &Ticket{TicketID: "r2", Op: READ_KEYRANGE, Table: "t", Key: "", KeyEndx: ""}
+	node.doReadKeyRange(rg)
+
+	if _, err := node.state.KVstore.GetLeaf("t", "czar", false); err != nil {
+		t.Fatalf("Bug 4: a read mutated replicated state: expired key deleted outside the log: %v", err)
+	}
+	if _, err := node.state.KVstore.GetLeaf("dead", "czar", false); err == nil {
+		t.Fatalf("Bug 4: a read moved the expired key to the dead table outside the log")
+	}
+	// readers still see an expired auto-delete key as gone.
+	if rd.Err == nil {
+		t.Fatalf("expired auto-delete key should read as not found, got val '%v'", string(rd.Val))
+	}
+	if rg.KeyValRangeScan != nil && rg.KeyValRangeScan.Size() != 0 {
+		t.Fatalf("expired auto-delete key should be hidden from range scans")
+	}
+}
