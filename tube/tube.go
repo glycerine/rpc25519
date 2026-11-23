@@ -10320,7 +10320,14 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 	var matchIndexes []int64
 	// add our own, since we are not in peers, to support
 	// singleton or pair operation.
-	matchIndexes = append(matchIndexes, s.lastLogIndex())
+	// Specular Bug 14: but only if we are a member of the
+	// config the quorum is sized to. A leader that removed
+	// itself keeps replicating until C' commits but must
+	// "not count itself in majorities" (dissertation 4.2.2),
+	// as elections already do.
+	if s.state.MC == nil || s.weAreMemberOfCurrentMC() {
+		matchIndexes = append(matchIndexes, s.lastLogIndex())
+	}
 
 	//vv("%v len of s.peers = %v (%v)", s.me(), len(s.peers), peerNamesAsString(s.peers))
 	for peerID, info := range s.peers {

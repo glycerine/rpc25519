@@ -595,3 +595,41 @@ func Test1008_send_to_stuck_peer_does_not_block_event_loop(t *testing.T) {
 		t.Fatalf("Bug 8: the event loop is blocked sending to a stopped peer (hand-off entered %v times)", u.entered.Load())
 	}
 }
+
+// Bug 14 (High): a leader that removed itself kept leading
+// and always counted its own log toward the commit quorum,
+// although the quorum is sized to the new config C', which
+// excludes it. Its own log then stood in for a member of C'.
+func Test1014_removed_leader_does_not_count_itself_in_commit_quorum(t *testing.T) {
+
+	// n1 leads term 1 and has installed C' = {n2, n3}
+	// (it removed itself; C' not yet committed).
+	lead := specularNode(t, "n1", LEADER, 1, []int64{1, 1}, "n2", "n3")
+	lead.state.CommitIndex = 1
+	lead.state.CommitIndexEntryTerm = 1
+	specularMarkApplied(lead, 1)
+	lead.leaderID = lead.PeerID
+	lead.leaderName = lead.name
+
+	n2 := lead.newRaftNodeInfo("n2_id", "n2", TUBE_REPLICA, "")
+	n2.MatchIndex = 2
+	lead.peers["n2_id"] = n2
+	n3 := lead.newRaftNodeInfo("n3_id", "n3", TUBE_REPLICA, "")
+	n3.MatchIndex = 1
+	lead.peers["n3_id"] = n3
+
+	// entry 2 is on n1 (not in C') and n2: one of the two
+	// C' members. C' needs 2 of {n2, n3}, so it must not commit.
+	lead.leaderAdvanceCommitIndex()
+
+	if ci := lead.state.CommitIndex; ci > 1 {
+		t.Fatalf("Bug 14: removed leader committed index %v held by only 1 of the 2 members of C' = {n2, n3}", ci)
+	}
+
+	// once n3 also has it, C' has a quorum.
+	n3.MatchIndex = 2
+	lead.leaderAdvanceCommitIndex()
+	if ci := lead.state.CommitIndex; ci != 2 {
+		t.Fatalf("expected index 2 committed once both C' members hold it; CommitIndex=%v", ci)
+	}
+}
