@@ -17111,6 +17111,9 @@ func (s *cktPlus) thinclone() *cktPlus {
 var nextCktPlusSN int64 // keep them distinct in the rb.Tree
 
 type cktPlus struct {
+	// watchdogStarted: Close only waits for a watchdog that exists (CR-D-45).
+	watchdogStarted atomic.Bool
+
 	sn int64
 	// node lets the watchdog goro vv debug print
 	node *TubeNode
@@ -17210,6 +17213,12 @@ func (c *cktPlus) Close() {
 	c.latestCancFuncMut.Unlock()
 	if cancelFunc != nil {
 		cancelFunc()
+	}
+	if !c.watchdogStarted.Load() {
+		// nothing to wait for: non-replica circuits have no
+		// watchdog, and a prune of hundreds of them must not
+		// stall the event loop 10ms apiece (CR-D-45).
+		return
 	}
 	select {
 	case <-c.perCktWatchdogHalt.Done.Chan:
