@@ -5,7 +5,10 @@ package rpc25519
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -222,4 +225,83 @@ func TestEmptyFragArgsGiveWritableMessageArgs(t *testing.T) {
 		t.Fatal("ToMessage turned empty frag.Args into a nil map")
 	}
 	msg.HDR.Args["#circuitName"] = "ok" // newCircuit writes here
+}
+
+// stallConn accepts limit bytes, then times out every write.
+type stallConn struct {
+	limit, wrote int
+}
+
+func (c *stallConn) Write(p []byte) (int, error) {
+	room := c.limit - c.wrote
+	if room <= 0 {
+		return 0, os.ErrDeadlineExceeded
+	}
+	if len(p) > room {
+		c.wrote += room
+		return room, os.ErrDeadlineExceeded
+	}
+	c.wrote += len(p)
+	return len(p), nil
+}
+func (c *stallConn) Read(p []byte) (int, error)         { return 0, io.EOF }
+func (c *stallConn) SetWriteDeadline(t time.Time) error { return nil }
+func (c *stallConn) SetReadDeadline(t time.Time) error  { return nil }
+
+// CR-D-85: a keepalive written under its timeout could be
+// cut short mid-frame without the caller learning that the
+// stream was now unusable.
+func TestKeepAliveTimeoutReportsPartialFrame(t *testing.T) {
+	w := newWorkspace("crd85", 4096, false, &Config{}, nil, &cliPairState{})
+	msg := NewMessage()
+	msg.HDR.Typ = CallKeepAlive
+	timeout := 50 * time.Millisecond
+	conn := &stallConn{limit: 12} // past the magic, inside the length
+	err := w.sendMessage(conn, msg, &timeout)
+	if !errors.Is(err, ErrPartialFrameWritten) {
+		t.Fatalf("partial keepalive frame returned %v, want ErrPartialFrameWritten", err)
+	}
+	conn = &stallConn{limit: 0}
+	if err := w.sendMessage(conn, msg, &timeout); errors.Is(err, ErrPartialFrameWritten) || err == nil {
+		t.Fatalf("an unwritten keepalive should time out cleanly, got %v", err)
+	}
+}
+
+// CR-D-85: the QUIC client never set c.cpair, so the first
+// keepalive (and PingStats) dereferenced nil.
+func TestQUICClientKeepAliveAndPingStats(t *testing.T) {
+	if faketime {
+		t.Skip("skip under synctest, net calls will never settle.")
+	}
+	cfg := NewConfig()
+	cfg.UseQUIC = true
+	cfg.ServerAddr = "127.0.0.1:0"
+	srv := NewServer("srv_crd85", cfg)
+	serverAddr, err := srv.Start()
+	panicOn(err)
+	defer srv.Close()
+	srv.Register2Func("customEcho", customEcho)
+
+	ccfg := NewConfig()
+	ccfg.UseQUIC = true
+	ccfg.ClientDialToHostPort = serverAddr.String()
+	ccfg.ClientSendKeepAlive = 100 * time.Millisecond
+	cli, err := NewClient("cli_crd85", ccfg)
+	panicOn(err)
+	panicOn(cli.Start())
+	defer cli.Close()
+
+	if ps := cli.PingStats(serverAddr.String()); ps == nil {
+		t.Fatal("no PingStats")
+	}
+	time.Sleep(600 * time.Millisecond)
+	req := NewMessage()
+	req.HDR.ToServiceName, req.HDR.FromServiceName = "customEcho", "customEcho"
+	req.JobSerz = []byte("after keepalives")
+	if _, err := cli.SendAndGetReply(req, nil, 0); err != nil {
+		t.Fatalf("QUIC client failed after sending keepalives: %v", err)
+	}
+	if cli.PingStats(serverAddr.String()).LastPingSentTmu == 0 {
+		t.Fatal("no keepalive recorded as sent")
+	}
 }

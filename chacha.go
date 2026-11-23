@@ -525,6 +525,10 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	e.moveToNextNonce()
 
 	// Write it all out.
+	if timeout != nil && *timeout > 0 {
+		// one deadline per frame; see workspace.sendMessage.
+		return writeFrameByDeadline(conn, time.Now().Add(*timeout), buf[:tagEndx])
+	}
 	return writeFull(conn, buf[:tagEndx], timeout)
 }
 
