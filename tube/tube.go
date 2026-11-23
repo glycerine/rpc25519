@@ -15046,10 +15046,19 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 }
 
 func (a *MemberConfig) SamePeers(b *MemberConfig) bool {
-	na := a.PeerNames.Len()
-	nb := b.PeerNames.Len()
+	// a nil PeerNames is an empty set.
+	var na, nb int
+	if a.PeerNames != nil {
+		na = a.PeerNames.Len()
+	}
+	if b.PeerNames != nil {
+		nb = b.PeerNames.Len()
+	}
 	if na != nb {
 		return false
+	}
+	if na == 0 {
+		return true
 	}
 	for p := range a.PeerNames.All() {
 		_, ok := b.PeerNames.Get2(p)
