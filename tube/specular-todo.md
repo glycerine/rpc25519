@@ -160,7 +160,10 @@ Follow-ups that are outside the required test run:
   Earlier regressions here were fixed by 25c7bf83, 181db8b6 and b047d4df.
 - **Simnet isolation (4cd98da2):** an isolated host's new auto-clients are now
   isolated too; before, an isolated node could talk again by dialing.
-- **CR-D-27:** the PAR membership tests are still gated behind `-tags par`.
+- **CR-D-27:** a fast, representative subset of the PAR tests (37 tests,
+  about 8 s) now runs in the default suite, including the live membership and
+  restart scenarios. The 21 slow tests (about 3 minutes; one alone is 106 s)
+  skip unless built with `-tags par` (see `parFullOnly` in par_test.go).
 - **CR-D-87:** fixed upstream in idem v0.21.0, where `Halter.RemoveChild` now
   unlinks the ReqStop child and clears the parent. rpc25519 now calls
   `RemoveChild` directly, without the `removeHalterChild` workaround.

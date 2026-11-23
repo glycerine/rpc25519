@@ -1,5 +1,3 @@
-//go:build par
-
 package tube
 
 import (
@@ -618,6 +616,7 @@ func TestPar_destructive_publication_crash_cuts(t *testing.T) {
 }
 
 func TestPar_publication_IO_failures(t *testing.T) {
+	parFullOnly(t)
 	// Enumerate every actual sync and rename, then fail immediately before and
 	// after each. An error after a syscall also models uncertain publication.
 	for _, stage := range []string{"prepare", "commit", "restore", "prepare_snapshot", "commit_snapshot", "restore_snapshot"} {
@@ -783,6 +782,7 @@ func TestPar_publication_IO_failures(t *testing.T) {
 }
 
 func TestPar_snapshot_before_image_restores_application_and_local_vote(t *testing.T) {
+	parFullOnly(t)
 	for _, cut := range []string{"application", "state", "wal", "both_logs", "committed"} {
 		t.Run(cut, func(t *testing.T) {
 			bubbleOrNot(t, func(t *testing.T) {
@@ -871,6 +871,7 @@ func TestPar_snapshot_before_image_restores_application_and_local_vote(t *testin
 }
 
 func TestPar_unreadable_application_before_image(t *testing.T) {
+	parFullOnly(t)
 	for _, layout := range []string{"directory", "missing", "file"} {
 		for _, cut := range []string{"prepared", "application_removed", "application_replaced", "both_logs", "committed", "restore_rename_error", "restore_copy_sync_error", "restore_dir_sync_error", "damaged_backup"} {
 			t.Run(layout+"/"+cut, func(t *testing.T) {
@@ -1282,6 +1283,7 @@ func TestPar_recovery_snapshot_admission(t *testing.T) {
 }
 
 func TestPar_delayed_snapshot_cannot_restore_older_configuration(t *testing.T) {
+	parFullOnly(t)
 	for _, recovering := range []bool{false, true} {
 		t.Run(fmt.Sprintf("recovering_%v", recovering), func(t *testing.T) {
 			bubbleOrNot(t, func(t *testing.T) {
@@ -1616,6 +1618,7 @@ func parCopyCrashImage(t *testing.T, src, dst string) {
 }
 
 func TestPar_application_transaction_crash_cuts(t *testing.T) {
+	parFullOnly(t)
 	for _, cut := range []string{"before_rows", "after_rows", "after_checkpoint", "after_rows_flushed", "after_checkpoint_flushed", "after_commit", "after_state_save", "nested_save_rollback", "nested_save_commit", "newer_vote", "corrupt_checkpoint", "missing_checkpoint"} {
 		t.Run(cut, func(t *testing.T) {
 			bubbleOrNot(t, func(t *testing.T) {
@@ -1783,6 +1786,7 @@ func TestPar_application_transaction_crash_cuts(t *testing.T) {
 }
 
 func TestPar_application_table_transaction_crash_cuts(t *testing.T) {
+	parFullOnly(t)
 	for _, op := range []TicketOp{MAKE_TABLE, DELETE_TABLE, RENAME_TABLE, DELETE_KEY} {
 		for _, committed := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/committed_%v", op, committed), func(t *testing.T) {
@@ -1901,6 +1905,7 @@ func TestPar_application_table_transaction_crash_cuts(t *testing.T) {
 }
 
 func TestPar_first_state_publication_IO_failures(t *testing.T) {
+	parFullOnly(t)
 	// Discover the first save's actual publication operations, then interrupt
 	// each one before/after the syscall. Each subtest owns its synctest bubble.
 	run := func(t *testing.T, failAt int, after bool) int {
@@ -2009,6 +2014,7 @@ func TestPar_first_state_publication_IO_failures(t *testing.T) {
 }
 
 func TestPar_initial_state_requires_checked_staging(t *testing.T) {
+	parFullOnly(t)
 	for _, fault := range []string{"missing", "checksum", "identity", "nonportable", "conflicting_vote", "completed_state_lost"} {
 		t.Run(fault, func(t *testing.T) {
 			bubbleOrNot(t, func(t *testing.T) {
@@ -2090,6 +2096,7 @@ func TestPar_initial_state_requires_checked_staging(t *testing.T) {
 }
 
 func TestPar_state_publication_IO_failures(t *testing.T) {
+	parFullOnly(t)
 	for step := 1; step <= 3; step++ {
 		for _, after := range []bool{false, true} {
 			t.Run(fmt.Sprintf("step_%d/after_%v", step, after), func(t *testing.T) {
@@ -2158,6 +2165,7 @@ func TestPar_state_publication_IO_failures(t *testing.T) {
 }
 
 func TestPar_application_fault_preserves_local_metadata(t *testing.T) {
+	parFullOnly(t)
 	for _, fault := range []string{"corrupt_checkpoint", "missing_checkpoint", "future_voting_term", "conflicting_applied_term"} {
 		t.Run(fault, func(t *testing.T) {
 			bubbleOrNot(t, func(t *testing.T) {
@@ -2244,6 +2252,7 @@ func TestPar_application_fault_preserves_local_metadata(t *testing.T) {
 }
 
 func TestPar_application_fault_retains_portable_before_image(t *testing.T) {
+	parFullOnly(t)
 	bubbleOrNot(t, func(t *testing.T) {
 		node := parApplicationNode(t, parTestDir(t))
 		write := node.NewTicket("portable before-image", "base", "key", Val("retained"), node.PeerID, node.name, WRITE, time.Second, context.Background())
@@ -2450,6 +2459,7 @@ func (f *parApplicationFile) Truncate(length int64) error {
 }
 
 func TestPar_application_backend_publication_failures(t *testing.T) {
+	parFullOnly(t)
 	var trace []string
 	template := filepath.Join(parTestDir(t), "template")
 	var prepared TubeConfig
@@ -2666,6 +2676,7 @@ func TestPar_application_open_failure_preserves_evidence(t *testing.T) {
 }
 
 func TestPar_application_batch_sync_count(t *testing.T) {
+	parFullOnly(t)
 	var single int64
 	for _, count := range []int{1, 16} {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {
@@ -3719,6 +3730,7 @@ func parWaitForRecoveredRead(t *testing.T, node *TubeNode) {
 }
 
 func TestPar_live_clean_suffix_loss_recovers_from_saved_boundary(t *testing.T) {
+	parFullOnly(t)
 	onlyBubbled(t, func(t *testing.T) {
 		c, _ := parLiveClusterState(t, [][]int{nil, nil, nil}, map[int]bool{2: true}, nil)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -3764,6 +3776,7 @@ func TestPar_live_clean_suffix_loss_recovers_from_saved_boundary(t *testing.T) {
 }
 
 func TestPar_live_nodes_recover_before_command(t *testing.T) {
+	parFullOnly(t)
 	for _, which := range []string{"follower_hole", "every_node_has_a_hole", "identifier_holes_every_node", "missing_WAL", "missing_sidecar", "compacted_donors"} {
 		t.Run(which, func(t *testing.T) {
 			bubbleOrNot(t, func(t *testing.T) {
@@ -4378,6 +4391,7 @@ func TestPar_live_removed_replica_snapshot_after_reconfiguration(t *testing.T) {
 }
 
 func TestPar_live_application_store_recovery(t *testing.T) {
+	parFullOnly(t)
 	for _, scenario := range []struct {
 		name   string
 		faults [][]int
@@ -4474,6 +4488,7 @@ func TestPar_live_application_store_recovery(t *testing.T) {
 }
 
 func TestPar_live_portable_application_recovers_without_peer(t *testing.T) {
+	parFullOnly(t)
 	bubbleOrNot(t, func(t *testing.T) {
 		c, _ := parLiveCluster(t, [][]int{{-3, -103}})
 		node := c.Nodes[0]
@@ -4581,6 +4596,7 @@ func TestPar_chunked_reply_bounds(t *testing.T) {
 }
 
 func TestPar_live_six_scenarios(t *testing.T) {
+	parFullOnly(t)
 	for _, scenario := range genParTestScenarios() {
 		for lead, srv := range scenario.node {
 			if srv.crashed || srv.lagging {
@@ -4672,6 +4688,7 @@ func TestPar_live_six_scenarios(t *testing.T) {
 }
 
 func TestPar_live_large_entry_chunk_recovery(t *testing.T) {
+	parFullOnly(t)
 	bubbleOrNot(t, func(t *testing.T) {
 		payload := bytes.Repeat([]byte("p"), 1_000_000)
 		c, _ := parLiveClusterState(t, [][]int{{0}, {1}, {2}}, nil, nil, payload)
@@ -4693,6 +4710,7 @@ func TestPar_live_large_entry_chunk_recovery(t *testing.T) {
 }
 
 func TestPar_live_follower_replaces_damaged_uncommitted_suffix(t *testing.T) {
+	parFullOnly(t)
 	for _, fault := range []struct {
 		name string
 		slot int
@@ -5020,6 +5038,7 @@ func TestPar_discard_certificate_install_fences(t *testing.T) {
 }
 
 func TestPar_live_unrecoverable_entry_preserves_history(t *testing.T) {
+	parFullOnly(t)
 	bubbleOrNot(t, func(t *testing.T) {
 		c, _ := parLiveCluster(t, [][]int{{0}, {0}, {0}})
 		c.Nodes[0].testBeginElection <- true
@@ -5072,4 +5091,15 @@ func TestPar_live_unrecoverable_entry_preserves_history(t *testing.T) {
 		default:
 		}
 	})
+}
+
+// parFullOnly skips a PAR test outside the full suite (-tags par).
+// The default run keeps a fast subset: the unit-level PAR checks and
+// a few short live scenarios, including the regressions that once
+// went unnoticed while every PAR test was behind the tag.
+func parFullOnly(t *testing.T) {
+	t.Helper()
+	if !parFullSuite {
+		t.Skip("slow PAR test: run with -tags par")
+	}
 }
