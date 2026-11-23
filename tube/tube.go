@@ -7789,31 +7789,7 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 	}
 	prevTerm := entry.Term
 	if prevTerm == ae.PrevLogTerm {
-		//vv("good: acceptable. no reject.") // simae_test version 802 runs.
-
-		// we used to accept here: return false, -1, -1;
-		// but its safer to check for agreement
-		// again, esp with compaction being pretty new.
-
-		if lli >= ae.PrevLogIndex+1 {
-			// fine grain checking, redundant with Extends?
-			j := 0
-			for fTerm, fIndex := range s.wal.logIndex.getTermIndexStartingAt(ae.PrevLogIndex + 1) {
-				e := ae.Entries[j]
-				if e.Index != fIndex {
-					panicf("bad internal logic here, we should have "+
-						"matching indexes but leader data e.Index=%v "+
-						"while follower fIndex=%v", e.Index, fIndex)
-				}
-				if e.Term != fTerm {
-					return true, e.Term, e.Index
-				}
-				j++
-				if j == nes {
-					return false, -1, -1 // no reject
-				}
-			}
-		}
+		// A conflicting suffix is precisely what the incoming entries repair.
 		return false, -1, -1
 	}
 
@@ -9761,6 +9737,18 @@ func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerService
 		if prevLogIndex > 0 && prevLogTerm == 0 {
 			panic(fmt.Sprintf("%v assert failed: cannot send prevLogTerm == 0 for (prevLog=%v) prevLogIndex=%v; !?! s.state.CompactionDiscardedLast='%v';  s.wal.logIndex=%v", s.me(), prevLog.String(), prevLogIndex, s.state.CompactionDiscardedLast, s.wal.logIndex))
 		}
+	}
+
+	// A rejection of this exact data range cannot be resolved by an
+	// immediate identical retry. The next heartbeat probes progress again.
+	if ack != nil && ack.Rejected && len(sendThese) > 0 &&
+		ack.SuppliedLeaderLastTerm == s.state.CurrentTerm &&
+		ack.SuppliedPrevLogIndex == prevLogIndex && ack.SuppliedPrevLogTerm == prevLogTerm &&
+		ack.SuppliedEntriesIndexBeg == sendThese[0].Index &&
+		ack.SuppliedEntriesIndexEnd == sendThese[len(sendThese)-1].Index &&
+		ack.SuppliedLeaderCommitIndex == s.state.CommitIndex &&
+		ack.SuppliedLeaderLLI == s.wal.LastLogIndex() {
+		return
 	}
 
 	ae, _ := s.newAEtoPeer(followerID, followerName, followerServiceName, followerServiceNameVersion, sendThese)
