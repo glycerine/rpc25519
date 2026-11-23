@@ -689,3 +689,21 @@ func TestCircuitLoopyIsRaceFree(t *testing.T) {
 		t.Fatal("loopy not set")
 	}
 }
+
+// CR-D-40: setLoopy looked the connection up by the exact address
+// string, so a circuit to a peer reached through NAT (which the
+// send path resolves via unNAT) was never bound to its connection
+// and leaked when that connection died.
+func TestSetLoopyResolvesNATAddress(t *testing.T) {
+	srv := NewServer("crd40", NewConfig())
+	pair := &rwPair{halt: idem.NewHalter()}
+	pair.loopy = &LoopComm{cktServedAdd: make(chan *Circuit, 1)}
+	srv.remote2pair.Set("tcp://10.0.0.2:5000", pair)
+	srv.unNAT.Set("tcp://203.0.113.9:7000", "tcp://10.0.0.2:5000")
+	lpb := &LocalPeer{PeerAPI: srv.PeerAPI}
+	ckt := &Circuit{CircuitID: "c", RpbTo: &RemotePeer{NetAddr: "tcp://203.0.113.9:7000"}}
+	lpb.setLoopy(ckt)
+	if ckt.getLoopy() != pair.loopy {
+		t.Fatal("circuit to a NAT-ed peer not bound to the connection the send path uses")
+	}
+}
