@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/tube"
 )
 
@@ -904,5 +905,25 @@ func TestHermesUsesAdvertisedAppPeerIdentity(t *testing.T) {
 	want := map[string]bool{"h1_hermes_id": true, "h2_hermes_id": true}
 	if len(live) != 2 || !want[live[0]] || !want[live[1]] {
 		t.Fatalf("live set %v, want the hermes peer IDs", live)
+	}
+}
+
+// CR-D-72: hermes peer circuits were never pruned, so one transient
+// link drop left a dead circuit in s.ckt and traffic to that peer
+// was lost for good (nothing re-dialed it).
+func TestHermesForgetsDeadPeerCircuits(t *testing.T) {
+	cfg := &HermesConfig{ReplicationDegree: 2, MessageLossTimeout: time.Second, TCPonly_no_TLS: true, testName: t.Name()}
+	n := NewHermesNode("h1", cfg)
+	dead := &rpc.Circuit{RemotePeerID: "h2", CircuitID: "old"}
+	replacement := &rpc.Circuit{RemotePeerID: "h2", CircuitID: "new"}
+	n.ckt["h2"] = dead
+	n.forgetCircuit(dead)
+	if _, ok := n.ckt["h2"]; ok {
+		t.Fatal("dead peer circuit stayed in s.ckt")
+	}
+	n.ckt["h2"] = replacement
+	n.forgetCircuit(dead) // a late notice for the old circuit
+	if n.ckt["h2"] != replacement {
+		t.Fatal("a late notice for the old circuit removed its replacement")
 	}
 }

@@ -1911,6 +1911,7 @@ func (s *HermesNode) applyMembershipChange(reply *tube.PingReply) {
 		s.EpochV.Version = reply.Vers.WithinCzarVersion
 	}
 	s.liveNodes = s.liveNodesFromReply(reply)
+	s.lastMembership = reply
 	s.connectMembershipPeers(reply)
 
 	tickets := make([]*HermesTicket, 0, len(s.tkt2item))
@@ -1962,6 +1963,21 @@ func appIdentity(plus *tube.PeerDetailPlus) (name, peerID, url string) {
 		peerID, url = plus.AppPeerID, plus.AppURL
 	}
 	return
+}
+
+// forgetCircuit drops a dead peer circuit from s.ckt, if it is
+// still the current one for that peer, and redials current members
+// so a transient link drop does not lose that peer for good (CR-D-72).
+func (s *HermesNode) forgetCircuit(ckt *rpc.Circuit) {
+	if ckt == nil {
+		return
+	}
+	if cur, ok := s.ckt[ckt.RemotePeerID]; ok && cur == ckt {
+		delete(s.ckt, ckt.RemotePeerID)
+		if s.lastMembership != nil {
+			s.connectMembershipPeers(s.lastMembership)
+		}
+	}
 }
 
 func (s *HermesNode) liveNodesFromReply(reply *tube.PingReply) []string {
@@ -2267,6 +2283,10 @@ func (s *HermesNode) recordCompletedTicket(tkt *HermesTicket) {
 
 type HermesNode struct {
 	cfg *HermesConfig
+
+	// lastMembership: the latest membership, to redial a peer whose
+	// circuit died (CR-D-72).
+	lastMembership *tube.PingReply
 
 	// hermes protocol
 	EpochV    EpochVers
@@ -2828,6 +2848,8 @@ func (s *HermesNode) Start(
 
 	// centralize all peer incomming messages here, to avoid locking in a million places.
 	arrivingNetworkFrag := make(chan *rpc.Fragment)
+	// circuit reader goroutines report here when they exit (CR-D-72).
+	cktGone := make(chan *rpc.Circuit)
 
 	for {
 		//zz("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
@@ -2962,6 +2984,9 @@ func (s *HermesNode) Start(
 				}
 			}
 
+		case ckt := <-cktGone:
+			s.forgetCircuit(ckt)
+
 			// new Circuit connection arrives: a replica joins the cluster.
 		case ckt := <-newCircuitCh:
 
@@ -2977,6 +3002,11 @@ func (s *HermesNode) Start(
 				defer func() {
 					//zz("%v: (ckt '%v') defer running! finishing RemotePeer goro. stack = '%v'", s.name, ckt.Name, stack()) // seen on server
 					ckt.Close(err0)
+					select {
+					case cktGone <- ckt:
+					case <-s.halt.ReqStop.Chan:
+					case <-done0:
+					}
 				}()
 
 				//zz("%v: (ckt '%v') <- got new incoming ckt", s.name, ckt.Name)
