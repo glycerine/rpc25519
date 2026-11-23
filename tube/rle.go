@@ -1009,36 +1009,16 @@ func (s *TermsRLE) getTermIndexStartingAt(idx int64) iter.Seq2[int64, int64] {
 		panic(fmt.Sprintf("getTermIndexStartingAt(): don't have it/don't know; idx=%v; s=%v", idx, s))
 	}
 	return func(yield func(int64, int64) bool) {
-		nextIdx := idx
-		foundFirst := false
-		if idx == base {
-			idx++ // advance for search below
-			if !yield(s.CompactTerm, base) {
-				return
-			}
+		if idx == base && !yield(s.CompactTerm, base) {
+			return
 		}
+		runEnd := base
 		for _, run := range s.Runs {
-			if !foundFirst {
-				thisRunEnd := base + run.Count
-				if idx > thisRunEnd {
-					// jump past all of this run
-					base = thisRunEnd
-					continue
-				}
-				foundFirst = true
-				leftInRun := thisRunEnd - idx + 1
-				for range leftInRun {
-					if !yield(run.Term, nextIdx) {
-						return
-					}
-					nextIdx++
-				}
-			} else {
-				for range run.Count {
-					if !yield(run.Term, nextIdx) {
-						return
-					}
-					nextIdx++
+			start := max(idx, runEnd+1)
+			runEnd += run.Count
+			for i := start; i <= runEnd; i++ {
+				if !yield(run.Term, i) {
+					return
 				}
 			}
 		}
