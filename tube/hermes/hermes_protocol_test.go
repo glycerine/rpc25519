@@ -884,3 +884,25 @@ func Test022_distributed_rmw_replicates_and_advances_by_one(t *testing.T) {
 		}
 	})
 }
+
+// CR-D-71: in RunFromDiskConfig each process runs a Tube client and a
+// separate HermesNode peer, but the czar membership advertised only
+// the Tube client's PeerID and URL. Hermes then counted, dialed and
+// matched ACKs against Tube-client identities.
+func TestHermesUsesAdvertisedAppPeerIdentity(t *testing.T) {
+	cfg := &HermesConfig{ReplicationDegree: 2, MessageLossTimeout: time.Second, TCPonly_no_TLS: true, testName: t.Name()}
+	n := NewHermesNode("h1", cfg)
+	n.PeerID = "h1_hermes_id"
+	members := &tube.ReliableMembershipList{PeerNames: tube.NewOmap[string, *tube.PeerDetailPlus]()}
+	members.PeerNames.Set("h2", &tube.PeerDetailPlus{
+		Det:       &tube.PeerDetail{Name: "h2", PeerID: "h2_tube_client_id", URL: "tcp://10.0.0.2:5000/tube-client/h2_tube_client_id"},
+		AppPeerID: "h2_hermes_id", AppURL: "tcp://10.0.0.2:6000/hermes/h2_hermes_id"})
+	members.PeerNames.Set("h1", &tube.PeerDetailPlus{
+		Det:       &tube.PeerDetail{Name: "h1", PeerID: "h1_tube_client_id"},
+		AppPeerID: "h1_hermes_id"})
+	live := n.liveNodesFromReply(&tube.PingReply{Members: members})
+	want := map[string]bool{"h1_hermes_id": true, "h2_hermes_id": true}
+	if len(live) != 2 || !want[live[0]] || !want[live[1]] {
+		t.Fatalf("live set %v, want the hermes peer IDs", live)
+	}
+}
