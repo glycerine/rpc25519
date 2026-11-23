@@ -246,6 +246,20 @@ func (s *Czar) adoptPingReply(vers *RMVersionTuple, members *ReliableMembershipL
 	return false
 }
 
+// memberLeaseUntil is when a member lease granted at now ends. It
+// never outlives this czar's own lease (less clock drift): a member
+// the next czar drops must not keep serving on a leftover member
+// lease (CR-D-68).
+func (s *Czar) memberLeaseUntil(now time.Time) time.Time {
+	until := now.Add(s.memberLeaseDur)
+	if s.vers != nil && !s.vers.CzarLeaseUntilTm.IsZero() {
+		if czarLimit := s.vers.CzarLeaseUntilTm.Add(-s.clockDriftBound); czarLimit.Before(until) {
+			until = czarLimit
+		}
+	}
+	return until
+}
+
 func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, upcall bool, note string) (err error) {
 	return s.setVersAt(time.Now(), v, list, upcall, note)
 }
@@ -570,9 +584,9 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 		panicf("s.memberLeaseDur too small! '%v'", s.memberLeaseDur)
 	}
 
-	leasedUntilTm := now.Add(s.memberLeaseDur)
+	leasedUntilTm := s.memberLeaseUntil(now)
 	args.RMemberLeaseUntilTm = leasedUntilTm
-	args.RMemberLeaseDur = s.memberLeaseDur
+	args.RMemberLeaseDur = leasedUntilTm.Sub(now)
 
 	updated := false
 	var updatedList *ReliableMembershipList
