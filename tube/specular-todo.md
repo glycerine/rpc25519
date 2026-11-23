@@ -117,7 +117,7 @@ transcripts). This keeps only findings **not already fixed** by the first round
 | 63 | CR-D-64 | R FIXED | The czar panics if its lease expires between `handlePing`'s lease check and `setVers`. | Handle `ErrExpiredCzarLease` like the other callers; pass `now` into `setVers`. |
 | 64 | CR-D-65 | R FIXED | `expireSilentNodes` ignores its `fromList` argument and drops a newcomer handled in the same call; repeated, the member side panics. | `newlist = fromList.Clone()`; don't panic on the member side. |
 | 65 | CR-D-66 | R FIXED | A member whose first Ping reply is rejected locally wedges forever (a stale `rpcClientToCzar`, no timer armed). | Do the normal NotCzar cleanup before `continue fullRestart`, at both sites. |
-| 66 | CR-D-67 | R | `setVers` resets `t0` on every membership change, so dead members inherited from the czar-key snapshot are never expired under churn. | Reset `t0` only when the czar epoch changes. |
+| 66 | CR-D-67 | R FIXED | `setVers` resets `t0` on every membership change, so dead members inherited from the czar-key snapshot are never expired under churn. | Reset `t0` only when the czar epoch changes. |
 | 67 | CR-D-68 | M | The member lease (6 s) can outlive the czar lease (5 s), so a member dropped by a new czar can serve stale hermes reads. | Cap member leases at `CzarLeaseUntilTm - drift`. |
 | 68 | CR-D-69 | R | `HelperFindLeader` returns the last leader in random map order, not the highest-term one; the czar `panicf`s when it disagrees with the client. | Return the highest-term choice; don't panic on disagreement. |
 | 69 | CR-D-70 | R | A member that can't reach the Tube cluster panics (with no `InitialLeaderName`) or hot-loops without delay. | Handle the error; add a halt-aware jittered backoff. |
