@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/tube/leased"
+	"github.com/glycerine/yogadb"
 )
 
 // ackCaptureHost lets the real TubeNode.handleAppendEntries
@@ -1703,5 +1705,43 @@ func TestOversizedScanReplyFailsTicketInsteadOfPanicking(t *testing.T) {
 	}()
 	if !errors.Is(tkt.Err, ErrResultTooLarge) || tkt.KeyValRangeScan != nil {
 		t.Fatalf("oversized reply should fail with ErrResultTooLarge and no scan, got err %v", tkt.Err)
+	}
+}
+
+// CR-12: a key over the store's limit reached the log and
+// panicked every replica at apply, poisoning each leader.
+func TestOversizedKeyRejectedAtAdmission(t *testing.T) {
+	n := specularNode(t, "n1", LEADER, 1, []int64{1}, "n1")
+	n.state.KVstore = newKVStore()
+	key := Key(strings.Repeat("k", yogadb.MaxKeySize+1))
+	tkt := n.NewTicket("big key", "t", key, Val("v"), n.PeerID, n.name, WRITE, -1, context.Background())
+	if err := n.validateTicketKeySizes(tkt); err == nil {
+		t.Fatalf("a %v byte key passed admission", len(key))
+	}
+	ok := n.NewTicket("ok key", "t", Key("k"), Val("v"), n.PeerID, n.name, WRITE, -1, context.Background())
+	if err := n.validateTicketKeySizes(ok); err != nil {
+		t.Fatalf("a short key failed admission: %v", err)
+	}
+}
+
+func TestOversizedKeyInLogFailsTicketAtApply(t *testing.T) {
+	n := specularNode(t, "n1", FOLLOWER, 1, []int64{1}, "n1")
+	specularMarkApplied(n, 1)
+	n.state.KVstore = newKVStore()
+	tm := time.Now()
+	tkt := &Ticket{TicketID: "w2", Op: WRITE, Table: "t", Key: Key(strings.Repeat("k", yogadb.MaxKeySize+1)),
+		Val: Val("v"), FromID: "c1_id", FromName: "c1", RaftLogEntryTm: tm, LogIndex: 2, Term: 1}
+	_, err := n.wal.saveRaftLogEntry(&RaftLogEntry{Index: 2, Term: 1, Tm: tm, Ticket: tkt})
+	panicOn(err)
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("applying an oversized key panicked: %v", r)
+			}
+		}()
+		specularApplyAll(n)
+	}()
+	if n.state.LastApplied != 2 {
+		t.Fatalf("LastApplied %v, want 2", n.state.LastApplied)
 	}
 }

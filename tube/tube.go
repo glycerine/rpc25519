@@ -17247,10 +17247,33 @@ func peerNamesAsString(peers map[string]*RaftNodeInfo) (r string) {
 // by dispatchAwaitingLeaderTickets(),
 // and by resubmitStalledTickets().
 // Calls s.replicateTicket(tkt) at the end.
+// validateTicketKeySizes reports whether tkt's table and key fit
+// the state store. The leader checks before replicating, so an
+// unstorable key never reaches the log.
+func (s *TubeNode) validateTicketKeySizes(tkt *Ticket) (err error) {
+	switch tkt.Op {
+	case WRITE, CAS, MAKE_TABLE:
+		err = keySizeError(tkt.Table, tkt.Key)
+	case RENAME_TABLE:
+		err = keySizeError(tkt.NewTableName, "")
+	}
+	if v, ok := err.(*parValidationError); ok {
+		return v.err
+	}
+	return err
+}
+
 func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, fromWhom string) {
 	//vv("%v top commandSpecificLocalActionsThenReplicateTicket; fromWhom='%v'; tkt='%v'", s.me(), fromWhom, tkt.Short())
 	if s.role != LEADER {
 		panic("only for leader; followers should not be calling here.")
+	}
+	if err := s.validateTicketKeySizes(tkt); err != nil {
+		tkt.Err = err
+		tkt.Stage += ":key_size_rejected_at_admission"
+		s.respondToClientTicketApplied(tkt)
+		s.FinishTicket(tkt, true)
+		return
 	}
 	switch tkt.Op {
 	case WRITE:
