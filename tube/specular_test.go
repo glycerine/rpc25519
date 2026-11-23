@@ -7,6 +7,7 @@ package tube
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -866,4 +867,50 @@ func Test1011_czar_does_not_panic_when_failed_write_names_itself(t *testing.T) {
 			}
 		}
 	})
+}
+
+// Bug 12 (Medium): a node could lead the same term twice
+// across a crash. beginElection raised CurrentTerm and voted
+// for itself in memory only, sending RequestVote before
+// persisting them; and on restart CurrentTerm was not
+// reconciled with the WAL, so a node whose WAL held a term-1
+// entry (its own no-op as term-1 leader) but whose saved
+// term was still 0 campaigned for, and won, term 1 again.
+func Test1012_term_and_vote_durable_before_campaign(t *testing.T) {
+
+	// (a) the term and self-vote are on disk once
+	// beginElection has sent its RequestVotes.
+	path := filepath.Join(t.TempDir(), "bug12.persistor.tube.msgp")
+	diskCfg := &TubeConfig{}
+	saver, _, err := diskCfg.NewRaftStatePersistor(path, nil, false)
+	panicOn(err)
+	defer saver.close()
+
+	cand := specularNode(t, "n3", FOLLOWER, 0, nil, "n1", "n2", "n3")
+	cand.state.KVstore = newKVStore()
+	cand.saver = saver
+	cand.beginElection()
+	if cand.state.CurrentTerm != 1 {
+		t.Fatalf("setup: expected to campaign for term 1, at %v", cand.state.CurrentTerm)
+	}
+	saver2, onDisk, err := diskCfg.NewRaftStatePersistor(path, nil, true)
+	panicOn(err)
+	defer saver2.close()
+	if onDisk == nil || onDisk.CurrentTerm != 1 || onDisk.VotedFor != cand.PeerID {
+		var term int64
+		var voted string
+		if onDisk != nil {
+			term, voted = onDisk.CurrentTerm, onDisk.VotedFor
+		}
+		t.Errorf("Bug 12: RequestVote sent before term/vote were durable: on disk CurrentTerm=%v VotedFor='%v' (want 1, '%v')", term, voted, cand.PeerID)
+	}
+
+	// (b) a restart reconciles CurrentTerm with the WAL.
+	// n3 crashed as term-1 leader after fsyncing its term-1
+	// no-op but before saving RaftState (term still 0).
+	re := specularNode(t, "n3", FOLLOWER, 0, []int64{1}, "n1", "n2", "n3")
+	panicOn(re.onRestartRecoverPersistentRaftStateFromDisk())
+	if re.state.CurrentTerm < 1 {
+		t.Fatalf("Bug 12: restarted with CurrentTerm %v below its WAL's last term 1; it can campaign for, and lead, term 1 again", re.state.CurrentTerm)
+	}
 }

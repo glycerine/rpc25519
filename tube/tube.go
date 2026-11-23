@@ -6872,6 +6872,13 @@ func (s *TubeNode) beginElection() {
 	s.state.HaveVoted = true
 	s.state.HaveVotedTerm = s.state.CurrentTerm
 
+	// Specular Bug 12: Raft requires currentTerm and
+	// votedFor on stable storage before we ask for votes.
+	if s.saver != nil {
+		_, err := s.saver.save(s.state)
+		panicOn(err)
+	}
+
 	// discard as stale (section 6.2)
 	s.leaderID = ""
 	s.leaderName = ""
@@ -9454,6 +9461,28 @@ func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
 	if st != nil {
 		s.state = st
 	} // else leave our state in place
+
+	// Specular Bug 12: our WAL can hold entries from a term
+	// newer than the saved CurrentTerm (e.g. we fsynced our
+	// no-op as leader of term T, then crashed before saving
+	// RaftState). We were in term T, so restart in it, and
+	// record a vote in T (we cannot know whom we voted for,
+	// so treat it as ourselves: we grant no other vote in T).
+	// Otherwise we could campaign for, and lead, T again.
+	if s.state != nil && s.wal != nil {
+		if walTerm := s.wal.LastLogTerm(); walTerm > s.state.CurrentTerm {
+			alwaysPrintf("%v restart: saved CurrentTerm %v is behind the WAL's last term %v; adopting %v", s.name, s.state.CurrentTerm, walTerm, walTerm)
+			s.state.CurrentTerm = walTerm
+			s.state.VotedFor = s.PeerID
+			s.state.VotedForName = s.name
+			s.state.HaveVoted = true
+			s.state.HaveVotedTerm = walTerm
+			if s.saver != nil {
+				_, err := s.saver.save(s.state)
+				panicOn(err)
+			}
+		}
+	}
 	// we want to let the Raft mechanism and pre-vote
 	// do any CurrentTerm changes, so we don't race ahead.
 	// So no CurrentTerm updates here.
