@@ -1506,3 +1506,75 @@ func TestLocalReadCannotExtendSessionOnLeaderAlone(t *testing.T) {
 		t.Fatal("read near expiry renewed the session on the leader without replication")
 	}
 }
+
+// CR-D-48: session expiry metadata survived neither
+// Clone, snapshot install, nor restart.
+func TestSessionTableEntryCloneKeepsExpiry(t *testing.T) {
+	now := time.Now()
+	ste := newSessionTableEntry(specularSessNew("s1", 1, now).NewSessReq)
+	ste.SessionEndxTm = now.Add(time.Hour)
+	c := ste.Clone()
+	if !c.SessionEndxTm.Equal(ste.SessionEndxTm) {
+		t.Fatalf("Clone dropped SessionEndxTm: got %v want %v", c.SessionEndxTm, ste.SessionEndxTm)
+	}
+}
+
+func TestSnapshotInstallKeepsKnownSessionAndExpiryIndex(t *testing.T) {
+	members := []string{"n1", "n2", "n3"}
+	now := time.Now()
+
+	lead := specularNode(t, "n2", LEADER, 1, []int64{1, 1, 1}, members...)
+	lead.state.CommitIndex = 1
+	lead.state.CommitIndexEntryTerm = 1
+	specularMarkApplied(lead, 1)
+	lead.leaderID = lead.PeerID
+	lead.leaderName = lead.name
+	lead.applyNewSess(specularSessNew("s1", 1, now))
+	snap := lead.getStateSnapshot(false)
+
+	foll := specularNode(t, "n1", FOLLOWER, 1, nil, members...)
+	foll.leaderID = lead.PeerID
+	foll.leaderName = lead.name
+	foll.host = &ackCaptureHost{hoster: foll}
+	// the follower already knew s1, plus a session the leader has since ended.
+	foll.applyNewSess(specularSessNew("s1", 1, now))
+	gone := specularSessNew("gone", 1, now)
+	gone.NewSessReq.CliName = "c2"
+	foll.applyNewSess(gone)
+
+	foll.applyNewStateSnapshot(snap, "test", true)
+
+	ste := foll.state.SessTable["s1"]
+	if ste == nil {
+		t.Fatal("snapshot install deleted the live session s1")
+	}
+	if ste.SessionEndxTm.IsZero() {
+		t.Fatal("installed session has zero expiry")
+	}
+	if foll.state.SessTable["gone"] != nil {
+		t.Fatal("session absent from the snapshot survived install")
+	}
+	if foll.sessByExpiry.Len() != 1 || foll.sessByExpiry.tree.Min().Item().(*SessionTableEntry) != ste {
+		t.Fatalf("expiry index not rebuilt from installed table: len %v", foll.sessByExpiry.Len())
+	}
+	if foll.state.sessTableByClientName["c1"] != ste || foll.state.sessTableByClientName["c2"] != nil {
+		t.Fatal("client-name index not rebuilt from installed table")
+	}
+}
+
+func TestRestartRebuildsSessionExpiryIndex(t *testing.T) {
+	now := time.Now()
+	n := specularNode(t, "n1", FOLLOWER, 1, nil, "n1")
+	ste := newSessionTableEntry(specularSessNew("s1", 1, now).NewSessReq)
+	// as if just loaded from disk: in the table, no local index.
+	n.state.SessTable = map[string]*SessionTableEntry{"s1": ste}
+	panicOn(n.onRestartRecoverPersistentRaftStateFromDisk())
+	if n.sessByExpiry.Len() != 1 || n.state.sessTableByClientName["c1"] == nil {
+		t.Fatalf("restart did not rebuild session indexes: expiry len %v", n.sessByExpiry.Len())
+	}
+	n.state.LastAppliedLogHLC = AssembleHLC(now.Add(25*time.Hour).UnixNano(), 0)
+	n.garbageCollectOldSessions()
+	if n.state.SessTable["s1"] != nil {
+		t.Fatal("expired session restored at restart was never collected")
+	}
+}
