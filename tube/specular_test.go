@@ -2052,3 +2052,23 @@ func TestConnRefusedOnlyDropsTheFailedCircuit(t *testing.T) {
 		t.Fatal("the failing circuit itself was left open")
 	}
 }
+
+// CR-D-45: closing a circuit with no watchdog (every non-
+// replica circuit) always waited the full 10ms on the event
+// loop; pruning hundreds of them stalled heartbeats.
+func TestCloseWithoutWatchdogDoesNotWait(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		n := specularNode(t, "n1", LEADER, 1, nil, "n1")
+		defer n.Halt.RequestStop()
+		var elapsed time.Duration
+		for i := 0; i < 100; i++ {
+			c := n.newCktPlus(fmt.Sprintf("client%v", i), TUBE_CLIENT)
+			t0 := time.Now()
+			c.Close()
+			elapsed += time.Since(t0)
+		}
+		if elapsed > 0 {
+			t.Fatalf("closing 100 circuits without watchdogs took %v on the event loop", elapsed)
+		}
+	})
+}

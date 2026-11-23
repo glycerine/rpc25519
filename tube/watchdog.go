@@ -190,6 +190,7 @@ func (c *cktPlus) startWatchdog() {
 
 	// store them all in parked for now. TODO: figure out how to GC them.
 	c.node.parkedInsert(c)
+	c.watchdogStarted.Store(true)
 
 	go func() {
 
