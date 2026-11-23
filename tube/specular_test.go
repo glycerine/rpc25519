@@ -2123,6 +2123,10 @@ func TestSilentReconnectedMemberDoesNotStallMembershipChange(t *testing.T) {
 		ckt: mkckt("n1"), MC: n.state.MC.Clone(), CurrentTerm: 2}
 	n2 := &cktPlus{node: n, PeerName: "n2", PeerID: "n2_id", PeerServiceName: TUBE_REPLICA, ckt: mkckt("n2")}
 	n.cktAllByName["n1"], n.cktAllByName["n2"] = n1, n2
+	// n1 holds the committed prefix (the P1 reconfiguration guard).
+	n1info := n.newRaftNodeInfo("n1_id", "n1", TUBE_REPLICA, "")
+	n1info.MatchIndex, n1info.LargestCommonRaftIndex = 2, 2
+	n.peers["n1_id"] = n1info
 
 	tkt := n.NewTicket("remove n2", "", "", nil, n.PeerID, n.name, MEMBERSHIP_SET_UPDATE, -1, context.Background())
 	tkt.RemovePeerName = "n2"
@@ -2477,5 +2481,31 @@ func TestInterleavedMultipartSnapshotsBothAssemble(t *testing.T) {
 	}
 	if lli := foll.wal.LastLogIndex(); lli != 4 {
 		t.Fatalf("interleaved multipart snapshot never installed: follower lli %v, want 4", lli)
+	}
+}
+
+// CR-D-27: the P1 prefix-quorum reconfiguration guard returned
+// true whenever s.par was nil (every NoDisk node), so the default
+// suite never exercised production reconfiguration admission.
+func TestReconfigurationGuardAppliesWithoutPAR(t *testing.T) {
+	n := specularNode(t, "n0", LEADER, 1, []int64{1, 1, 1, 1, 1}, "n0", "n1", "n2")
+	n.state.CommitIndex, n.state.CommitIndexEntryTerm = 5, 1
+	if n.par != nil {
+		t.Fatal("setup: expected a NoDisk node without PAR state")
+	}
+	// no voter but the leader holds the committed prefix through 5.
+	if n.parReconfigurationReady(n.state.MC) {
+		t.Fatal("reconfiguration admitted without a quorum holding the committed prefix")
+	}
+	for _, name := range []string{"n1"} {
+		cktP := &cktPlus{node: n, PeerName: name, PeerID: name + "_id", PeerServiceName: TUBE_REPLICA,
+			ckt: &rpc.Circuit{CircuitID: name}, MC: n.state.MC.Clone()}
+		n.cktAllByName[name] = cktP
+		info := n.newRaftNodeInfo(name+"_id", name, TUBE_REPLICA, "")
+		info.MatchIndex, info.LargestCommonRaftIndex = 5, 5
+		n.peers[name+"_id"] = info
+	}
+	if !n.parReconfigurationReady(n.state.MC) {
+		t.Fatal("reconfiguration refused although a quorum holds the committed prefix")
 	}
 }
