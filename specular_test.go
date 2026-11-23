@@ -631,3 +631,41 @@ func TestPumpReleasesClosedCircuitHalters(t *testing.T) {
 		}
 	})
 }
+
+// sendFailU fails every send.
+type sendFailU struct{ pumpU }
+
+func (u *sendFailU) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration, forbidAutoCli bool) (bool, *LoopComm, error) {
+	return false, nil, ErrNetConnectionNotFound
+}
+
+// CR-D-88: when telling the remote about a new circuit failed,
+// newCircuit returned the already-registered circuit with the
+// error, and NewCircuitToPeerURL dropped it: a phantom circuit
+// stayed registered with the pump forever.
+func TestFailedCircuitSetupDoesNotLeakRegisteredCircuit(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		pb := &LocalPeer{Halt: idem.NewHalter(), Ctx: ctx, U: &sendFailU{}, PeerAPI: &peerAPI{},
+			Remotes: NewMutexmap[string, *RemotePeer](), ReadsIn: make(chan *Message, 10),
+			ErrorsIn: make(chan *Message, 10), TellPumpNewCircuit: make(chan *Circuit),
+			HandleCircuitClose: make(chan *Circuit, 10), QueryCh: make(chan *QueryLocalPeerPump),
+			PeerID: "me", PeerServiceName: "svc"}
+		go pb.peerbackPump()
+		defer pb.Halt.ReqStop.Close()
+		for i := 0; i < 3; i++ {
+			_, _, _, err := pb.NewCircuitToPeerURL("c", "tcp://127.0.0.1:9/svc/them", nil, -1, "", "them")
+			if err == nil {
+				t.Fatal("setup: expected the send to fail")
+			}
+		}
+		time.Sleep(time.Second)
+		q := &QueryLocalPeerPump{Ready: make(chan struct{})}
+		pb.QueryCh <- q
+		<-q.Ready
+		if q.OpenCircuitCount != 0 {
+			t.Fatalf("%v failed circuit setups left registered circuits", q.OpenCircuitCount)
+		}
+	})
+}

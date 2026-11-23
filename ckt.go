@@ -1226,6 +1226,11 @@ func (lpb *LocalPeer) newCircuit(
 		ckt.MadeNewAutoCli = madeNewAutoCli
 		if err != nil {
 			alwaysPrintf("arg: tried to tell remote, but: err='%v'", err)
+			// It is already registered with the pump, but the caller
+			// gets no circuit back: close it here, or it is a phantom
+			// held until the LocalPeer shuts down (CR-D-88).
+			ckt.Close(err)
+			return nil, nil, madeNewAutoCli, err
 		}
 	} else {
 		// !tellRemote
