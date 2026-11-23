@@ -323,7 +323,9 @@ func (s *Czar) expireSilentNodes(fromList *ReliableMembershipList) (changed bool
 	}
 
 	now := time.Now()
-	for name, plus := range s.members.PeerNames.All() {
+	// judge the list we were given (it can hold a newcomer that
+	// s.members does not have yet), not s.members (CR-D-65).
+	for name, plus := range fromList.PeerNames.All() {
 		if name == s.name {
 			// now that we exclude czar from PeerNames, no need
 			// to extend our own plus.RMemberLeaseUntilTm.
@@ -365,7 +367,7 @@ func (s *Czar) expireSilentNodes(fromList *ReliableMembershipList) (changed bool
 			delete(s.heard, name)
 			// Omap.All allows delete in the middle of iteration.
 			if newlist == nil {
-				newlist = s.members.Clone()
+				newlist = fromList.Clone()
 			}
 			newlist.PeerNames.Delkey(name)
 		}
@@ -1557,7 +1559,15 @@ fullRestart:
 						// check for bug in czar: did they add me to the list?
 						_, ok2 := reply.Members.PeerNames.Get2(czar.myDetail.Det.Name)
 						if !ok2 {
-							panicf("%v: member detected bug in czar: got ping back without ourselves (myDetail.Det.Name='%v') in it!: reply='%v'", name, czar.myDetail.Det.Name, reply)
+							// do not crash the member; re-ping from scratch (CR-D-65).
+							alwaysPrintf("%v: ping reply from czar omits us (%v); reconnecting", name, czar.myDetail.Det.Name)
+							if rpcClientToCzar != nil {
+								rpcClientToCzar.Close()
+							}
+							rpcClientToCzar = nil
+							rpcClientToCzarDoneCh = nil
+							czar.cState.Store(int32(UnknownCzarState))
+							continue fullRestart
 						}
 					}
 					if !reply.Vers.CzarLeaseUntilTm.IsZero() {
@@ -1591,7 +1601,14 @@ fullRestart:
 								//	alwaysPrintf("warning ugh! could not send lease renewal to hermes!")
 							}
 						} else {
-							panicf("%v: we (reliable member) are not in our own ping reply, internal logic problem!?!", name)
+							alwaysPrintf("%v: we are not in our own ping reply; reconnecting", name)
+							if rpcClientToCzar != nil {
+								rpcClientToCzar.Close()
+							}
+							rpcClientToCzar = nil
+							rpcClientToCzarDoneCh = nil
+							czar.cState.Store(int32(UnknownCzarState))
+							continue fullRestart
 						}
 					}
 
