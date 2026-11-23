@@ -10481,6 +10481,22 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 			panicf("tkt.LogIndex = %v but (applyIdx) == %v; expected agreement. tkt='%v'", tkt.LogIndex, applyIdx, tkt)
 		}
 
+		// A session can close after admission while this command is queued.
+		// Check it at the log index where the command would take effect.
+		if tkt.SessionID != "" && tkt.Op != SESS_NEW && tkt.Op != SESS_END &&
+			s.state.SessTable[tkt.SessionID] == nil {
+			tkt.Err = fmt.Errorf("unknown SessionID %q. Must call CreateNewSession first.", tkt.SessionID)
+			tkt.AsOfLogIndex = applyIdx
+			tkt.Stage += ":err_unknown_SessionID_in_commitWhatWeCan"
+			s.garbageCollectOldSessions()
+			if calledOnLeader {
+				s.respondToClientTicketApplied(tkt)
+			} else if tkt.FromID == s.PeerID && do.waiter == nil {
+				s.FinishTicket(tkt, false)
+			}
+			continue
+		}
+
 		// Specular Bug 5: session dedup must happen at apply
 		// time, before executing. A client retry with the same
 		// SessionSerial can be admitted while the first copy is
@@ -10642,9 +10658,9 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 
 			//vv("%v applying read of '%v', got ok=%v, val='%v'", s.me(), tkt.Key, ok, string(tkt.Val))
 		case SESS_NEW:
-			s.applyNewSess(tkt, calledOnLeader)
+			s.applyNewSess(tkt)
 		case SESS_END:
-			s.applyEndSess(tkt, calledOnLeader)
+			s.applyEndSess(tkt)
 
 		default:
 			panic(fmt.Sprintf("what to do with tkt.Op '%v'?", tkt.Op))
@@ -10655,53 +10671,29 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		//	do.kvAfterApply = s.state.KVstore.String()
 		//}
 
-		if tkt.SessionID != "" {
-			// =========================================
-			// session implementation (for client linearizability)
-			// i.e. exactly once.
+		if ste := s.state.SessTable[tkt.SessionID]; tkt.SessionID != "" && tkt.Op != SESS_END && ste != nil {
+			// cache the Ticket for dedup; extend session.
 
-			// should we not be rejecting BEFORE we apply?
-			// Yes, and we do now: see leaderDoneEarlyOnSessionStuff().
-			ste, ok := s.state.SessTable[tkt.SessionID]
-			if !ok {
-				// happens if cluster bounces but member clients stay up and
-				// use stale sessions?? don't freak out.
-				//panicf("how should be handled? should we not already have replicated and thus established the session? unknown tkt.SessionID for tkt=%v", tkt)
+			ste.ticketID2tkt[tkt.TicketID] = tkt
+			ste.Serial2Ticket.Set(tkt.SessionSerial, tkt)
+			if tkt.SessionSerial > ste.MaxAppliedSerial {
+				//vv("%v: updating ste.MaxAppliedSerial to higher tkt.SessionSerial: %v -> %v; on tkt.SessionID = '%v'", s.name, ste.MaxAppliedSerial, tkt.SessionSerial, tkt.SessionID)
+				ste.MaxAppliedSerial = tkt.SessionSerial
 
-				// only one reply; from leader. replicas can just drop the session error.
-				if calledOnLeader {
-					tkt.Err = fmt.Errorf("unknown SessionID on tkt '%v'. Must call CreateNewSession first.", tkt)
-					tkt.Stage += ":err_unknown_SessionID_in_commitWhatWeCan"
-					s.respondToClientTicketApplied(tkt)
-				}
-				continue
+				// leader calls in the pre-replication checks,
+				// but followers cleanup does not happen unless
+				// we do it on them too, like here.
+				s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
 			}
-			if tkt.Op != SESS_END {
-				// cache the Ticket for dedup; extend session.
 
-				ste.ticketID2tkt[tkt.TicketID] = tkt
-				ste.Serial2Ticket.Set(tkt.SessionSerial, tkt)
-				if tkt.SessionSerial > ste.MaxAppliedSerial {
-					//vv("%v: updating ste.MaxAppliedSerial to higher tkt.SessionSerial: %v -> %v; on tkt.SessionID = '%v'", s.name, ste.MaxAppliedSerial, tkt.SessionSerial, tkt.SessionID)
-					ste.MaxAppliedSerial = tkt.SessionSerial
-
-					// leader calls in the pre-replication checks,
-					// but followers cleanup does not happen unless
-					// we do it on them too, like here.
-					s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
-				}
-
-				if tkt.Op != SESS_NEW {
-					// by using do.Tm below, we gain that
-					// all replicas extend by the same amount each time:
-					// Here 'do' is the RaftLogEntry for this most recent
-					// applied log entry; do.Tm is when the leader created
-					// when it in replicateTicket().
-					ste.SessionReplicatedEndxTm = s.refreshSession(do.Tm, ste)
-				}
+			if tkt.Op != SESS_NEW {
+				// by using do.Tm below, we gain that
+				// all replicas extend by the same amount each time:
+				// Here 'do' is the RaftLogEntry for this most recent
+				// applied log entry; do.Tm is when the leader created
+				// when it in replicateTicket().
+				ste.SessionReplicatedEndxTm = s.refreshSession(do.Tm, ste)
 			}
-			// end client session implementation
-			// =========================================
 		}
 		// after refresh above has had a chance.
 		s.garbageCollectOldSessions()
@@ -11902,7 +11894,11 @@ func (s *TubeNode) leaderServedLocalRead(tkt *Ticket, isWriteCheckLease bool) bo
 
 		} else {
 			// session exists
-			s.refreshSession(time.Now(), ste)
+			// Replicate a read in the second half of the session's lifetime
+			// so read-only clients renew on all replicas before expiration.
+			if !time.Now().Before(ste.SessionReplicatedEndxTm.Add(-ste.SessRequestedInitialDur / 2)) {
+				return false
+			}
 
 			// cleanup old state sessions
 			defer s.cleanupAcked(ste, tkt.MinSessSerialWaiting)
@@ -15947,40 +15943,9 @@ type Session struct {
 	// new set of incrementing serial numbers.
 	SessionID string `zid:"8"` // fixed on creation
 
-	// note that SessionIndexEndxTm is never updated on
-	// the leader during session refresh. Instead it
-	// is immutable after creation, and the SessionTableEntry's
-	// SessionEndxTm starts at SessionIndexEndxTm but
-	// is updated on session refresh. At the moment local
-	// leader-served reads only extend the session locally
-	// to avoid having to do a full cluster consensus
-	// write on every local read (local reads are supposed
-	// to be fast, that is the point of them -- if we
-	// made them extend the session through consensus they
-	// would bog down the system instead). The session
-	// still gets extended in the current leader's local
-	// memory by refreshSession(), but if there is a
-	// leader change then the session extensions are lost.
-	// Which does beg the question does this create
-	// non-determinism since the other replicas might
-	// think the session is gone? I think not, because
-	// only a leader sends SESS_END via garbageCollectOldSessions().
-	// So why bother putting sessions through consensus
-	// in the first place, if session extension won't survive
-	// leadership change anyway? Linearizability demands that raft
-	// leaders deduplicate requests, and session.SessionSerial
-	// is how that is done. But how does that need consensus?
-	// It allows sessions during their initial timeout period
-	// to survive leadership change and still deduplicate
-	// requests... and writes do extend the session across
-	// the cluster, since commitWhatWeCan() extends the
-	// tkt.SessionID on all replicas that commit a log entry.
-	// Reads increment the SessionSerial too as they
-	// should not be dedupped with prior write requests.
-	// On leadership change the session number gap will
-	// kill the session; this will mean an extra round
-	// trip for the client on leadership change, but the benefit
-	// is that most reads are local, and local reads remain fast.
+	// Initial expiry. Replicated operations renew the deadline recorded in
+	// SessionTableEntry. A read-only client renews through a logged read
+	// when it reaches the second half of its session lifetime.
 	SessionIndexEndxTm    time.Time `zid:"9"` // session deleted >= here
 	LeaderName            string    `zid:"10"`
 	LeaderPeerID          string    `zid:"11"` // changes only on restart
@@ -16280,7 +16245,7 @@ func (s *TubeNode) leaderSideCreateNewSess(tkt *Ticket) {
 }
 
 // called from commitWhatWeCan() when SESS_END applied.
-func (s *TubeNode) applyEndSess(tkt *Ticket, calledOnLeader bool) {
+func (s *TubeNode) applyEndSess(tkt *Ticket) {
 
 	//vv("%v applying SESS_END '%v'", s.me(), tkt.EndSessReq_SessionID)
 	tkt.Applied = true
@@ -16305,15 +16270,11 @@ func (s *TubeNode) applyEndSess(tkt *Ticket, calledOnLeader bool) {
 		}
 	}
 
-	// have any others expired?
-	if calledOnLeader {
-		s.garbageCollectOldSessions()
-	}
 }
 
 // called from commitWhatWeCan() when SESS_NEW applied;
 // after the session is committed (present on a quorum of servers).
-func (s *TubeNode) applyNewSess(tkt *Ticket, calledOnLeader bool) {
+func (s *TubeNode) applyNewSess(tkt *Ticket) {
 
 	//vv("%v applying SESS_NEW '%v'; tkt.NewSessReq.SessionID='%v'", s.me(), tkt.NewSessReq, tkt.NewSessReq.SessionID)
 	sess := tkt.NewSessReq
@@ -16336,10 +16297,6 @@ func (s *TubeNode) applyNewSess(tkt *Ticket, calledOnLeader bool) {
 	}
 	tkt.Applied = true
 
-	// collect other sessions that have expired.
-	if calledOnLeader {
-		s.garbageCollectOldSessions()
-	}
 }
 
 // delete anything past s.state.LastAppliedLogHLC
@@ -16523,14 +16480,10 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (doneEarly, needSa
 	if gte(now, ste.SessionEndxTm) {
 		alwaysPrintf("%v: SessionID has timed out: '%v'", s.name, ste.SessionID)
 
-		tkt.Err = fmt.Errorf("%v leader error: session killed on timeout: SessionEndxTm('%v') <= now('%v'); for tkt.SessionID '%v': a client request was dropped. dropped tkt='%v'", s.name, nice(ste.SessionEndxTm), nice(now), tkt.SessionID, tkt)
+		tkt.Err = fmt.Errorf("%v leader error: session timed out: SessionEndxTm('%v') <= now('%v'); for tkt.SessionID '%v': a client request was dropped. dropped tkt='%v'", s.name, nice(ste.SessionEndxTm), nice(now), tkt.SessionID, tkt)
 		tkt.Stage += ":session_timeout_leaderDoneEarlyOnSessionStuff"
 
-		// kill the session
-		delete(s.state.SessTable, tkt.SessionID)
-		s.sessByExpiry.Delete(ste)
-		needSave = true
-		//s.saver.save(s.state)
+		// Expiration is applied on every replica at a replicated log time.
 
 		s.respondToClientTicketApplied(tkt)
 		doneEarly = true

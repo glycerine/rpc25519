@@ -1443,3 +1443,66 @@ func TestLeaseApplyUsesReplicatedDriftBound(t *testing.T) {
 		}
 	}
 }
+
+func TestClosedSessionWriteSkipsApplication(t *testing.T) {
+	n := specularNode(t, "n2", FOLLOWER, 1, nil, "n1", "n2")
+	n.state.KVstore = newKVStore()
+	now := time.Now()
+	appendTicket := func(tkt *Ticket) {
+		t.Helper()
+		e := n.prepOne(tkt, now, n.wal.LastLogIndex()+1, 0)
+		if _, err := n.wal.saveRaftLogEntry(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	appendTicket(specularSessNew("s1", 1, now))
+	appendTicket(&Ticket{Op: SESS_END, EndSessReq_SessionID: "s1", TicketID: "end"})
+	addWrite := func(session string) {
+		appendTicket(&Ticket{Op: WRITE, SessionID: session, SessionSerial: 1,
+			TicketID: "write-" + session, Table: "data", Key: "count", Val: Val("value")})
+	}
+	addWrite("s1")
+	specularApplyAll(n)
+	if _, err := n.state.KVstore.GetLeaf("data", "count", false); err != ErrKeyNotFound {
+		t.Errorf("write from closed session reached the store, read error %v", err)
+	}
+	if n.state.LastApplied != 3 {
+		t.Fatalf("last applied %d, want 3 including the rejected command", n.state.LastApplied)
+	}
+	appendTicket(specularSessNew("s2", 4, now))
+	addWrite("s2")
+	specularApplyAll(n)
+	leaf, err := n.state.KVstore.GetLeaf("data", "count", false)
+	if err != nil || leaf.Version != 1 || leaf.WriteRaftLogIndex != 5 {
+		t.Fatalf("retry in new session should apply once at index 5, got leaf %v, error %v", leaf, err)
+	}
+}
+
+func TestLeaderSessionTimeoutDoesNotRemoveReplicatedState(t *testing.T) {
+	n := specularNode(t, "n1", LEADER, 1, nil, "n1", "n2")
+	past := time.Now().Add(-48 * time.Hour)
+	n.applyNewSess(specularSessNew("s1", 1, past))
+	tkt := n.NewTicket("expired", "t", "k", nil, n.PeerID, n.name, WRITE, -1, context.Background())
+	tkt.SessionID, tkt.SessionSerial = "s1", 1
+	done, _ := n.leaderDoneEarlyOnSessionStuff(tkt)
+	if !done || tkt.Err == nil {
+		t.Fatal("expired session was admitted")
+	}
+	if n.state.SessTable["s1"] == nil {
+		t.Fatal("admission removed the session outside the Raft log")
+	}
+}
+
+func TestLocalReadCannotExtendSessionOnLeaderAlone(t *testing.T) {
+	n := specularNode(t, "n1", LEADER, 1, nil, "n1")
+	now := time.Now()
+	create := specularSessNew("s1", 1, now.Add(-23*time.Hour))
+	n.applyNewSess(create)
+	ste := n.state.SessTable["s1"]
+	deadline := ste.SessionEndxTm
+	tkt := n.NewTicket("read", "t", "k", nil, n.PeerID, n.name, READ, -1, context.Background())
+	tkt.SessionID, tkt.SessionSerial = "s1", 1
+	if n.leaderServedLocalRead(tkt, false) || !ste.SessionEndxTm.Equal(deadline) {
+		t.Fatal("read near expiry renewed the session on the leader without replication")
+	}
+}
