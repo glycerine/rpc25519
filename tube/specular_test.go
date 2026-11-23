@@ -2593,3 +2593,20 @@ func TestBackgroundConnectUsesCorrectedAutoCliAddress(t *testing.T) {
 		t.Fatalf("reconnect uses netAddr %q (cktP.Addr %q), want the base server %q", got, pending.Addr, want)
 	}
 }
+
+// CR-D-64: the czar checked its lease in handlePing, then setVers
+// read the clock again; a lease expiring in between made setVers
+// fail and handlePing panicOn it, killing the czar.
+func TestCzarSetVersUsesTheCheckedInstant(t *testing.T) {
+	n := specularNode(t, "c1", CLIENT, 0, nil, "n0")
+	cz := NewCzar("hermes", "c1", n, 500*time.Millisecond)
+	checked := time.Now()
+	v := &RMVersionTuple{CzarLeaseEpoch: 1, WithinCzarVersion: 1, CzarLeaseUntilTm: checked.Add(time.Millisecond)}
+	time.Sleep(5 * time.Millisecond) // the lease expires after handlePing checked it
+	list := n.NewReliableMembershipList()
+	list.CzarName = "c1"
+	list.CzarDet = &PeerDetailPlus{Det: &PeerDetail{Name: "c1", PeerID: "c1_id"}}
+	if err := cz.setVersAt(checked, v, list, false, "test"); err != nil {
+		t.Fatalf("setVers re-read the clock instead of using the checked instant: %v", err)
+	}
+}

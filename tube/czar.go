@@ -228,9 +228,15 @@ func (s *Czar) setVersUpcall(v *RMVersionTuple, list *ReliableMembershipList, no
 }
 
 func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, upcall bool, note string) (err error) {
+	return s.setVersAt(time.Now(), v, list, upcall, note)
+}
+
+// setVersAt checks the lease at now, the instant the caller
+// already judged it by, rather than reading the clock again
+// (CR-D-64).
+func (s *Czar) setVersAt(now time.Time, v *RMVersionTuple, list *ReliableMembershipList, upcall bool, note string) (err error) {
 
 	// is lease expired?
-	now := time.Now()
 	if now.After(v.CzarLeaseUntilTm) {
 		return ErrExpiredCzarLease
 	}
@@ -592,8 +598,18 @@ func (s *Czar) handlePing(rr *pingReqReply) {
 		}
 	}
 	if updated {
-		err := s.setVersUpcall(updatedVers, updatedList, "AmCzar: handlePing updated")
-		panicOn(err)
+		err := s.setVersAt(now, updatedVers, updatedList, true, "AmCzar: handlePing updated")
+		if err != nil {
+			// as the other callers do: no longer czar, or a
+			// non-monotone version; tell the pinger, never panic.
+			if err == ErrExpiredCzarLease {
+				s.cState.Store(int32(UnknownCzarState))
+				rr.err = ErrNotCzar
+			} else {
+				rr.err = err
+			}
+			return
+		}
 		//vv("Czar.Ping: membership has changed (was %v) is now: {%v}", origVers, s.shortRMemberSummary())
 
 	} else {

@@ -114,7 +114,7 @@ transcripts). This keeps only findings **not already fixed** by the first round
 
 | Entry | ID | St | Problem | Fix direction |
 |---|---|---|---|---|
-| 63 | CR-D-64 | R | The czar panics if its lease expires between `handlePing`'s lease check and `setVers`. | Handle `ErrExpiredCzarLease` like the other callers; pass `now` into `setVers`. |
+| 63 | CR-D-64 | R FIXED | The czar panics if its lease expires between `handlePing`'s lease check and `setVers`. | Handle `ErrExpiredCzarLease` like the other callers; pass `now` into `setVers`. |
 | 64 | CR-D-65 | R | `expireSilentNodes` ignores its `fromList` argument and drops a newcomer handled in the same call; repeated, the member side panics. | `newlist = fromList.Clone()`; don't panic on the member side. |
 | 65 | CR-D-66 | R | A member whose first Ping reply is rejected locally wedges forever (a stale `rpcClientToCzar`, no timer armed). | Do the normal NotCzar cleanup before `continue fullRestart`, at both sites. |
 | 66 | CR-D-67 | R | `setVers` resets `t0` on every membership change, so dead members inherited from the czar-key snapshot are never expired under churn. | Reset `t0` only when the czar epoch changes. |
