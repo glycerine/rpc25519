@@ -956,11 +956,7 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 		mayNeedTruncate = true
 		s.logIndex.Truncate(keepIndex, syncme)
 		s.lli = keepIndex
-		if keepCount == 0 {
-			s.llt = 0
-		} else {
-			s.llt = s.raftLog[keepCount-1].Term
-		}
+		s.llt = s.logIndex.lastTerm()
 	}
 	var nw int
 	// use nw to update s.endseekpos by using and then updating s.endpos
