@@ -19,6 +19,10 @@ import (
 var errProtectedLogEntry = errors.New("cannot overwrite a committed or applied log entry")
 
 type raftWriteAheadLog struct {
+	// onDurable, if set, learns the last durably identified index
+	// after each sync (the CR-D-50 restart witness).
+	onDurable func(index int64)
+
 	path        string
 	fd          *os.File
 	parentDirFd *os.File
@@ -457,6 +461,13 @@ func (s *raftWriteAheadLog) sync(needParentDirSync bool) (err error) {
 	if s.parlog != nil {
 		if err = s.parlog.sync(); err != nil {
 			return
+		}
+		if s.onDurable != nil {
+			var high int64
+			if d := s.parlog.durable; d > 0 && d <= int64(len(s.parlog.e)) {
+				high = s.parlog.e[d-1].Index
+			}
+			s.onDurable(high)
 		}
 	}
 	if needParentDirSync && s.parentDirFd != nil {

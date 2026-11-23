@@ -709,6 +709,7 @@ func (s *raftStatePersistor) parRestoreApplication(state *RaftState, portable bo
 	checkpoint.CurrentTerm, checkpoint.VotedFor, checkpoint.VotedForName = state.CurrentTerm, state.VotedFor, state.VotedForName
 	checkpoint.HaveVoted, checkpoint.HaveVotedTerm = state.HaveVoted, state.HaveVotedTerm
 	checkpoint.RestartVoteDelay = state.RestartVoteDelay
+	checkpoint.DurableAppendHigh = state.DurableAppendHigh
 	checkpoint.PeerID = state.PeerID
 	if state.CommitIndex > checkpoint.CommitIndex {
 		checkpoint.CommitIndex, checkpoint.CommitIndexEntryTerm = state.CommitIndex, state.CommitIndexEntryTerm
@@ -2125,6 +2126,27 @@ func (s *TubeNode) parCampaignBlocked() bool {
 	return s.par != nil && (s.par.unknown || (s.state.KVstore != nil && s.state.KVstore.parFault != nil))
 }
 
+// parLossFloor is the index below which a restart that finds a
+// shorter log has evidence of local loss. Unlike parProtected, it
+// counts MC.CommitIndex only up to what this replica itself had
+// durably appended: a lagging follower copies MC.CommitIndex from
+// a newer leader before it holds those entries (CR-D-50).
+// noteDurableAppend records the restart witness; the next state
+// save persists it.
+func (s *TubeNode) noteDurableAppend(index int64) {
+	if s.state != nil {
+		s.state.DurableAppendHigh = index
+	}
+}
+
+func (s *TubeNode) parLossFloor() int64 {
+	floor := max(s.state.CommitIndex, s.state.LastApplied, s.state.CompactionDiscardedLast.Index)
+	if s.state.MC != nil {
+		floor = max(floor, min(s.state.MC.CommitIndex, s.state.DurableAppendHigh))
+	}
+	return floor
+}
+
 func (s *TubeNode) parProtected() int64 {
 	floor := max(s.state.CommitIndex, s.state.LastApplied, s.state.CompactionDiscardedLast.Index)
 	if s.state.MC != nil {
@@ -2198,7 +2220,7 @@ func (s *TubeNode) parAfterRestore() {
 		s.wal.lli, s.wal.llt = anchor.Index, anchor.Term
 		s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.logIndex.CompactTerm = anchor.Index, anchor.Index, anchor.Term
 	}
-	if s.parProtected() > s.wal.lli {
+	if s.parLossFloor() > s.wal.lli {
 		s.par.active, s.par.unknown, s.par.err = true, true, ErrPAREvidence
 	}
 	if s.state.KVstore != nil && s.state.KVstore.parFault != nil {
@@ -2870,6 +2892,7 @@ func (s *TubeNode) parFinish() {
 	// The previous recovery handle has no staged writes to publish.
 	old := s.wal
 	s.wal = fresh
+	s.wal.onDurable = s.noteDurableAppend
 	if old.fd != nil {
 		old.fd.Close()
 	}
