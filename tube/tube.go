@@ -8997,11 +8997,15 @@ func (s *TubeNode) wasConnRefused(err error, ckt *rpc.Circuit) bool {
 	if strings.Contains(err.Error(), connRefused) {
 		alwaysPrintf("%v saw '%v', forcing recompute of ckt", s.me(), connRefused)
 
+		// Only drop the entry if it is this very circuit; a
+		// healthy replacement may already have taken its place
+		// (CR-D-43). Close the failing circuit itself.
 		cktP, ok := s.cktall[ckt.RemotePeerID]
-		if ok && cktP != nil {
+		if ok && cktP != nil && cktP.ckt != nil && cktP.ckt.CircuitID == ckt.CircuitID {
 			s.deleteFromCktAll(cktP)
 			s.adjustCktReplicaForNewMembership()
 		}
+		ckt.Close(err)
 		return true
 	}
 	return false

@@ -2026,3 +2026,29 @@ func TestAuditGCKeepsUnchosenReplicaCircuits(t *testing.T) {
 		t.Fatal("audit GC closed the replica circuit the peer sends on")
 	}
 }
+
+// CR-D-43: a "connection refused" on an old circuit deleted
+// whatever circuit cktall now held for that peer, including a
+// healthy replacement.
+func TestConnRefusedOnlyDropsTheFailedCircuit(t *testing.T) {
+	n := specularNode(t, "n1", FOLLOWER, 1, nil, "n1", "n2")
+	mk := func(id string) *rpc.Circuit {
+		return &rpc.Circuit{RemotePeerID: "n2_id", RemotePeerName: "n2", RemoteServiceName: TUBE_REPLICA,
+			CircuitID: id, Halt: idem.NewHalter(), RpbTo: &rpc.RemotePeer{BaseServerAddr: "simnet://n2"},
+			LpbFrom: &rpc.LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *rpc.Circuit, 1)}}
+	}
+	old := mk("old")
+	replacement := n.newCktPlus("n2", TUBE_REPLICA)
+	replacement.PeerID, replacement.ckt = "n2_id", mk("new")
+	n.cktall["n2_id"] = replacement
+	n.cktAllByName["n2"] = replacement
+	if !n.wasConnRefused(fmt.Errorf("dial tcp: connect: connection refused"), old) {
+		t.Fatal("setup: refusal not recognized")
+	}
+	if n.cktall["n2_id"] != replacement {
+		t.Fatal("a refusal on the old circuit removed the healthy replacement")
+	}
+	if !old.IsClosed() {
+		t.Fatal("the failing circuit itself was left open")
+	}
+}
