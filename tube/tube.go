@@ -14905,12 +14905,17 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		if time.Since(tkt.T0) > 10*time.Second {
 			tkt.Err = fmt.Errorf("%v timeout MC change attempts after 10 seconds; error from mongoLeaderCanReconfig: %v", s.me(), err)
 			s.replyToForwardedTicketWithError(tkt)
+			// The client has been told it failed: finish it and drop
+			// every queued copy, so it can never be re-run and
+			// applied later (CR-D-21).
+			s.FinishTicket(tkt, true)
+			s.forgetStalledMembershipTicket(tkt)
 			return
 		}
-		s.stalledMembershipConfigChangeTkt = append(s.stalledMembershipConfigChangeTkt, tkt)
+		s.stalledMembershipConfigChangeTkt = appendTicketOnce(s.stalledMembershipConfigChangeTkt, tkt)
 		//vv("%v mongo stall in changeMembership due to err='%v' tkt='%v'", s.me(), err, tkt.Short())
 		for _, cktP0 := range mongoNeedSeen {
-			cktP0.stalledOnSeenTkt = append(cktP0.stalledOnSeenTkt, tkt)
+			cktP0.stalledOnSeenTkt = appendTicketOnce(cktP0.stalledOnSeenTkt, tkt)
 		}
 		return
 	}
@@ -17670,6 +17675,41 @@ func (s *TubeNode) isVotingMemberOfCurrentMC(name string) bool {
 	}
 	det, ok := s.state.MC.PeerNames.Get2(name)
 	return ok && (det == nil || !det.NonVoting)
+}
+
+// appendTicketOnce appends tkt unless the queue already holds it.
+func appendTicketOnce(q []*Ticket, tkt *Ticket) []*Ticket {
+	for _, have := range q {
+		if have == tkt {
+			return q
+		}
+	}
+	return append(q, tkt)
+}
+
+// forgetStalledMembershipTicket removes every queued copy of a
+// finished membership change ticket.
+func (s *TubeNode) forgetStalledMembershipTicket(tkt *Ticket) {
+	drop := func(q []*Ticket) []*Ticket {
+		out := q[:0]
+		for _, have := range q {
+			if have != tkt {
+				out = append(out, have)
+			}
+		}
+		return out
+	}
+	s.stalledMembershipConfigChangeTkt = drop(s.stalledMembershipConfigChangeTkt)
+	for _, cktP := range s.cktAllByName {
+		if cktP != nil {
+			cktP.stalledOnSeenTkt = drop(cktP.stalledOnSeenTkt)
+		}
+	}
+	for _, cktP := range s.cktall {
+		if cktP != nil {
+			cktP.stalledOnSeenTkt = drop(cktP.stalledOnSeenTkt)
+		}
+	}
 }
 
 // failStalledMembershipTickets answers every stalled
