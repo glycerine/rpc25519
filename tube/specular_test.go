@@ -6,6 +6,7 @@ package tube
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync/atomic"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
+	"github.com/glycerine/rpc25519/tube/leased"
 )
 
 // ackCaptureHost lets the real TubeNode.handleAppendEntries
@@ -1676,5 +1678,30 @@ func TestStaleAckDoesNotLowerCommonPrefix(t *testing.T) {
 	lead.handleAppendEntriesAck(ack, nil)
 	if got := lead.peers["n1_id"].LargestCommonRaftIndex; got != 5 {
 		t.Fatalf("stale accepted ack lowered LargestCommonRaftIndex 5 -> %v", got)
+	}
+}
+
+// CR-D-61: an oversized scan reply panicked the leader,
+// and each successive leader crashed on the retried scan.
+func TestOversizedScanReplyFailsTicketInsteadOfPanicking(t *testing.T) {
+	n := specularNode(t, "n1", LEADER, 1, nil, "n1")
+	scan := newKVScan()
+	big := make([]byte, rpc.UserMaxPayload/2+1)
+	for i := 0; i < 3; i++ {
+		scan.InsertLeaf(leased.NewLeaf(fmt.Sprintf("k%v", i), big, ""))
+	}
+	tkt := n.NewTicket("scan", "big", "", nil, "client_id", "client", READ_KEYRANGE, -1, context.Background())
+	tkt.FromID, tkt.FromName = "client_id", "client"
+	tkt.KeyValRangeScan = scan
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("oversized reply panicked the leader: %v", r)
+			}
+		}()
+		n.respondToClientTicketApplied(tkt)
+	}()
+	if !errors.Is(tkt.Err, ErrResultTooLarge) || tkt.KeyValRangeScan != nil {
+		t.Fatalf("oversized reply should fail with ErrResultTooLarge and no scan, got err %v", tkt.Err)
 	}
 }

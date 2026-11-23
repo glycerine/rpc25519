@@ -10983,10 +10983,21 @@ func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
 	frag.FragSubject = "LeaderToClientTicketApplied"
 	bts, err := tkt.MarshalMsg(nil)
 	panicOn(err)
-	frag.Payload = bts
 	if len(bts) > rpc.UserMaxPayload { // 1_200_000
-		panicf("why so big? will not get through... len(bts) is %v > rpc.UserMaxPayload(%v) footprint = %v", len(bts), rpc.UserMaxPayload, tkt.Footprint()) // a large keyrange scan failed here... KeyValRangeScan: 1274739 after reading dead zone after 2k clients gone.
+		// A large key range scan can exceed one message.
+		// Fail the request instead of crashing: every later
+		// leader would hit the same reply on the client's retry.
+		alwaysPrintf("%v reply of %v bytes exceeds rpc.UserMaxPayload(%v); failing ticket instead. footprint = %v", s.me(), len(bts), rpc.UserMaxPayload, tkt.Footprint())
+		tkt.dropReplyPayload()
+		tkt.Err = fmt.Errorf("%w: reply of %v bytes exceeds rpc.UserMaxPayload(%v); narrow the scan", ErrResultTooLarge, len(bts), rpc.UserMaxPayload)
+		bts, err = tkt.MarshalMsg(nil)
+		panicOn(err)
+		if len(bts) > rpc.UserMaxPayload {
+			alwaysPrintf("%v reply still %v bytes after dropping results; not sending", s.me(), len(bts))
+			return
+		}
 	}
+	frag.Payload = bts
 
 	frag.SetUserArg("leaderID", s.leaderID)
 	frag.SetUserArg("leaderName", s.leaderName)
@@ -13556,8 +13567,8 @@ func (s *TubeNode) peerListRequestHandler(frag *rpc.Fragment, ckt *rpc.Circuit) 
 		// all the dead clients from membership attempts
 		// whose processes are very short lived! The
 		// inspection thus gets too large (3MB).
-		fmt.Printf("problem insp is: '%v'", insp.String())
-		panicf("problem! our peer list reply (%v) is over maxMessage(%v)", len(bts), rpc.UserMaxPayload)
+		alwaysPrintf("%v problem! our peer list reply (%v) is over maxMessage(%v); not sending it", s.me(), len(bts), rpc.UserMaxPayload)
+		return nil
 	}
 
 	frag1.SetUserArg("leaderID", insp.CurrentLeaderID)
@@ -16716,11 +16727,25 @@ func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, 
 	return
 }
 
+// dropReplyPayload clears the result-bearing fields of a
+// reply that will not fit in one message.
+func (tkt *Ticket) dropReplyPayload() {
+	tkt.KeyValRangeScan = nil
+	tkt.Val = nil
+	tkt.OldVal = nil
+	tkt.CurValOnFailedWrite = nil
+	tkt.CASRejectedBecauseCurVal = nil
+	tkt.PrevLeaseVal = nil
+	tkt.StateSnapshot = nil
+	tkt.Batch = nil
+}
+
 // helper
 func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur time.Duration, keepFragIfPositive int) (err error) {
 	npay := len(frag.Payload)
 	if npay > rpc.UserMaxPayload {
-		panicf("npay(%v) > rpc.UserMaxPayload(%v) cannot send this large a message! frag.FragSubject='%v'; frag.FragOp='%v'", npay, rpc.UserMaxPayload, frag.FragSubject, frag.FragOp)
+		alwaysPrintf("%v npay(%v) > rpc.UserMaxPayload(%v) cannot send this large a message! frag.FragSubject='%v'; frag.FragOp='%v'", s.me(), npay, rpc.UserMaxPayload, frag.FragSubject, frag.FragOp)
+		return ErrResultTooLarge
 	}
 	if errWriteDur == -1 {
 		// Specular Bug 8: our fire-and-forget sends opt in to

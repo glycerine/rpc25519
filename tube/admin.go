@@ -335,6 +335,7 @@ var (
 	ErrChannelFull       = fmt.Errorf("message channel is full")
 	ErrConflict          = fmt.Errorf("error conflict: too low version")
 	ErrTimeOut           = fmt.Errorf("error timeout")
+	ErrResultTooLarge    = fmt.Errorf("result too large for one reply message")
 )
 
 // GetConfigDir returns the config dir
