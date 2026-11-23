@@ -99,6 +99,12 @@ func (s *pongPQ) add(pong Pong) (it rb.Iterator) {
 		panicf("%v: should never have 0 time in pong.RecvTm!", s.name)
 	}
 	s.delPeerID(pong.PeerID)
+	// Specular Bug 15: one pong per replica name, so the
+	// old and new incarnation of a restarted replica
+	// (different PeerIDs) are not both counted.
+	if pong.PeerName != "" {
+		s.delPeerName(pong.PeerName)
+	}
 	var added bool
 	added, it = s.tree.InsertGetIt(&pong)
 	if !added {
@@ -126,6 +132,19 @@ func (s *pongPQ) delPeerID(peerID string) {
 	for !it.Limit() {
 		pong := it.Item().(*Pong)
 		if pong.PeerID == peerID {
+			delit := it
+			it = it.Next()
+			s.tree.DeleteWithIterator(delit)
+		} else {
+			it = it.Next()
+		}
+	}
+}
+
+func (s *pongPQ) delPeerName(peerName string) {
+	for it := s.tree.Min(); !it.Limit(); {
+		pong := it.Item().(*Pong)
+		if pong.PeerName == peerName {
 			delit := it
 			it = it.Next()
 			s.tree.DeleteWithIterator(delit)
