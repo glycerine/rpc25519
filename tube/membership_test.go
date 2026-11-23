@@ -3,6 +3,7 @@ package tube
 import (
 	//"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 	//rpc "github.com/glycerine/rpc25519"
@@ -702,4 +703,23 @@ func Test403_reduce_a_cluster_down_to_one_node(t *testing.T) {
 		vv("403 back from cluster Close; totNodes = %v", totNodes)
 	})
 
+}
+
+func TestJoinRejectsOccupiedReplicaName(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		c, _, _, _ := SetupTestCluster(t, 3, 0, 1040)
+		defer c.Close()
+		leader := c.Nodes[0]
+		before := leader.Inspect().State.MC
+		voter := c.Nodes[2]
+		_, _, err := leader.AddPeerIDToCluster(bkg, false, false, voter.name, "new_process_id",
+			TUBE_REPLICA, voter.BaseServerHostPort(), leader.URL, time.Second)
+		if err == nil || !strings.Contains(err.Error(), "already in the cluster") {
+			t.Errorf("join with occupied name %q returned %v", voter.name, err)
+		}
+		after := leader.Inspect().State.MC
+		if !after.VersionEqual(before) || after.PeerNames.Get(voter.name).PeerID != before.PeerNames.Get(voter.name).PeerID {
+			t.Fatalf("duplicate join changed membership from %v to %v", before.Short(), after.Short())
+		}
+	})
 }
