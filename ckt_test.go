@@ -82,6 +82,10 @@ type counts struct {
 }
 
 type countService struct {
+	// afterSend, if set, runs after a SendOneWay returns and before
+	// the send is recorded: lets a test widen that window.
+	afterSend func()
+
 	halt *idem.Halter
 
 	// key is circuit name
@@ -318,6 +322,9 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 							frag.FragPart = int64(i)
 							_, err := ckt.SendOneWay(frag, 0, 0)
 							panicOn(err)
+							if s.afterSend != nil {
+								s.afterSend()
+							}
 							s.incrementSends(ckt.Name)
 							s.sendch <- frag
 							s.dropcopy_sends <- frag
@@ -437,6 +444,9 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 								// shutdown
 								return
 							}
+							if s.afterSend != nil {
+								s.afterSend()
+							}
 							s.incrementSends(ckt.Name)
 							s.sendch <- frag
 							s.dropcopy_sends <- frag
@@ -520,7 +530,10 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 	// prevent race with client starting circuit
 	<-j.srvs.dropcopy_reads
-	// we know the server has read a frag now.
+	// we know the server has read a frag now. The client records
+	// its circuit-start send only after the send returns, so wait
+	// for that record too before checking the send counters.
+	<-j.clis.dropcopy_sends
 
 	if got, want := cli_lpb.OpenCircuitCount(), 1; got != want {
 		t.Fatalf("error: expected 1 open circuit on cli, got: '%v'", got)
@@ -572,7 +585,6 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 	if got, want := len(j.srvs.sendch), 0; got != want {
 		t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 	}
-	<-j.clis.dropcopy_sends
 
 	// have server send 1 to client.
 	frag := NewFragment()
@@ -710,12 +722,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 	// server to client, do N sends
 
 	N := 10
-	drain(j.clis.dropcopy_reads)
-	j.srvs.passiveSideSendN <- N
-
-	for range N {
-		<-j.clis.dropcopy_reads
-	}
+	sendAndAwait(j.srvs, j.clis, N, func() { j.srvs.passiveSideSendN <- N })
 	// verify client readch incremented by N
 	if got, want := len(j.clis.readch), 2+N; got != want {
 		t.Fatalf("error: expected cli readch to have %v, got: %v", want, got)
@@ -731,12 +738,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 	}
 
 	// client to server, do N sends
-	drain(j.srvs.dropcopy_reads)
-	j.clis.activeSideSendN <- N
-
-	for range N {
-		<-j.srvs.dropcopy_reads
-	}
+	sendAndAwait(j.clis, j.srvs, N, func() { j.clis.activeSideSendN <- N })
 
 	// verify server readch incremented by N
 	if got, want := len(j.clis.readch), 2+N; got != want {
@@ -746,7 +748,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		t.Fatalf("error: expected srv readch to have %v, got: %v", want, got)
 	}
 	if got, want := len(j.clis.sendch), 2+N; got != want {
-		t.Fatalf("error: expected cli sendch to have %v, got: %v", want, got) // intermittant, very rare: ckt_test.go:749: error: expected cli sendch to have 12, got: 11 ; under go test -v -tags synctest -tags pont ; pont as of 2026-Sept-20.
+		t.Fatalf("error: expected cli sendch to have %v, got: %v", want, got) // (was an intermittent 12 vs 11: fixed by sendAndAwait also waiting for the sender's send records; see Test409b.)
 	}
 	if got, want := len(j.srvs.sendch), 1+N; got != want {
 		t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
@@ -846,6 +848,23 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 // drain is a helper to prep for the next part of the test.
 // drain helps prevents races by emptying a channel's buffer.
+// sendAndAwait triggers n sends from sender and waits until the
+// test may check both sides' counters: n reads at the receiver
+// and n send records at the sender. The sender records a send only
+// after SendOneWay returns, which can be after the receiver has
+// already read it, so the receiver alone is not enough.
+func sendAndAwait(sender, receiver *countService, n int, trigger func()) {
+	drain(receiver.dropcopy_reads)
+	drain(sender.dropcopy_sends)
+	trigger()
+	for range n {
+		<-receiver.dropcopy_reads
+	}
+	for range n {
+		<-sender.dropcopy_sends
+	}
+}
+
 func drain(ch chan *Fragment) {
 	for {
 		select {
