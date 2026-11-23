@@ -2161,9 +2161,8 @@ func (s *TubeNode) parProtected() int64 {
 // Q1/Q2 still check configuration/term adoption separately. No extra messages
 // or persistence are needed; normal replication can satisfy this condition.
 func (s *TubeNode) parReconfigurationReady(mc *MemberConfig) bool {
-	if s.par == nil {
-		return true
-	}
+	// P1 holds with or without PAR state: NoDisk nodes run the same
+	// reconfiguration admission as production (CR-D-27).
 	if s.parBlocked() || mc == nil {
 		return false
 	}
