@@ -23,59 +23,32 @@ func (s *pongPQ) Len() int {
 	return s.tree.Len()
 }
 
-// quorumPongTm acts like a 1-based index into
-// a sorted array of timestamps.
-// quorumPongTm returns the newest time
-// at which we had a quorum of roundtrip pongs,
-// to allow leaders to step down (per section 6.2
-// of the raft thsis) if either ok is false or tm > max
-// leader election time, (assuming that we have
-// been leader for at least min election dur;
-// so this is checked on the leader election timeout).
-// quor = size of quorum to check.
-// If we have < quor in tree, false is returned for ok,
-// and tm will be the zero time and oldest will be nil.
-func (s *pongPQ) quorumPongTm(quor int) (tm time.Time, ok bool, newest *Pong) {
-	n := s.tree.Len()
-	if n == 0 || quor < 1 {
-		// single node cluster
-		// Test001_no_replicas_write_new_value
-		ok = true
-		tm = time.Now()
-		return
+// The leader counts itself only while it is a voter. Evaluate other pongs
+// against today's membership even if the sender was a voter when it replied.
+func (s *TubeNode) leaderPongQuorumTm() (time.Time, bool, *Pong) {
+	need := s.quorum()
+	if s.isVotingMemberOfCurrentMC(s.name) {
+		need--
 	}
-	// PRE: n > 0
-	goal := n - 1
-	// so: goal >= 0
+	return s.leaderFullPongPQ.quorumPongTm(need, s.isVotingMemberOfCurrentMC)
+}
 
-	// PRE: quor >= 1
-	if quor > n {
-		ok = false
-		// still give back the best timestamp we can? naw. no point.
-		return
-	} else {
-		// 1 <= quor <= n
-		ok = true
-		// quorum of 1 wants the [0] smallest (first)
-		goal = quor - 1
-		// 0 <= goal <= n-1
+// Return the time of the oldest reply needed to make a quorum.
+func (s *pongPQ) quorumPongTm(need int, isVoter func(string) bool) (time.Time, bool, *Pong) {
+	if need == 0 {
+		return time.Now(), true, nil
 	}
-
-	i := 0
-	// tree is sorted by highest time first (most recent first),
-	// so as we look further into the tree, times get older.
 	for it := s.tree.Min(); !it.Limit(); it = it.Next() {
-		if i == goal {
-			newest = it.Item().(*Pong)
-			tm = newest.RecvTm
-			if tm.IsZero() {
-				panicf("%v: should never have 0 time in newest.RecvTm!", s.name)
-			}
-			return
+		pong := it.Item().(*Pong)
+		if !isVoter(pong.PeerName) {
+			continue
 		}
-		i++
+		need--
+		if need == 0 {
+			return pong.RecvTm, true, pong
+		}
 	}
-	panic(fmt.Sprintf("should be unreachable since Len() was sufficient. i=%v, quor=%v, n=%v; ok=%v; tm=%v; goal=%v", i, quor, n, ok, tm, goal))
+	return time.Time{}, false, nil
 }
 
 func (s *pongPQ) pop() *Pong {
