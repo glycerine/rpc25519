@@ -533,8 +533,17 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			msg.HDR.Typ == CallPeerTrafficWithServiceFallback ||
 			msg.HDR.Typ == CallPeerError {
 			// we can get here on shutdown, don't freak.
-			alwaysPrintf("cli readLoop shutting down on unexpected CallPeerTraffic/WithServiceFallback/Error")
-			return
+			// Specular Bug 9: otherwise this is a frame for a
+			// circuit or local peer we do not have (e.g. of a
+			// peer's old incarnation); drop it rather than
+			// tearing down the whole connection.
+			select {
+			case <-c.halt.ReqStop.Chan:
+				alwaysPrintf("cli readLoop shutting down on unexpected CallPeerTraffic/WithServiceFallback/Error")
+				return
+			default:
+			}
+			continue
 		}
 
 		// protect map access. Be sure to Unlock if you "continue" below.
