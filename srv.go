@@ -2038,6 +2038,7 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 	}
 
 	p.halt = idem.NewHalterNamed(fmt.Sprintf("Server.rwPair(%p)", p))
+	p.loopy.sendLoopGone = p.halt.ReqStop.Chan
 	s.halt.AddChild(p.halt)
 	p.keepAliveMsg.HDR.Typ = CallKeepAlive
 	p.keepAliveMsg.HDR.Subject = p.epochV.EpochTieBreaker

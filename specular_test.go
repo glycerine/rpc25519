@@ -495,3 +495,32 @@ func TestCircuitAckSentWithoutSetupLockHeld(t *testing.T) {
 		t.Fatal("circuit-established ack sent while holding the node-wide setup lock")
 	}
 }
+
+// CR-D-92: Circuit.Close blocked forever on the connection's
+// cktServedDel channel once its send loop was gone, and each
+// repeated Close posted another removal.
+func TestCircuitCloseDoesNotBlockOnGoneSendLoop(t *testing.T) {
+	gone := make(chan struct{})
+	close(gone)
+	mk := func(del chan *Circuit, loopGone <-chan struct{}) *Circuit {
+		return &Circuit{CircuitID: "c", Halt: idem.NewHalter(),
+			loopy:   &LoopComm{cktServedDel: del, sendLoopGone: loopGone},
+			LpbFrom: &LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *Circuit, 10)}}
+	}
+	ckt := mk(make(chan *Circuit), gone) // nobody will ever receive
+	done := make(chan struct{})
+	go func() { ckt.Close(nil); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Circuit.Close blocked on a send loop that is gone")
+	}
+
+	del := make(chan *Circuit, 10)
+	ckt2 := mk(del, make(chan struct{}))
+	ckt2.Close(nil)
+	ckt2.Close(nil)
+	if len(del) != 1 {
+		t.Fatalf("repeated Close posted %v removals, want 1", len(del))
+	}
+}

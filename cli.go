@@ -1990,6 +1990,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	}
 
 	c.halt = idem.NewHalterNamed(fmt.Sprintf("Client(%v %p)", name, c)) // this halter is being closed quickly? 20 msec - 30 msec after made.
+	c.loopy.sendLoopGone = c.halt.ReqStop.Chan
 
 	// share code with server for CallID and ToPeerID callbacks.
 	c.notifies = newNotifies(yesIsClient, c)
