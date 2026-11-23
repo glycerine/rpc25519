@@ -9942,10 +9942,6 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 			s.leaderFullPongPQ.add(foll.LastFullPong) // sort on RecvTm
 		}
 
-		// the most essential thing: longest common prefix
-		// lets us know exactly what they need.
-		foll.LargestCommonRaftIndex = ack.LargestCommonRaftIndex
-
 		foll.MinElectionTimeoutDur = ack.MinElectionTimeoutDur
 		if ack.MinElectionTimeoutDur == 0 {
 			panic(fmt.Sprintf("%v bad peer: MinElectionTimeoutDur == 0?? peer='%v'; stack=\n%v", s.me(), rpc.AliasDecode(ack.FromPeerID), stack()))
@@ -9956,8 +9952,14 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 
 	// maintain and update our RaftNodeInfo for each peer.
 
-	// this is the essential thing.
-	foll.LargestCommonRaftIndex = ack.LargestCommonRaftIndex
+	// this is the essential thing: the longest common prefix
+	// tells us exactly what they need. Within a term (s.peers
+	// is rebuilt per candidacy) the prefix only grows, so a late
+	// ack from an older AE or circuit must not lower it. Only
+	// a rejection, which proves divergence, may lower it.
+	if ack.Rejected || ack.LargestCommonRaftIndex > foll.LargestCommonRaftIndex {
+		foll.LargestCommonRaftIndex = ack.LargestCommonRaftIndex
+	}
 
 	begIdx, begTerm, leaderLastLogIndex, endTerm := s.getRaftLogSummary()
 	_, _, _, _ = begIdx, begTerm, leaderLastLogIndex, endTerm
@@ -16768,8 +16770,14 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	// INVAR: any oldCktP has a different ckt.CircuitID, or a different instance
 
 	samePeerID := false
+	// A replacement circuit from the same follower incarnation
+	// (same PeerID) keeps the leader's replication record.
+	var keepFoll *RaftNodeInfo
 	if haveOld && oldCktP.PeerID == ckt.RemotePeerID {
 		samePeerID = true
+		if f := s.peers[ckt.RemotePeerID]; f != nil && f.PeerName == ckt.RemotePeerName {
+			keepFoll = f
+		}
 		//vv("%v oldCktP.PeerID(%v) == ckt.RemotePeerID; and CircuitID differ=%v: will keep the lower lex sorting of circuitID", s.me(), oldCktP.PeerID, oldCktP.ckt.CircuitID != ckt.CircuitID) // not seen 057
 	}
 	if haveOld {
@@ -16924,7 +16932,11 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 				}
 			}
 		}
-		s.peers[cktP.PeerID] = s.newRaftNodeInfo(cktP.PeerID, cktP.PeerName, cktP.PeerServiceName, cktP.PeerServiceNameVersion)
+		if keepFoll != nil {
+			s.peers[cktP.PeerID] = keepFoll
+		} else {
+			s.peers[cktP.PeerID] = s.newRaftNodeInfo(cktP.PeerID, cktP.PeerName, cktP.PeerServiceName, cktP.PeerServiceNameVersion)
+		}
 	}
 
 	return

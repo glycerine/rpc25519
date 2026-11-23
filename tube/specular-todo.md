@@ -47,7 +47,7 @@ transcripts). This keeps only findings **not already fixed** by the first round
 | 53 | CR-D-48 | R FIXED | `SessionTableEntry.Clone` drops `SessionEndxTm`. Snapshot install and restart don't rebuild `sessByExpiry` or `sessTableByClientName`, and `updateSessTableByClientName` then deletes live sessions, so session tables diverge. | Copy the field. Rebuild the session indexes after install and after restart. |
 | 61 | CR-D-60 | R FIXED | `DELETE_TABLE` and `RENAME_TABLE` ignore leases. Deleting or renaming `hermes` wipes a live czar key, and the key returns at epoch 1, giving two czars and an epoch regression. | Apply the `DeleteKey` lease rule to every key, using log time. Keep a monotone epoch floor. |
 | 59 | CR-D-58 | R FIXED | The leader's dry run for a leased write uses a zero `RaftLogEntryTm` (actions.go `expiredDur`), so taking over an expired lease is always rejected locally and never reaches the log. | `expiredDur := now.Sub(okAfter)`. |
-| 17 | CR-D-4 | M | A follower's replication record is reset (MatchIndex and LCRI = 0) on every new or duplicate circuit, and stale acks overwrite LCRI downward. **Overlap:** Bug 1 changed where MatchIndex comes from; this reset and overwrite remain. | Keep the record across replacement circuits from the same incarnation. Raise LCRI only upward within a term. |
+| 17 | CR-D-4 | M FIXED | A follower's replication record is reset (MatchIndex and LCRI = 0) on every new or duplicate circuit, and stale acks overwrite LCRI downward. **Overlap:** Bug 1 changed where MatchIndex comes from; this reset and overwrite remain. | Keep the record across replacement circuits from the same incarnation. Raise LCRI only upward within a term. |
 
 ## 2. Crashes: panics reachable from remote or operator input
 
