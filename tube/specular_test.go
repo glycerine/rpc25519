@@ -2815,3 +2815,30 @@ func TestFinishingAppliedCopyMarksWaitingOriginalFinished(t *testing.T) {
 		t.Fatalf("an already-finished ticket was finished again with %v", orig.Err)
 	}
 }
+
+// TestPar_live_removed_replica_snapshot_after_reconfiguration: a
+// replica removed from the config stays a shadow, which the leader
+// keeps redialing. With no circuit left to it, the leader found its
+// address only in MC.PeerNames, so it redialed with no address at all.
+func TestLeaderRedialsShadowReplicaAtItsAddress(t *testing.T) {
+	n := specularNode(t, "n0", LEADER, 2, nil, "n0", "n1")
+	shadows := n.NewMemberConfig("shadow")
+	shadows.PeerNames.Set("n2", &PeerDetail{Name: "n2", PeerID: "n2_id", PeerServiceName: TUBE_REPLICA,
+		URL: "simnet://srv_n2/tube-replica/n2_id", Addr: "simnet://srv_n2"})
+	n.state.ShadowReplicas = shadows
+
+	// the pending entry the leader keeps once the old circuit is
+	// gone (no watchdog here: there is no network to dial).
+	n.cktAllByName["n2"] = n.newCktPlus("n2", TUBE_REPLICA)
+	n.connectInBackgroundIfNoCircuitTo("n2", "test")
+	cktP := n.cktAllByName["n2"]
+	if cktP == nil {
+		t.Fatal("no pending circuit to the shadow replica")
+	}
+	cktP.requestReconnectMut.Lock()
+	recon := cktP.requestReconnect
+	cktP.requestReconnectMut.Unlock()
+	if recon == nil || recon.netAddr != "simnet://srv_n2" {
+		t.Fatalf("leader redialed shadow n2 at %+v, want netAddr simnet://srv_n2", recon)
+	}
+}
