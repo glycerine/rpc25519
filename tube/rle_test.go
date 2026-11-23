@@ -730,3 +730,22 @@ func TestExtendsDivergenceAtLeaderSnapshotBoundary(t *testing.T) {
 		t.Fatalf("Extends = (%v, %d, %v), want (false, %d, true)", extends, common, snapshot, follower.BaseC)
 	}
 }
+
+func TestTermIndexIteratorFromCompactBase(t *testing.T) {
+	log := &TermsRLE{BaseC: 4, CompactTerm: 1, Runs: []*TermRLE{{Term: 2, Count: 2}, {Term: 3, Count: 1}}}
+	log.fixTot()
+	entries := log.getTermIndexStartingAt(4)
+	for pass := range 2 {
+		want := []int64{1, 2, 2, 3}
+		n := 0
+		for term, idx := range entries {
+			if n >= len(want) || idx != int64(4+n) || term != want[n] {
+				t.Fatalf("pass %d, entry %d: got index %d term %d", pass, n, idx, term)
+			}
+			n++
+		}
+		if n != len(want) {
+			t.Fatalf("pass %d yielded %d entries, want %d", pass, n, len(want))
+		}
+	}
+}
