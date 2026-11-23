@@ -7,8 +7,12 @@ package tube
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/glycerine/idem"
+	rpc "github.com/glycerine/rpc25519"
 )
 
 // ackCaptureHost lets the real TubeNode.handleAppendEntries
@@ -518,4 +522,76 @@ func Test1007_reconfig_ack_waits_for_new_config_commit(t *testing.T) {
 		}
 		vv("good: unadopted reconfig not acknowledged: %v", err)
 	})
+}
+
+// stuckTransport stands in for the connection to a peer
+// that has stopped (SIGSTOP, wedged VM, half-open TCP to a
+// powered-off host): the hand-off of a message to that
+// connection's writer never completes.
+type stuckTransport struct {
+	rpc.UniversalCliSrv // only SendOneWayMessage is used.
+	release             chan struct{}
+	entered             atomic.Int64
+}
+
+func (u *stuckTransport) SendOneWayMessage(ctx context.Context, msg *rpc.Message, errWriteDur time.Duration, forbidAutoCli bool) (bool, *rpc.LoopComm, error) {
+	u.entered.Add(1)
+	<-u.release
+	return false, nil, nil
+}
+
+// Bug 8 (High): every event-loop send used SendOneWay with
+// errWriteDur = -1, whose hand-off to the connection blocks
+// with no timeout. One stopped peer therefore froze the
+// single Tube event loop of every live replica that tried
+// to send to it, and a healthy majority never elected a
+// leader. A fire-and-forget send must never block the
+// event loop.
+func Test1008_send_to_stuck_peer_does_not_block_event_loop(t *testing.T) {
+
+	node := specularNode(t, "n1", FOLLOWER, 1, []int64{1}, "n1", "n2", "n3")
+	defer node.Halt.ReqStop.Close()
+
+	u := &stuckTransport{release: make(chan struct{})}
+	defer close(u.release)
+
+	ctx, canc := context.WithCancelCause(context.Background())
+	defer canc(nil)
+	lpb := &rpc.LocalPeer{
+		Halt:     idem.NewHalterNamed("stuck_lpb"),
+		Ctx:      ctx,
+		U:        u,
+		PeerID:   node.PeerID,
+		PeerName: node.name,
+	}
+	defer lpb.Halt.ReqStop.Close()
+	ckt := &rpc.Circuit{
+		LpbFrom:        lpb,
+		CircuitID:      "ckt-to-stopped-n3",
+		Context:        ctx,
+		Canc:           canc,
+		RemotePeerID:   "n3_id",
+		RemotePeerName: "n3",
+		LocalPeerID:    node.PeerID,
+		LocalPeerName:  node.name,
+		RpbTo:          &rpc.RemotePeer{NetAddr: "simnet://n3"},
+	}
+
+	// e.g. the RequestPreVote / AppendEntries a timer
+	// fires at a peer whose kernel buffer is full.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 3; i++ {
+			frag := rpc.NewFragment()
+			frag.FragSubject = "PreVote"
+			frag.Payload = []byte("hi")
+			node.SendOneWay(ckt, frag, -1, 1)
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("Bug 8: the event loop is blocked sending to a stopped peer (hand-off entered %v times)", u.entered.Load())
+	}
 }
