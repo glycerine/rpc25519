@@ -2323,6 +2323,18 @@ func (s *TubeNode) parRecoveryStep() {
 	rebuild := false
 	if p.unknown {
 		candidateSlot, candidate, err := parIdentifierCandidate(s.wal.path, s.ClusterID)
+		if err == nil && candidate.Index > s.parProtected() {
+			// An interrupted append (parInterrupted): the WAL bytes were
+			// fsynced, but the crash came before their identifiers were
+			// published. Nothing is acknowledged before its identifier is
+			// durable, so an entry above every protected floor was never
+			// acknowledged; keeping it is always safe in Raft. Identify our
+			// own checksum-valid, chained bytes locally rather than wait
+			// for a donor that cannot exist (CR-D-49, CR-9).
+			if s.parIdentifyInterruptedLocally(candidateSlot, candidate) {
+				return
+			}
+		}
 		if err == nil {
 			slot, target, rebuild = int(candidateSlot), candidate, true
 		} else {
@@ -2774,6 +2786,52 @@ func (s *raftWriteAheadLog) parPrepareSnapshotWAL() error {
 	s.parlog = &parLog{path: s.path + ".parlog", fd: pfd}
 	s.parInv = nil
 	return nil
+}
+
+// parIdentifyInterruptedLocally installs the identifier for our own
+// WAL entry in slot, then rescans. It reports whether it made progress.
+func (s *TubeNode) parIdentifyInterruptedLocally(slot int64, candidate *ParRecord) bool {
+	p := s.par
+	fd, err := os.Open(s.wal.path)
+	if err != nil {
+		return false
+	}
+	fi, err := fd.Stat()
+	if err != nil {
+		fd.Close()
+		return false
+	}
+	data, _, err := parReadFrameAt(fd, candidate.Offset, fi.Size())
+	fd.Close()
+	if err != nil {
+		return false
+	}
+	if err := parInstallIdentifier(s.wal.path, slot, *candidate, data); err != nil {
+		p.err = err
+		return false
+	}
+	alwaysPrintf("%v PAR: identified interrupted append locally: index %v term %v (slot %v)", s.name, candidate.Index, candidate.Term, slot)
+	updated, err := scanParWAL(s.wal.path, s.ClusterID)
+	if err != nil {
+		p.err = err
+		return false
+	}
+	s.wal.parInv = updated
+	p.unknown = parInventoryUnknown(updated) || s.parProtected() > s.parLastIdentified(updated)
+	p.round = nil
+	p.tick = time.After(time.Millisecond)
+	return true
+}
+
+// parLastIdentified returns the highest index the inventory identifies.
+func (s *TubeNode) parLastIdentified(inv *parInventory) int64 {
+	last := s.state.CompactionDiscardedLast.Index
+	for _, entry := range inv.Entries {
+		if entry.Record != nil {
+			last = max(last, entry.Record.Index)
+		}
+	}
+	return last
 }
 
 func (s *TubeNode) parFinish() {
