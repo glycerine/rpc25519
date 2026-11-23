@@ -1192,3 +1192,19 @@ func TestForcedChangeContactingFollowerUsesLiveLeader(t *testing.T) {
 		}
 	})
 }
+
+func TestReplicaJoinCannotReplaceLiveNamesake(t *testing.T) {
+	n := specularNode(t, "node_0", FOLLOWER, 1, nil, "node_0", "node_2")
+	defer n.Halt.RequestStop()
+	incumbent := &cktPlus{PeerName: "node_2", PeerID: "original_id", PeerServiceName: TUBE_REPLICA,
+		ckt: &rpc.Circuit{Halt: idem.NewHalter()}}
+	n.cktAllByName[incumbent.PeerName] = incumbent
+	n.cktall[incumbent.PeerID] = incumbent
+	incoming := &rpc.Circuit{RemotePeerName: incumbent.PeerName, RemotePeerID: "new_id", RemoteServiceName: TUBE_REPLICA,
+		CircuitID: "new_circuit", Halt: idem.NewHalter(), RpbTo: &rpc.RemotePeer{BaseServerAddr: "simnet://new"},
+		LpbFrom: &rpc.LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *rpc.Circuit, 1)}}
+	_, rejected := n.addToCktall(incoming)
+	if !rejected || n.cktAllByName[incumbent.PeerName] != incumbent || n.cktall[incoming.RemotePeerID] != nil {
+		t.Fatal("a second replica took over a live replica's name")
+	}
+}

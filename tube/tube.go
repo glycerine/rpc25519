@@ -1667,7 +1667,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				panic("what? no cluster tests yet!")
 				continue
 			}
-			s.peerJoin(frag, ckt)
+			if !s.peerJoin(frag, ckt) {
+				continue
+			}
 
 			//now := time.Now()
 			switch frag.FragOp {
@@ -9068,7 +9070,7 @@ func (s *TubeNode) bcastAppendEntries(es []*RaftLogEntry, prevLogIndex, prevLogT
 }
 
 // ckt might be nil
-func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
+func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) bool {
 
 	// since this is called for every message,
 	// we want it to be pretty fast.
@@ -9111,12 +9113,14 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 			var rejected bool
 			cktP, rejected = s.addToCktall(ckt)
 			if rejected {
-				alwaysPrintf("ouch 777777777 ckt rejected from cktall: '%v'", ckt.RemotePeerName)
-				panic("when ckt rejected? 777")
+				return false
 			}
 		}
 	}
 
+	if cktP == nil {
+		return false
+	}
 	isReplica := (cktP.PeerServiceName == TUBE_REPLICA)
 	if isReplica && s.cfg.isTest {
 		s.verifyCluster(frag.FromPeerID)
@@ -9125,7 +9129,7 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 	_, known := s.peers[frag.FromPeerID]
 	//vv("%v peerJoin, known=%v for frag.FromPeerID = '%v'; onlineReplicaCount()=%v; len(peers)=%v; len(cktall)=%v; isReplica='%v'", s.me(), known, rpc.AliasDecode(frag.FromPeerID), s.onlineReplicaCount(), len(s.peers), len(s.cktall), isReplica)
 	if known || !isReplica {
-		return
+		return true
 	}
 
 	// INVAR: have new replica, probably needs heartbeating
@@ -9154,6 +9158,7 @@ func (s *TubeNode) peerJoin(frag *rpc.Fragment, ckt *rpc.Circuit) {
 		//vv("%v as leader sending heartbeat to new peer (and everyone)", s.me())
 		s.leaderSendsHeartbeats(true)
 	}
+	return true
 }
 
 func (s *TubeNode) onlineReplicaCount() (online int) {
@@ -13302,21 +13307,6 @@ func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, forceCha
 		return
 	}
 
-	insp := s.Inspect()
-	weAreLeader := (insp.Role == LEADER) &&
-		(leaderURL == insp.ResponderPeerURL)
-	//vv("%v weAreLeader = '%v'", s.me(), weAreLeader)
-
-	if weAreLeader {
-		if targetPeerID == s.PeerID {
-			if addNotRemove {
-				alwaysPrintf("%v oddness in SingleUpdateClusterMemberConfig(add=%v): we (%v) are already leader in cluster(%v), skipping add of self to self led cluster", s.name, addNotRemove, rpc.AliasDecode(insp.State.PeerID), rpc.AliasDecode(insp.State.ClusterID))
-				return
-			}
-			// else: we are allowed to remove self, even if leader.
-		}
-	}
-
 	desc := "SingleUpdateClusterMemberConfig() "
 	if addNotRemove {
 		if nonVoting {
@@ -14505,6 +14495,14 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		} // end if false
 	}
 	curConfig := s.state.MC
+	if tkt.AddPeerName != "" {
+		if _, taken := curConfig.PeerNames.Get2(tkt.AddPeerName); taken {
+			tkt.Err = fmt.Errorf("replica name %q is already in the cluster", tkt.AddPeerName)
+			s.respondToClientTicketApplied(tkt)
+			return
+		}
+	}
+
 
 	// our Rule: only increment the ConfigVersion when
 	// the set of _names_ has changed. The details of
@@ -14652,16 +14650,6 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 
 	switch {
 	case tkt.AddPeerName != "":
-
-		_, already := curConfig.PeerNames.Get2(tkt.AddPeerName)
-		if already {
-			break // just proceed below
-
-			tkt.Err = fmt.Errorf("changeMembership error: nothing to do, as AddPeerName '%v'/'%v' is already in curConfig: '%v'", tkt.AddPeerName, tkt.AddPeerID, curConfig)
-			//vv("%v changeMembership returning error early: tkt.Err = '%v'", s.me(), tkt.Err)
-			s.replyToForwardedTicketWithError(tkt)
-			return
-		}
 
 		cktP, ok := s.cktAllByName[tkt.AddPeerName]
 		if ok && cktP.ckt != nil {
@@ -16781,39 +16769,16 @@ func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur 
 // called by <-newCircuitCh
 // called by peerJoin()
 func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) {
-	//defer func() {
-	//vv("%v addToCktall finished processing ckt.RemotePeerName='%v' RemotePeerID='%v'", s.me(), ckt.RemotePeerName, ckt.RemotePeerID)
-	//}()
-
-	//if ckt.RemotePeerName == s.name {
-	// we might want to allow this to let in-process
-	// tubecli clients talk to the tube/replica sub-system,
-	// and helper.go creates it in its search to reach
-	// "everyone". but bah! we want to use a direct
-	// channel rather than a circuit in that case.
-	// but bah! we cannot always know if we are leader or not.
-	//panic(fmt.Sprintf("%v huh? self-loop? use a channel! ckt.RemotePeerName==s.name; ckt='%v'", s.name, ckt))
-	//}
-
-	// new replaces old can create an infinite restart loop.
-	// 057 demonstrated that.
-	// decide to keep one that sortes lexicographically lower
-	// based on cktID.
-
-	// old code, not in use at the moment: we now do everyting
-	// by PeerID instead of name.
-	// oldCktP, haveOld := s.cktAllByName[ckt.RemotePeerName]
-	// if haveOld && oldCktP.PeerServiceName == ckt.RemoteServiceName {
-	// 	if false { // def not ready for such... at the moment this is
-	// 		// the build version, which evolves alot...
-	// 		if oldCktP.PeerServiceNameVersion > ckt.RemotePeerServiceNameVersion {
-	// 			alwaysPrintf("%v dropping update to RemotePeerName='%v'; PeerServiceName='%v' with version '%v' that is stale versus our current version '%v'", s.name, ckt.RemotePeerName, oldCktP.PeerServiceName, ckt.RemotePeerServiceNameVersion, oldCktP.PeerServiceNameVersion)
-	// 			rejected = true
-	// 			cktP = nil
-	// 			return
-	// 		}
-	// 	}
-	// }
+	if s.PeerServiceName == TUBE_REPLICA && ckt.RemoteServiceName == TUBE_REPLICA {
+		name := ckt.RemotePeerName
+		owner := s.cktAllByName[name]
+		if (name == s.name && ckt.RemotePeerID != s.PeerID) ||
+			(owner != nil && owner.isReplica() && owner.PeerID != ckt.RemotePeerID &&
+				owner.ckt != nil && !owner.ckt.IsClosed()) {
+			ckt.Close(fmt.Errorf("replica name %q is already in use", name))
+			return nil, true
+		}
+	}
 
 	// moved from <-incomingNewCkt :
 	// can be logically racy, don't freak out.
