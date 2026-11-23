@@ -164,6 +164,6 @@ Follow-ups that are outside the required test run:
     (25c7bf83) and the restart-window harness wait (181db8b6). b047d4df also fixed
     a related restart-rejoin problem in CR-D-81.
 - **CR-D-27:** the PAR membership tests are still gated behind `-tags par`.
-- **CR-D-87:** idem's `Halter.RemoveChild` skips removing the ReqStop child.
-  rpc25519 works around this with `removeHalterChild`. The fix itself belongs
-  upstream in idem.
+- **CR-D-87:** fixed upstream in idem v0.21.0, where `Halter.RemoveChild` now
+  unlinks the ReqStop child and clears the parent. rpc25519 now calls
+  `RemoveChild` directly, without the `removeHalterChild` workaround.
