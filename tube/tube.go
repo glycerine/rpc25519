@@ -2448,6 +2448,15 @@ func (s *TubeNode) globalPruneCktCheck() {
 	for _, cktP := range auditByCID {
 		// this garbage collects the circuits that
 		// pruning otherwise misses.
+		if cktP.ckt.RemoteServiceName == TUBE_REPLICA &&
+			cktP.ckt.LocalServiceName == TUBE_REPLICA &&
+			ctxLive(cktP.ckt.Context) {
+			// Two replicas that dial each other at once can each
+			// keep a different circuit; the one we did not choose
+			// may be the one our peer sends on. Never dedup
+			// intra-raft circuits (CR-D-39); they go when they die.
+			continue
+		}
 		//vv("deleting cktP in auditByCID but not in cktall: '%v'", cktP.ckt.CircuitID)
 		cktP.Close() // stop watchdog, fire cancel func.
 		cktP.ckt.Close(ErrPruned)

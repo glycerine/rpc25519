@@ -1998,3 +1998,31 @@ func TestFollowerAdoptsLeadersNewAddressAtEqualVersion(t *testing.T) {
 		t.Fatalf("pending entry for n2 not redialed at the new address: %+v", req)
 	}
 }
+
+// CR-D-39: when two replicas dialed each other at once, each
+// kept its own circuit, and the 20 s audit GC then closed the
+// circuit its peer was sending on, black-holing the pair.
+func TestAuditGCKeepsUnchosenReplicaCircuits(t *testing.T) {
+	n := specularNode(t, "n1", FOLLOWER, 1, nil, "n1", "n2")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mk := func(id string) *rpc.Circuit {
+		return &rpc.Circuit{RemotePeerID: "n2_id", RemotePeerName: "n2", RemoteServiceName: TUBE_REPLICA,
+			LocalServiceName: TUBE_REPLICA, CircuitID: id, Context: ctx, Halt: idem.NewHalter(),
+			RpbTo:   &rpc.RemotePeer{BaseServerAddr: "simnet://n2"},
+			LpbFrom: &rpc.LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *rpc.Circuit, 1)}}
+	}
+	plus := func(id string) *cktPlus {
+		p := n.newCktPlus("n2", TUBE_REPLICA)
+		p.PeerID, p.ckt = "n2_id", mk(id)
+		return p
+	}
+	chosen, peers := plus("ours"), plus("theirs")
+	n.cktall["n2_id"] = chosen
+	n.cktAuditByCID.Set("ours", chosen)
+	n.cktAuditByCID.Set("theirs", peers) // the circuit n2 sends on
+	n.globalPruneCktCheck()
+	if peers.ckt.IsClosed() {
+		t.Fatal("audit GC closed the replica circuit the peer sends on")
+	}
+}
