@@ -145,6 +145,11 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 
 	c.setLocalAddr(conn)
 
+	// as on the TCP and TLS paths, set c.cpair before signaling
+	// connected: keepalives and PingStats use it (CR-D-85).
+	cpair := &cliPairState{}
+	c.cpair = cpair
+
 	c.connected <- nil
 
 	//vv("QUIC client connected to server %v, with local addr='%v'", remote(conn), c.cfg.LocalAddress)
@@ -203,8 +208,6 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 		return
 	}
 
-	cpair := &cliPairState{}
-	c.cpair = cpair // as on the TCP and TLS paths; keepalives and PingStats use it.
 	go c.runSendLoop(wrap, cpair)
 	c.runReadLoop(wrap, cpair)
 }
