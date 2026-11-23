@@ -1151,6 +1151,16 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 			basesrv.autocli[clinode] = c2s
 			basesrv.allnode[clinode] = true
 
+			// A new auto-client belongs to its host: if the host is
+			// isolated, so is the new connection. Otherwise an
+			// isolated node could talk freely again just by dialing.
+			// (UNISOLATE of the host heals it with the rest, since
+			// it is now in basesrv.allnode.)
+			switch basesrv.state {
+			case ISOLATED, FAULTY_ISOLATED:
+				s.isolateSimnode(clinode)
+			}
+
 			// Check allNewCircuitsInjectFault. This is to
 			// try to prevent any new auto-cli from magically
 			// working around our model of a faulty network card
