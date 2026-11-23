@@ -585,3 +585,20 @@ func TestPumpKeepsLiveCircuitWithSlowConsumer(t *testing.T) {
 		}
 	})
 }
+
+// CR-D-31: the client read loop kept reading after framing,
+// decrypt or sticky TLS errors (mid-frame, or spinning), where
+// the server's read loop tears the connection down.
+func TestClientReadLoopStopsOnNonTimeoutErrors(t *testing.T) {
+	for _, err := range []error{ErrTooLong, ErrMagicWrong, io.ErrUnexpectedEOF,
+		errors.New("chacha20poly1305: message authentication failed"),
+		errors.New("msgp: attempted to decode type \"int\" with method for \"str\"")} {
+		if clientReadLoopShouldContinue(err) {
+			t.Errorf("client read loop continues after %q", err)
+		}
+	}
+	timeout := &net.OpError{Op: "read", Err: os.ErrDeadlineExceeded}
+	if !clientReadLoopShouldContinue(timeout) {
+		t.Error("client read loop must keep going on a read timeout")
+	}
+}

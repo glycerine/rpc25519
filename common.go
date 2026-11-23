@@ -394,6 +394,10 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 	}
 
 	nbytesMsg := len(bytesMsg)
+	if nbytesMsg > maxMessage {
+		// the reader would reject this frame (CR-D-31).
+		return ErrTooLong
+	}
 
 	binary.BigEndian.PutUint64(w.writeLenMessageBytes, uint64(nbytesMsg))
 
