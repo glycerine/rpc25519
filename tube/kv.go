@@ -319,9 +319,22 @@ func decodeStoredLeaf(table, key Key, val []byte) (*leased.Leaf, error) {
 	return lf, nil
 }
 
+// keySizeError reports a table and key whose stored form exceeds
+// yogadb.MaxKeySize. It is a validation error: the operation fails
+// its ticket without faulting the state store.
+func keySizeError(table, key Key) error {
+	if n := len(compositeKey(table, key)); n > yogadb.MaxKeySize {
+		return &parValidationError{fmt.Errorf("%w: table plus key is %v bytes; the limit is %v", ErrKeyTooLarge, n, yogadb.MaxKeySize-1)}
+	}
+	return nil
+}
+
 func putLeafTx(tx *yogadb.WriteTx, table Key, lf *leased.Leaf) error {
 	if lf == nil {
 		return nil
+	}
+	if err := keySizeError(table, Key(lf.Key)); err != nil {
+		return err
 	}
 	lf2 := lf.Clone()
 	b, err := lf2.MarshalMsg(nil)
@@ -377,6 +390,9 @@ func (s *KVStore) MakeTable(table Key) error {
 		return err
 	}
 	return s.parUpdate(func(tx *yogadb.WriteTx) error {
+		if err := keySizeError(table, ""); err != nil {
+			return err
+		}
 		_, err := tx.Put(tablePrefix(table), []byte("table"), 0)
 		return err
 	})

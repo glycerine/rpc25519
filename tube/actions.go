@@ -618,7 +618,10 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 		tkt.LeaseEpochT0 = leaf.LeaseEpochT0
 
-		panicOn(st.KVstore.PutLeaf(tktTable, leaf))
+		if err := st.KVstore.PutLeaf(tktTable, leaf); err != nil {
+			tkt.Err = err
+			return false
+		}
 
 		//vv("%v wrote key '%v' (no prior key; leasor='%v' until '%v'); KVstore now len=%v; leaf.LeaseEpochT0='%v'", st.name, tktKey, leaf.Leasor, leaf.LeaseUntilTm, st.KVstore.Len(), nice(leaf.LeaseEpochT0))
 		return true
@@ -657,7 +660,10 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 		tkt.LeaseEpoch = leaf.LeaseEpoch
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
 
-		panicOn(st.KVstore.PutLeaf(tktTable, leaf))
+		if err := st.KVstore.PutLeaf(tktTable, leaf); err != nil {
+			tkt.Err = err
+			return false
+		}
 		//vv("%v wrote key '%v' (no current lease); KVstore now len=%v", st.name, tktKey, st.KVstore.Len())
 		return true
 	}
@@ -709,7 +715,10 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 
 			tkt.LeaseEpoch = leaf.LeaseEpoch
 			tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
-			panicOn(st.KVstore.PutLeaf(tktTable, leaf))
+			if err := st.KVstore.PutLeaf(tktTable, leaf); err != nil {
+				tkt.Err = err
+				return false
+			}
 			//vv("%v wrote key '%v' extending current lease for '%v'; KVstore now len=%v", st.name, tktKey, tkt.Leasor, st.KVstore.Len())
 			return true
 		}
@@ -749,7 +758,10 @@ func (s *TubeNode) kvstoreWrite(tkt *Ticket, dry, testingImmut bool) (wouldWrite
 
 		tkt.LeaseEpoch = leaf.LeaseEpoch
 		tkt.LeaseWriteRaftLogIndex = leaf.WriteRaftLogIndex
-		panicOn(st.KVstore.PutLeaf(tktTable, leaf))
+		if err := st.KVstore.PutLeaf(tktTable, leaf); err != nil {
+			tkt.Err = err
+			return false
+		}
 		//vv("%v wrote key '%v' updating to new leasor; KVstore now len=%v", st.name, tktKey, st.KVstore.Len())
 		return true
 	}

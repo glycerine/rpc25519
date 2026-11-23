@@ -336,6 +336,7 @@ var (
 	ErrConflict          = fmt.Errorf("error conflict: too low version")
 	ErrTimeOut           = fmt.Errorf("error timeout")
 	ErrResultTooLarge    = fmt.Errorf("result too large for one reply message")
+	ErrKeyTooLarge       = fmt.Errorf("table and key too large")
 )
 
 // GetConfigDir returns the config dir
