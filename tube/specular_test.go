@@ -1796,3 +1796,24 @@ func TestReplicaDropsForeignAndMalformedFrags(t *testing.T) {
 		n.handleNewCircuit(ckt, nil, nil, nil, nil)
 	}()
 }
+
+// CR-D-80: a frag whose PeerID differs from its circuit's
+// (a stale client URL now served by a new process) hit a
+// debug panic in peerJoin on the new leader.
+func TestPeerJoinDropsFragFromUnexpectedPeerID(t *testing.T) {
+	n := specularNode(t, "n1", LEADER, 1, nil, "n1")
+	ckt := &rpc.Circuit{RemotePeerID: "stale_id", RemotePeerName: "c", RemoteServiceName: TUBE_CLIENT,
+		CircuitID: "stale_ckt", Halt: idem.NewHalter(), RpbTo: &rpc.RemotePeer{BaseServerAddr: "simnet://c"},
+		LpbFrom: &rpc.LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *rpc.Circuit, 1)}}
+	frag := n.newFrag()
+	frag.FromPeerID, frag.FromPeerName = "new_id", "c"
+	frag.FragSubject = "RedirectTicketToLeader"
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("peerJoin panicked on a mismatched PeerID: %v", r)
+		}
+	}()
+	if n.peerJoin(frag, ckt) {
+		t.Fatal("peerJoin accepted a frag whose PeerID differs from its circuit")
+	}
+}
