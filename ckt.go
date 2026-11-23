@@ -2154,6 +2154,16 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		asFrag.SetSysArg("newPeerURL", lpb.URL())
 	}
 
+	// The caller's lock guarded finding (or making) lpb; that is
+	// done. Release it before newCircuit, which sends the
+	// CircuitEstablishedAck over the network: a peer whose send
+	// loop is stuck must not block every other circuit setup
+	// on this node (CR-D-33).
+	if callerSkipUnlock != nil && callerMut != nil {
+		*callerSkipUnlock = true
+		callerMut <- true
+	}
+
 	ckt, ctx2, madeNewAutoCli, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, asFrag, -1, false, isRemoteSide, preferExtant, userString)
 	_ = madeNewAutoCli // not sure if we need to surface or not
 	if err != nil {
@@ -2169,11 +2179,6 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 
 	// now we go directly to the NewCircuitCh, so user
 	// does not need a second step to call IncommingCircuit!
-	if callerSkipUnlock != nil && callerMut != nil {
-		*callerSkipUnlock = true
-		//(*callerMut).Unlock()
-		callerMut <- true
-	}
 	select {
 	case sendCh.cktServedAdd <- ckt:
 		//vv("provideRemoteOnNewCircuitCh: sent ckt on LoopComm.cktServedAdd")
