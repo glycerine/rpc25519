@@ -946,3 +946,59 @@ func TestOperatingLeaseIsRaceFree(t *testing.T) {
 	}
 	<-done
 }
+
+// CR-D-74: after a lost VALIDATE, a follower's Invalid key only
+// re-armed its message-loss timeout while the writer stayed live;
+// nothing ever replayed the write, so reads of that key on the
+// follower blocked for good. Hermes §3.4 replays after the timeout.
+func TestFollowerReplaysAfterLostValidate(t *testing.T) {
+	cfg := &HermesConfig{ReplicationDegree: 2, MessageLossTimeout: time.Millisecond, TCPonly_no_TLS: true, testName: t.Name()}
+	n := NewHermesNode("follower", cfg)
+	n.PeerID = "node_b"
+	n.liveNodes = []string{"node_a", "node_b"} // the writer node_a is live
+	n.setOperLease(time.Now().Add(time.Minute))
+	ts := TS{Version: 3, CoordID: "node_a"}
+	keym := &KeyMeta{Key: "k", TS: ts, State: sInvalid, LastWriterID: "node_a", Val: []byte("v")}
+	n.store["k"] = keym
+	tkt := n.NewHermesTicket(WRITE, "k", []byte("v"), "node_a", 0)
+	tkt.TS = ts
+	tkt.keym = keym
+	n.actionAbRecordPending(tkt)
+	tkt.messageLossTimeout = time.Now().Add(-time.Millisecond)
+	if item, ok := n.tkt2item[tkt.TicketID]; ok {
+		item.priority = tkt.messageLossTimeout
+	}
+	n.checkCoordOrFollowerFailed()
+	if keym.State != sReplay || len(n.sentINVs) == 0 {
+		t.Fatalf("follower did not replay a write whose VALIDATE was lost (state %v, INVs sent %v)", keym.State, len(n.sentINVs))
+	}
+}
+
+// CR-D-74: a coordinator retransmitted only blind-write INVs on
+// timeout; a lost ACK round of an RMW was never retried.
+func TestCoordinatorRetransmitsRMWOnTimeout(t *testing.T) {
+	cfg := &HermesConfig{ReplicationDegree: 2, MessageLossTimeout: time.Millisecond, TCPonly_no_TLS: true, testName: t.Name()}
+	n := NewHermesNode("coord", cfg)
+	n.PeerID = "node_a"
+	n.liveNodes = []string{"node_a", "node_b"}
+	n.setOperLease(time.Now().Add(time.Minute))
+	ts := TS{Version: 2, CoordID: "node_a"}
+	keym := &KeyMeta{Key: "k", TS: ts, State: sWrite, LastWriterID: "node_a", Val: []byte("v"), IsRMW: true}
+	n.store["k"] = keym
+	tkt := n.NewHermesTicket(RMW, "k", []byte("v"), n.PeerID, 0)
+	tkt.TS = ts
+	tkt.keym = keym
+	tkt.ackVector[n.PeerID] = true
+	n.actionAbRecordPending(tkt)
+	tkt.messageLossTimeout = time.Now().Add(-time.Millisecond)
+	if item, ok := n.tkt2item[tkt.TicketID]; ok {
+		item.priority = tkt.messageLossTimeout
+	}
+	n.checkCoordOrFollowerFailed()
+	if len(n.sentINVs) == 0 {
+		t.Fatal("timed-out RMW was not retransmitted")
+	}
+	if _, ok := n.tkt2item[tkt.TicketID]; !ok {
+		t.Fatal("timed-out RMW ticket was dropped from the timeout queue")
+	}
+}

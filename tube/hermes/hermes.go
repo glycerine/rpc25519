@@ -1749,10 +1749,12 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 
 			//vv("%v checkCoordFailed sees coordFailed = '%v'", s.me, coordFailed)
 			if coordFailed {
-				if len(s.liveNodes) > 0 && s.isLive(keym.LastWriterID) {
-					s.actionAbRecordPending(tkt)
-					continue
-				}
+				// Replay even if the writer is still live: a lost
+				// VALIDATE is never resent, so waiting on the writer
+				// blocked reads of this key forever. The replay still
+				// needs ACKs from every live member, and the live
+				// writer ACKs an equal-timestamp INV, so safety is
+				// unchanged (Hermes §3.4; CR-D-74).
 				// buffer the read, "same as actionW, but without incrementing TS"
 				s.actionBR(tkt)
 				keym.State = sReplay
@@ -1788,6 +1790,12 @@ func (s *HermesNode) checkCoordOrFollowerFailed() {
 			// TODO: I think we must wait (for consistency) for a majority of ACK first.
 
 			//vv("%v failed follower: complete write, move to Valid, bcast Valid.", s.me)
+			if tkt.Op == RMW && len(s.liveNodes) > 0 && !s.ackSetCoversLiveMembers(tkt) {
+				// a lost ACK round of an RMW is retried like a
+				// blind write's, never dropped (CR-D-74).
+				s.retransmitPending(tkt, keym)
+				continue
+			}
 			if tkt.Op == WRITE {
 				if len(s.liveNodes) > 0 && !s.ackSetCoversLiveMembers(tkt) {
 					s.retransmitPending(tkt, keym)
