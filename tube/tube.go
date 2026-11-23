@@ -14697,9 +14697,14 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 				// sanity check our inCurrentConfigCount logic.
 				panic("impossible, we never add self to cktAllByName")
 			}
-			needStall := false
-			if cktP0.MC == nil {
-				needStall = true
+			reported := cktP0.MC != nil
+			if !reported {
+				// Connected but has not acked since (re)connecting:
+				// like a stale member, it is not counted, and the
+				// quorum check below decides whether to wait for it
+				// (with its 10s limit). Never stall unconditionally
+				// on it (CR-D-22).
+				mongoNeedSeen = append(mongoNeedSeen, cktP0)
 				//vv("%v mongo warning: no MC available (so we cannot add to inCurrentConfigCount) for cktP0.PeerName='%v', looking for curConfig='%v'; cktP0=%p; stalling tkt='%v'", s.me(), cktP0.PeerName, curConfig.Short(), cktP0, tkt.Short())
 
 			} else {
@@ -14718,13 +14723,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 					mongoNeedSeen = append(mongoNeedSeen, cktP0)
 				}
 			}
-			if needStall {
-				s.stalledMembershipConfigChangeTkt = append(s.stalledMembershipConfigChangeTkt, tkt)
-				//vv("%v mongo stall in changeMembership, so return nil without closing tkt.Done. Ticket has '%v'", s.me(), tkt.Short())
-				cktP0.stalledOnSeenTkt = append(cktP0.stalledOnSeenTkt, tkt)
-				return
-			}
-			if cktP0.CurrentTerm == curTerm {
+			if reported && cktP0.CurrentTerm == curTerm {
 				inCurTermCount++
 			}
 			ckt := cktP0.ckt

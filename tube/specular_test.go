@@ -2072,3 +2072,42 @@ func TestCloseWithoutWatchdogDoesNotWait(t *testing.T) {
 		}
 	})
 }
+
+// CR-D-22: a member that reconnected but never acked (its
+// cktPlus.MC still nil) made changeMembership stall every
+// membership change forever, before any quorum check.
+func TestSilentReconnectedMemberDoesNotStallMembershipChange(t *testing.T) {
+	n := specularNode(t, "n0", LEADER, 2, []int64{1, 2}, "n0", "n1", "n2")
+	n.state.CommitIndex, n.state.CommitIndexEntryTerm = 2, 2
+	specularMarkApplied(n, 2)
+	n.state.MC.IsCommitted = true
+	n.initialNoop0HasCommitted = true
+	n.leaderID, n.leaderName = n.PeerID, n.name
+	n.MyPeer = &rpc.LocalPeer{Halt: idem.NewHalter(), PeerServiceName: TUBE_REPLICA}
+	mkckt := func(name string) *rpc.Circuit {
+		return &rpc.Circuit{RemotePeerID: name + "_id", RemotePeerName: name, RemoteServiceName: TUBE_REPLICA,
+			CircuitID: name + "_ckt", Halt: idem.NewHalter(), RpbTo: &rpc.RemotePeer{BaseServerAddr: "simnet://" + name}}
+	}
+	// n1 is current; n2 reconnected but has never acked.
+	n1 := &cktPlus{node: n, PeerName: "n1", PeerID: "n1_id", PeerServiceName: TUBE_REPLICA,
+		ckt: mkckt("n1"), MC: n.state.MC.Clone(), CurrentTerm: 2}
+	n2 := &cktPlus{node: n, PeerName: "n2", PeerID: "n2_id", PeerServiceName: TUBE_REPLICA, ckt: mkckt("n2")}
+	n.cktAllByName["n1"], n.cktAllByName["n2"] = n1, n2
+
+	tkt := n.NewTicket("remove n2", "", "", nil, n.PeerID, n.name, MEMBERSHIP_SET_UPDATE, -1, context.Background())
+	tkt.RemovePeerName = "n2"
+	func() {
+		defer func() { recover() }() // replication past the decision is not under test
+		n.changeMembership(tkt)
+	}()
+	for _, stalled := range n2.stalledOnSeenTkt {
+		if stalled == tkt && len(n1.stalledOnSeenTkt) == 0 && n.state.MC.ConfigVersion == 0 {
+			t.Fatal("membership change stalled on a silent member before checking quorum")
+		}
+	}
+	for _, stalled := range n.stalledMembershipConfigChangeTkt {
+		if stalled == tkt {
+			t.Fatal("membership change with a quorum of current members was stalled")
+		}
+	}
+}
