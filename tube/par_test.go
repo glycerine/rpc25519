@@ -3660,6 +3660,10 @@ func parLiveClusterState(t *testing.T, faults [][]int, down, lagging map[int]boo
 		}
 	}
 	c.Start()
+	// Restarted replicas refuse votes and campaigns until their
+	// restart window ends (CR-D-18, 9537e3dc). Let it pass before the
+	// tests force elections with testBeginElection.
+	time.Sleep(cfg.MinElectionDur + cfg.ClockDriftBound + 10*time.Millisecond)
 	return c, original
 }
 
