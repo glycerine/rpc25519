@@ -1259,15 +1259,6 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			//s.ay("%v s.testBeginPreVote fired", s.me())
 			s.beginPreVote()
 
-		case refusedCkt := <-s.outConnRefusedCh:
-			// a background send (Specular Bug 8) saw
-			// connection refused; same handling as wasConnRefused.
-			cktP, ok := s.cktall[refusedCkt.RemotePeerID]
-			if ok && cktP != nil && cktP.ckt == refusedCkt {
-				alwaysPrintf("%v background send saw connection refused, forcing recompute of ckt", s.me())
-				s.deleteFromCktAll(cktP)
-				s.adjustCktReplicaForNewMembership()
-			}
 		case goneCkt := <-s.peerLeftCh:
 			// A replacement for this peer may already be installed.
 			// Retire only the circuit whose reader exited.
@@ -2687,7 +2678,19 @@ func (cfg *TubeConfig) Init(quiet, isTest bool) {
 
 		cfg.RpcCfg = rpcCfg
 	}
+	// Specular Bug 8: tube's event loop must never block on
+	// a peer that stopped reading, so its connections get a
+	// bounded send queue (see TubeNode.SendOneWay).
+	if cfg.RpcCfg.SendChannelBufferSlots == 0 {
+		cfg.RpcCfg.SendChannelBufferSlots = tubeSendChannelBufferSlots
+	}
 }
+
+// tubeSendChannelBufferSlots is how many messages may wait
+// for each connection's send loop before sends to that peer
+// are refused (rpc25519 ErrSendQueueFull): Raft treats
+// those as lost messages and resends on later heartbeats.
+const tubeSendChannelBufferSlots = 64
 
 // succinct summary of past AppendEntries AE and AckAE
 // calls/responses for RaftNodeInfo
@@ -3152,19 +3155,10 @@ type TubeNode struct {
 	PeerServiceName        string   `zid:"3"`
 	PeerServiceNameVersion string   `zid:"4"`
 
-	pushToPeerURL chan string
-	MyPeer        *rpc.LocalPeer `msg:"-"`
-	Halt          *idem.Halter   `msg:"-"`
-	peerLeftCh    chan *cktPlus
-
-	// Specular Bug 8: fire-and-forget sends go through a
-	// bounded queue per circuit, drained by its own
-	// goroutine, so a peer that stops draining its
-	// connection can never block the event loop.
-	outqMut          sync.Mutex
-	outq             map[*rpc.Circuit]*outQueue
-	outConnRefusedCh chan *rpc.Circuit
-	outDroppedOnFull atomic.Int64
+	pushToPeerURL    chan string
+	MyPeer           *rpc.LocalPeer `msg:"-"`
+	Halt             *idem.Halter   `msg:"-"`
+	peerLeftCh       chan *cktPlus
 	gotNewPeerListCh chan []string
 
 	hostname string
@@ -4479,7 +4473,6 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		discoRequestCh:        make(chan *discoReq),
 		requestInpsect:        make(chan *Inspection),
 		peerLeftCh:            make(chan *cktPlus),
-		outConnRefusedCh:      make(chan *rpc.Circuit, 16),
 
 		// bad if buffer=> 707 red no leader
 		setLeaderCktChan: make(chan *rpc.Circuit),
@@ -16901,16 +16894,13 @@ func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur 
 		panicf("npay(%v) > rpc.UserMaxPayload(%v) cannot send this large a message! frag.FragSubject='%v'; frag.FragOp='%v'", npay, rpc.UserMaxPayload, frag.FragSubject, frag.FragOp)
 	}
 	if errWriteDur == -1 {
-		// Specular Bug 8: fire-and-forget. Build the message
-		// here (the caller may reuse frag), but never do the
-		// possibly-blocking hand-off on the event loop.
-		var msg *rpc.Message
-		msg, err = ckt.PrepareOneWay(frag, keepFragIfPositive)
-		if err != nil {
-			return
-		}
-		s.enqueueOutbound(ckt, msg)
-		return
+		// Specular Bug 8: our fire-and-forget sends opt in to
+		// rpc25519's non-blocking hand-off plus a write deadline
+		// of one heartbeat: a message not written by then is
+		// superseded by the next heartbeat's resend anyway, so
+		// Raft's own retry, not the transport, stays in charge.
+		// A full queue (ErrSendQueueFull) is just message loss.
+		errWriteDur = s.cfg.HeartbeatDur
 	}
 	var anew bool
 	anew, err = ckt.SendOneWay(frag, errWriteDur, keepFragIfPositive)
@@ -16922,75 +16912,6 @@ func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur 
 		}
 	}
 	return
-}
-
-// outQueueCap bounds the messages waiting for one circuit.
-// Raft tolerates message loss, so on overflow we drop.
-const outQueueCap = 64
-
-type outQueue struct {
-	ch chan *rpc.Message
-}
-
-// enqueueOutbound hands msg to the circuit's sender
-// goroutine without blocking (Specular Bug 8).
-func (s *TubeNode) enqueueOutbound(ckt *rpc.Circuit, msg *rpc.Message) {
-	s.outqMut.Lock()
-	if s.outq == nil {
-		s.outq = make(map[*rpc.Circuit]*outQueue)
-	}
-	q, ok := s.outq[ckt]
-	if !ok {
-		q = &outQueue{ch: make(chan *rpc.Message, outQueueCap)}
-		s.outq[ckt] = q
-		go s.drainOutbound(ckt, q)
-	}
-	s.outqMut.Unlock()
-
-	select {
-	case q.ch <- msg:
-	default:
-		n := s.outDroppedOnFull.Add(1)
-		if n == 1 || n%1000 == 0 {
-			alwaysPrintf("%v outbound queue to '%v' is full (peer not draining?); dropped %v messages so far", s.name, ckt.RemotePeerName, n)
-		}
-	}
-}
-
-// drainOutbound does the blocking sends for one circuit,
-// in order, off the event loop.
-func (s *TubeNode) drainOutbound(ckt *rpc.Circuit, q *outQueue) {
-	defer func() {
-		s.outqMut.Lock()
-		if s.outq[ckt] == q {
-			delete(s.outq, ckt)
-		}
-		s.outqMut.Unlock()
-	}()
-	for {
-		select {
-		case msg := <-q.ch:
-			_, err := ckt.SendPreparedOneWay(msg, -1)
-			if err != nil {
-				if strings.Contains(err.Error(), "connect: connection refused") {
-					// let the event loop retire the circuit.
-					select {
-					case s.outConnRefusedCh <- ckt:
-					default:
-					}
-				}
-				select {
-				case <-ckt.Context.Done():
-					return
-				default:
-				}
-			}
-		case <-ckt.Context.Done():
-			return
-		case <-s.Halt.ReqStop.Chan:
-			return
-		}
-	}
 }
 
 // called by <-newCircuitCh

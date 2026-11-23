@@ -4,8 +4,11 @@ package rpc25519
 // Specular in tube (see bug-report.md).
 
 import (
+	"context"
+	"net"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Bug 9 (Medium): when a peer restarts, frames still sent on
@@ -71,4 +74,102 @@ func Test1009_stale_circuit_frame_does_not_tear_down_connection(t *testing.T) {
 			t.Fatalf("Bug 9: server connections went %v -> %v after a stale-circuit frame", connsBefore, n)
 		}
 	})
+}
+
+// stalledPeer accepts TCP connections and never reads
+// from them: a SIGSTOPped or wedged peer whose kernel still
+// holds the connection open, so its receive window fills.
+func stalledPeer(t *testing.T) (addr string, stop func()) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	panicOn(err)
+	var conns []net.Conn
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			conns = append(conns, c) // never read.
+		}
+	}()
+	return ln.Addr().String(), func() {
+		ln.Close()
+		<-done
+		for _, c := range conns {
+			c.Close()
+		}
+	}
+}
+
+func bigPeerMessage(to string) *Message {
+	msg := NewMessage()
+	msg.HDR.Typ = CallPeerTraffic
+	msg.HDR.To = to
+	msg.JobSerz = make([]byte, 1<<20)
+	return msg
+}
+
+// Bug 8 (High, tube): every tube event-loop send used
+// errWriteDur -1, documented as "do not block", but
+// sendOneWayMessage's -1 hand-off to the connection's send
+// loop blocked with no exit once a peer stopped reading:
+// one stalled peer froze the single event loop of every
+// replica that sent to it. With SendChannelBufferSlots > 0
+// a -1 or positive errWriteDur send must never block, and a
+// positive errWriteDur must abandon the stalled write by
+// its deadline (HDR.Deadline).
+func Test1008_send_to_stalled_peer_does_not_block(t *testing.T) {
+	if faketime {
+		t.Skip("needs a real TCP peer whose receive window fills; simnet does not model that")
+	}
+	for _, mode := range []time.Duration{-1, 200 * time.Millisecond} {
+		addr, stop := stalledPeer(t)
+
+		cfg := NewConfig()
+		cfg.TCPonly_no_TLS = true
+		cfg.SendChannelBufferSlots = 4
+		cfg.ClientDialToHostPort = addr
+		cfg.QuietTestMode = true
+		cli, err := NewClient("cli_test1008", cfg)
+		panicOn(err)
+		panicOn(cli.Start())
+
+		var last *Message
+		var queueFull int
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for i := 0; i < 64; i++ {
+				msg := bigPeerMessage(addr)
+				_, _, err := cli.SendOneWayMessage(context.Background(), msg, mode, true)
+				if err == ErrSendQueueFull {
+					queueFull++
+				}
+				last = msg
+			}
+		}()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("Bug 8: errWriteDur=%v send to a stalled peer blocked the caller", mode)
+		}
+		if queueFull == 0 {
+			t.Fatalf("errWriteDur=%v: expected ErrSendQueueFull once the stalled connection's queue filled", mode)
+		}
+		if mode > 0 {
+			// a queued message past its deadline is abandoned
+			// (not written), and reported via DoneCh/LocalErr.
+			_ = last
+			select {
+			case <-cli.halt.ReqStop.Chan:
+				// stalled mid-frame: the connection was closed.
+			case <-time.After(5 * time.Second):
+				t.Fatalf("errWriteDur=%v: the writer never gave up on the stalled connection", mode)
+			}
+		}
+		cli.Close()
+		stop()
+	}
 }

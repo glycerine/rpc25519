@@ -759,6 +759,16 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 					alwaysPrintf("%v Failed to sendMessage() err returned: %v\n", c.name, err)
 				}
 				msg.LocalErr = err
+				if errors.Is(err, ErrPartialFrameWritten) {
+					// Specular Bug 8: a deadline cut this frame
+					// short; the stream is unusable.
+					if msg.DoneCh != nil {
+						msg.DoneCh.Close()
+					}
+					stopReason = err.Error()
+					conn.Close()
+					return
+				}
 				rr := err.Error()
 				if strings.Contains(rr, "use of closed network connection") ||
 					strings.Contains(rr, "connection reset by peer") ||
@@ -796,6 +806,13 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 				c.UngetOneRead(seqno, msg.DoneCh)
 				if msg.DoneCh != nil {
 					msg.DoneCh.Close()
+				}
+				if errors.Is(err, ErrPartialFrameWritten) {
+					// Specular Bug 8: a deadline cut this frame
+					// short; the stream is unusable.
+					stopReason = err.Error()
+					conn.Close()
+					return
 				}
 				continue
 			} else {
@@ -1181,6 +1198,19 @@ type Config struct {
 	// as an option -- but that means that everyone must allocate
 	// the decompressor to handle that eventuality.
 	CompressionOff bool
+
+	// SendChannelBufferSlots sets how many outgoing
+	// one-way messages may wait for a connection's send
+	// loop. The default, 0, keeps the hand-off unbuffered
+	// and synchronous, for full back-pressure.
+	//
+	// With SendChannelBufferSlots > 0, one-way sends with
+	// errWriteDur -1 (never block) or > 0 (write deadline)
+	// never block the caller: when the connection's queue
+	// is full they return ErrSendQueueFull and the message
+	// is not sent. This lets an event loop, like tube's
+	// Raft loop, keep running while one peer stalls.
+	SendChannelBufferSlots int
 
 	// Intially speak HTTP and only
 	// accept CONNECT requests that
@@ -1920,7 +1950,9 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 
 		garbageCollectThisRwPairCh: make(chan *autoCliInRwPair),
 
-		oneWayCh:    make(chan *Message), // not buffered! synchronous so we get back-pressure.
+		// not buffered (by default)! synchronous so we get back-pressure.
+		// See Config.SendChannelBufferSlots.
+		oneWayCh:    make(chan *Message, max(0, cfg.SendChannelBufferSlots)),
 		roundTripCh: make(chan *Message), // not buffered! synchronous so we get back-pressure.
 		connected:   make(chan error, 1),
 		lastSeqno:   1,

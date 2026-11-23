@@ -318,11 +318,31 @@ func (w *workspace) readMessage(conn uConn) (msg *Message, err error) {
 	return msg, nil
 }
 
+// ErrPartialFrameWritten means a write deadline expired
+// part way through a message: the connection's byte stream
+// now holds a partial frame and must be closed.
+var ErrPartialFrameWritten = fmt.Errorf("rpc25519 error: write deadline hit mid-frame; connection must be closed")
+
 // sendMessage sends a framed message to conn
-// nil or 0 timeout means no timeout.
+// nil or 0 timeout means no timeout, except that a
+// message with a non-zero HDR.Deadline must be written by
+// then (or is abandoned; see writeFrameByDeadline).
 func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
 	w.wmut.Lock()
 	defer w.wmut.Unlock()
+
+	// Specular Bug 8: enforce a message's HDR.Deadline
+	// (its operation expires then; a positive errWriteDur
+	// sets it). A message already expired is failed
+	// unwritten; otherwise the whole frame must be written
+	// by the deadline.
+	var deadline time.Time
+	if timeout == nil && !msg.HDR.Deadline.IsZero() {
+		deadline = msg.HDR.Deadline
+		if !time.Now().Before(deadline) {
+			return ErrSendTimeout
+		}
+	}
 
 	// serialize message to bytes
 	bytesMsg, err := msg.AsGreenpack(w.buf)
@@ -371,6 +391,10 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 
 	binary.BigEndian.PutUint64(w.writeLenMessageBytes, uint64(nbytesMsg))
 
+	if !deadline.IsZero() {
+		return writeFrameByDeadline(conn, deadline, w.magicCheck[:], w.writeLenMessageBytes, bytesMsg)
+	}
+
 	// Write magic
 	if err := writeFull(conn, w.magicCheck[:], timeout); err != nil {
 		return err
@@ -386,6 +410,38 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 }
 
 var zeroTime = time.Time{}
+
+// writeFrameByDeadline writes the parts of one frame under a
+// single write deadline. If the deadline expires before any
+// byte is written, the frame was not sent and the stream is
+// intact: ErrSendTimeout. If it expires (or any error occurs)
+// after some bytes went out, the stream holds a partial
+// frame: ErrPartialFrameWritten, and the caller must close
+// the connection.
+func writeFrameByDeadline(conn uConn, deadline time.Time, parts ...[]byte) error {
+	conn.SetWriteDeadline(deadline)
+	defer conn.SetWriteDeadline(zeroTime)
+	wrote := 0
+	for _, part := range parts {
+		for off := 0; off < len(part); {
+			n, err := conn.Write(part[off:])
+			off += n
+			wrote += n
+			if err != nil {
+				if wrote == 0 && (errors.Is(err, os.ErrDeadlineExceeded) ||
+					strings.Contains(err.Error(), "timeout") ||
+					strings.Contains(err.Error(), "deadline exceeded")) {
+					return ErrSendTimeout
+				}
+				if wrote > 0 {
+					return fmt.Errorf("%w: %v", ErrPartialFrameWritten, err)
+				}
+				return err
+			}
+		}
+	}
+	return nil
+}
 
 // readFull reads exactly len(buf) bytes from conn.
 // The returned numRead can be less than
