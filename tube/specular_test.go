@@ -243,3 +243,90 @@ func Test1002_stale_same_term_snapshot_does_not_roll_back_follower(t *testing.T)
 		t.Fatalf("after stale snapshot expected accepted ack with last=4, lcri=3; got rejected=%v last=%v lcri=%v", last.Rejected, last.PeerLogLastIndex, last.LargestCommonRaftIndex)
 	}
 }
+
+// specularLeaseWrite builds a leased WRITE ticket from client c1.
+func specularLeaseWrite(id string, idx int64, logTm, until time.Time) *Ticket {
+	return &Ticket{
+		TicketID:        id,
+		Op:              WRITE,
+		Table:           "t",
+		Key:             "czar",
+		Val:             Val([]byte("c1 is czar")),
+		Leasor:          "c1",
+		FromID:          "c1_id",
+		FromName:        "c1",
+		LeaseRequestDur: until.Sub(logTm),
+		LeaseUntilTm:    until,
+		RaftLogEntryTm:  logTm,
+		LogIndex:        idx,
+		Term:            1,
+	}
+}
+
+// specularApplyAll commits and applies everything in node's log.
+func specularApplyAll(node *TubeNode) {
+	node.state.CommitIndex = node.wal.LastLogIndex()
+	node.state.CommitIndexEntryTerm = node.wal.LastLogTerm()
+	node.commitWhatWeCan(false)
+}
+
+// Bug 3 (High): a rejected lease write mutated the shared
+// in-memory log entry (writeFailedSetCurrentVal overwrites
+// LeaseUntilTm, Leasor, ...). A lagging follower then
+// received the mutated command from the leader's in-memory
+// log and applied it differently, so replicas diverged at
+// the same applied index.
+func Test1003_rejected_lease_write_does_not_mutate_log_entry(t *testing.T) {
+
+	members := []string{"n1", "n2"}
+	lead := specularNode(t, "n1", FOLLOWER, 1, []int64{1}, members...)
+	specularMarkApplied(lead, 1)
+	lead.cfg.ClockDriftBound = 500 * time.Millisecond
+
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	until := t0.Add(2 * time.Second)
+
+	// index 2: c1 takes the lease until `until`.
+	// index 3: c1 "renews" with the same LeaseUntilTm: rejected.
+	for _, tkt := range []*Ticket{
+		specularLeaseWrite("w2", 2, t0, until),
+		specularLeaseWrite("w3", 3, t0.Add(time.Second), until),
+	} {
+		e := &RaftLogEntry{Index: tkt.LogIndex, Term: 1, Tm: tkt.RaftLogEntryTm, Ticket: tkt}
+		_, err := lead.wal.saveRaftLogEntry(e)
+		panicOn(err)
+	}
+	specularApplyAll(lead)
+
+	e3, err := lead.wal.GetEntry(3)
+	panicOn(err)
+	if !e3.Ticket.LeaseUntilTm.Equal(until) || e3.Ticket.Leasor != "c1" {
+		t.Errorf("Bug 3: applying the rejected write mutated the log entry: LeaseUntilTm %v -> %v", until, e3.Ticket.LeaseUntilTm)
+	}
+
+	// the lagging follower catches up from the leader's
+	// in-memory log (as a catch-up AE would carry it).
+	foll := specularNode(t, "n2", FOLLOWER, 1, []int64{1}, members...)
+	specularMarkApplied(foll, 1)
+	foll.cfg.ClockDriftBound = 500 * time.Millisecond
+	sendThese, _ := lead.wal.GetAllEntriesFrom(2)
+	for _, e := range sendThese {
+		bts, err := e.MarshalMsg(nil)
+		panicOn(err)
+		wire := &RaftLogEntry{}
+		_, err = wire.UnmarshalMsg(bts)
+		panicOn(err)
+		_, err = foll.wal.saveRaftLogEntry(wire)
+		panicOn(err)
+	}
+	specularApplyAll(foll)
+
+	leafL, err := lead.state.KVstore.GetLeaf("t", "czar", false)
+	panicOn(err)
+	leafF, err := foll.state.KVstore.GetLeaf("t", "czar", false)
+	panicOn(err)
+	if leafL.Version != leafF.Version || !leafL.LeaseUntilTm.Equal(leafF.LeaseUntilTm) {
+		t.Fatalf("Bug 3: replicas diverged at applied index 3: leader {ver %v, until %v} vs follower {ver %v, until %v}",
+			leafL.Version, leafL.LeaseUntilTm, leafF.Version, leafF.LeaseUntilTm)
+	}
+}
