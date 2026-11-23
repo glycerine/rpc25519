@@ -2295,14 +2295,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh *LoopComm, haltCh cha
 			// notice that because we are looking at the
 			// remote name, it is reversed... althought actually
 			// we should check both b/c we don't care either way.
-			autocliName1 := s.fromToAutoCliName(localhost, destServerBaseName)
-			autocliName2 := s.fromToAutoCliName(destServerBaseName, localhost)
-			synth1 := localNetAddr.Network() + "://" + autocliName1
-			synth2 := localNetAddr.Network() + "://" + autocliName2
-			pair, ok = s.remote2pair.Get(synth1)
-			if !ok {
-				pair, ok = s.remote2pair.Get(synth2)
-			}
+			pair, ok = s.findAutoCliPair(localNetAddr.Network(), localhost, destServerBaseName)
 			//vv("synth='%v' -> ok=%v; destAddr='%v' destServerBaseName='%v'; stack=\n%v", synth, ok, destAddr, destServerBaseName, stack()) // worked at least once 055
 		}
 	}
@@ -2340,6 +2333,29 @@ type oneWaySender interface {
 // allow simnet to properly classify LoneCli vs autocli
 // associted with server peers.
 const auto_cli_recognition_prefix = "auto-cli-from-"
+
+// findAutoCliPair finds a live connection that an auto-client
+// opened between localhost and dest, in either direction. The
+// names end in a random suffix (fromToAutoCliName), so match on
+// the fixed prefix; rebuilding the name could never match (CR-D-90).
+func (s *Server) findAutoCliPair(network, localhost, dest string) (*rwPair, bool) {
+	prefixes := []string{
+		network + "://" + auto_cli_recognition_prefix + localhost + "-to-" + dest + "___",
+		network + "://" + auto_cli_recognition_prefix + dest + "-to-" + localhost + "___",
+	}
+	for _, key := range s.remote2pair.GetKeySlice() {
+		for _, prefix := range prefixes {
+			if !strings.HasPrefix(key, prefix) {
+				continue
+			}
+			if pair, ok := s.remote2pair.Get(key); ok && pair != nil &&
+				(pair.halt == nil || !pair.halt.ReqStop.IsClosed()) {
+				return pair, true
+			}
+		}
+	}
+	return nil, false
+}
 
 func (s *Server) fromToAutoCliName(from, dest string) string {
 	if faketime && s.cfg.UseSimNet {

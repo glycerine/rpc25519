@@ -15686,7 +15686,11 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 
 		// cannot use the utility func RemoteBaseServerAddr
 		// because we lack a ckt, but very similarly...
-		netAddr, serviceName, peerID2, _, err := rpc.ParsePeerURL(url)
+		// assign (not :=) so the corrected address reaches the
+		// outer netAddr used below (CR-D-90).
+		var serviceName, peerID2 string
+		var err error
+		netAddr, serviceName, peerID2, _, err = rpc.ParsePeerURL(url)
 		panicOn(err)
 		split := strings.Split(netAddr, "://")
 		host := extractFromAutoCli(split[1])
@@ -15695,8 +15699,11 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 			peerID = peerID2
 		}
 		netAddr = fmt.Sprintf("%v://%v", split[0], host)
-		if cktP.PeerBaseServerAddr == "" {
+		if cktP.PeerBaseServerAddr == "" || strings.Contains(cktP.PeerBaseServerAddr, "auto-cli-from-") {
 			cktP.PeerBaseServerAddr = netAddr
+		}
+		if strings.Contains(cktP.Addr, "auto-cli-from-") {
+			cktP.Addr = netAddr // a client's address cannot be dialed
 		}
 		url = fmt.Sprintf("%v://%v/%v/%v", split[0], host, serviceName, peerID)
 		//vv("new url = '%v'", url)
