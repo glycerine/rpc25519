@@ -140,7 +140,17 @@ func (lpb *LocalPeer) setLoopy(ckt *Circuit) {
 	pair, ok := lpb.PeerAPI.remote2pair.Get(ckt.RpbTo.NetAddr)
 	if ok {
 		ckt.setLoopyIfUnset(pair.loopy)
-	} else {
+		return
+	}
+	// Bind to the connection the send path actually uses, which
+	// also resolves NAT-ed and synthesized addresses (CR-D-40).
+	if srv, isSrv := lpb.PeerAPI.u.(*Server); isSrv && srv != nil {
+		if sendCh, _, _, _, found := srv.destAddrToSendCh(ckt.RpbTo.NetAddr); found && sendCh != nil {
+			ckt.setLoopyIfUnset(sendCh)
+			return
+		}
+	}
+	{
 		// usually an auto-client must be spun up first...
 		if lpb.PeerAPI.cktWantsPair != nil {
 			//vv("cktWantsPair set for cktID='%v'", ckt.CircuitID)

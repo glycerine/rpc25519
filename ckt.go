@@ -2207,6 +2207,11 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 	}
 
 	rpb.IncomingCkt = ckt
+	// The responder knows its connection: the one this request
+	// arrived on. Bind to it so Close can deregister (CR-D-40).
+	if sendCh != nil {
+		ckt.setLoopyIfUnset(sendCh)
+	}
 
 	_ = ckt.LocalCircuitURL() // Keep the call but avoid unused variable
 	rpb.PeerURL = ckt.RemoteCircuitURL()

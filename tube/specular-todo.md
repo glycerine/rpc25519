@@ -107,7 +107,7 @@ transcripts). This keeps only findings **not already fixed** by the first round
 | 86 | CR-D-87 | R FIXED | (rpc25519) idem halter children are never removed, for connections, auto-client dials and circuits. | `RemoveChild` at each teardown; fix idem's `RemoveChild` to clear both lists. |
 | 87 | CR-D-88 | R FIXED | (rpc25519) A rejected or failed circuit setup leaks the registered circuit and its goroutine. | Close it on both failure paths, or register only after success. |
 | 88 | CR-D-89 | R FIXED | (rpc25519) Data races on `ckt.loopy` and `ckt.RemotePeerID`/`RemotePeerName` after the circuit is handed to the pump. | Make `loopy` an `atomic.Pointer`; freeze identity before registration. |
-| 45 | CR-D-40 | R | (rpc25519) Close-notification registration looks up the connection by exact address string, so hostnames, aliases, NAT or reformatted IPv6 leave zombie circuits. | Return and use the connection actually used for sending; normalize address keys. |
+| 45 | CR-D-40 | R FIXED | (rpc25519) Close-notification registration looks up the connection by exact address string, so hostnames, aliases, NAT or reformatted IPv6 leave zombie circuits. | Return and use the connection actually used for sending; normalize address keys. |
 | 89 | CR-D-90 | M | A shadowed `netAddr` in `connectInBackgroundIfNoCircuitTo` throws away the corrected reconnect address, and the auto-client reuse lookup never matches (random name suffix). | Assign with `=`; match on the name prefix; add the `go vet` shadow check. |
 
 ## 6. Czar and hermes
