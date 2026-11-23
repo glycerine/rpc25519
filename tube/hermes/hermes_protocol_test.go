@@ -72,7 +72,7 @@ func Test012_single_replica_write_and_rmw_complete_locally(t *testing.T) {
 	}
 	n := NewHermesNode("single_replica", cfg)
 	n.PeerID = "single_replica_peer"
-	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	n.setOperLease(time.Now().Add(time.Minute))
 
 	first := n.NewHermesTicket(WRITE, "k", []byte("one"), n.PeerID, 0)
 	n.writeReq(first)
@@ -134,7 +134,7 @@ func Test013_equal_timestamp_inv_is_ack_only(t *testing.T) {
 	}
 	n := NewHermesNode("equal_inv", cfg)
 	n.PeerID = "node_a"
-	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	n.setOperLease(time.Now().Add(time.Minute))
 	ts := TS{Version: 2, CoordID: "node_b"}
 	n.store["k"] = &KeyMeta{
 		Key:          "k",
@@ -180,7 +180,7 @@ func Test014_overwritten_write_completion_does_not_publish_lower_value(t *testin
 	}
 	n := NewHermesNode("overwritten", cfg)
 	n.PeerID = "node_a"
-	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	n.setOperLease(time.Now().Add(time.Minute))
 	lowTS := TS{Version: 2, CoordID: "node_a"}
 	highTS := TS{Version: 4, CoordID: "node_b"}
 	keym := &KeyMeta{
@@ -236,7 +236,7 @@ func Test015_validate_current_does_not_complete_lower_pending(t *testing.T) {
 	}
 	n := NewHermesNode("validate_lower_pending", cfg)
 	n.PeerID = "node_a"
-	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	n.setOperLease(time.Now().Add(time.Minute))
 	lowTS := TS{Version: 2, CoordID: "node_a"}
 	highTS := TS{Version: 4, CoordID: "node_b"}
 	keym := &KeyMeta{
@@ -296,7 +296,7 @@ func Test016_membership_change_drains_write_waiting_only_on_removed_member(t *te
 	n := NewHermesNode("membership_drain", cfg)
 	n.PeerID = "node_a"
 	n.liveNodes = []string{"node_a", "node_b"}
-	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	n.setOperLease(time.Now().Add(time.Minute))
 	ts := TS{Version: 2, CoordID: "node_a"}
 	keym := &KeyMeta{
 		Key:          "k",
@@ -442,7 +442,7 @@ func Test019_timeout_does_not_complete_while_missing_member_is_still_live(t *tes
 	n := NewHermesNode("timeout_membership", cfg)
 	n.PeerID = "node_a"
 	n.liveNodes = []string{"node_a", "node_b"}
-	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	n.setOperLease(time.Now().Add(time.Minute))
 	ts := TS{Version: 2, CoordID: "node_a"}
 	keym := &KeyMeta{
 		Key:          "k",
@@ -495,7 +495,7 @@ func Test020_o3_waits_for_matching_ack_quorum_before_valid(t *testing.T) {
 	n := NewHermesNode("o3_guarded", cfg)
 	n.PeerID = "node_b"
 	n.liveNodes = []string{"node_a", "node_b"}
-	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	n.setOperLease(time.Now().Add(time.Minute))
 	ts := TS{Version: 2, CoordID: "node_a"}
 	inv := &INV{
 		Key:      "k",
@@ -551,7 +551,7 @@ func Test021_o3_completes_when_inv_arrives_after_ack_quorum(t *testing.T) {
 	n := NewHermesNode("o3_reordered", cfg)
 	n.PeerID = "node_b"
 	n.liveNodes = []string{"node_a", "node_b"}
-	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	n.setOperLease(time.Now().Add(time.Minute))
 	ts := TS{Version: 2, CoordID: "node_a"}
 	ticketID := "write-ticket"
 
@@ -604,7 +604,7 @@ func Test023_o3_existing_key_waits_for_ack_quorum_before_valid(t *testing.T) {
 	n := NewHermesNode("o3_existing", cfg)
 	n.PeerID = "node_b"
 	n.liveNodes = []string{"node_a", "node_b"}
-	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	n.setOperLease(time.Now().Add(time.Minute))
 	oldTS := TS{Version: 0, CoordID: "node_a"}
 	newTS := TS{Version: 2, CoordID: "node_a"}
 	ticketID := "write-ticket"
@@ -657,7 +657,7 @@ func Test024_replay_rmw_rebroadcasts_same_timestamp_and_value(t *testing.T) {
 	}
 	n := NewHermesNode("rmw_replay", cfg)
 	n.PeerID = "node_a"
-	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	n.setOperLease(time.Now().Add(time.Minute))
 	ts := TS{Version: 3, CoordID: "node_a"}
 	keym := &KeyMeta{
 		Key:          "k",
@@ -784,7 +784,7 @@ func Test027_higher_inv_aborts_pending_rmw_to_invalid(t *testing.T) {
 	}
 	n := NewHermesNode("higher_inv_aborts_rmw", cfg)
 	n.PeerID = "node_a"
-	n.operLeaseUntilTm = time.Now().Add(time.Minute)
+	n.setOperLease(time.Now().Add(time.Minute))
 	lowTS := TS{Version: 3, CoordID: "node_a"}
 	highTS := TS{Version: 4, CoordID: "node_b"}
 	keym := &KeyMeta{
@@ -926,4 +926,23 @@ func TestHermesForgetsDeadPeerCircuits(t *testing.T) {
 	if n.ckt["h2"] != replacement {
 		t.Fatal("a late notice for the old circuit removed its replacement")
 	}
+}
+
+// CR-D-73: the operating lease was written on the event loop and
+// read by Write/Read/RMW callers without synchronization; a torn
+// time.Time could pass the lease gate. Run with -race.
+func TestOperatingLeaseIsRaceFree(t *testing.T) {
+	cfg := &HermesConfig{ReplicationDegree: 1, MessageLossTimeout: time.Second, TCPonly_no_TLS: true, testName: t.Name()}
+	n := NewHermesNode("h1", cfg)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 100; i++ {
+			n.setOperLease(time.Now().Add(time.Minute)) // the event loop renews
+		}
+	}()
+	for i := 0; i < 100; i++ {
+		_ = n.hasOperatingLease() // a client call checks
+	}
+	<-done
 }

@@ -134,7 +134,7 @@ func newHermesTestCluster(cfg *HermesConfig) *HermesCluster {
 		// fake operating lease for now, since tests were developed
 		// before and we don't want to bring up a full tube raft cluster
 		// to test them at the moment.
-		node.operLeaseUntilTm = time.Now().Add(10 * time.Minute)
+		node.setOperLease(time.Now().Add(10 * time.Minute))
 
 		nodes = append(nodes, node)
 	}

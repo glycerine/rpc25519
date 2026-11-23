@@ -126,7 +126,7 @@ transcripts). This keeps only findings **not already fixed** by the first round
 | 75 | CR-D-76 | R FIXED | A czar that reaches Tube but not its members renews forever and can never be deposed. | Record member-unreachable evidence in Tube; the czar steps down on it. |
 | 70 | CR-D-71 | R FIXED | Multi-machine hermes advertises the internal Tube client's PeerIDs and URLs and binds to 127.0.0.1, so writes never complete and remote Tube clients panic. | Publish the hermes peer's own ID and URL; bind to the external host. |
 | 71 | CR-D-72 | R FIXED | Hermes peer circuits are never pruned or re-dialed, so one transient link drop loses traffic to that peer permanently. | Prune on goroutine exit (compare-and-delete); re-dial dead circuits of current members. |
-| 72 | CR-D-73 | R | Data race on hermes `operLeaseUntilTm` (a torn `time.Time` read in the lease gate). | Check the lease on the event loop only, or store it atomically. |
+| 72 | CR-D-73 | R FIXED | Data race on hermes `operLeaseUntilTm` (a torn `time.Time` read in the lease gate). | Check the lease on the event loop only, or store it atomically. |
 | 73 | CR-D-74 | R | A lost VALIDATE (or a lost RMW ACK) blocks a hermes follower read forever. | Replay after the mlt expires even when the writer is live; retransmit RMW INVs. |
 
 ---

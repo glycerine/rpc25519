@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net"
 	//"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/glycerine/blake3"
@@ -2296,7 +2297,7 @@ type HermesNode struct {
 
 	// our operating lease--for linearizability we
 	// must stop serving if this expires.
-	operLeaseUntilTm time.Time
+	operLeaseUntilNanos atomic.Int64
 
 	// the main key/value store.
 	store map[Key]*KeyMeta
@@ -2728,8 +2729,28 @@ func (s *HermesNode) ReadModifyWrite(key Key, update func(Val) Val, waitForDur t
 	}
 }
 
+// setOperLease / operLeaseUntil: the operating lease is renewed on
+// the event loop and checked by Write/Read/RMW callers, so it is
+// kept atomically as unix nanoseconds (CR-D-73); 0 means none.
+func (s *HermesNode) setOperLease(until time.Time) {
+	if until.IsZero() {
+		s.operLeaseUntilNanos.Store(0)
+		return
+	}
+	s.operLeaseUntilNanos.Store(until.UnixNano())
+}
+
+func (s *HermesNode) operLeaseUntil() time.Time {
+	ns := s.operLeaseUntilNanos.Load()
+	if ns == 0 {
+		return time.Time{}
+	}
+	return time.Unix(0, ns)
+}
+
 func (s *HermesNode) hasOperatingLease() bool {
-	return !s.operLeaseUntilTm.IsZero() && time.Now().Before(s.operLeaseUntilTm)
+	until := s.operLeaseUntil()
+	return !until.IsZero() && time.Now().Before(until)
 }
 
 func RunFromDiskConfig(ctx context.Context, configName string) error {
@@ -2855,7 +2876,8 @@ func (s *HermesNode) Start(
 		//zz("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
 
-		case s.operLeaseUntilTm = <-s.OperatingLeaseRenewCh:
+		case until := <-s.OperatingLeaseRenewCh:
+			s.setOperLease(until)
 
 			//vv("%v hermes see operating lease renewed until %v (in %v)", s.name, operLeaseUntilTm, time.Until(operLeaseUntilTm))
 
@@ -2883,7 +2905,7 @@ func (s *HermesNode) Start(
 
 			case INVmsg:
 				if !s.hasOperatingLease() {
-					vv("%v: hermes node has no operating lease, ignoring INV (since %v)", s.name, time.Since(s.operLeaseUntilTm))
+					vv("%v: hermes node has no operating lease, ignoring INV (since %v)", s.name, time.Since(s.operLeaseUntil()))
 					continue
 				}
 				//vv("unmarshal INVmsg")
@@ -2897,7 +2919,7 @@ func (s *HermesNode) Start(
 
 			case VALIDATEmsg:
 				if !s.hasOperatingLease() {
-					vv("%v: hermes node has no operating lease, ignoring VALIDATE (since %v)", s.name, time.Since(s.operLeaseUntilTm))
+					vv("%v: hermes node has no operating lease, ignoring VALIDATE (since %v)", s.name, time.Since(s.operLeaseUntil()))
 					continue
 				}
 				valid := &VALIDATE{}
@@ -2909,7 +2931,7 @@ func (s *HermesNode) Start(
 				}
 			case ACKmsg:
 				if !s.hasOperatingLease() {
-					vv("%v: hermes node has no operating lease, ignoring ACK (since %v)", s.name, time.Since(s.operLeaseUntilTm))
+					vv("%v: hermes node has no operating lease, ignoring ACK (since %v)", s.name, time.Since(s.operLeaseUntil()))
 					continue
 				}
 				ack := &ACK{}
