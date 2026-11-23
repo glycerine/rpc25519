@@ -639,6 +639,11 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 	ctx, canc := context.WithCancel(context.Background())
 	//vv("rpc25519.Server: run-Read-loop starting! local conn = '%v'; remote='%v'; s.halt=%p", conn.LocalAddr(), remote(conn), s.halt)
 	defer func() {
+		// A peer's bytes must not be able to abort the whole server
+		// process; drop just this connection instead (CR-D-83).
+		if r := recover(); r != nil {
+			alwaysPrintf("rpc25519.Server: runReadLoop recovered from panic '%v'; closing connection from '%v'", r, remote(conn))
+		}
 		//vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'; remote='%v'; s.halt=%p; stopReason='%v'", conn.LocalAddr(), remote(conn), s.halt, stopReason)
 		canc()
 		s.Server.numRWPair.Add(-1)

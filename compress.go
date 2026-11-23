@@ -199,7 +199,8 @@ func (p *pressor) handleCompress(magic7 magic7b, bytesMsg []byte) ([]byte, error
 		return bytesMsg, nil
 
 	default:
-		panic(fmt.Sprintf("unknown magic7 '%v'", byte(magic7)))
+		// peer-supplied; an error, never a panic (CR-D-83).
+		return nil, fmt.Errorf("unknown or unsupported compression magic7 '%v'", byte(magic7))
 	}
 
 	//vv("handleCompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
@@ -215,8 +216,12 @@ func (p *pressor) handleCompress(magic7 magic7b, bytesMsg []byte) ([]byte, error
 	c.Reset(out)
 
 	_, err := io.Copy(c, compBuf)
-	panicOn(c.Close())
-	panicOn(err)
+	if cerr := c.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return nil, err
+	}
 	//vv("compression: %v bytes -> compressedLen: %v bytes", uncompressedLen, len(out.Bytes()))
 	bytesMsg = out.Bytes()
 	return bytesMsg, nil
@@ -250,7 +255,8 @@ func (decomp *decomp) handleDecompress(magic7 magic7b, message []byte) ([]byte, 
 		return message, nil
 
 	default:
-		panic(fmt.Sprintf("unknown magic7 '%v'", byte(magic7)))
+		// peer-supplied; an error, never a panic (CR-D-83).
+		return nil, fmt.Errorf("unknown or unsupported compression magic7 '%v'", byte(magic7))
 	}
 
 	//vv("handleDecompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
@@ -267,7 +273,10 @@ func (decomp *decomp) handleDecompress(magic7 magic7b, message []byte) ([]byte, 
 	out := bytes.NewBuffer(decomp.decompSlice[:0])
 
 	n, err := io.Copy(out, d)
-	panicOn(err)
+	if err != nil {
+		// a corrupt body from the peer.
+		return nil, err
+	}
 	if false { // trying to minimize memory footprint now, by trying nil decompSlice
 		if n > int64(len(decomp.decompSlice)) {
 			panic(fmt.Sprintf("we wrote more than our "+

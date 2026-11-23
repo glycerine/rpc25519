@@ -173,3 +173,41 @@ func Test1008_send_to_stalled_peer_does_not_block(t *testing.T) {
 		stop()
 	}
 }
+
+// CR-D-83: an unknown compression byte, or a corrupt
+// compressed body, from a peer panicked the server's read
+// loop and aborted the whole process.
+func TestDecompressRejectsBadPeerInput(t *testing.T) {
+	d := newDecomp(1000)
+	p := newPressor(1000)
+	for _, tc := range []struct {
+		name   string
+		magic7 magic7b
+		body   []byte
+	}{
+		{"unimplemented lz4 byte", 2, []byte("payload")},
+		{"unknown byte", 9, []byte("payload")},
+		{"corrupt s2 body", 1, []byte("this is not s2 data at all")},
+	} {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%v: handleDecompress panicked: %v", tc.name, r)
+				}
+			}()
+			if _, err := d.handleDecompress(tc.magic7, tc.body); err == nil {
+				t.Errorf("%v: handleDecompress accepted bad input", tc.name)
+			}
+		}()
+	}
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("handleCompress panicked on an unknown byte: %v", r)
+			}
+		}()
+		if _, err := p.handleCompress(9, []byte("payload")); err == nil {
+			t.Error("handleCompress accepted an unknown compression byte")
+		}
+	}()
+}
