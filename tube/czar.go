@@ -280,10 +280,16 @@ func (s *Czar) setVersAt(now time.Time, v *RMVersionTuple, list *ReliableMembers
 		//vv("%v: new membership seen (cur = '%v'; vs new = '%v')\n cur s.listhash='%v'\n versus new listhash='%v'\n", s.name, s.members, list, s.listhash, listhash) // seen a ton, of course.
 	}
 
+	// Uptime (used to give members inherited from the czar key a
+	// grace period) restarts only with a new czar epoch, not on
+	// every membership change (CR-D-67).
+	newEpoch := s.vers == nil || v.CzarLeaseEpoch != s.vers.CzarLeaseEpoch
 	s.members = list.Clone()
 	s.vers = v.Clone()
 	s.listhash = listhash
-	s.t0 = time.Now()
+	if newEpoch {
+		s.t0 = now
+	}
 
 	// but only upcall if members PeerIDs actually changed (or
 	// CzarLeaseEpoch, or WithinCzarVersion).

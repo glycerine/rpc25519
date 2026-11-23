@@ -2661,3 +2661,26 @@ func TestRejectedPingReplyDropsTheCzarClient(t *testing.T) {
 		t.Fatal("rejected ping reply left the stale czar client in place")
 	}
 }
+
+// CR-D-67: setVers reset the czar's t0 on every membership change,
+// so members inherited dead from the czar key (never heard from)
+// were never expired while the membership kept churning.
+func TestCzarUptimeResetsOnlyOnNewEpoch(t *testing.T) {
+	n := specularNode(t, "c1", CLIENT, 0, nil, "n0")
+	cz := NewCzar("hermes", "c1", n, 500*time.Millisecond)
+	list := n.NewReliableMembershipList()
+	list.CzarName = "c1"
+	list.CzarDet = &PeerDetailPlus{Det: &PeerDetail{Name: "c1", PeerID: "c1_id"}}
+	until := time.Now().Add(time.Minute)
+	panicOn(cz.setVersAt(time.Now(), &RMVersionTuple{CzarLeaseEpoch: 1, WithinCzarVersion: 1, CzarLeaseUntilTm: until}, list, false, "t"))
+	t0 := cz.t0
+	time.Sleep(2 * time.Millisecond)
+	panicOn(cz.setVersAt(time.Now(), &RMVersionTuple{CzarLeaseEpoch: 1, WithinCzarVersion: 2, CzarLeaseUntilTm: until}, list, false, "t"))
+	if !cz.t0.Equal(t0) {
+		t.Fatal("a membership change within the same czar epoch reset the czar's uptime")
+	}
+	panicOn(cz.setVersAt(time.Now(), &RMVersionTuple{CzarLeaseEpoch: 2, WithinCzarVersion: 0, CzarLeaseUntilTm: until}, list, false, "t"))
+	if cz.t0.Equal(t0) {
+		t.Fatal("a new czar epoch should restart the uptime")
+	}
+}
