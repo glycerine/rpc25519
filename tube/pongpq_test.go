@@ -24,7 +24,7 @@ func Test302_pong_quorum(t *testing.T) {
 	//vv("slc = '%#v'", slc)
 	//vv("pq = %v", pq)
 	for quor := 0; quor <= 4; quor++ {
-		tm, ok, oldestPong := pq.quorumPongTm(quor)
+		tm, ok, oldestPong := pq.quorumPongTm(quor, func(string) bool { return true })
 		if quor <= 3 {
 			if !ok {
 				panic(fmt.Sprintf("why not ok? quor=%v", quor))
@@ -75,4 +75,33 @@ func Test312_justEpoch(t *testing.T) {
 	if want, got := int32(math.MaxInt32), justEpoch(math.MaxInt64); got != want {
 		panic(fmt.Sprintf("got %v, want %v", got, want))
 	}
+}
+
+func TestEmptyPongQueueCannotSatisfyRemoteQuorum(t *testing.T) {
+	pq := newPongPQ("leader")
+	if _, ok, _ := pq.quorumPongTm(1, func(string) bool { return true }); ok {
+		t.Fatal("empty queue satisfied a quorum requiring a remote voter")
+	}
+}
+
+func TestLeaderPongQuorumTracksCurrentMembership(t *testing.T) {
+	n := specularNode(t, "n1", LEADER, 1, nil, "n1", "n2", "n3")
+	now := time.Now()
+	n.leaderFullPongPQ.add(Pong{PeerID: "n2_id", PeerName: "n2", RecvTm: now})
+	check := func(want bool) {
+		t.Helper()
+		_, ok, _ := n.leaderPongQuorumTm()
+		if ok != want {
+			t.Errorf("members %v: pong quorum %v, want %v", n.state.MC.Short(), ok, want)
+		}
+	}
+	check(true) // n1 and n2 form a majority
+	n.state.MC = specularMC(n, "n1", "n3", "n4")
+	check(false) // n2's previously valid pong outlived its membership
+	n.state.MC = specularMC(n, "n2", "n3", "n4")
+	check(false) // n1 can no longer count itself
+	n.leaderFullPongPQ.add(Pong{PeerID: "n3_id", PeerName: "n3", RecvTm: now})
+	check(true)
+	n.state.MC = specularMC(n, "n1")
+	check(true)
 }

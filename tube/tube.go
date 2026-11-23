@@ -1461,91 +1461,18 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				// We put off stepping down if no recent pong quorum
 				// for quite a while (several leader election timeouts).
 
-				leaderStepDownIfNoRecentPongQuorum := true // 052 partition_test green
-
 				starting := time.Since(s.t0) < s.cfg.NoFaultTolDur
 				bootstrapping := !s.wroteBootstrapFirstLogEntry.IsZero() &&
 					time.Since(s.wroteBootstrapFirstLogEntry) < s.cfg.NoFaultTolDur
-
-				if starting || bootstrapping {
-					// do not step down prematurely
-					leaderStepDownIfNoRecentPongQuorum = false
-				}
-				// side-effect: will set s.state.MC.IsCommitted if possible.
-				notInMC := s.leaderShouldStepDownBecauseNotInCurCommittedMC()
-				_ = notInMC
+				s.onLeaderIsCurrentMCcommitted()
+				redline := time.Now().Add(-s.followerDownDur())
 				wantPongStepDown := false
-				if !notInMC && leaderStepDownIfNoRecentPongQuorum {
-
-					quor := s.quorum() - 1 // -1 to count ourselves!
-
-					// if quor > 0 allows single node cluster to function; e.g.
-					// Test001_no_replicas_write_new_value
-					sz := s.clusterSize()
-					//vv("%v quor = %v; clusterSize = %v", s.name, quor, sz)
-					if sz > 1 && quor > 0 {
-
-						// leader stepping down at random times in tests
-						// like 017; seems this is a bit too sensitive.
-						// so give it 4T before stepping down.
-						// And include our clock-drift-bound.
-						//window := 4*s.cfg.MinElectionDur + s.cfg.ClockDriftBound
-						// centalize to this func:
-						window := s.followerDownDur()
-						now := time.Now()
-						if s.leaderElectedTm.IsZero() {
-							panic("s.leaderElectedTm must not be zero tm!")
-						}
-						reliableTm := now.Add(-window)
-
-						// want s.leaderElectedTm < reliableTm to know
-						// that the leader has been up for long enough
-						// to ping and hear back from followers.
-
-						//if s.leaderElectedTm.After(reliableTm) {
-
-						durSinceReliable := reliableTm.Sub(s.leaderElectedTm)
-						if durSinceReliable < 0 {
-							// not reliable yet
-							//vv("%v we have not been leader long enough to have reliably pinged followers: durSinceReliable=%v is negative", s.me(), durSinceReliable)
-						} else {
-							// we have been leader at least two
-							// election timeout cycles.
-							// To be very conservative, we set redline
-							// to also allow however much time it has
-							// been since the last election timeout
-							// fired plus the window, meaning we must
-							// not have heard
-							// from anyone for more than 4*T + last
-							// election. Thus if
-							// newestQuorumPongTm < redline then
-							// we have not had a quorum of pongs
-							// in a very long time (on average 5.5*T;
-							// at minimum 4*T and at most 6*T).
-							redline := reliableTm // or just 4*T
-
-							newestQuorumPongTm, quorumPongOK, newestQuorumPong :=
-								s.leaderFullPongPQ.quorumPongTm(quor)
-							_ = newestQuorumPong
-							// note newestQuorumPongTm will be zero if !quorumPongOK.
-							been := redline.Sub(newestQuorumPongTm)
-							_ = been
-							wantPongStepDown = !quorumPongOK || newestQuorumPongTm.Before(redline)
-							if wantPongStepDown {
-								//alwaysPrintf("%v wantPongStepDown=true; since redline its been=%v (step down if positive); newestQuorumPongTm = '%v'; quorumPongOK = %v; redline=%v; stepDown = %v; durSinceReliable=%v", s.me(), been, newestQuorumPongTm, quorumPongOK, nice(redline), wantPongStepDown, durSinceReliable)
-							}
-						}
-					}
-				} // end if leaderStepDownIfNoRecentPongQuorum
-
-				// need to lead even if not in MC! for liveness; section 4.2.2
-				//if notInMC || wantPongStepDown {
+				if !starting && !bootstrapping && !s.leaderElectedTm.After(redline) {
+					newest, ok, _ := s.leaderPongQuorumTm()
+					wantPongStepDown = !ok || newest.Before(redline)
+				}
 				if wantPongStepDown {
-					// step down, per section 6.2.
-					// Otherwise clients could be stuck
-					// talking to us, a non-leader, which could
-					// delay their getting a reply by alot.
-					//alwaysPrintf("%v wantPongStepDown=true", s.me()) // I am leader (since %v; for %v) but I did not get pong quorum in window=%v, quor=%v; \n newestQuorumPongTm='%v' (%v ago);\n newestQuorumPong='%#v'; redline='%v' since redline = %v", s.me(), nice9(s.leaderElectedTm), now.Sub(s.leaderElectedTm), window, quor, nice9(newestQuorumPongTm), time.Since(newestQuorumPongTm), newestQuorumPong, nice9(redline), now.Sub(redline))
+					// A leader cut off from the current voters cannot commit.
 
 					s.leaderName = ""
 					s.leaderID = ""
@@ -17492,15 +17419,6 @@ func (s *TubeNode) isFollowerKaput() bool {
 }
 
 // called on leader election timeout on leader.
-func (s *TubeNode) leaderShouldStepDownBecauseNotInCurCommittedMC() bool {
-	curCommitted := s.onLeaderIsCurrentMCcommitted()
-	if !curCommitted {
-		return false
-	}
-	_, weAreInCurConfig := s.state.MC.PeerNames.Get2(s.name)
-	return !weAreInCurConfig
-}
-
 // called from above and seen().
 func (s *TubeNode) onLeaderIsCurrentMCcommitted() (curCommited bool) {
 	//vv("%v top of onLeaderIsCurrentMCcommitted(), s.me())
