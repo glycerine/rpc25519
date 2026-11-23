@@ -2523,3 +2523,46 @@ func TestMembershipObserversAreSelectedByOpenCircuit(t *testing.T) {
 		t.Fatalf("observers selected: %v, want only the open observer circuit", len(got))
 	}
 }
+
+// CR-D-44: parked cktPlus entries and pending watchdogs leaked
+// without bound under circuit churn.
+func TestParkedEntriesAreReleased(t *testing.T) {
+	n := specularNode(t, "n0", LEADER, 1, nil, "n0", "n2")
+	defer n.Halt.RequestStop()
+	n.MyPeer = &rpc.LocalPeer{Halt: idem.NewHalter()}
+	parkedCount := func() (k int) {
+		for _, g := range n.parked {
+			k += len(g)
+		}
+		return
+	}
+	// a deleted circuit leaves parked
+	c := n.newCktPlus("n1", TUBE_REPLICA)
+	c.PeerID = "n1_id"
+	n.parkedInsert(c)
+	n.cktall["n1_id"], n.cktAllByName["n1"] = c, c
+	n.deleteFromCktAll(c)
+	if parkedCount() != 0 {
+		t.Fatal("deleted circuit stayed parked")
+	}
+	// a pending entry replaced by a real circuit is retired
+	pending := n.newCktPlus("n2", TUBE_REPLICA)
+	n.parkedInsert(pending)
+	n.cktAllByName["n2"] = pending
+	incoming := &rpc.Circuit{RemotePeerName: "n2", RemotePeerID: "n2_id", RemoteServiceName: TUBE_REPLICA,
+		CircuitID: "n2_ckt", Halt: idem.NewHalter(), RpbTo: &rpc.RemotePeer{BaseServerAddr: "simnet://n2"},
+		LpbFrom: &rpc.LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *rpc.Circuit, 1)}}
+	if _, rejected := n.addToCktall(incoming); rejected {
+		t.Fatal("setup: circuit rejected")
+	}
+	if !pending.perCktWatchdogHalt.ReqStop.IsClosed() {
+		t.Fatal("replaced pending entry's watchdog left running")
+	}
+	for _, g := range n.parked {
+		for _, p := range g {
+			if p == pending {
+				t.Fatal("replaced pending entry stayed parked")
+			}
+		}
+	}
+}

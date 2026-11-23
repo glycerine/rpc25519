@@ -87,6 +87,18 @@ func (s *TubeNode) seenIndirect(c *cktPlus, leaderLastHeard time.Time) {
 	c.lastSeenMut.Unlock()
 }
 
+// parkedRemove drops c from parked (CR-D-44).
+func (s *TubeNode) parkedRemove(c *cktPlus) {
+	if g, ok := s.parked[c.PeerName]; ok {
+		if g[c.sn] == c {
+			delete(g, c.sn)
+		}
+		if len(g) == 0 {
+			delete(s.parked, c.PeerName)
+		}
+	}
+}
+
 // called at top of startWatchdog
 func (s *TubeNode) parkedInsert(c *cktPlus) {
 	// note parked is type map[peerName]map[cktPlus.sn]*cktPlus
