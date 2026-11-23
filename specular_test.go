@@ -707,3 +707,19 @@ func TestSetLoopyResolvesNATAddress(t *testing.T) {
 		t.Fatal("circuit to a NAT-ed peer not bound to the connection the send path uses")
 	}
 }
+
+// CR-D-90 (B): the reuse lookup for a socket the peer had opened
+// rebuilt the auto-client name with a fresh random suffix, so it
+// could never match and a second auto-client was always dialed.
+func TestFindAutoCliPairIgnoresRandomSuffix(t *testing.T) {
+	srv := NewServer("crd90", NewConfig())
+	live := &rwPair{halt: idem.NewHalter()}
+	dead := &rwPair{halt: idem.NewHalter()}
+	dead.halt.ReqStop.Close()
+	srv.remote2pair.Set("tcp://"+auto_cli_recognition_prefix+"127.0.0.1:9000-to-127.0.0.1:8000___old", dead)
+	srv.remote2pair.Set("tcp://"+auto_cli_recognition_prefix+"127.0.0.1:9000-to-127.0.0.1:8000___xyz", live)
+	got, ok := srv.findAutoCliPair("tcp", "127.0.0.1:8000", "127.0.0.1:9000")
+	if !ok || got != live {
+		t.Fatal("did not reuse the peer's live auto-client socket")
+	}
+}

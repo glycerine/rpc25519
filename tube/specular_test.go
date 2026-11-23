@@ -2566,3 +2566,30 @@ func TestParkedEntriesAreReleased(t *testing.T) {
 		}
 	}
 }
+
+// CR-D-90 (A): a shadowed netAddr in connectInBackgroundIfNoCircuitTo
+// threw away the corrected base-server address of an auto-cli URL,
+// so the stale auto-cli address was recorded and redialed.
+func TestBackgroundConnectUsesCorrectedAutoCliAddress(t *testing.T) {
+	n := specularNode(t, "n1", FOLLOWER, 1, nil, "n1", "n2")
+	defer n.Halt.RequestStop()
+	n.MyPeer = &rpc.LocalPeer{Halt: idem.NewHalter()}
+	stale := "simnet://auto-cli-from-srv_n2-to-srv_n1___abc"
+	n.state.MC.setNameDetail("n2", &PeerDetail{Name: "n2", PeerID: "n2_id", PeerServiceName: TUBE_REPLICA,
+		Addr: stale, URL: stale + "/tube-replica/n2_id"}, n)
+	pending := n.newCktPlus("n2", TUBE_REPLICA) // pending, no circuit yet
+	pending.Addr = stale
+	n.cktAllByName["n2"] = pending
+	n.connectInBackgroundIfNoCircuitTo("n2", "test")
+	want := "simnet://srv_n2"
+	pending.requestReconnectMut.Lock()
+	req := pending.requestReconnect
+	pending.requestReconnectMut.Unlock()
+	if req == nil || req.netAddr != want || pending.Addr != want {
+		var got string
+		if req != nil {
+			got = req.netAddr
+		}
+		t.Fatalf("reconnect uses netAddr %q (cktP.Addr %q), want the base server %q", got, pending.Addr, want)
+	}
+}
