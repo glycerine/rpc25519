@@ -8,7 +8,7 @@
 \* MCSpecCzar models the czar client over a linearizable CAS register.
 \* LiveSpec and LiveSpecCzar add the run's scheduling assumptions.
 \* Init, Next, vars and Spec expose the Raft/transport behavior without
-\* the MC fault and timer budgets. See ../README.md for extension examples.
+\* the MC fault and timer budgets. See README.md for an extension example.
 
 EXTENDS Integers, Sequences, FiniteSets, TLC
 
@@ -18,7 +18,7 @@ EXTENDS Integers, Sequences, FiniteSets, TLC
 \* One event-loop action can modify both consensus and transport state.
 \* Peer names persist across restarts and PeerIDs include the incarnation.
 \* Go panics are recorded in the ghost set panics. The affected action skips
-\* the panicking operation; model an ensuing process failure with Crash.
+\* the panicking operation. Crash is a separate transition.
 
 \* ========================================================================
 \* CONSTANTS
