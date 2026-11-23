@@ -121,3 +121,26 @@ func (s *imap) allByTicketID() iter.Seq2[int64, *Ticket] {
 	s.repair()
 	return s.ordered.All()
 }
+
+// allIncludingUnindexed yields every ticket: those with a
+// LogIndex in log order, then those still awaiting one (index
+// 0). all() alone skips the latter (CR-D-57).
+func (s *imap) allIncludingUnindexed() iter.Seq2[int64, *Ticket] {
+	s.repair()
+	var pending []*Ticket
+	for _, tkt := range s.awaitIndex.All() {
+		pending = append(pending, tkt)
+	}
+	return func(yield func(int64, *Ticket) bool) {
+		for idx, tkt := range s.ordered.All() {
+			if !yield(idx, tkt) {
+				return
+			}
+		}
+		for _, tkt := range pending {
+			if !yield(tkt.LogIndex, tkt) {
+				return
+			}
+		}
+	}
+}

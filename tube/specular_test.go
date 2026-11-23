@@ -2149,3 +2149,19 @@ func TestTimedOutMembershipChangeIsForgotten(t *testing.T) {
 		}
 	}
 }
+
+// CR-D-57: tickets with LogIndex 0 (not yet in the log) were
+// invisible to imap.all(), so leader takeover, resubmission and
+// step-down notices missed them and their callers hung.
+func TestImapIteratesUnindexedTickets(t *testing.T) {
+	m := newImap()
+	m.set("indexed", &Ticket{TicketID: "indexed", LogIndex: 4})
+	m.set("pending", &Ticket{TicketID: "pending"}) // LogIndex 0
+	seen := map[string]bool{}
+	for _, tkt := range m.allIncludingUnindexed() {
+		seen[tkt.TicketID] = true
+	}
+	if !seen["indexed"] || !seen["pending"] || len(seen) != 2 {
+		t.Fatalf("iteration saw %v, want both tickets", seen)
+	}
+}
