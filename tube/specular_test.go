@@ -673,3 +673,98 @@ func Test1015_restarted_follower_not_counted_twice(t *testing.T) {
 		t.Fatalf("Bug 15: leader committed index %v held by only 2 distinct replicas of 5 (n2 counted twice)", ci)
 	}
 }
+
+// Bug 16 (High): after a czar died holding a newer lease
+// epoch, a member that knew only an older epoch could
+// never become czar. Its CAS carries its last known epoch;
+// Tube (deliberately) still enforces the epoch CAS on an
+// expired lease, and the rejection's reply names the newer
+// epoch but with an expired lease, which the member refused
+// to learn (ErrExpiredCzarLease). It retried with the stale
+// epoch forever.
+func Test1016_czar_elected_after_dead_czar_with_newer_epoch(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+
+		c, _, _, _ := SetupTestCluster(t, 3, 0, 1016)
+		defer c.Close()
+		simnet := c.Cfg.RpcCfg.GetSimnet()
+
+		// the partition below makes the member reconnect many
+		// times; drain the test-only new-circuit channels.
+		stopDrain := make(chan struct{})
+		defer close(stopDrain)
+		drain := func(node *TubeNode) {
+			go func(ch chan *cktPlus) {
+				for {
+					select {
+					case <-ch:
+					case <-stopDrain:
+						return
+					}
+				}
+			}(node.verifyPeerReplicaOrNot)
+		}
+		for _, node := range c.Nodes {
+			drain(node)
+		}
+
+		// m0 becomes czar (lease epoch 1); m1 learns epoch 1.
+		m0 := testStartOneMember(t, 0, c.Cfg)
+		drain(m0.Czar.cli)
+		if amCz := <-m0.TestingAmCzarCh; !amCz {
+			t.Fatalf("setup: first member should become czar")
+		}
+		m1 := testStartOneMember(t, 1, c.Cfg)
+		drain(m1.Czar.cli)
+		defer func() {
+			m1.Czar.Halt.RequestStop()
+			<-m1.Czar.Halt.Done.Chan
+		}()
+		if amCz := <-m1.TestingAmCzarCh; amCz {
+			t.Fatalf("setup: second member should not be czar")
+		}
+		time.Sleep(2 * time.Second)
+
+		// m1 is cut off, so it misses what happens next.
+		_, err := simnet.AlterHost(m1.Czar.cli.srvname, rpc.ISOLATE)
+		panicOn(err)
+
+		// the czar dies; after its lease expires another
+		// leasor takes the key (epoch 2) and then dies too.
+		m0.Czar.Halt.RequestStop()
+		<-m0.Czar.Halt.Done.Chan
+		time.Sleep(7 * time.Second)
+
+		ghost := &ReliableMembershipList{CzarName: "ghost", PeerNames: NewOmap[string, *PeerDetailPlus]()}
+		bts, err := ghost.MarshalMsg(nil)
+		panicOn(err)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		tkt, err := c.Nodes[0].CAS(ctx, Key(t.Name()), "czar", nil, Val(bts), 2*time.Second, nil, ReliableMembershipListType, time.Second, leaseAutoDelFalse, 0, 1)
+		cancel()
+		if err != nil {
+			t.Fatalf("setup: ghost could not take the expired czar key: %v", err)
+		}
+		if tkt.LeaseEpoch != 2 {
+			t.Fatalf("setup: expected ghost at lease epoch 2, got %v", tkt.LeaseEpoch)
+		}
+		time.Sleep(5 * time.Second) // ghost's lease expires.
+
+		// m1 returns, still knowing only epoch 1. With every
+		// lease expired it must be able to become czar.
+		_, err = simnet.AlterHost(m1.Czar.cli.srvname, rpc.UNISOLATE)
+		panicOn(err)
+
+		deadline := time.After(time.Minute)
+		for {
+			select {
+			case amCz := <-m1.TestingAmCzarCh:
+				if amCz {
+					vv("good: m1 became czar")
+					return
+				}
+			case <-deadline:
+				t.Fatalf("Bug 16: no member became czar a minute after every lease expired (m1 stuck on a stale lease epoch)")
+			}
+		}
+	})
+}

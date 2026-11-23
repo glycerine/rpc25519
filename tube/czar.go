@@ -100,6 +100,13 @@ type Czar struct {
 
 	cli *TubeNode
 
+	// Specular Bug 16: the newest czar-key lease epoch we
+	// have seen, even from a rejected CAS whose reply named
+	// an already expired lease (which setVers refuses).
+	// Our next CAS must expect at least this epoch, or a
+	// member that missed an epoch is locked out forever.
+	learnedLeaseEpoch int64
+
 	requestPingCh chan *pingReqReply
 
 	cState atomic.Int32 // czarState
@@ -971,6 +978,7 @@ fullRestart:
 				if vers != nil {
 					prevLeaseEpoch = vers.CzarLeaseEpoch
 				}
+				prevLeaseEpoch = max(prevLeaseEpoch, czar.learnedLeaseEpoch)
 
 				// if we win the write race, we are the czar.
 				// and the old czar is out; so prepare for that:
@@ -1014,6 +1022,8 @@ fullRestart:
 				if vers != nil {
 					prevLeaseEpoch = vers.CzarLeaseEpoch
 				}
+				// Specular Bug 16: expect the newest epoch seen.
+				prevLeaseEpoch = max(prevLeaseEpoch, czar.learnedLeaseEpoch)
 				// in cState == UnknownCzarState here
 
 				// Notice that when we write(cas) into the tube/raft leader,
@@ -1151,6 +1161,13 @@ fullRestart:
 
 					if czarTkt.Vtype != ReliableMembershipListType {
 						panicf("%v: why not ReliableMembershipListType back? got '%v'", name, czarTkt.Vtype)
+					}
+
+					// Specular Bug 16: learn the current lease
+					// epoch from the rejection, even though the
+					// lease it names may already have expired.
+					if czarTkt.LeaseEpoch > czar.learnedLeaseEpoch {
+						czar.learnedLeaseEpoch = czarTkt.LeaseEpoch
 					}
 
 					nonCzarMembers := &ReliableMembershipList{}
