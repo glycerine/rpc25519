@@ -1967,3 +1967,34 @@ func TestFollowersRedialEachOtherWithoutLeader(t *testing.T) {
 		t.Fatalf("live majority of nodes %v and %v never elected a leader after the heal", leadi, 3-leadi-x)
 	})
 }
+
+// CR-D-36: at an unchanged config version, a follower ignored
+// the leader's new address for a restarted peer and kept
+// dialing its stale address from a pending entry.
+func TestFollowerAdoptsLeadersNewAddressAtEqualVersion(t *testing.T) {
+	n := specularNode(t, "n1", FOLLOWER, 3, nil, "n0", "n1", "n2")
+	old := &PeerDetail{Name: "n2", PeerID: "n2_old", PeerServiceName: TUBE_REPLICA,
+		Addr: "simnet://old", URL: "simnet://old/tube-replica/n2_old"}
+	n.state.MC.setNameDetail("n2", old, n)
+	pending := n.newCktPlus("n2", TUBE_REPLICA)
+	pending.PeerBaseServerAddr, pending.Addr = old.Addr, old.Addr
+	n.cktAllByName["n2"] = pending
+
+	mc := n.state.MC.Clone()
+	mc.setNameDetail("n2", &PeerDetail{Name: "n2", PeerID: "n2_new", PeerServiceName: TUBE_REPLICA,
+		Addr: "simnet://new", URL: "simnet://new/tube-replica/n2_new"}, n)
+	if !mc.VersionEqual(n.state.MC) {
+		t.Fatal("setup: expected an equal config version")
+	}
+	n.aeMemberConfigHelper(&AppendEntries{MC: mc}, 0, &AppendEntriesAck{})
+
+	if det, _ := n.state.MC.PeerNames.Get2("n2"); det.Addr != "simnet://new" {
+		t.Fatalf("follower kept n2's stale address %q", det.Addr)
+	}
+	pending.requestReconnectMut.Lock()
+	req := pending.requestReconnect
+	pending.requestReconnectMut.Unlock()
+	if req == nil || req.addr != "simnet://new" {
+		t.Fatalf("pending entry for n2 not redialed at the new address: %+v", req)
+	}
+}
