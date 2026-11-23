@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"net"
 	//"path/filepath"
 	"time"
 
@@ -1949,6 +1950,20 @@ func (s *HermesNode) applyMembershipChange(reply *tube.PingReply) {
 	}
 }
 
+// appIdentity is how hermes addresses a member: by its advertised
+// application (hermes) peer when it has one, else by its Tube
+// details (CR-D-71).
+func appIdentity(plus *tube.PeerDetailPlus) (name, peerID, url string) {
+	if plus == nil || plus.Det == nil {
+		return
+	}
+	name, peerID, url = plus.Det.Name, plus.Det.PeerID, plus.Det.URL
+	if plus.AppPeerID != "" {
+		peerID, url = plus.AppPeerID, plus.AppURL
+	}
+	return
+}
+
 func (s *HermesNode) liveNodesFromReply(reply *tube.PingReply) []string {
 	if reply == nil || reply.Members == nil {
 		return nil
@@ -1962,14 +1977,14 @@ func (s *HermesNode) liveNodesFromReply(reply *tube.PingReply) []string {
 		seen[id] = true
 		live = append(live, id)
 	}
-	if reply.Members.CzarDet != nil && reply.Members.CzarDet.Det != nil {
-		add(reply.Members.CzarDet.Det.PeerID)
+	if reply.Members.CzarDet != nil {
+		_, id, _ := appIdentity(reply.Members.CzarDet)
+		add(id)
 	}
 	if reply.Members.PeerNames != nil {
 		for _, plus := range reply.Members.PeerNames.All() {
-			if plus != nil && plus.Det != nil {
-				add(plus.Det.PeerID)
-			}
+			_, id, _ := appIdentity(plus)
+			add(id)
 		}
 	}
 	return live
@@ -1980,21 +1995,19 @@ func (s *HermesNode) connectMembershipPeers(reply *tube.PingReply) {
 		return
 	}
 	connect := func(plus *tube.PeerDetailPlus) {
-		if plus == nil || plus.Det == nil {
+		name, peerID, url := appIdentity(plus)
+		// skip self by name too: our Tube client has another PeerID.
+		if peerID == "" || peerID == s.PeerID || name == s.name || url == "" {
 			return
 		}
-		det := plus.Det
-		if det.PeerID == "" || det.PeerID == s.PeerID || det.URL == "" {
-			return
-		}
-		if _, ok := s.ckt[det.PeerID]; ok {
+		if _, ok := s.ckt[peerID]; ok {
 			return
 		}
 		firstFrag := s.newFrag()
-		firstFrag.ToPeerName = det.Name
+		firstFrag.ToPeerName = name
 		firstFrag.SetUserArg("fromPeerName", s.name)
-		firstFrag.SetUserArg("toPeerName", det.Name)
-		ckt, _, _, err := s.MyPeer.NewCircuitToPeerURL("hermes-ckt", det.URL, firstFrag, 0, "", det.Name)
+		firstFrag.SetUserArg("toPeerName", name)
+		ckt, _, _, err := s.MyPeer.NewCircuitToPeerURL("hermes-ckt", url, firstFrag, 0, "", name)
 		if err != nil {
 			return
 		}
@@ -2337,6 +2350,10 @@ type HermesConfig struct {
 
 	UseSimNet bool
 	RpcCfg    *rpc.Config `msg:"-"`
+
+	// ServerHost, if set, is the host the hermes peer listens on;
+	// default 127.0.0.1 (CR-D-71).
+	ServerHost string `msg:"-"`
 
 	// EnableO3 turns on the broadcast-ACK fast path. It is intentionally
 	// opt-in while the guarded O3 pseudo-ticket implementation is being
@@ -2720,12 +2737,17 @@ func RunFromDiskConfig(ctx context.Context, configName string) error {
 		MessageLossTimeout: 3 * time.Second,
 		TCPonly_no_TLS:     tubeCfg.RpcCfg.TCPonly_no_TLS,
 	}
+	// bind beside our Tube client, not to loopback, so other
+	// machines can reach this hermes peer (CR-D-71).
+	hcfg.ServerHost = mem.AdvertisedHost()
 	hnode := NewHermesNode(tubeCfg.MyName, hcfg)
 	hnode.UpcallMembershipChangeCh = mem.UpcallMembershipChangeCh
 	hnode.OperatingLeaseRenewCh = mem.OperatingLeaseRenewCh
 	if err := hnode.Init(); err != nil {
 		return err
 	}
+	// and advertise the hermes peer, not just the Tube client.
+	mem.SetAppPeer(hnode.PeerID, hnode.URL)
 
 	<-ctx.Done()
 	hnode.Close()
@@ -2748,6 +2770,9 @@ func (s *HermesNode) Init() error {
 		cfg.TCPonly_no_TLS = s.cfg.TCPonly_no_TLS
 	}
 	cfg.ServerAddr = "127.0.0.1:0"
+	if s.cfg.ServerHost != "" {
+		cfg.ServerAddr = net.JoinHostPort(s.cfg.ServerHost, "0")
+	}
 	cfg.ServerAutoCreateClientsToDialOtherServers = true
 	s.srv = rpc.NewServer("hermes_srv_"+s.name, cfg)
 	s.rpccfg = cfg

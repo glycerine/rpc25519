@@ -5,15 +5,17 @@ import (
 	"context"
 	"fmt"
 	//"reflect"
+	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
-	"github.com/glycerine/rpc25519/tube/leased"
 	rpc "github.com/glycerine/rpc25519"
+	"github.com/glycerine/rpc25519/tube/leased"
 	"golang.org/x/time/rate" // for rate.Limiter
 )
 
@@ -130,6 +132,12 @@ type Czar struct {
 
 	myDetail      *PeerDetailPlus
 	myDetailBytes []byte
+
+	// appPeerID/appURL: the application peer (e.g. hermes) beside
+	// this member, advertised in our detail (CR-D-71).
+	appMut    sync.Mutex
+	appPeerID string
+	appURL    string
 
 	rateLimiter *rate.Limiter
 
@@ -1078,7 +1086,7 @@ fullRestart:
 			time.Sleep(time.Second)
 		}
 
-		czar.myDetail = getMyPeerDetailPlus(cli)
+		czar.myDetail = czar.withAppPeer(getMyPeerDetailPlus(cli))
 		czar.myDetailBytes, err = czar.myDetail.MarshalMsg(nil)
 		panicOn(err)
 
@@ -1152,7 +1160,7 @@ fullRestart:
 				// and 2) add ourselves as new czar in the list we submit.
 				list.CzarName = name
 
-				czar.myDetail = getMyPeerDetailPlus(cli)
+				czar.myDetail = czar.withAppPeer(getMyPeerDetailPlus(cli))
 				if czar.myDetail == nil {
 					panic("must have myDetail here!")
 				}
@@ -1492,7 +1500,7 @@ fullRestart:
 					// if we update, are we going to lose the Plus part leases?
 					// naw, I think that does not apply to the czar,
 					// who gives out leases and only itself lease from the Tube/Raft cluster.
-					czar.myDetail = getMyPeerDetailPlus(cli)
+					czar.myDetail = czar.withAppPeer(getMyPeerDetailPlus(cli))
 					czar.myDetailBytes, err = czar.myDetail.MarshalMsg(nil)
 					panicOn(err)
 
@@ -1949,6 +1957,13 @@ type PeerDetailPlus struct {
 	// anyway when the client is reading a key that
 	// the replica has not gotten the latest write for yet.
 	BootstrapShadowMode bool `zid:"3"`
+
+	// AppPeerID and AppURL identify the application peer (e.g. the
+	// HermesNode) that runs beside this member's Tube client, when
+	// it has its own identity. Applications address members by these
+	// when set, else by Det (CR-D-71).
+	AppPeerID string `zid:"4"`
+	AppURL    string `zid:"5"`
 }
 
 func (s *PeerDetailPlus) Clone() (r *PeerDetailPlus) {
@@ -2296,6 +2311,40 @@ func StringFromVtype(val Val, vtyp string) string {
 	}
 
 	return string(val)
+}
+
+// withAppPeer adds the advertised application peer to det.
+func (s *Czar) withAppPeer(det *PeerDetailPlus) *PeerDetailPlus {
+	s.appMut.Lock()
+	det.AppPeerID, det.AppURL = s.appPeerID, s.appURL
+	s.appMut.Unlock()
+	return det
+}
+
+// SetAppPeer advertises, in this member's membership detail, the
+// PeerID and URL of an application peer (e.g. a HermesNode) that
+// has its own identity beside the member's Tube client (CR-D-71).
+func (membr *RMember) SetAppPeer(peerID, url string) {
+	if membr.Czar == nil {
+		return
+	}
+	membr.Czar.appMut.Lock()
+	membr.Czar.appPeerID, membr.Czar.appURL = peerID, url
+	membr.Czar.appMut.Unlock()
+}
+
+// AdvertisedHost is the host this member's Tube client listens on,
+// for an application peer to bind beside it (CR-D-71).
+func (membr *RMember) AdvertisedHost() string {
+	if membr.Czar == nil || membr.Czar.cli == nil {
+		return ""
+	}
+	addr := removeTcp(membr.Czar.cli.GetMyPeerDetail().Addr)
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return ""
+	}
+	return host
 }
 
 func getMyPeerDetailPlus(cli *TubeNode) (myDetail *PeerDetailPlus) {
