@@ -2561,6 +2561,7 @@ func (s *TubeNode) pruneDown(goner, keeper *cktPlus) {
 func (s *TubeNode) deleteFromCktAll(oldCktP *cktPlus) {
 	//vv("%v deleteFromCktAll called on '%v'", s.me(), oldCktP)
 	oldCktP.Close() // shut down watchdog
+	s.parkedRemove(oldCktP) // do not leak it (CR-D-44)
 	// Peer IDs and names are reused on reconnect. Only remove mappings
 	// that still belong to this exact circuit (or pending watchdog).
 	matches := func(p *cktPlus) bool {
@@ -17074,6 +17075,12 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	rpc.AliasRegister(ckt.RemotePeerID, "("+ckt.RemotePeerName+") "+ckt.RemotePeerID)
 
 	s.cktall[ckt.RemotePeerID] = cktP
+	if prev := s.cktAllByName[cktP.PeerName]; prev != nil && prev != cktP && prev.ckt == nil {
+		// a pending entry for this name is replaced by a real
+		// circuit: retire its watchdog and parking (CR-D-44).
+		prev.Close()
+		s.parkedRemove(prev)
+	}
 	s.cktAllByName[cktP.PeerName] = cktP
 	s.cktAuditByName.Set(ckt.RemotePeerName, ckt)
 
