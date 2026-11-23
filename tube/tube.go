@@ -3391,6 +3391,11 @@ type TubeNode struct {
 	// has not yet committed.
 	stalledMembershipConfigChangeTkt []*Ticket
 
+	// Specular Bug 7: membership changes installed on
+	// the leader whose client ack waits until the new
+	// config is loglessly committed.
+	mcAwaitingCommitTkt []*Ticket
+
 	// set to true at the end of a call to
 	// setupFirstRaftLogEntryBootstrapLog().
 	wroteBootstrapFirstLogEntry time.Time
@@ -6631,6 +6636,15 @@ func (s *TubeNode) becomeFollower(term int64, mc *MemberConfig, save bool) {
 		case <-s.Halt.ReqStop.Chan:
 			return
 		}
+	}
+
+	// Specular Bug 7: a deposed leader cannot confirm the
+	// membership changes it was waiting to see committed.
+	if len(s.mcAwaitingCommitTkt) > 0 {
+		for _, tkt := range s.mcAwaitingCommitTkt {
+			s.failMCAwaitingCommit(tkt, "this node stopped being leader before the new config committed")
+		}
+		s.mcAwaitingCommitTkt = nil
 	}
 
 	// clear out leader-only state
@@ -14851,11 +14865,16 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	// the current config is already committed
 	// and all old configs are deactivated.
 
-	// this does s.FinishTicket(tkt) only if WaitingAtLeader
-	s.respondToClientTicketApplied(tkt)
-	//vv("%v mongo changeMembership done, back from respondToClientTicketApplied with tkt='%v'", s.me(), tkt)
-	s.FinishTicket(tkt, true)
-	//vv("%v mongo FinishTicket done for tkt4=%v", s.me(), tkt.TicketID[:4])
+	// Specular Bug 7: do not acknowledge yet. Installing
+	// newConfig on the leader does not make it durable: a
+	// newer leader's config would supersede it. Answer the
+	// client only once newConfig is itself loglessly
+	// committed (a quorum of newConfig in our term reports
+	// it), in resolveMCAwaitingCommit(); a single node
+	// cluster commits it right here.
+	tkt.Stage += ":changeMembership_installed_awaiting_new_config_commit"
+	s.mcAwaitingCommitTkt = append(s.mcAwaitingCommitTkt, tkt)
+	s.onLeaderIsCurrentMCcommitted()
 
 	// 4. Append _new_ config to log, commit it using
 	//    a majority of the _new_ config.
@@ -17499,8 +17518,12 @@ func (s *TubeNode) onLeaderIsCurrentMCcommitted() (curCommited bool) {
 		return false
 	}
 	if s.state.MC.IsCommitted {
+		s.resolveMCAwaitingCommit(true)
 		return true
 	}
+	defer func() {
+		s.resolveMCAwaitingCommit(curCommited)
+	}()
 
 	curConfig := s.state.MC
 
@@ -17550,6 +17573,43 @@ func (s *TubeNode) onLeaderIsCurrentMCcommitted() (curCommited bool) {
 	s.updateMCindex(s.state.CommitIndex, s.state.CommitIndexEntryTerm)
 
 	return true
+}
+
+// resolveMCAwaitingCommit answers the membership change
+// tickets that were installed on this leader but held
+// back until their config committed (Specular Bug 7).
+// committed reports whether the current s.state.MC is
+// loglessly committed.
+func (s *TubeNode) resolveMCAwaitingCommit(committed bool) {
+	if len(s.mcAwaitingCommitTkt) == 0 {
+		return
+	}
+	var keep []*Ticket
+	for _, tkt := range s.mcAwaitingCommitTkt {
+		current := tkt.MC != nil && s.state.MC != nil && tkt.MC.VersionEqual(s.state.MC)
+		switch {
+		case current && committed:
+			tkt.Stage += ":new_config_committed_ack"
+			// this does s.FinishTicket(tkt) only if WaitingAtLeader
+			s.respondToClientTicketApplied(tkt)
+			s.FinishTicket(tkt, true)
+		case !current:
+			s.failMCAwaitingCommit(tkt, "it was superseded by membership config "+s.state.MC.Short()+" before it committed")
+		case time.Since(tkt.T0) > 10*time.Second:
+			s.failMCAwaitingCommit(tkt, "it did not commit within 10 seconds (it stays installed on the leader and may still commit)")
+		default:
+			keep = append(keep, tkt)
+		}
+	}
+	s.mcAwaitingCommitTkt = keep
+}
+
+// failMCAwaitingCommit tells the client that its membership
+// change was not confirmed; the outcome is unknown to them.
+func (s *TubeNode) failMCAwaitingCommit(tkt *Ticket, why string) {
+	tkt.Err = fmt.Errorf("%v membership change not acknowledged: %v; the change may or may not take effect, so re-check membership and retry if needed", s.me(), why)
+	tkt.Stage += ":new_config_commit_not_confirmed"
+	s.replyToForwardedTicketWithError(tkt)
 }
 
 func (s *TubeNode) mergeCktPToKnown(cktP *cktPlus) {

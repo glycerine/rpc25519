@@ -55,6 +55,10 @@ func (c *cktPlus) seen(mc *MemberConfig, lastLogIndex, lastLogTerm, currentTerm 
 	if len(c.stalledOnSeenTkt) > 0 {
 		if c.node.role != LEADER {
 			c.stalledOnSeenTkt = nil
+		} else if currentTerm > c.node.state.CurrentTerm {
+			// Specular Bug 7: this message is from a newer
+			// term, so we are about to be deposed; do not
+			// resume a reconfiguration on stale cached terms.
 		} else {
 			tkt := c.stalledOnSeenTkt[0]
 			c.stalledOnSeenTkt = c.stalledOnSeenTkt[1:]
