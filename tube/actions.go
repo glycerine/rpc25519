@@ -800,15 +800,8 @@ func (s *TubeNode) doDeleteKey(tkt *Ticket) {
 	var leaf *leased.Leaf
 	leaf, tkt.Err = s.state.KVStoreReadLeaf(tkt, tkt.Table, tkt.Key)
 	if leaf != nil {
-		if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() {
-			doDelete = true
-		} else if leaf.Leasor == tkt.Leasor {
-			doDelete = true
-		} else if tkt.RaftLogEntryTm.After(leaf.LeaseUntilTm.Add(tkt.logClockDriftBound())) {
-			doDelete = true
-		} else {
-			tkt.Err = fmt.Errorf("prior lease on key is not expired. table='%v'; key='%v'; Leasor='%v'; LeaseUntilTm='%v'", tkt.Table, tkt.Key, leaf.Leasor, nice(leaf.LeaseUntilTm))
-		}
+		tkt.Err = leaseBlocksRemoval(tkt, tkt.Table, leaf)
+		doDelete = tkt.Err == nil
 	}
 	if doDelete {
 		tkt.Err = s.state.KVstore.DeleteLeaf(tkt.Table, tkt.Key)
@@ -825,10 +818,35 @@ func (s *TubeNode) doMakeTable(tkt *Ticket) {
 	tkt.Err = s.state.KVstore.MakeTable(tkt.Table)
 }
 
+// leaseBlocksRemoval applies the DeleteKey lease rule to leaf
+// at the ticket's replicated log time: only the leasor may
+// remove a key whose lease has not expired.
+func leaseBlocksRemoval(tkt *Ticket, table Key, leaf *leased.Leaf) error {
+	if leaf.Leasor == "" || leaf.LeaseUntilTm.IsZero() || leaf.Leasor == tkt.Leasor ||
+		tkt.RaftLogEntryTm.After(leaf.LeaseUntilTm.Add(tkt.logClockDriftBound())) {
+		return nil
+	}
+	return fmt.Errorf("prior lease on key is not expired. table='%v'; key='%v'; Leasor='%v'; LeaseUntilTm='%v'", table, leaf.Key, leaf.Leasor, nice(leaf.LeaseUntilTm))
+}
+
+// tableLeaseBlocksRemoval reports the first key in table
+// whose live lease forbids deleting or renaming the table.
+func (s *TubeNode) tableLeaseBlocksRemoval(tkt *Ticket) error {
+	for _, leaf := range s.state.KVstore.mustTableLeaves(tkt.Table) {
+		if err := leaseBlocksRemoval(tkt, tkt.Table, leaf); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *TubeNode) doDeleteTable(tkt *Ticket) {
 	//vv("%v doDeleteTable called on %v", s.me(), tkt.Table)
 	if s.state.KVstore == nil || tkt.Table == "" {
 		return // noop
+	}
+	if tkt.Err = s.tableLeaseBlocksRemoval(tkt); tkt.Err != nil {
+		return
 	}
 	tkt.Err = s.state.KVstore.DeleteTable(tkt.Table)
 }
@@ -837,6 +855,9 @@ func (s *TubeNode) doRenameTable(tkt *Ticket) {
 	//vv("%v doRenameTable called on %v:%v", s.me(), tkt.Table, tkt.NewTableName)
 	if s.state.KVstore == nil {
 		tkt.Err = ErrKeyNotFound
+		return
+	}
+	if tkt.Err = s.tableLeaseBlocksRemoval(tkt); tkt.Err != nil {
 		return
 	}
 	tkt.Err = s.state.KVstore.RenameTable(tkt.Table, tkt.NewTableName)

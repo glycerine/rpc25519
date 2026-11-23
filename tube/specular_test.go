@@ -1578,3 +1578,37 @@ func TestRestartRebuildsSessionExpiryIndex(t *testing.T) {
 		t.Fatal("expired session restored at restart was never collected")
 	}
 }
+
+// CR-D-60: DELETE_TABLE and RENAME_TABLE destroyed live
+// leases that DELETE_KEY refuses to remove.
+func TestTableOpsHonorLiveLeases(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	until := t0.Add(5 * time.Second)
+	for _, op := range []TicketOp{DELETE_TABLE, RENAME_TABLE} {
+		n := specularNode(t, "n1", FOLLOWER, 1, []int64{1}, "n1", "n2")
+		specularMarkApplied(n, 1)
+		n.cfg.ClockDriftBound = 500 * time.Millisecond
+		add := func(tkt *Ticket) {
+			e := &RaftLogEntry{Index: tkt.LogIndex, Term: 1, Tm: tkt.RaftLogEntryTm, Ticket: tkt}
+			_, err := n.wal.saveRaftLogEntry(e)
+			panicOn(err)
+		}
+		add(specularLeaseWrite("w2", 2, t0, until))
+		tableOp := func(id string, idx int64, tm time.Time) *Ticket {
+			return &Ticket{TicketID: id, Op: op, Table: "t", NewTableName: "t2",
+				FromID: "op_id", FromName: "op", RaftLogEntryTm: tm, LogIndex: idx, Term: 1}
+		}
+		// apply runs on a copy of each log ticket, so we check the store.
+		add(tableOp("live", 3, t0.Add(time.Second)))
+		specularApplyAll(n)
+		leaf, err := n.state.KVstore.GetLeaf("t", "czar", false)
+		if err != nil || leaf.Leasor != "c1" {
+			t.Fatalf("%v removed the live leased key: leaf %v, err %v", op, leaf, err)
+		}
+		add(tableOp("expired", 4, until.Add(time.Second)))
+		specularApplyAll(n)
+		if _, err := n.state.KVstore.GetLeaf("t", "czar", false); err == nil {
+			t.Fatalf("%v after lease expiry left the key in place", op)
+		}
+	}
+}
