@@ -7858,7 +7858,11 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 		if ae.MC.IsCommitted && !s.state.MC.IsCommitted {
 			s.state.MC.IsCommitted = true
 		}
-		return // no change in membership
+		// no change in membership, but a restarted member can
+		// have a new address (connection details change without
+		// a version bump).
+		s.adoptLeaderAddressesAtEqualVersion(ae.MC)
+		return
 	}
 
 	if s.state.MC != nil &&
@@ -7913,6 +7917,32 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 	if !s.cfg.NoBackgroundConnect {
 		//vv("%v: in handleAE, have new member config '%v'. calling connectToMC()", s.me(), ae.MC.Short())
 		s.connectToMC("AE")
+	}
+}
+
+// adoptLeaderAddressesAtEqualVersion copies the leader's
+// connection details for members we have no live circuit to.
+// The leader learns them from its own live circuits, so for
+// those members its copy is fresher than ours (CR-D-36). A
+// pending dial to a stale address is redirected.
+func (s *TubeNode) adoptLeaderAddressesAtEqualVersion(leaderMC *MemberConfig) {
+	for name, det := range leaderMC.PeerNames.All() {
+		if name == s.name || det == nil || det.Addr == "" || det.URL == "" || det.URL == "boot.blank" {
+			continue
+		}
+		cur, ok := s.state.MC.PeerNames.Get2(name)
+		if !ok || (cur.Addr == det.Addr && cur.URL == det.URL && cur.PeerID == det.PeerID) {
+			continue
+		}
+		if cktP := s.cktAllByName[name]; cktP != nil && cktP.ckt != nil && !cktP.ckt.IsClosed() {
+			continue // our live circuit knows best.
+		}
+		upd := det.Clone()
+		upd.NonVoting = cur.NonVoting
+		s.state.MC.setNameDetail(name, upd, s)
+		if !s.cfg.NoBackgroundConnect {
+			s.connectInBackgroundIfNoCircuitTo(name, "adoptLeaderAddressesAtEqualVersion")
+		}
 	}
 }
 
@@ -15521,6 +15551,14 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 
 		//vv("%v set up isPending cktP for peerName = '%v'; cktP='%v'", s.name, peerName, cktP) // seen 055 for node_0 only though.
 		s.cktAllByName[peerName] = cktP
+	} else if cktP.ckt == nil && ok && detail.Addr != "" && url != "boot.blank" &&
+		detail.Addr != cktP.PeerBaseServerAddr && detail.Addr != cktP.Addr {
+		// A pending entry holding a stale address: follow the
+		// member config's current one (CR-D-36).
+		netAddr = detail.Addr
+		cktP.PeerBaseServerAddr = detail.Addr
+		cktP.Addr = detail.Addr
+		cktP.PeerID = detail.PeerID
 	} else {
 		//vv("%v ok = true, will connect in background below!", s.name)
 		//url = cktP.URL
