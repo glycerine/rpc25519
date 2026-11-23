@@ -1928,3 +1928,42 @@ func TestWatchdogReconnectsSilentReplicaCircuit(t *testing.T) {
 		}
 	})
 }
+
+// CR-D-35: once a follower's single dial to a peer failed,
+// nothing dialed that peer again without a leader, so a live,
+// connected majority could stay leaderless.
+func TestFollowersRedialEachOtherWithoutLeader(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		c, _, leadi, _ := SetupTestCluster(t, 3, 0, 1035)
+		defer c.Close()
+		// C, the leader, is cut off; the others elect X.
+		c.IsolateNode(leadi)
+		var x int = -1
+		deadline := time.Now().Add(time.Minute)
+		for x < 0 && time.Now().Before(deadline) {
+			time.Sleep(time.Second)
+			for i, n := range c.Nodes {
+				if i != leadi && n.Inspect().Role == LEADER {
+					x = i
+				}
+			}
+		}
+		if x < 0 {
+			t.Fatal("setup: the majority did not elect a new leader")
+		}
+		// X crashes while C is still isolated, then the network heals.
+		c.Nodes[x].SimCrash()
+		time.Sleep(20 * time.Second)
+		c.AllHealthyAndPowerOn(false)
+		deadline = time.Now().Add(2 * time.Minute)
+		for time.Now().Before(deadline) {
+			time.Sleep(time.Second)
+			for i, n := range c.Nodes {
+				if i != x && n.Inspect().Role == LEADER {
+					return // the live majority elected a leader
+				}
+			}
+		}
+		t.Fatalf("live majority of nodes %v and %v never elected a leader after the heal", leadi, 3-leadi-x)
+	})
+}
