@@ -1,3 +1,3 @@
-Note these are not models of Tube.
+tube/tube.tla has a TLA+ spec for Tube.
 
-Just various raft models found searching online.
+Others: Just various raft models found searching online.
