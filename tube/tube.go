@@ -3495,10 +3495,10 @@ type TubeNode struct {
 	hlc HLC
 
 	// multi-part state snapshot receives
-	snapInProgressLastPart        int64
-	snapInProgressB3checksumWhole string
-	snapInProgressHasher          *blake3.Hasher
-	snapInProgress                []byte
+	// multipart state snapshots being reassembled, one per
+	// transfer (circuit + whole checksum) so that interleaved
+	// transfers do not discard each other (CR-D-47).
+	snapAssemblies map[string]*snapAssembly
 
 	// keep all circuits we spin up goroutine for,
 	// to figure out where we are leaking/prune back.
@@ -18026,11 +18026,18 @@ func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circu
 	}
 }
 
+type snapAssembly struct {
+	lastPart int64
+	hasher   *blake3.Hasher
+	data     []byte
+	started  time.Time
+}
+
+// maxSnapAssemblies bounds concurrent multipart transfers held.
+const maxSnapAssemblies = 4
+
 func (s *TubeNode) resetToNoSnapshotInProgress() {
-	s.snapInProgressLastPart = 0
-	s.snapInProgressB3checksumWhole = ""
-	s.snapInProgressHasher = nil
-	s.snapInProgress = nil
+	s.snapAssemblies = nil
 }
 
 func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circuit, caller string) {
@@ -18054,62 +18061,79 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 		panicf("multi-part snapshots must have b3checksumWhole set on their fragments")
 	}
 
+	var key string
+	if part != 0 {
+		cid := ""
+		if ckt != nil {
+			cid = ckt.CircuitID
+		}
+		key = cid + "|" + b3checksumWhole
+		if s.snapAssemblies == nil {
+			s.snapAssemblies = make(map[string]*snapAssembly)
+		}
+	}
 	switch {
 	case part == 1:
 		// first of a new multipart snapshot
-		s.snapInProgressLastPart = part
-		s.snapInProgressB3checksumWhole = b3checksumWhole
-		s.snapInProgressHasher = blake3.New(64, nil)
-		s.snapInProgressHasher.Write(frag.Payload)
-		s.snapInProgress = append([]byte{}, frag.Payload...)
+		if len(s.snapAssemblies) >= maxSnapAssemblies {
+			// drop the oldest transfer to bound memory.
+			var oldestKey string
+			var oldest time.Time
+			for k, a := range s.snapAssemblies {
+				if oldestKey == "" || a.started.Before(oldest) {
+					oldestKey, oldest = k, a.started
+				}
+			}
+			delete(s.snapAssemblies, oldestKey)
+		}
+		a := &snapAssembly{lastPart: part, hasher: blake3.New(64, nil), started: time.Now()}
+		a.hasher.Write(frag.Payload)
+		a.data = append([]byte{}, frag.Payload...)
+		s.snapAssemblies[key] = a
 	case part > 1:
 		// next of a multipart
-		if s.snapInProgressB3checksumWhole != b3checksumWhole {
-			alwaysPrintf("part is from a different overall snapshot: discard and start over; s.snapInProgressB3checksumWhole(%v) != b3checksumWhole(%v)", s.snapInProgressB3checksumWhole, b3checksumWhole)
-			s.resetToNoSnapshotInProgress()
+		a, ok := s.snapAssemblies[key]
+		if !ok {
+			alwaysPrintf("snapshot part %v of an unknown transfer; ignored", part)
 			return
 		}
-		if part != s.snapInProgressLastPart+1 {
-			alwaysPrintf("parts out of order s.snapInProgressLastPart=%v but this next =%v. discard and ignore.", s.snapInProgressLastPart, part)
-			s.resetToNoSnapshotInProgress()
+		if part != a.lastPart+1 {
+			alwaysPrintf("parts out of order lastPart=%v but this next =%v. discard this transfer.", a.lastPart, part)
+			delete(s.snapAssemblies, key)
 			return
 		}
-		s.snapInProgressLastPart = part
-		s.snapInProgressHasher.Write(frag.Payload)
-		s.snapInProgress = append(s.snapInProgress, frag.Payload...)
+		a.lastPart = part
+		a.hasher.Write(frag.Payload)
+		a.data = append(a.data, frag.Payload...)
 
 	case part < 0:
 		// last of a multipart snapshot
-
-		if s.snapInProgressB3checksumWhole != b3checksumWhole {
-			alwaysPrintf("part is from a different overall snapshot: discard and start over")
-			s.resetToNoSnapshotInProgress()
+		a, ok := s.snapAssemblies[key]
+		if !ok {
+			alwaysPrintf("final snapshot part of an unknown transfer; ignored")
 			return
 		}
-		if -part != s.snapInProgressLastPart+1 {
-			alwaysPrintf("parts out of order s.snapInProgressLastPart=%v but this next -part=%v", s.snapInProgressLastPart, -part)
-			s.resetToNoSnapshotInProgress()
+		delete(s.snapAssemblies, key)
+		if -part != a.lastPart+1 {
+			alwaysPrintf("parts out of order lastPart=%v but this next -part=%v", a.lastPart, -part)
 			return
 		}
-
-		h := s.snapInProgressHasher
-		h.Write(frag.Payload)
-		b3checksumWhole2 := blake3ToString33B(h)
+		a.hasher.Write(frag.Payload)
+		b3checksumWhole2 := blake3ToString33B(a.hasher)
 		if b3checksumWhole2 != b3checksumWhole {
 			alwaysPrintf("re-assembly checksum failure: b3checksumWhole2 = '%v' but b3checksumWhole='%v'", b3checksumWhole2, b3checksumWhole)
-			s.resetToNoSnapshotInProgress()
 			return
 		}
-		s.snapInProgress = append(s.snapInProgress, frag.Payload...)
+		a.data = append(a.data, frag.Payload...)
 
 		snap2 := &Snapshot{}
-		_, err := snap2.UnmarshalMsg(s.snapInProgress)
-		panicOn(err)
+		if _, err := snap2.UnmarshalMsg(a.data); err != nil {
+			alwaysPrintf("%v dropping undecodable multipart snapshot: %v", s.me(), err)
+			return
+		}
 
 		s.applyNewStateSnapshot(snap2, caller, true)
 		vv("applied multi-part (%v part) state snapshot", -part)
-		// and reset.
-		s.resetToNoSnapshotInProgress()
 		return
 
 	case part == 0:
