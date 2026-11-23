@@ -104,7 +104,7 @@ transcripts). This keeps only findings **not already fixed** by the first round
 | Entry | ID | St | Problem | Fix direction |
 |---|---|---|---|---|
 | 49 | CR-D-44 | R FIXED | Parked `cktPlus` entries and pending watchdogs leak without bound under circuit churn. | Remove from `parked` in `deleteFromCktAll`; clean up a replaced pending entry in `addToCktall`. |
-| 86 | CR-D-87 | R | (rpc25519) idem halter children are never removed, for connections, auto-client dials and circuits. | `RemoveChild` at each teardown; fix idem's `RemoveChild` to clear both lists. |
+| 86 | CR-D-87 | R FIXED | (rpc25519) idem halter children are never removed, for connections, auto-client dials and circuits. | `RemoveChild` at each teardown; fix idem's `RemoveChild` to clear both lists. |
 | 87 | CR-D-88 | R | (rpc25519) A rejected or failed circuit setup leaks the registered circuit and its goroutine. | Close it on both failure paths, or register only after success. |
 | 88 | CR-D-89 | R | (rpc25519) Data races on `ckt.loopy` and `ckt.RemotePeerID`/`RemotePeerName` after the circuit is handed to the pump. | Make `loopy` an `atomic.Pointer`; freeze identity before registration. |
 | 45 | CR-D-40 | R | (rpc25519) Close-notification registration looks up the connection by exact address string, so hostnames, aliases, NAT or reformatted IPv6 leave zombie circuits. | Return and use the connection actually used for sending; normalize address keys. |
