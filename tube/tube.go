@@ -10514,6 +10514,32 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 			panicf("tkt.LogIndex = %v but (applyIdx) == %v; expected agreement. tkt='%v'", tkt.LogIndex, applyIdx, tkt)
 		}
 
+		// Specular Bug 5: session dedup must happen at apply
+		// time, before executing. A client retry with the same
+		// SessionSerial can be admitted while the first copy is
+		// still in flight, so both reach the log. Commands take
+		// effect exactly once, at their first appearance in the
+		// log; later copies only get the first copy's result.
+		// The session table is replicated state, so every
+		// replica skips the same entries.
+		if dup, prior := s.appliedSessionDuplicate(tkt); dup {
+			if prior != nil {
+				tkt.takeCachedSessionResult(prior)
+			} else {
+				tkt.Err = fmt.Errorf("duplicate SessionSerial %v on SessionID '%v' was already applied and acknowledged; not re-executed", tkt.SessionSerial, tkt.SessionID)
+			}
+			tkt.DupDetected = true
+			tkt.Applied = true
+			tkt.AsOfLogIndex = applyIdx
+			tkt.Stage += ":dup_session_serial_skipped_in_apply"
+			if tkt.FromID == s.PeerID {
+				s.FinishTicket(tkt, calledOnLeader)
+			} else if calledOnLeader {
+				s.respondToClientTicketApplied(tkt)
+			}
+			continue
+		}
+
 		// THIS IS THE APPLY.
 
 		// This is where we apply the command to the
@@ -16358,6 +16384,85 @@ func (s *TubeNode) garbageCollectOldSessions() {
 	}
 }
 
+// takeCachedSessionResult copies the result of the first
+// execution of a session serial (prior) into tkt, a
+// duplicate of it, so the duplicate answers exactly as the
+// first did (Raft dissertation 6.3).
+func (tkt *Ticket) takeCachedSessionResult(prior *Ticket) {
+	tkt.Err = prior.Err
+
+	//switch prior.Op {
+	//case READ, READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS, CAS, WRITE:
+	// why not DELETE_KEY, MAKE_TABLE, DELETE_TABLE, RENAME_TABLE too?
+	// return the previous read, to preserve linz.
+
+	// READ and SHOW_KEYS, CAS and WRITE:
+	tkt.Val = prior.Val
+	tkt.OldVal = prior.OldVal
+	tkt.CurValOnFailedWrite = prior.CurValOnFailedWrite
+
+	tkt.Vtype = prior.Vtype
+	tkt.LeaseRequestDur = prior.LeaseRequestDur
+	tkt.Leasor = prior.Leasor
+	tkt.LeasorPeerID = prior.LeasorPeerID
+	tkt.VersionRead = prior.VersionRead
+
+	tkt.LeaseEpoch = prior.LeaseEpoch
+	tkt.LeaseEpochT0 = prior.LeaseEpochT0
+
+	tkt.LeaseAutoDel = prior.LeaseAutoDel
+	tkt.LeaseWriteRaftLogIndex = prior.LeaseWriteRaftLogIndex
+	tkt.LeaseUntilTm = prior.LeaseUntilTm
+
+	// tkt.AsOfLogIndex below, for all.
+	tkt.LeaderGotTicketTm = prior.LeaderGotTicketTm
+	tkt.LeaderLocalReadGoodUntil = prior.LeaderLocalReadGoodUntil
+	tkt.LeaderLocalReadAtTm = prior.LeaderLocalReadAtTm
+	tkt.LeaderLocalReadHLC = prior.LeaderLocalReadHLC
+	tkt.ClientLocalSubmitTm = prior.ClientLocalSubmitTm
+
+	// READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
+	tkt.KeyValRangeScan = prior.KeyValRangeScan
+
+	// CAS
+	tkt.CASwapped = prior.CASwapped
+	tkt.CASRejectedBecauseCurVal = prior.CASRejectedBecauseCurVal
+}
+
+// appliedSessionDuplicate reports whether tkt repeats a
+// session serial that has already been applied, and if so
+// the cached ticket of its first execution (nil if that
+// cache entry was already cleaned up after the client
+// acknowledged it).
+func (s *TubeNode) appliedSessionDuplicate(tkt *Ticket) (dup bool, prior *Ticket) {
+	if tkt.SessionID == "" || tkt.SessionSerial <= 0 {
+		return
+	}
+	switch tkt.Op {
+	case READ, WRITE, CAS, DELETE_KEY, READ_KEYRANGE, READ_PREFIX_RANGE,
+		MAKE_TABLE, DELETE_TABLE, RENAME_TABLE, SHOW_KEYS:
+	default:
+		return
+	}
+	ste, ok := s.state.SessTable[tkt.SessionID]
+	if !ok {
+		return
+	}
+	if p, ok := ste.Serial2Ticket.Get2(tkt.SessionSerial); ok {
+		return true, p
+	}
+	switch tkt.Op {
+	case READ, READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
+		// reads are idempotent; as at admission, only a
+		// cached result is replayed.
+		return
+	}
+	// as at admission (leaderDoneEarlyOnSessionStuff),
+	// non-read serials at or below MaxAppliedSerial
+	// were already executed.
+	return tkt.SessionSerial <= ste.MaxAppliedSerial, nil
+}
+
 // called at top of replicateTicket(); and an
 // inlined version is used in leaderServedLocalRead() for reads.
 func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (doneEarly, needSave bool) {
@@ -16474,44 +16579,7 @@ func (s *TubeNode) leaderDoneEarlyOnSessionStuff(tkt *Ticket) (doneEarly, needSa
 		// subsequent appearances are filtered out
 		// by the state machines as described above.
 
-		tkt.Err = priorTkt.Err
-
-		//switch priorTkt.Op {
-		//case READ, READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS, CAS, WRITE:
-		// why not DELETE_KEY, MAKE_TABLE, DELETE_TABLE, RENAME_TABLE too?
-		// return the previous read, to preserve linz.
-
-		// READ and SHOW_KEYS, CAS and WRITE:
-		tkt.Val = priorTkt.Val
-		tkt.OldVal = priorTkt.OldVal
-		tkt.CurValOnFailedWrite = priorTkt.CurValOnFailedWrite
-
-		tkt.Vtype = priorTkt.Vtype
-		tkt.LeaseRequestDur = priorTkt.LeaseRequestDur
-		tkt.Leasor = priorTkt.Leasor
-		tkt.LeasorPeerID = priorTkt.LeasorPeerID
-		tkt.VersionRead = priorTkt.VersionRead
-
-		tkt.LeaseEpoch = priorTkt.LeaseEpoch
-		tkt.LeaseEpochT0 = priorTkt.LeaseEpochT0
-
-		tkt.LeaseAutoDel = priorTkt.LeaseAutoDel
-		tkt.LeaseWriteRaftLogIndex = priorTkt.LeaseWriteRaftLogIndex
-		tkt.LeaseUntilTm = priorTkt.LeaseUntilTm
-
-		// tkt.AsOfLogIndex below, for all.
-		tkt.LeaderGotTicketTm = priorTkt.LeaderGotTicketTm
-		tkt.LeaderLocalReadGoodUntil = priorTkt.LeaderLocalReadGoodUntil
-		tkt.LeaderLocalReadAtTm = priorTkt.LeaderLocalReadAtTm
-		tkt.LeaderLocalReadHLC = priorTkt.LeaderLocalReadHLC
-		tkt.ClientLocalSubmitTm = priorTkt.ClientLocalSubmitTm
-
-		// READ_KEYRANGE, READ_PREFIX_RANGE, SHOW_KEYS:
-		tkt.KeyValRangeScan = priorTkt.KeyValRangeScan
-
-		// CAS
-		tkt.CASwapped = priorTkt.CASwapped
-		tkt.CASRejectedBecauseCurVal = priorTkt.CASRejectedBecauseCurVal
+		tkt.takeCachedSessionResult(priorTkt)
 
 		tkt.Stage += ":prev_read_val_used_leaderDoneEarlyOnSessionStuff"
 

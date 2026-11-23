@@ -374,3 +374,67 @@ func Test1004_read_does_not_auto_delete_outside_log(t *testing.T) {
 		t.Fatalf("expired auto-delete key should be hidden from range scans")
 	}
 }
+
+// specularSessNew builds a SESS_NEW ticket for client c1.
+func specularSessNew(sessID string, idx int64, logTm time.Time) *Ticket {
+	return &Ticket{
+		TicketID:       "sess-" + sessID,
+		Op:             SESS_NEW,
+		FromID:         "c1_id",
+		FromName:       "c1",
+		RaftLogEntryTm: logTm,
+		LogIndex:       idx,
+		Term:           1,
+		NewSessReq: &Session{
+			SessionID:               sessID,
+			CliName:                 "c1",
+			CliPeerID:               "c1_id",
+			SessRequestedInitialDur: 24 * time.Hour,
+			SessionIndexEndxTm:      logTm.Add(24 * time.Hour),
+			SessionAssignedIndex:    idx,
+		},
+	}
+}
+
+// Bug 5 (High): a client retry carrying the same session
+// serial was admitted while the first copy was still in
+// flight, and at apply time both copies executed: the
+// write took effect twice and the cached reply for that
+// serial was overwritten by the second execution.
+func Test1005_same_serial_retry_executes_once(t *testing.T) {
+
+	node := specularNode(t, "n1", FOLLOWER, 1, []int64{1}, "n1", "n2")
+	specularMarkApplied(node, 1)
+	node.cfg.ClockDriftBound = 500 * time.Millisecond
+
+	t0 := time.Now()
+	first := specularLeaseWrite("w-first", 3, t0, t0.Add(5*time.Second))
+	// the designed retry: same serial, new TicketID, stamped later.
+	retry := specularLeaseWrite("w-retry", 4, t0.Add(time.Second), t0.Add(6*time.Second))
+	for _, w := range []*Ticket{first, retry} {
+		w.SessionID = "s1"
+		w.SessionSerial = 1
+	}
+	for _, tkt := range []*Ticket{specularSessNew("s1", 2, t0), first, retry} {
+		_, err := node.wal.saveRaftLogEntry(&RaftLogEntry{Index: tkt.LogIndex, Term: 1, Tm: tkt.RaftLogEntryTm, Ticket: tkt})
+		panicOn(err)
+	}
+	specularApplyAll(node)
+
+	leaf, err := node.state.KVstore.GetLeaf("t", "czar", false)
+	panicOn(err)
+	if leaf.Version != 1 || leaf.WriteRaftLogIndex != 3 {
+		t.Fatalf("Bug 5: serial 1 executed twice: key version %v, last written at index %v (want version 1, index 3)", leaf.Version, leaf.WriteRaftLogIndex)
+	}
+	ste, ok := node.state.SessTable["s1"]
+	if !ok {
+		t.Fatalf("setup: session s1 missing")
+	}
+	cached, ok := ste.Serial2Ticket.Get2(1)
+	if !ok {
+		t.Fatalf("no cached reply for serial 1")
+	}
+	if cached.TicketID != "w-first" || cached.Err != nil {
+		t.Fatalf("Bug 5: cached reply for serial 1 was replaced by the retry's execution: TicketID=%v Err=%v", cached.TicketID, cached.Err)
+	}
+}
