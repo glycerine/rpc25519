@@ -20,6 +20,30 @@ type set struct {
 	node string
 	lli  int64
 	llt  int64
+	url  string // the leader's URL as reported
+}
+
+// resolveLeader names the highest-term leader among the
+// candidates (ties broken by name, so the choice is stable), rather
+// than whichever was seen last in random map order (CR-D-69).
+func resolveLeader(leaders map[string]*set, lastName, lastURL string) (name, url string) {
+	var best *set
+	for n, s := range leaders {
+		if s == nil {
+			continue
+		}
+		if best == nil || s.llt > best.llt || (s.llt == best.llt && n < name) {
+			best, name = s, n
+		}
+	}
+	if best == nil {
+		return lastName, lastURL
+	}
+	url = best.url
+	if url == "" && name == lastName {
+		url = lastURL
+	}
+	return name, url
 }
 
 type KeepCkt int
@@ -214,7 +238,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			s := leaders[leaderName]
 			if s == nil || llt > s.llt {
 				// just keep the highest term (latest leader)
-				leaders[leaderName] = &set{node: remoteName, lli: lli, llt: llt}
+				leaders[leaderName] = &set{node: remoteName, lli: lli, llt: llt, url: leaderURL}
 			}
 		}
 	}
@@ -303,7 +327,7 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 			s := leaders[leaderName]
 			if s == nil || llt > s.llt {
 				// just keep the highest term laeder
-				leaders = map[string]*set{leaderName: &set{node: xname, lli: lli, llt: llt}}
+				leaders = map[string]*set{leaderName: &set{node: xname, lli: lli, llt: llt, url: leaderURL}}
 			}
 		}
 	}
@@ -328,6 +352,8 @@ func (node *TubeNode) HelperFindLeader(ctx context.Context, cfg *TubeConfig, con
 		}
 		leaders = map[string]*set{highestTermLeader: highestTermSet}
 	}
+	// report the leader we chose, not the last one seen (CR-D-69).
+	lastLeaderName, lastLeaderURL = resolveLeader(leaders, lastLeaderName, lastLeaderURL)
 	if len(leaders) == 1 {
 		pp("see 1 leader;  leaders='%#v'", leaders)
 		if contactName == "" {

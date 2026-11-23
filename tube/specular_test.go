@@ -2699,3 +2699,17 @@ func TestMemberLeaseNeverOutlivesCzarLease(t *testing.T) {
 		t.Fatalf("member lease until %v outlives the czar lease less drift (%v)", got.Sub(now), limit.Sub(now))
 	}
 }
+
+// CR-D-69: HelperFindLeader picked the highest-term leader but
+// returned whichever candidate it had seen last (random map
+// order); the czar then panicked when the client disagreed.
+func TestResolveLeaderReturnsHighestTerm(t *testing.T) {
+	leaders := map[string]*set{
+		"old": {node: "n1", llt: 3, url: "simnet://old"},
+		"new": {node: "n2", llt: 7, url: "simnet://new"},
+	}
+	name, url := resolveLeader(leaders, "old", "simnet://old")
+	if name != "new" || url != "simnet://new" {
+		t.Fatalf("resolved leader %v (%v), want the highest-term leader 'new'", name, url)
+	}
+}

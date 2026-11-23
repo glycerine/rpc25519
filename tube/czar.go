@@ -952,7 +952,12 @@ fullRestart:
 			insp := cli.Inspect()
 			if insp.CurrentLeaderName != "" &&
 				insp.CurrentLeaderName != leaderName {
-				panicf("why was insp.CurrentLeaderName(%v) != leaderName(%v) back from helper?", insp.CurrentLeaderName, leaderName)
+				// leadership is changing under us; look again rather
+				// than crash (CR-D-69).
+				alwaysPrintf("%v: client sees leader %v but the helper found %v; retrying", name, insp.CurrentLeaderName, leaderName)
+				cli.closeAutoClientSockets()
+				time.Sleep(time.Second)
+				continue fullRestart
 			}
 
 			if !czar.slow {
