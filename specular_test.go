@@ -6,6 +6,7 @@ package rpc25519
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -601,4 +602,32 @@ func TestClientReadLoopStopsOnNonTimeoutErrors(t *testing.T) {
 	if !clientReadLoopShouldContinue(timeout) {
 		t.Error("client read loop must keep going on a read timeout")
 	}
+}
+
+// CR-D-87: halter children were never removed, so every circuit
+// (and connection, and auto-client dial) stayed reachable from a
+// long-lived halter: memory grew with churn without bound.
+func TestPumpReleasesClosedCircuitHalters(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		pb := &LocalPeer{Halt: idem.NewHalterNamed("pump-root"), Ctx: ctx, U: &pumpU{}, PeerAPI: &peerAPI{},
+			Remotes: NewMutexmap[string, *RemotePeer](), ReadsIn: make(chan *Message, 10),
+			ErrorsIn: make(chan *Message, 10), TellPumpNewCircuit: make(chan *Circuit),
+			HandleCircuitClose: make(chan *Circuit), QueryCh: make(chan *QueryLocalPeerPump)}
+		go pb.peerbackPump()
+		defer pb.Halt.ReqStop.Close()
+		for i := 0; i < 20; i++ {
+			ckt := &Circuit{CircuitID: fmt.Sprintf("c%v", i), Reads: make(chan *Fragment, 1), Errors: make(chan *Fragment, 1),
+				Halt: idem.NewHalterNamed("probe-ckt"), Context: ctx, LpbFrom: pb, RpbTo: &RemotePeer{}, Canc: func(error) {}}
+			pb.TellPumpNewCircuit <- ckt
+			pb.HandleCircuitClose <- ckt
+		}
+		q := &QueryLocalPeerPump{Ready: make(chan struct{})}
+		pb.QueryCh <- q
+		<-q.Ready
+		if n := strings.Count(pb.Halt.RootString(), "probe-ckt"); n != 0 {
+			t.Fatalf("%v closed circuits' halters still held by the pump's halter", n)
+		}
+	})
 }

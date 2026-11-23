@@ -489,6 +489,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		s.Server.deletePair(s)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
+		removeHalterChild(s.Server.halt, s.halt) // undo newRWPair's AddChild (CR-D-87)
 
 		for ckt := range s.cktServed {
 			// this should notify the pump too.
@@ -1441,7 +1442,19 @@ type Server struct {
 }
 
 // linear search for now. frequently fastest for small count anyway.
+// removeHalterChild detaches child from parent in both the halter
+// and ReqStop trees. idem's Halter.RemoveChild returns before it
+// removes the ReqStop entry, so do that explicitly (CR-D-87).
+func removeHalterChild(parent, child *idem.Halter) {
+	if parent == nil || child == nil {
+		return
+	}
+	parent.RemoveChild(child)
+	parent.ReqStop.RemoveChild(child.ReqStop)
+}
+
 func (s *Server) deleteFromAutoCli(c *Client) {
+	removeHalterChild(s.halt, c.halt) // the auto-client is gone (CR-D-87)
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	for i, cli := range s.autoClients {
@@ -2449,6 +2462,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		// have to Start() first to get the cli.conn setup.
 		err2 = cli.StartWithCtx(ctx)
 		if err2 != nil {
+			removeHalterChild(s.halt, cli.halt) // a failed dial (CR-D-87)
 			//vv("cli.Start() got back err2='%v'", err2)
 			return false, nil, err2
 		}
