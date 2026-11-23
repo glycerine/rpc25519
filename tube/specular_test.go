@@ -2340,3 +2340,24 @@ func TestInterruptedAppendTailIsIdentifiedLocally(t *testing.T) {
 		})
 	}
 }
+
+// Regression from ee975fec: VersionEqual started comparing voter
+// sets and dereferenced a nil PeerNames, which crashed callers
+// that compare bare member configs (e.g. PAR snapshot admission).
+func TestVersionEqualToleratesNilPeerNames(t *testing.T) {
+	a := &MemberConfig{ConfigTerm: 4, ConfigVersion: 2}
+	b := &MemberConfig{ConfigTerm: 4, ConfigVersion: 2}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("comparing member configs without PeerNames panicked: %v", r)
+		}
+	}()
+	if !a.VersionEqual(b) {
+		t.Fatal("two empty configs at the same version should be equal")
+	}
+	b.PeerNames = NewOmap[string, *PeerDetail]()
+	b.PeerNames.Set("x", &PeerDetail{Name: "x"})
+	if a.VersionEqual(b) {
+		t.Fatal("an empty set equals a populated one")
+	}
+}
