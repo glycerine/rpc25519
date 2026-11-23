@@ -143,3 +143,27 @@ transcripts). This keeps only findings **not already fixed** by the first round
    the event loop), CR-D-30, CR-D-35 and CR-D-39 (circuit lifecycle), and CR-D-49/CR-9
    (PAR fencing).
 4. **Sections 5 and 6** (leaks, races, czar and hermes).
+
+---
+
+## Notes from the fix pass (2026-11-23)
+
+Every item above is fixed and committed with a regression test, and
+`go test -v -tags synctest` passes in tube/, rpc25519/, tube/hermes and jsync.
+Follow-ups that are outside the required test run:
+
+- **par-tagged suite (`go test -tags 'synctest par' -run TestPar`).**
+  - `TestPar_application_completion_waits_for_state_save` already failed at
+    ef8d8e63, before this round of fixes.
+  - `TestPar_live_membership_transition_and_damaged_restart` and
+    `TestPar_live_removed_replica_snapshot_after_reconfiguration` regressed at
+    d55d6692 (CR-D-81).
+  - `TestPar_live_recovering_leader_crosses_partition_and_reconfiguration`
+    regressed at 9537e3dc (CR-D-18).
+  - Two other regressions in this suite are already fixed: a nil-PeerNames panic
+    (25c7bf83) and the restart-window harness wait (181db8b6). b047d4df also fixed
+    a related restart-rejoin problem in CR-D-81.
+- **CR-D-27:** the PAR membership tests are still gated behind `-tags par`.
+- **CR-D-87:** idem's `Halter.RemoveChild` skips removing the ReqStop child.
+  rpc25519 works around this with `removeHalterChild`. The fix itself belongs
+  upstream in idem.
