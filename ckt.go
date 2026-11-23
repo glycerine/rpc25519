@@ -29,6 +29,10 @@ var nextCircuitSN int64
 //
 //msgp:ignore Circuit
 type Circuit struct {
+	// pumpDelivered counts frags the pump put on Reads; only
+	// the pump goroutine touches it (CR-D-32).
+	pumpDelivered int64
+
 	// delPosted: Close posts the removal to the send loop once (CR-D-92).
 	delPosted atomic.Bool
 

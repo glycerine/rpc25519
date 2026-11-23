@@ -242,6 +242,10 @@ func (pb *LocalPeer) peerbackPump() {
 			var delayedShutCtkTimeoutC <-chan time.Time // nil typically
 			var ckt5s []*Circuit
 			var doReturn bool
+			// one deadline per frag: circuits arriving meanwhile
+			// must not keep restarting it (CR-D-32).
+			dropDeadline := time.After(time.Second * 2)
+			slowWarned := false
 		wait5MoreSecondsBeforeCktShutdown:
 			for {
 				select {
@@ -261,7 +265,21 @@ func (pb *LocalPeer) peerbackPump() {
 				// update: also deadlocked/hangs the newCircuit
 				// creation because pump gets stuck here.
 				// new 2025 Sept 11 try adding timeout:
-				case <-time.After(time.Second * 2):
+				case <-dropDeadline:
+					if ckt.pumpDelivered-int64(len(ckt.Reads)) > 0 {
+						// The consumer has taken frags before: it
+						// is alive, only slow (say, a long fsync).
+						// Tearing the circuit down would lose its
+						// later frags; apply back-pressure instead
+						// (CR-D-32). Only a circuit whose consumer
+						// never read anything is a tar-pit.
+						if !slowWarned {
+							slowWarned = true
+							alwaysPrintf("warning: peerbackPump waiting on slow consumer of live ckt '%v' (len(ckt.Reads)=%v)", ckt.Name, len(ckt.Reads))
+						}
+						dropDeadline = time.After(time.Second * 2)
+						continue wait5MoreSecondsBeforeCktShutdown
+					}
 					// probably a watchdog reconnect ckt that
 					// is never getting properly serviced.
 					// It has 100 un-serviced messages and
@@ -327,6 +345,7 @@ func (pb *LocalPeer) peerbackPump() {
 						continue wait5MoreSecondsBeforeCktShutdown
 					}
 				case ckt.Reads <- frag: // server should be hung here, if peer code not servicing
+					ckt.pumpDelivered++
 					//vv("pump sent frag on ckt! ckt='%v'; frag='%v'", ckt, frag)
 				case <-ckt.Halt.ReqStop.Chan:
 					//vv("<-ckt.Halt.ReqStop.Chan:")
