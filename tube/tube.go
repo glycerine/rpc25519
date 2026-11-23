@@ -2828,6 +2828,11 @@ type RaftLogEntry struct {
 	msgbytes  []byte // to sustain the hash-chain
 	node      *TubeNode
 
+	// waiter is the leader's original (client-facing) ticket
+	// for this entry; Ticket is the entry's own copy of the
+	// replicated command (Specular Bug 3). Not serialized.
+	waiter *Ticket
+
 	testWrote bool
 
 	kvAfterApply string
@@ -4329,6 +4334,23 @@ func (d *RaftLogEntry) PreSaveHook() {
 }
 
 func (d *RaftLogEntry) PostLoadHook() {
+}
+
+// applyCopy returns a shallow copy of a log entry's
+// ticket for the apply loop to fill in with results,
+// leaving the replicated command itself unchanged.
+func (t *Ticket) applyCopy() *Ticket {
+	cp := *t
+	return &cp
+}
+
+// logCopy returns the shallow copy of tkt that a new
+// RaftLogEntry owns, so later changes to the waiting
+// client ticket (results, Stage) never alter the
+// replicated command.
+func (t *Ticket) logCopy() *Ticket {
+	cp := *t
+	return &cp
 }
 
 func (t *Ticket) clone() *Ticket {
@@ -6408,6 +6430,11 @@ func (s *TubeNode) prepOne(tkt *Ticket, now time.Time, idx int64, logHLC HLC) *R
 	if tkt.LeaseRequestDur > 0 {
 		tkt.LeaseUntilTm = entry.Tm.Add(tkt.LeaseRequestDur)
 	}
+	// Specular Bug 3: the log entry owns its own copy
+	// of the command (see applyCopy in commitWhatWeCan);
+	// the apply results go back to the waiter.
+	entry.Ticket = tkt.logCopy()
+	entry.waiter = tkt
 	return entry
 }
 
@@ -10464,7 +10491,23 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		s.state.LastAppliedTerm = do.Term
 
 		do.committed = true
-		tkt := do.Ticket
+		// Specular Bug 3: apply on a copy. Applying writes
+		// results (and, on a rejected write, the current leaf
+		// values) into the ticket. do.Ticket is the in-memory
+		// log entry that catch-up AppendEntries ship to other
+		// replicas, so it must stay exactly as replicated or
+		// followers would apply a different command at this
+		// index. (Apply only assigns fields; it never writes
+		// into shared slices, so a shallow copy suffices.)
+		// On the leader that created the entry, apply straight
+		// onto the waiting client ticket (do.waiter), which is
+		// no longer the log's own copy (see prepOne).
+		var tkt *Ticket
+		if do.waiter != nil {
+			tkt = do.waiter
+		} else {
+			tkt = do.Ticket.applyCopy()
+		}
 		tkt.Committed = true
 
 		if tkt.LogIndex != applyIdx {
