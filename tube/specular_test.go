@@ -633,3 +633,43 @@ func Test1014_removed_leader_does_not_count_itself_in_commit_quorum(t *testing.T
 		t.Fatalf("expected index 2 committed once both C' members hold it; CommitIndex=%v", ci)
 	}
 }
+
+// Bug 15 (High): peer records are keyed by PeerID, so after
+// a follower restarts (new PeerID, same name) the leader
+// holds a record for both incarnations until the old
+// circuit's reader exits, and counted that one replica
+// twice toward the commit (and read lease) quorum.
+func Test1015_restarted_follower_not_counted_twice(t *testing.T) {
+
+	members := []string{"n1", "n2", "n3", "n4", "n5"}
+	lead := specularNode(t, "n1", LEADER, 1, []int64{1, 1}, members...)
+	lead.state.CommitIndex = 1
+	lead.state.CommitIndexEntryTerm = 1
+	specularMarkApplied(lead, 1)
+	lead.leaderID = lead.PeerID
+	lead.leaderName = lead.name
+	// n2's old incarnation (half-open circuit) and its new one.
+	old := lead.newRaftNodeInfo("n2_id", "n2", TUBE_REPLICA, "")
+	old.MatchIndex = 2
+	lead.peers["n2_id"] = old
+	cur := lead.newRaftNodeInfo("n2_id_incarnation1", "n2", TUBE_REPLICA, "")
+	cur.MatchIndex = 2
+	lead.peers["n2_id_incarnation1"] = cur
+	now := time.Now()
+	old.LastHeardAnything = now.Add(-time.Minute) // died a minute ago
+	cur.LastHeardAnything = now
+	// n2's new incarnation is the one connected under its name.
+	lead.cktAllByName["n2"] = &cktPlus{PeerName: "n2", PeerID: "n2_id_incarnation1", ckt: &rpc.Circuit{}}
+	for _, name := range []string{"n3", "n4", "n5"} {
+		info := lead.newRaftNodeInfo(name+"_id", name, TUBE_REPLICA, "")
+		info.MatchIndex = 1
+		lead.peers[name+"_id"] = info
+	}
+
+	// entry 2 is on n1 and n2 only: 2 of 5, short of the
+	// quorum of 3.
+	lead.leaderAdvanceCommitIndex()
+	if ci := lead.state.CommitIndex; ci > 1 {
+		t.Fatalf("Bug 15: leader committed index %v held by only 2 distinct replicas of 5 (n2 counted twice)", ci)
+	}
+}

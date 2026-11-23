@@ -10209,6 +10209,55 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 	return
 }
 
+// peersOnePerName returns s.peers with at most one record
+// per replica name (Specular Bug 15). Membership is by
+// name, but s.peers is keyed by PeerID, and a restarted
+// replica comes back with a new PeerID. Until the old
+// incarnation's circuit is torn down (after a power loss,
+// only when TCP gives up) the leader holds a record for
+// each incarnation, and both pass a by-name membership
+// filter; counting both counts one replica twice.
+//
+// As parReconfigurationReady does, a name counts only the
+// record of the incarnation currently connected under that
+// name (cktAllByName). If none is connected, we keep the
+// record heard from most recently.
+func (s *TubeNode) peersOnePerName() map[string]*RaftNodeInfo {
+	byName := make(map[string]*RaftNodeInfo, len(s.peers))
+	for _, info := range s.peers {
+		if cur, ok := s.cktAllByName[info.PeerName]; ok && cur != nil && cur.ckt != nil && cur.PeerID != "" {
+			if info.PeerID != cur.PeerID {
+				continue // a stale incarnation of this replica.
+			}
+			byName[info.PeerName] = info
+			continue
+		}
+		prev, ok := byName[info.PeerName]
+		if !ok || preferPeerRecord(info, prev) {
+			byName[info.PeerName] = info
+		}
+	}
+	r := make(map[string]*RaftNodeInfo, len(byName))
+	for _, info := range byName {
+		r[info.PeerID] = info
+	}
+	return r
+}
+
+// preferPeerRecord reports whether a should be counted
+// instead of b, two records with the same PeerName.
+func preferPeerRecord(a, b *RaftNodeInfo) bool {
+	if !a.LastHeardAnything.Equal(b.LastHeardAnything) {
+		return a.LastHeardAnything.After(b.LastHeardAnything)
+	}
+	// deterministic tie-break: the smaller MatchIndex is
+	// never an over-count.
+	if a.MatchIndex != b.MatchIndex {
+		return a.MatchIndex < b.MatchIndex
+	}
+	return a.PeerID < b.PeerID
+}
+
 // allow transactions that needed full
 // membership b/c they were started before the
 // cfg.NoFaultTolDur expired to take
@@ -10330,7 +10379,8 @@ func (s *TubeNode) leaderAdvanceCommitIndex() {
 	}
 
 	//vv("%v len of s.peers = %v (%v)", s.me(), len(s.peers), peerNamesAsString(s.peers))
-	for peerID, info := range s.peers {
+	// Specular Bug 15: one record per replica name.
+	for peerID, info := range s.peersOnePerName() {
 		_ = peerID
 
 		// seems important: only count match indexes from
@@ -12470,7 +12520,8 @@ func (s *TubeNode) leaderCanServeReadsLocally() (canServe bool, untilTm time.Tim
 	now := time.Now()
 	oldestSentFullPing := now
 	minWindow := time.Hour
-	for _, info := range s.peers {
+	// Specular Bug 15: one record per replica name.
+	for _, info := range s.peersOnePerName() {
 		if info.PeerServiceName != TUBE_REPLICA {
 			continue
 		}
