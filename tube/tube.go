@@ -14723,13 +14723,15 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 
 		cktP, ok := s.cktAllByName[tkt.AddPeerName]
 		if ok && cktP.ckt != nil {
+			// A PeerID changes on every restart; the name is the
+			// identity. The live circuit's PeerID is current, so it
+			// wins over a stale one carried by the ticket.
 			peerID := tkt.AddPeerID
-			if peerID == "" {
-				peerID = cktP.PeerID
-			} else {
-				if cktP.PeerID != "" && tkt.AddPeerID != cktP.PeerID {
-					panic(fmt.Sprintf("difference in opinion about peerID for '%v'; which is correct? cktP.PeerID='%v', but tkt.AddPeerID = '%v'. is one of them stale?", tkt.AddPeerName, cktP.PeerID, tkt.AddPeerID))
+			if cktP.PeerID != "" {
+				if peerID != "" && peerID != cktP.PeerID {
+					alwaysPrintf("%v changeMembership: add of '%v' names PeerID '%v', but its live circuit has '%v'; using the live one", s.me(), tkt.AddPeerName, peerID, cktP.PeerID)
 				}
+				peerID = cktP.PeerID
 			}
 			det := &PeerDetail{
 				Name:                   tkt.AddPeerName,
