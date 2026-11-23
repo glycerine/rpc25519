@@ -608,8 +608,10 @@ func Test1008_send_to_stuck_peer_does_not_block_event_loop(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatalf("Bug 8: the event loop is blocked sending to a stopped peer (hand-off entered %v times; errWriteDur=%v)", u.entered.Load(), time.Duration(u.lastErrWriteDur.Load()))
 	}
-	if d := time.Duration(u.lastErrWriteDur.Load()); d != node.cfg.HeartbeatDur {
-		t.Fatalf("expected tube's fire-and-forget write deadline to be one heartbeat (%v), got %v", node.cfg.HeartbeatDur, d)
+	// generous: a deadline also ends the operation on the
+	// remote, so allow 10 heartbeats.
+	if d, want := time.Duration(u.lastErrWriteDur.Load()), 10*node.cfg.HeartbeatDur; d != want {
+		t.Fatalf("expected tube's fire-and-forget write deadline to be 10 heartbeats (%v), got %v", want, d)
 	}
 }
 

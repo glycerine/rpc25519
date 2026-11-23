@@ -2692,6 +2692,11 @@ func (cfg *TubeConfig) Init(quiet, isTest bool) {
 // those as lost messages and resends on later heartbeats.
 const tubeSendChannelBufferSlots = 64
 
+// tubeSendDeadlineHeartbeats: a fire-and-forget message not
+// written to its peer's connection within this many
+// heartbeats is abandoned (see TubeNode.SendOneWay).
+const tubeSendDeadlineHeartbeats = 10
+
 // succinct summary of past AppendEntries AE and AckAE
 // calls/responses for RaftNodeInfo
 type Ping struct {
@@ -16896,11 +16901,12 @@ func (s *TubeNode) SendOneWay(ckt *rpc.Circuit, frag *rpc.Fragment, errWriteDur 
 	if errWriteDur == -1 {
 		// Specular Bug 8: our fire-and-forget sends opt in to
 		// rpc25519's non-blocking hand-off plus a write deadline
-		// of one heartbeat: a message not written by then is
-		// superseded by the next heartbeat's resend anyway, so
-		// Raft's own retry, not the transport, stays in charge.
+		// (HDR.Deadline) of tubeSendDeadlineHeartbeats heartbeats.
+		// The deadline also ends the operation on the remote, so
+		// it is generous: Raft's own resends on later heartbeats,
+		// not the transport, stay in charge of retrying.
 		// A full queue (ErrSendQueueFull) is just message loss.
-		errWriteDur = s.cfg.HeartbeatDur
+		errWriteDur = tubeSendDeadlineHeartbeats * s.cfg.HeartbeatDur
 	}
 	var anew bool
 	anew, err = ckt.SendOneWay(frag, errWriteDur, keepFragIfPositive)
