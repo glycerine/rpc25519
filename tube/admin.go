@@ -338,6 +338,7 @@ var (
 	ErrResultTooLarge    = fmt.Errorf("result too large for one reply message")
 	ErrKeyTooLarge       = fmt.Errorf("table and key too large")
 	ErrAlreadyStarted    = fmt.Errorf("TubeNode.Start is already running on this node")
+	ErrLeaderStepDown    = fmt.Errorf("leader stepped down before the request finished; its outcome is unknown, so retry it (sessions dedup retries)")
 )
 
 // GetConfigDir returns the config dir

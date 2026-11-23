@@ -2165,3 +2165,85 @@ func TestImapIteratesUnindexedTickets(t *testing.T) {
 		t.Fatalf("iteration saw %v, want both tickets", seen)
 	}
 }
+
+// CR-D-59: tickets dropped without being finished left their
+// callers hanging: a failed redirect, a leader's own tickets on
+// step-down or batch clear, and client tickets whose leader
+// stepped down.
+func TestDroppedTicketsAreFinished(t *testing.T) {
+	newLocal := func(n *TubeNode, id string) *Ticket {
+		tkt := n.NewTicket(id, "t", "k", Val("v"), n.PeerID, n.name, WRITE, -1, context.Background())
+		return tkt
+	}
+	t.Run("failed redirect", func(t *testing.T) {
+		n := specularNode(t, "n1", FOLLOWER, 1, nil, "n0", "n1")
+		n.leaderID, n.leaderName = "n0_id", "n0"
+		halted := idem.NewHalter()
+		halted.ReqStop.Close()
+		n.cktall["n0_id"] = &cktPlus{node: n, PeerName: "n0", PeerID: "n0_id", PeerServiceName: TUBE_REPLICA,
+			ckt: &rpc.Circuit{RemotePeerID: "n0_id", CircuitID: "c", Halt: idem.NewHalter(),
+				Context: context.Background(), LpbFrom: &rpc.LocalPeer{Halt: halted, Ctx: context.Background()}}}
+		tkt := newLocal(n, "redirect")
+		if !n.redirectToLeader(tkt) {
+			t.Fatal("setup: expected a redirect")
+		}
+		if !tkt.finishTicketCalled || tkt.Err == nil {
+			t.Fatalf("failed redirect left the ticket unfinished (err %v)", tkt.Err)
+		}
+	})
+	t.Run("step-down", func(t *testing.T) {
+		n := specularNode(t, "n0", FOLLOWER, 2, nil, "n0", "n1")
+		tkt := newLocal(n, "local")
+		n.WaitingAtLeader.set(tkt.TicketID, tkt)
+		n.tellClientsImNotLeader()
+		if !tkt.finishTicketCalled || !errors.Is(tkt.Err, ErrLeaderStepDown) {
+			t.Fatalf("deposed leader dropped its own ticket (err %v)", tkt.Err)
+		}
+	})
+	t.Run("batch clear", func(t *testing.T) {
+		n := specularNode(t, "n0", FOLLOWER, 2, nil, "n0", "n1")
+		tkt := newLocal(n, "batched")
+		n.batchToSubmit = []*Ticket{tkt}
+		n.clearBatchToSubmit(true)
+		if !tkt.finishTicketCalled || !errors.Is(tkt.Err, ErrLeaderStepDown) {
+			t.Fatalf("batch clear dropped a local ticket (err %v)", tkt.Err)
+		}
+	})
+	t.Run("client told leader stepped down", func(t *testing.T) {
+		n := specularNode(t, "c1", CLIENT, 0, nil, "n0")
+		n.cktall["n0_id"] = &cktPlus{node: n, PeerName: "n0", PeerID: "n0_id", PeerServiceName: TUBE_REPLICA}
+		tkt := newLocal(n, "client")
+		n.WaitingAtFollow.set(tkt.TicketID, tkt)
+		f := n.newFrag()
+		f.Typ = rpc.CallPeerTraffic
+		f.FromPeerID, f.FromPeerName = "n0_id", "n0"
+		f.FragOp = TellClientSteppedDown
+		f.Payload, _ = tkt.MarshalMsg(nil)
+		n.handleArrivingFrag(f, nil)
+		if !tkt.finishTicketCalled || !errors.Is(tkt.Err, ErrLeaderStepDown) {
+			t.Fatalf("client ticket left waiting after its leader stepped down (err %v)", tkt.Err)
+		}
+	})
+}
+
+// CR-D-59 (M4): waiting tickets never expired; a caller that
+// gave up (ctx done) left its ticket in the waiting maps forever.
+func TestAbandonedWaitingTicketsExpire(t *testing.T) {
+	n := specularNode(t, "c1", CLIENT, 0, nil, "n0")
+	ctx, cancel := context.WithCancel(context.Background())
+	tkt := n.NewTicket("abandoned", "t", "k", Val("v"), n.PeerID, n.name, WRITE, -1, ctx)
+	n.WaitingAtFollow.set(tkt.TicketID, tkt)
+	live := n.NewTicket("live", "t", "k", Val("v"), n.PeerID, n.name, WRITE, -1, context.Background())
+	n.WaitingAtFollow.set(live.TicketID, live)
+	cancel()
+	n.globalPruneCktCheck()
+	if !tkt.finishTicketCalled {
+		t.Fatal("ticket of a caller that gave up was never expired")
+	}
+	if _, ok := n.WaitingAtFollow.get2(tkt.TicketID); ok {
+		t.Fatal("expired ticket still in WaitingAtFollow")
+	}
+	if live.finishTicketCalled {
+		t.Fatal("a live caller's ticket was expired")
+	}
+}

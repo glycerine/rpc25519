@@ -2084,7 +2084,16 @@ func (s *TubeNode) handleArrivingFrag(frag *rpc.Fragment, ckt *rpc.Circuit) erro
 			s.leaderTerm = mustAtoi64(leaderTerm)
 		}
 		s.leaderWasUpdated()
-		//vv("%v TODO: submit tickets to new leader instead.", s.me())
+		// The payload names the ticket the old leader dropped:
+		// finish our waiting copy with a retryable error (CR-D-59).
+		if len(frag.Payload) > 0 {
+			dropped := &Ticket{}
+			if _, err := dropped.UnmarshalMsg(frag.Payload); err == nil {
+				if question, ok := s.WaitingAtFollow.get2(dropped.TicketID); ok {
+					s.failTicketLeaderStepDown(question)
+				}
+			}
+		}
 
 	case ObserveMembershipChange:
 		s.handleObserveMembershipChange(frag, ckt)
@@ -2461,7 +2470,33 @@ func (s *TubeNode) globalPruneCktCheck() {
 		cktP.Close() // stop watchdog, fire cancel func.
 		cktP.ckt.Close(ErrPruned)
 	}
+	s.expireAbandonedTickets()
 	s.pruneDupClientCktCheckCh = time.After(s.pruneDupDur)
+}
+
+// expireAbandonedTickets finishes our own waiting tickets whose
+// callers have given up (ctx done), so they do not sit in the
+// waiting maps forever (CR-D-59).
+func (s *TubeNode) expireAbandonedTickets() {
+	var goners []*Ticket
+	for _, waiting := range []*imap{s.WaitingAtFollow, s.WaitingAtLeader} {
+		if waiting == nil {
+			continue
+		}
+		for _, tkt := range waiting.allIncludingUnindexed() {
+			if tkt.FromID == s.PeerID && tkt.ctx != nil && tkt.ctx.Err() != nil {
+				goners = append(goners, tkt)
+			}
+		}
+	}
+	for _, tkt := range goners {
+		if tkt.Err == nil {
+			tkt.Err = tkt.ctx.Err()
+		}
+		s.FinishTicket(tkt, s.role == LEADER)
+		s.WaitingAtFollow.del(tkt)
+		s.WaitingAtLeader.del(tkt)
+	}
 }
 
 // called by globalPruneCktCheck()
@@ -5182,12 +5217,16 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	if err != nil {
 		alwaysPrintf("%v non nil error '%v' on Redirect to '%v'", s.me(), err, ckt.RemotePeerID)
 		tkt.Stage += ":redirectToLeader_error_on_SendOneWay"
+		// Neither sent nor queued: stash it for a later leader if
+		// the caller asked to wait, else finish it with the error;
+		// never leave it pending forever (CR-D-59).
+		if stashForLeader {
+			s.ticketsAwaitingLeader[tkt.TicketID] = tkt
+			return true
+		}
 		tkt.Err = fmt.Errorf("%v non nil error '%v' on Redirect to '%v'", s.me(), err, ckt.RemotePeerID)
-
-		// we never had this. do we want it on a single send error?
-		//s.replyToForwardedTicketWithError(tkt)
-		//s.FinishTicket(tkt, false)
-
+		s.replyToForwardedTicketWithError(tkt)
+		s.FinishTicket(tkt, false)
 		return true
 	}
 	if tkt.Op != WRITE {
@@ -6498,6 +6537,10 @@ func (s *TubeNode) clearBatchToSubmit(tellClients bool) {
 	if tellClients {
 		for _, tkt := range s.batchToSubmit {
 			tkt.Stage += ":clearBatchToSubmit_"
+			if tkt.FromID == s.PeerID {
+				s.failTicketLeaderStepDown(tkt)
+				continue
+			}
 
 			frag := s.newFrag()
 			frag.FragOp = TellClientSteppedDown
@@ -11131,6 +11174,12 @@ func (s *TubeNode) tellClientsImNotLeader() {
 
 	for _, tkt := range s.WaitingAtLeader.allIncludingUnindexed() {
 		tkt.Stage += ":tellClientsImNotLeader_"
+		if tkt.FromID == s.PeerID {
+			// our own caller: no circuit to tell, so finish it
+			// rather than drop it (CR-D-59).
+			s.failTicketLeaderStepDown(tkt)
+			continue
+		}
 
 		frag := s.newFrag()
 		frag.FragOp = TellClientSteppedDown
@@ -11163,6 +11212,17 @@ func (s *TubeNode) tellClientsImNotLeader() {
 	// TODO: delete when we do get acks?
 	// Update: no acks presently! just delete now.
 	s.WaitingAtLeader = newImap()
+}
+
+// failTicketLeaderStepDown finishes a ticket whose leader is no
+// longer leading. Its outcome is unknown; the caller may retry.
+func (s *TubeNode) failTicketLeaderStepDown(tkt *Ticket) {
+	if tkt.finishTicketCalled {
+		return
+	}
+	tkt.Err = fmt.Errorf("%w (node '%v'; new leader '%v')", ErrLeaderStepDown, s.name, s.leaderName)
+	tkt.LeaderID, tkt.LeaderName, tkt.LeaderURL = s.leaderID, s.leaderName, s.leaderURL
+	s.FinishTicket(tkt, false)
 }
 
 func (s *TubeNode) logIndexInBounds(idx int64) bool {
