@@ -2247,3 +2247,31 @@ func TestAbandonedWaitingTicketsExpire(t *testing.T) {
 		t.Fatal("a live caller's ticket was expired")
 	}
 }
+
+// CR-D-26: a node restarted with -zap stamped its empty member
+// config with the current term, so it outranked the live config
+// and spread to the leader; nobody could be elected again.
+func TestZappedMemberConfigIsMinimal(t *testing.T) {
+	n := specularNode(t, "n2", FOLLOWER, 5, []int64{5}, "n0", "n1", "n2")
+	n.state.MC.ConfigTerm, n.state.MC.ConfigVersion = 5, 2
+	n.zapMemberConfig()
+	if n.state.MC.ConfigTerm != 0 || n.state.MC.ConfigVersion != 0 || n.state.MC.PeerNames.Len() != 0 {
+		t.Fatalf("zapped config is (%v,%v) with %v members, want an empty (0,0)",
+			n.state.MC.ConfigTerm, n.state.MC.ConfigVersion, n.state.MC.PeerNames.Len())
+	}
+	live := specularMC(n, "n0", "n3", "n4")
+	live.ConfigTerm, live.ConfigVersion = 4, 3
+	if !live.VersionGT(n.state.MC) {
+		t.Fatal("the live config does not outrank a zapped one")
+	}
+
+	// and a populated set is never replaced by an empty one from a peer.
+	m := specularNode(t, "n0", LEADER, 4, []int64{4}, "n0", "n3", "n4")
+	m.state.MC.ConfigTerm, m.state.MC.ConfigVersion = 4, 3
+	empty := m.NewMemberConfig("peer")
+	empty.ConfigTerm, empty.ConfigVersion = 5, 0
+	m.becomeFollower(4, empty, false) // same term: the empty config still ranks higher
+	if m.state.MC.PeerNames.Len() != 3 {
+		t.Fatal("a peer's empty config replaced our populated member set")
+	}
+}

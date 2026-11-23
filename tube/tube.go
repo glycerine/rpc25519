@@ -923,8 +923,7 @@ func (s *TubeNode) Start(
 
 		if s.cfg.ZapMC {
 			alwaysPrintf("%v -zap of MC requested, about to clear restored MC which is currently: '%v' and will clear this set of ShadowReplicas: '%v'", s.me(), s.state.MC, s.state.ShadowReplicas)
-			s.state.MC = s.NewMemberConfig("ZapMC")
-			s.state.ShadowReplicas = s.NewMemberConfig("ZapMC")
+			s.zapMemberConfig()
 			s.saver.save(s.state)
 		}
 		//recoveredDiskMC := s.state.MC
@@ -6756,7 +6755,9 @@ func (s *TubeNode) becomeFollower(term int64, mc *MemberConfig, save bool) {
 	if mc != nil &&
 		s.state != nil &&
 		s.state.MC != nil &&
-		mc.VersionGT(s.state.MC) {
+		mc.VersionGT(s.state.MC) &&
+		// never let a peer's empty set replace a populated one (CR-D-26).
+		(mc.PeerNames.Len() > 0 || s.state.MC.PeerNames.Len() == 0) {
 
 		mcVersionUpdate = true
 		upd := mc.CloneForUpdate(s)
@@ -14069,6 +14070,17 @@ func (s *MemberConfig) PostLoadHook() {
 }
 
 // give the optional origin of this MemberConfig in s.
+// zapMemberConfig clears the membership for -zap. Like a fresh
+// node's, the empty config is (ConfigTerm 0, ConfigVersion 0):
+// stamping the current term made it outrank the live config
+// (CR-D-26).
+func (s *TubeNode) zapMemberConfig() {
+	s.state.MC = s.NewMemberConfig("ZapMC")
+	s.state.MC.ConfigTerm, s.state.MC.ConfigVersion = 0, 0
+	s.state.ShadowReplicas = s.NewMemberConfig("ZapMC")
+	s.state.ShadowReplicas.ConfigTerm, s.state.ShadowReplicas.ConfigVersion = 0, 0
+}
+
 func (s *TubeNode) NewMemberConfig(loc string) *MemberConfig {
 	r := &MemberConfig{
 		PeerNames: NewOmap[string, *PeerDetail](),
@@ -15111,6 +15123,13 @@ func (s *TubeNode) installMemberConfig(members *MemberConfig, caller string, aut
 
 	// are we plyaing back the log but have newer config
 	// already from AE giving us the latest?
+	if !authoritative && s.state.MC != nil &&
+		members.PeerNames.Len() == 0 && s.state.MC.PeerNames.Len() > 0 {
+		// an empty set learned from a peer never replaces a
+		// populated one (CR-D-26).
+		ignoredMemberConfigBecauseSuperceded = true
+		return
+	}
 	if s.state.MC != nil &&
 		s.state.MC.VersionGTE(members) && !(authoritative && s.state.MC.conflictsWith(members)) {
 		//s.state.MC.RaftLogIndex > members.RaftLogIndex {
