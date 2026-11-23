@@ -17800,6 +17800,28 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string, sendAck 
 		alwaysPrintf("%v we should never be rolling back Terms with state snapshots! state2.CurrentTerm(%v) != s.state.CurrentTerm(%v)", s.name, state2.CurrentTerm, s.state.CurrentTerm)
 		return
 	}
+
+	// Specular Bug 2: a stale snapshot (an older one from
+	// this same leader and term, delivered late, e.g. on
+	// a second circuit) must not roll us back below entries
+	// we have already acknowledged. snap.AE carries the
+	// leader's log terms as of the snapshot. If our log
+	// already contains that entire leader log, the snapshot
+	// has nothing for us and installing it could only
+	// truncate us (and move CommitIndex/LastApplied
+	// backwards). Process its AE as an ordinary
+	// AppendEntries instead, which acks our real state.
+	// (A recovering PAR node's log is not trusted, so it
+	// always installs.)
+	if !wasRecovering && snap.AE != nil && snap.AE.LogTermsRLE != nil {
+		snapEnd := snap.AE.LogTermsRLE.lastIndex()
+		_, lcp, _ := snap.AE.LogTermsRLE.Extends(s.wal.getTermsRLE())
+		if lcp >= snapEnd && snapEnd <= s.wal.LastLogIndex() {
+			alwaysPrintf("%v ignoring stale state snapshot: our log already holds the snapshot's whole leader log (through %v; our lli=%v)", s.me(), snapEnd, s.wal.LastLogIndex())
+			s.handleAppendEntries(snap.AE, sendAck)
+			return
+		}
+	}
 	var undo *parUndo
 	if !s.cfg.NoDisk {
 		if !wasRecovering {
