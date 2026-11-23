@@ -99,7 +99,7 @@ func (s *raftWriteAheadLog) clone() (c *raftWriteAheadLog) {
 // a Raft principle that is necessary for safety.
 // leaders should never call this, in fact! We will
 // panic to remind them.
-func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftLogEntry, isLeader bool, curCommitIndex, lastAppliedIndex, keepCount, overwriteCount int64, syncme *IndexTerm) (err error) {
+func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftLogEntry, isLeader bool, lastAppliedIndex, keepCount, overwriteCount int64, syncme *IndexTerm) (err error) {
 
 	if isLeader {
 		panic("leaders should use saveRaftLogEntry(), never overwriteEntries, since Raft requires leaders never overwrite their logs.")
@@ -124,33 +124,6 @@ func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftL
 		if len(killed) > 0 && isLeader {
 			panic(fmt.Sprintf("bad! leader can never overwrite any (here %v) log entries!", len(killed)))
 		}
-		nes := int64(len(es))
-		if overwriteCount > nes {
-			overwriteCount = nes
-			// else, out of bounds [:2] on size 1 just below
-		}
-		replacements := es[:overwriteCount]
-		for i, e := range killed {
-
-			//if i < len(es) && replacements[i].Equal(killed[i]) {
-			// update: our simae_test framework is not
-			// sophisticated enought to not generate
-			// follower logs that might randomly contain
-			// the same term later even when the earlier
-			// term is different from masters... maybe? this
-			// could occur? we were assuming that an
-			// earlier mis-match means that all subsequent
-			// entries need to be overwritten; which does
-			// seem the safer thing to do. Commenting out
-			//panic(fmt.Sprintf("don't overwrite an entry with itself! i=%v, replacements[%v]='%v'; killed[%v]='%v'; especially because we want to avoid truncation of a good log by a smaller write.", i, i, replacements[i], i, killed[i]))
-			//}
-			if s.noLogCompaction {
-				if e.Index <= curCommitIndex { // <= -1 will never happen, so wal_test okay.
-					panic(fmt.Sprintf("curCommitIndex = %v; don't kill a committed log entry! %v\n\nwould have overwritten with: '%v'", curCommitIndex, e, replacements[i]))
-				}
-			}
-		}
-
 		if s.onOverwriteNotifyMe != nil {
 			s.onOverwriteNotifyMe(killed, true)
 		}

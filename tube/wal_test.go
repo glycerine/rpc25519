@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	rpc "github.com/glycerine/rpc25519"
@@ -440,5 +441,33 @@ func assertPath1HasCommonSuffix(path0, path1 string) {
 			panic(fmt.Sprintf("wal '%v' and '%v' differ: e0.Ticket.Desc=%v but e1.Ticket.Desc=%v at i = %v", path0, path1, e0.Ticket.Desc, e1.Ticket.Desc, i))
 		}
 		j--
+	}
+}
+
+func TestWALOverwriteProtectsCommittedAndAppliedEntries(t *testing.T) {
+	for _, noDisk := range []bool{false, true} {
+		for _, floor := range []struct{ committed, applied int64 }{{2, 1}, {1, 2}} {
+			t.Run(fmt.Sprintf("noDisk=%v/commit=%d/applied=%d", noDisk, floor.committed, floor.applied), func(t *testing.T) {
+				cfg := &TubeConfig{NoDisk: noDisk}
+				w, err := cfg.newRaftWriteAheadLog(filepath.Join(t.TempDir(), "wal"), false)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer w.close()
+				for _, e := range createLogEntries(1, 4, 1) {
+					e.Ticket.TicketID = rpc.NewCallID("")
+					if _, err := w.saveRaftLogEntry(e); err != nil {
+						t.Fatal(err)
+					}
+				}
+				replacement := createLogEntries(2, 3, 2)
+				replacement[0].Ticket.TicketID = rpc.NewCallID("")
+				err = w.overwriteEntries(1, replacement, false,
+					floor.committed, floor.applied, &IndexTerm{}, nil)
+				if err == nil || w.LastLogIndex() != 3 || w.logIndex.getTermForIndex(2) != 1 {
+					t.Fatalf("protected overwrite returned %v, log is %v", err, w.logIndex)
+				}
+			})
+		}
 	}
 }

@@ -16,6 +16,8 @@ import (
 	rpc "github.com/glycerine/rpc25519"
 )
 
+var errProtectedLogEntry = errors.New("cannot overwrite a committed or applied log entry")
+
 type raftWriteAheadLog struct {
 	path        string
 	fd          *os.File
@@ -891,8 +893,11 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 	// INVAR: overwriteCount >= 0: how much of the log is re-written;
 	// the log might be even longer afterwards too, of course.
 
+	if overwriteCount > 0 && s.raftLog[keepCount].Index <= max(curCommitIndex, lastAppliedIndex) {
+		return errProtectedLogEntry
+	}
 	if s.nodisk {
-		return s.overwriteEntries_NODISK(keepIndex, es, isLeader, curCommitIndex, lastAppliedIndex, keepCount, overwriteCount, syncme)
+		return s.overwriteEntries_NODISK(keepIndex, es, isLeader, lastAppliedIndex, keepCount, overwriteCount, syncme)
 	}
 	var undo *parUndo
 	if overwriteCount > 0 && s.parTxn == nil {
@@ -930,14 +935,11 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 		// below we will write the full es. here is just some debug checking
 		// for overwriting commited entries or self with self.
 		replacements := es[:min(overwriteCount, int64(len(es)))]
-		for i, e := range killed {
+		for i := range killed {
 
 			if s.noLogCompaction {
 				if i < len(replacements) && replacements[i].Equal(killed[i]) {
 					panic(fmt.Sprintf("don't overwrite an entry with itself! i=%v, replacements[%v]='%v'; killed[%v]='%v'; especially because we want to avoid truncation of a good log by a smaller write.", i, i, replacements[i], i, killed[i]))
-				}
-				if e.Index <= curCommitIndex {
-					panic(fmt.Sprintf("curCommitIndex = %v; don't kill a committed log entry! %v", curCommitIndex, e))
 				}
 			}
 		}
