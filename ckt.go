@@ -1184,6 +1184,9 @@ func (lpb *LocalPeer) newCircuit(
 		// Don't make a new HDR.Args map here since the firstFrag.Args
 		// may be carrying important information and a new
 		// map would lose that; like #fragRPCtoken and #UserString
+		if msg.HDR.Args == nil {
+			msg.HDR.Args = make(map[string]string)
+		}
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#toPeerServiceNameVersion"] = rpb.RemotePeerServiceNameVersion
@@ -1273,6 +1276,9 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.ToPeerServiceNameVersion = rpb.RemotePeerServiceNameVersion
 		msg.HDR.CallID = ckt.CircuitID
 		msg.HDR.Serial = issueSerial()
+		if msg.HDR.Args == nil {
+			msg.HDR.Args = make(map[string]string)
+		}
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
 		msg.HDR.Args["#fromBaseServerName"] = lpb.BaseServerName
 		msg.HDR.Args["#fromBaseServerAddr"] = lpb.BaseServerAddr

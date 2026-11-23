@@ -267,10 +267,11 @@ func (m *Message) CopyForSimNetSend() (c *Message) {
 }
 
 func copyArgsMap(args map[string]string) (clone map[string]string) {
-	if args == nil || len(args) == 0 {
+	if args == nil {
 		return
 	}
-	clone = make(map[string]string)
+	// an empty map stays a (writable) empty map (CR-D-93).
+	clone = make(map[string]string, len(args))
 	for k, v := range args {
 		clone[k] = v
 	}
