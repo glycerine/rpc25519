@@ -1853,3 +1853,29 @@ func TestStartRefusesToRunTwice(t *testing.T) {
 		t.Fatal("second Start overwrote the node's PeerID")
 	}
 }
+
+// CR-D-84: an add ticket carrying a restarted node's old
+// PeerID panicked the leader in changeMembership.
+func TestAddWithStalePeerIDUsesLiveCircuit(t *testing.T) {
+	n := specularNode(t, "n1", LEADER, 1, []int64{1}, "n1")
+	n.state.CommitIndex, n.state.CommitIndexEntryTerm = 1, 1
+	specularMarkApplied(n, 1)
+	n.leaderID, n.leaderName = n.PeerID, n.name
+	n.MyPeer = &rpc.LocalPeer{Halt: idem.NewHalter(), PeerServiceName: TUBE_REPLICA}
+	ckt := &rpc.Circuit{RemotePeerID: "n2_live", RemotePeerName: "n2", RemoteServiceName: TUBE_REPLICA,
+		CircuitID: "ckt_n2", Halt: idem.NewHalter(), RpbTo: &rpc.RemotePeer{BaseServerAddr: "simnet://n2"}}
+	n.cktAllByName["n2"] = &cktPlus{node: n, PeerName: "n2", PeerID: "n2_live", PeerServiceName: TUBE_REPLICA, ckt: ckt}
+	tkt := n.NewTicket("add n2", "", "", nil, n.PeerID, n.name, MEMBERSHIP_SET_UPDATE, -1, context.Background())
+	tkt.AddPeerName, tkt.AddPeerID = "n2", "n2_stale"
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("stale AddPeerID panicked the leader: %v", r)
+			}
+		}()
+		n.changeMembership(tkt)
+	}()
+	if det, ok := n.state.Known.PeerNames.Get2("n2"); !ok || det.PeerID != "n2_live" {
+		t.Fatalf("expected the live circuit's PeerID for n2, got %v", det)
+	}
+}
