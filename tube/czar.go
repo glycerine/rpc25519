@@ -282,6 +282,17 @@ func (s *Czar) heartbeatPingTimeout() time.Duration {
 	return d
 }
 
+// pingerConfig is the rpc config for a member's direct client to
+// the czar. Its connect timeout stays inside the leases the pings
+// renew; without one a dead czar host blocked the member for the
+// OS connect timeout (CR-D-77).
+func (s *Czar) pingerConfig(base *rpc.Config, dialTarget string) rpc.Config {
+	ccfg := *base
+	ccfg.ClientDialToHostPort = dialTarget
+	ccfg.ConnectTimeout = s.heartbeatPingTimeout()
+	return ccfg
+}
+
 func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, upcall bool, note string) (err error) {
 	return s.setVersAt(time.Now(), v, list, upcall, note)
 }
@@ -1508,9 +1519,8 @@ fullRestart:
 					// what we want Call Ping to return to us:
 					pingReplyToFill := &PingReply{} // ReliableMembershipList{}
 
-					ccfg := *cli.GetConfig().RpcCfg
 					dialTarget := removeTcp(czarDetPlus.Det.Addr)
-					ccfg.ClientDialToHostPort = dialTarget
+					ccfg := czar.pingerConfig(cli.GetConfig().RpcCfg, dialTarget)
 					vv("after removeTcp('%v'), dial to: '%v'", czarDetPlus.Det.Addr, dialTarget)
 
 					rpcClientToCzar, err = rpc.NewClient(name+"_pinger_"+cryRand15B(), &ccfg)

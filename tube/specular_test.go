@@ -2757,3 +2757,14 @@ func TestHeartbeatPingIsBoundedByTheLeases(t *testing.T) {
 			d, cz.memberLeaseDur, cz.leaseDurCzar)
 	}
 }
+
+// CR-D-77: the member's czar pinger dialed with no connect timeout
+// and blocked ~135s against a dead czar host, far past its leases.
+func TestCzarPingerDialsWithinTheLeases(t *testing.T) {
+	n := specularNode(t, "m1", CLIENT, 0, nil, "n0")
+	cz := NewCzar("hermes", "m1", n, 500*time.Millisecond)
+	ccfg := cz.pingerConfig(rpc.NewConfig(), "127.0.0.1:9")
+	if ccfg.ConnectTimeout <= 0 || ccfg.ConnectTimeout >= cz.memberLeaseDur || ccfg.ConnectTimeout >= cz.leaseDurCzar {
+		t.Fatalf("czar pinger connect timeout %v must be positive and below the leases", ccfg.ConnectTimeout)
+	}
+}

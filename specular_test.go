@@ -723,3 +723,13 @@ func TestFindAutoCliPairIgnoresRandomSuffix(t *testing.T) {
 		t.Fatal("did not reuse the peer's live auto-client socket")
 	}
 }
+
+// CR-D-77: the TCP client dial ignored Config.ConnectTimeout, so a
+// connect to a dead host blocked for the OS's ~2 minute timeout.
+func TestTCPDialHonorsConnectTimeout(t *testing.T) {
+	cfg := NewConfig()
+	cfg.ConnectTimeout = 3 * time.Second
+	if d := newTCPDialer(cfg); d.Timeout != cfg.ConnectTimeout {
+		t.Fatalf("TCP dialer timeout %v, want ConnectTimeout %v", d.Timeout, cfg.ConnectTimeout)
+	}
+}

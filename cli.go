@@ -280,10 +280,16 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	c.runReadLoop(conn, cpair)
 }
 
+// newTCPDialer honors Config.ConnectTimeout, as the TLS path
+// already does (0 means no timeout) (CR-D-77).
+func newTCPDialer(cfg *Config) *net.Dialer {
+	return &net.Dialer{Timeout: cfg.ConnectTimeout}
+}
+
 func (c *Client) runClientTCP(serverAddr string) {
 
 	// Dial the server
-	conn, err := net.Dial("tcp", serverAddr)
+	conn, err := newTCPDialer(c.cfg).Dial("tcp", serverAddr)
 	if err != nil {
 		c.err = err
 		select {
