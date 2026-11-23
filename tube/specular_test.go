@@ -2684,3 +2684,18 @@ func TestCzarUptimeResetsOnlyOnNewEpoch(t *testing.T) {
 		t.Fatal("a new czar epoch should restart the uptime")
 	}
 }
+
+// CR-D-68: the czar granted member leases (6s) that could outlive
+// its own czar lease (5s); a member dropped by the next czar could
+// keep serving stale hermes reads on its leftover member lease.
+func TestMemberLeaseNeverOutlivesCzarLease(t *testing.T) {
+	n := specularNode(t, "c1", CLIENT, 0, nil, "n0")
+	cz := NewCzar("hermes", "c1", n, 500*time.Millisecond)
+	now := time.Now()
+	cz.vers = &RMVersionTuple{CzarLeaseEpoch: 1, CzarLeaseUntilTm: now.Add(5 * time.Second)}
+	got := cz.memberLeaseUntil(now)
+	limit := cz.vers.CzarLeaseUntilTm.Add(-cz.clockDriftBound)
+	if got.After(limit) {
+		t.Fatalf("member lease until %v outlives the czar lease less drift (%v)", got.Sub(now), limit.Sub(now))
+	}
+}
