@@ -768,3 +768,56 @@ func Test1016_czar_elected_after_dead_czar_with_newer_epoch(t *testing.T) {
 		}
 	})
 }
+
+// specularStalledMCTicket is a membership change ticket parked
+// on stalledMembershipConfigChangeTkt, from a local client.
+func specularStalledMCTicket(node *TubeNode, id string) *Ticket {
+	return &Ticket{
+		TicketID:       id,
+		Op:             MEMBERSHIP_SET_UPDATE,
+		RemovePeerName: "n3",
+		FromID:         node.PeerID,
+		FromName:       node.name,
+		T0:             time.Now(),
+		Done:           idem.NewIdemCloseChan(),
+	}
+}
+
+// Bug 10 (Medium): a leader whose membership change stalled
+// kept the stalled ticket after being deposed, and the next
+// AE's connectToMC -> resubmitStalledTickets(true) passed it
+// to the leader-only replicate path, which panics
+// ("only for leader; followers should not be calling here").
+func Test1010_deposed_leader_with_stalled_mc_ticket_does_not_panic(t *testing.T) {
+
+	members := []string{"n1", "n2", "n3"}
+
+	// (a) a follower that still holds a stalled ticket.
+	foll := specularNode(t, "n1", FOLLOWER, 2, []int64{1}, members...)
+	tkt := specularStalledMCTicket(foll, "stalled-a")
+	foll.stalledMembershipConfigChangeTkt = append(foll.stalledMembershipConfigChangeTkt, tkt)
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("Bug 10: follower panicked resubmitting a stalled membership ticket: %v", r)
+			}
+		}()
+		foll.resubmitStalledTickets(true)
+	}()
+	if !tkt.Done.IsClosed() || tkt.Err == nil {
+		t.Fatalf("a stalled ticket a follower cannot serve must be answered with an error (Done closed=%v, Err=%v)", tkt.Done.IsClosed(), tkt.Err)
+	}
+
+	// (b) stepping down fails the stalled tickets back to
+	// their clients instead of keeping them.
+	lead := specularNode(t, "n1", LEADER, 2, []int64{1}, members...)
+	tkt2 := specularStalledMCTicket(lead, "stalled-b")
+	lead.stalledMembershipConfigChangeTkt = append(lead.stalledMembershipConfigChangeTkt, tkt2)
+	lead.becomeFollower(2, nil, false)
+	if n := len(lead.stalledMembershipConfigChangeTkt); n != 0 {
+		t.Fatalf("Bug 10: deposed leader kept %v stalled membership tickets", n)
+	}
+	if !tkt2.Done.IsClosed() || tkt2.Err == nil {
+		t.Fatalf("stalled ticket not failed back to the client on step-down (Done closed=%v, Err=%v)", tkt2.Done.IsClosed(), tkt2.Err)
+	}
+}

@@ -6079,6 +6079,14 @@ func newSessionTableEntry(sess *Session) *SessionTableEntry {
 func (s *TubeNode) resubmitStalledTickets(justMC bool) {
 	//vv("%v top of resubmitStalledTickets", s.me())
 
+	// Specular Bug 10: only a leader can resubmit; the
+	// replicate path below is leader-only (and panics
+	// otherwise). connectToMC calls us on followers too.
+	if s.role != LEADER {
+		s.failStalledMembershipTickets()
+		return
+	}
+
 	// since the stall went into WaitingAtLeader at tube.go:2975,
 	// we want to read out of WaitingAtLeader here.
 	// _And_ from s.stalledMembershipConfigChangeTkt.
@@ -6655,6 +6663,12 @@ func (s *TubeNode) becomeFollower(term int64, mc *MemberConfig, save bool) {
 		case <-s.Halt.ReqStop.Chan:
 			return
 		}
+	}
+
+	// Specular Bug 10: nor carry out its stalled membership
+	// changes; fail them back to their clients now.
+	if oldRole == LEADER || len(s.stalledMembershipConfigChangeTkt) > 0 {
+		s.failStalledMembershipTickets()
 	}
 
 	// Specular Bug 7: a deposed leader cannot confirm the
@@ -17731,6 +17745,34 @@ func (s *TubeNode) onLeaderIsCurrentMCcommitted() (curCommited bool) {
 	s.updateMCindex(s.state.CommitIndex, s.state.CommitIndexEntryTerm)
 
 	return true
+}
+
+// failStalledMembershipTickets answers every stalled
+// membership change ticket with a "not leader" error and
+// clears the stall queues (Specular Bug 10). A node that
+// is not leader cannot carry them out; the client should
+// retry with the current leader.
+func (s *TubeNode) failStalledMembershipTickets() {
+	stalled := s.stalledMembershipConfigChangeTkt
+	s.stalledMembershipConfigChangeTkt = nil
+	for _, cktP := range s.cktAllByName {
+		if cktP != nil {
+			cktP.stalledOnSeenTkt = nil
+		}
+	}
+	for _, cktP := range s.cktall {
+		if cktP != nil {
+			cktP.stalledOnSeenTkt = nil
+		}
+	}
+	for _, tkt := range stalled {
+		if tkt.finishTicketCalled {
+			continue
+		}
+		tkt.Err = fmt.Errorf("%v is not leader (current leader: '%v'); stalled membership change not applied, please retry with the leader", s.me(), s.leaderName)
+		tkt.Stage += ":stalled_mc_failed_not_leader"
+		s.replyToForwardedTicketWithError(tkt)
+	}
 }
 
 // resolveMCAwaitingCommit answers the membership change
