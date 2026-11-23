@@ -2792,3 +2792,26 @@ func TestCzarSeesFreshUnreachableReports(t *testing.T) {
 		t.Fatal("a fresh report that members cannot reach this czar was ignored")
 	}
 }
+
+// TestPar_application_completion_waits_for_state_save: apply runs on
+// a copy of the log ticket (Bug 3); FinishTicket on that copy closed
+// the waiting original's Done but never marked the original finished,
+// so later paths could "finish" it again and overwrite its result.
+func TestFinishingAppliedCopyMarksWaitingOriginalFinished(t *testing.T) {
+	n := specularNode(t, "n1", FOLLOWER, 1, nil, "n1")
+	n.state.KVstore = newKVStore()
+	orig := n.NewTicket("w", "t", "k", Val("v"), n.PeerID, n.name, WRITE, time.Second, context.Background())
+	orig.LogIndex, orig.Term, orig.RaftLogEntryTm = 1, 1, time.Now()
+	_, err := n.wal.saveRaftLogEntry(&RaftLogEntry{Index: 1, Term: 1, Ticket: orig, Tm: orig.RaftLogEntryTm})
+	panicOn(err)
+	n.WaitingAtFollow.set(orig.TicketID, orig)
+	specularApplyAll(n)
+	if !orig.Done.IsClosed() || !orig.finishTicketCalled {
+		t.Fatalf("waiting original: done=%v finished=%v, want both", orig.Done.IsClosed(), orig.finishTicketCalled)
+	}
+	// a later failure path must not overwrite the delivered result.
+	n.failTicketLeaderStepDown(orig)
+	if orig.Err != nil {
+		t.Fatalf("an already-finished ticket was finished again with %v", orig.Err)
+	}
+}
