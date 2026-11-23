@@ -524,3 +524,64 @@ func TestCircuitCloseDoesNotBlockOnGoneSendLoop(t *testing.T) {
 		t.Fatalf("repeated Close posted %v removals, want 1", len(del))
 	}
 }
+
+// pumpU is the minimal host a LocalPeer's pump needs.
+type pumpU struct{ UniversalCliSrv }
+
+func (u *pumpU) newFragment() *Fragment                    { return NewFragment() }
+func (u *pumpU) freeFragment(f *Fragment)                  {}
+func (u *pumpU) UnregisterChannel(ID string, whichmap int) {}
+func (u *pumpU) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration, forbidAutoCli bool) (bool, *LoopComm, error) {
+	return false, nil, nil
+}
+
+// CR-D-32: when a live circuit's consumer was slow for 2s, the
+// pump tore the circuit down and dropped its later frags.
+func TestPumpKeepsLiveCircuitWithSlowConsumer(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		pb := &LocalPeer{Halt: idem.NewHalter(), Ctx: ctx, U: &pumpU{}, PeerAPI: &peerAPI{},
+			Remotes: NewMutexmap[string, *RemotePeer](), ReadsIn: make(chan *Message, 10),
+			ErrorsIn: make(chan *Message, 10), TellPumpNewCircuit: make(chan *Circuit, 1),
+			HandleCircuitClose: make(chan *Circuit, 1), QueryCh: make(chan *QueryLocalPeerPump)}
+		ckt := &Circuit{CircuitID: "c", Reads: make(chan *Fragment, 1), Errors: make(chan *Fragment, 1),
+			Halt: idem.NewHalter(), Context: ctx, LpbFrom: pb, RpbTo: &RemotePeer{}, Canc: func(error) {}}
+		go pb.peerbackPump()
+		defer pb.Halt.ReqStop.Close()
+		pb.TellPumpNewCircuit <- ckt
+		for {
+			q := &QueryLocalPeerPump{Ready: make(chan struct{})}
+			pb.QueryCh <- q
+			<-q.Ready
+			if q.OpenCircuitCount == 1 {
+				break
+			}
+		}
+		send := func(i int) {
+			msg := NewMessage()
+			msg.HDR.Typ = CallPeerTraffic
+			msg.HDR.CallID = "c"
+			msg.HDR.Serial = int64(i)
+			pb.ReadsIn <- msg
+		}
+		send(1)
+		<-ckt.Reads // the consumer is live
+		send(2)
+		send(3)
+		time.Sleep(3 * time.Second) // the consumer is slow (e.g. a long fsync)
+		if ckt.Halt.ReqStop.IsClosed() {
+			t.Fatal("pump tore down a live circuit whose consumer was only slow")
+		}
+		for want := int64(2); want <= 3; want++ {
+			select {
+			case f := <-ckt.Reads:
+				if f.Serial != want {
+					t.Fatalf("got frag serial %v, want %v", f.Serial, want)
+				}
+			case <-time.After(time.Second):
+				t.Fatalf("frag %v was dropped", want)
+			}
+		}
+	})
+}
