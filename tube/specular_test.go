@@ -1071,3 +1071,49 @@ func TestFollowerCommitTermAtVerifiedPrefix(t *testing.T) {
 			f.state.CommitIndex, f.state.CommitIndexEntryTerm, f.state.MC.CommitIndex, f.state.MC.CommitIndexEntryTerm)
 	}
 }
+
+func TestBootstrapSelfAddTakesFreshTermAndVote(t *testing.T) {
+	n := specularNode(t, "f", FOLLOWER, 7, nil)
+	n.state.MC.ConfigTerm = 6
+	n.PeerServiceName = TUBE_REPLICA
+	n.MyPeer = &rpc.LocalPeer{Ctx: context.Background(), PeerServiceName: TUBE_REPLICA, PeerID: n.PeerID}
+	n.state.VotedFor = "previous_leader_id"
+	n.state.HaveVotedTerm = 7
+	n.state.HaveVoted = true
+	n.state.KVstore = newKVStore()
+	path := filepath.Join(t.TempDir(), "state")
+	cfg := &TubeConfig{}
+	saver, _, err := cfg.NewRaftStatePersistor(path, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer saver.close()
+	n.saver = saver
+	tkt := n.NewTicket("bootstrap self", "", "", nil, n.PeerID, n.name, MEMBERSHIP_SET_UPDATE, -1, n.MyPeer.Ctx)
+	tkt.AddPeerName = n.name
+	if !n.bootstrappedOrForcedMembership(tkt) {
+		t.Fatal("bootstrap request was not handled")
+	}
+	reopened, st, err := cfg.NewRaftStatePersistor(path, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.close()
+	if n.role != LEADER || st.CurrentTerm != 8 || st.VotedFor != n.PeerID || st.HaveVotedTerm != 8 {
+		t.Fatalf("bootstrap role=%v durable term=%d vote=%q vote term=%d", n.role, st.CurrentTerm, st.VotedFor, st.HaveVotedTerm)
+	}
+}
+
+func TestBootstrapSelfAddRefusesVisibleLeader(t *testing.T) {
+	n := specularNode(t, "f", FOLLOWER, 7, nil)
+	n.PeerServiceName = TUBE_REPLICA
+	n.MyPeer = &rpc.LocalPeer{Ctx: context.Background(), PeerServiceName: TUBE_REPLICA, PeerID: n.PeerID}
+	n.leaderID = "other_id"
+	n.lastLegitAppendEntries = time.Now()
+	tkt := n.NewTicket("bootstrap self", "", "", nil, n.PeerID, n.name, MEMBERSHIP_SET_UPDATE, -1, n.MyPeer.Ctx)
+	tkt.AddPeerName = n.name
+	n.bootstrappedOrForcedMembership(tkt)
+	if n.role != FOLLOWER || n.state.MC.Len() != 0 || tkt.Err == nil {
+		t.Fatalf("visible leader: self-add left role=%v members=%d err=%v", n.role, n.state.MC.Len(), tkt.Err)
+	}
+}
