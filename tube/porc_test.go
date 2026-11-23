@@ -135,13 +135,13 @@ func Test016_tube_parallel_linz(t *testing.T) {
 			//if i2 != i {
 			// 82 of these due to racing reads/writes, good!
 			// so let's check for linearizability instead.
-			// t.Fatalf("write a:'%v' to node 0, read back from node %v a different value: '%v'", i, jnode, i2)
+			// panicf("write a:'%v' to node 0, read back from node %v a different value: '%v'", i, jnode, i2)
 			//vv("on jnode=%v, read i2=%v, after write of i=%v so checking linearizability...", jnode, i2, i)
 
 			linz := porc.CheckOperations(registerModel, oview)
 			if !linz {
 				writeToDiskNonLinz(t, oview)
-				t.Fatalf("error: expected operations to be linearizable! ops='%v'", opsSlice(ops))
+				panicf("error: expected operations to be linearizable! ops='%v'", opsSlice(ops))
 			}
 
 			//vv("jnode=%v, i=%v passed linearizability checker.", jnode, i)
