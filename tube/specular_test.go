@@ -1208,3 +1208,81 @@ func TestReplicaJoinCannotReplaceLiveNamesake(t *testing.T) {
 		t.Fatal("a second replica took over a live replica's name")
 	}
 }
+
+func TestElectionCountsEachVoterNameOnce(t *testing.T) {
+	for _, phase := range []string{"pre-vote", "vote"} {
+		t.Run(phase, func(t *testing.T) {
+			n := specularNode(t, "node_0", FOLLOWER, 4, nil,
+				"node_0", "node_1", "node_2", "node_3", "node_4", "node_5", "node_6")
+			pre := phase == "pre-vote"
+			if pre {
+				n.beginPreVote()
+			} else {
+				n.beginElection()
+			}
+
+			submit := func(name, id string, granted bool) {
+				n.cktall[id] = &cktPlus{node: n, PeerName: name, PeerID: id, PeerServiceName: TUBE_REPLICA}
+				v := &Vote{FromPeerName: name, FromPeerID: id, FromPeerServiceName: TUBE_REPLICA,
+					CandidateID: n.PeerID, CandidatesTerm: 5, FromPeerCurrentTerm: 4,
+					IsPreVote: pre, VoteGranted: granted, MC: n.state.MC}
+				if pre {
+					n.tallyPreVote(v)
+				} else {
+					n.tallyVote(v)
+				}
+			}
+
+			submit("node_2", "first_id", true)
+			submit("node_2", "first_id", true)
+			submit("node_2", "second_id", false)
+			submit(n.name, "another_id", true) // self-vote already counted at the start
+			yes, no := n.yesVotes, n.noVotes
+			if pre {
+				yes, no = n.yesPreVotes, n.noPreVotes
+			}
+			if yes != 2 || no != 0 {
+				t.Fatalf("counted %d yes and %d no, want one yes each from node_0 and node_2", yes, no)
+			}
+		})
+	}
+}
+
+func TestVoterKeepsFirstCandidateInSameTermAfterRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "votes")
+	cfg := &TubeConfig{}
+	request := func(voter *TubeNode, name string) {
+		voter.handleRequestVote(&RequestVote{
+			FromPeerName: name, FromPeerID: name + "_id", FromPeerServiceName: TUBE_REPLICA,
+			CandidatesTerm: 4, MC: voter.state.MC,
+		}, nil)
+	}
+	newVoter := func() *TubeNode {
+		return specularNode(t, "node_2", FOLLOWER, 4, nil, "node_0", "node_1", "node_2")
+	}
+	voter := newVoter()
+	voter.state.KVstore = newKVStore()
+	saver, _, err := cfg.NewRaftStatePersistor(path, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	voter.saver = saver
+	request(voter, "node_0")
+	request(voter, "node_1")
+	saver.close()
+
+	restarted := newVoter()
+	saver, state, err := cfg.NewRaftStatePersistor(path, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer saver.close()
+	if state == nil {
+		t.Fatal("vote was not persisted")
+	}
+	restarted.saver, restarted.state = saver, state
+	request(restarted, "node_1")
+	if !state.HaveVoted || state.HaveVotedTerm != 4 || state.VotedFor != "node_0_id" {
+		t.Fatalf("node_2 recorded vote %q for term %d, want node_0_id for term 4", state.VotedFor, state.HaveVotedTerm)
+	}
+}

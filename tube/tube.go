@@ -6892,7 +6892,7 @@ func (s *TubeNode) beginElection() {
 	// vote for self. but per section 4.2.2, only
 	// if we are in current config!
 	if s.weAreMemberOfCurrentMC() {
-		s.votes = map[string]bool{s.PeerID: true}
+		s.votes = map[string]bool{s.name: true}
 		s.yesVotes = 1
 		s.noVotes = 0
 	} else {
@@ -11319,7 +11319,7 @@ func (s *TubeNode) beginPreVote() {
 	// But we still need to hold elections for liveness.
 	weAreInMC := s.weAreMemberOfCurrentMC()
 	if weAreInMC {
-		s.preVotes = map[string]bool{s.PeerID: true}
+		s.preVotes = map[string]bool{s.name: true}
 		s.yesPreVotes = 1
 		s.noPreVotes = 0
 	} else {
