@@ -73,8 +73,8 @@ func specularNode(t *testing.T, name string, role RaftRole, curTerm int64, terms
 	node.state.CurrentTerm = curTerm
 	for i, term := range terms {
 		e := &RaftLogEntry{
-			Index:  int64(i + 1),
-			Term:   term,
+			Index: int64(i + 1),
+			Term:  term,
 			Ticket: &Ticket{Op: NOOP, LogIndex: int64(i + 1), Term: term,
 				Desc: fmt.Sprintf("%v entry %v term %v", name, i+1, term)},
 		}
@@ -526,32 +526,45 @@ func Test1007_reconfig_ack_waits_for_new_config_commit(t *testing.T) {
 }
 
 // stuckTransport stands in for the connection to a peer
-// that has stopped (SIGSTOP, wedged VM, half-open TCP to a
-// powered-off host): the hand-off of a message to that
-// connection's writer never completes.
+// that has stopped reading (SIGSTOP, wedged VM, half-open
+// TCP to a powered-off host). It models rpc25519's contract
+// for such a peer: a blocking send (errWriteDur 0, or -1 on
+// an unbuffered connection) never returns; an opted-in send
+// (errWriteDur > 0 on a buffered connection) returns at once,
+// here with ErrSendQueueFull.
 type stuckTransport struct {
 	rpc.UniversalCliSrv // only SendOneWayMessage is used.
 	release             chan struct{}
 	entered             atomic.Int64
+	lastErrWriteDur     atomic.Int64
 }
 
 func (u *stuckTransport) SendOneWayMessage(ctx context.Context, msg *rpc.Message, errWriteDur time.Duration, forbidAutoCli bool) (bool, *rpc.LoopComm, error) {
 	u.entered.Add(1)
+	u.lastErrWriteDur.Store(int64(errWriteDur))
+	if errWriteDur > 0 {
+		return false, nil, rpc.ErrSendQueueFull
+	}
 	<-u.release
 	return false, nil, nil
 }
 
 // Bug 8 (High): every event-loop send used SendOneWay with
-// errWriteDur = -1, whose hand-off to the connection blocks
+// errWriteDur = -1, whose hand-off to the connection blocked
 // with no timeout. One stopped peer therefore froze the
 // single Tube event loop of every live replica that tried
 // to send to it, and a healthy majority never elected a
-// leader. A fire-and-forget send must never block the
-// event loop.
+// leader. Tube must opt in to rpc25519's non-blocking,
+// deadline-bounded sends (errWriteDur > 0 on connections
+// with SendChannelBufferSlots > 0).
 func Test1008_send_to_stuck_peer_does_not_block_event_loop(t *testing.T) {
 
 	node := specularNode(t, "n1", FOLLOWER, 1, []int64{1}, "n1", "n2", "n3")
 	defer node.Halt.ReqStop.Close()
+
+	if slots := node.cfg.RpcCfg.SendChannelBufferSlots; slots <= 0 {
+		t.Fatalf("Bug 8: tube's rpc config has SendChannelBufferSlots=%v; its sends can block on a stalled peer", slots)
+	}
 
 	u := &stuckTransport{release: make(chan struct{})}
 	defer close(u.release)
@@ -593,7 +606,10 @@ func Test1008_send_to_stuck_peer_does_not_block_event_loop(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatalf("Bug 8: the event loop is blocked sending to a stopped peer (hand-off entered %v times)", u.entered.Load())
+		t.Fatalf("Bug 8: the event loop is blocked sending to a stopped peer (hand-off entered %v times; errWriteDur=%v)", u.entered.Load(), time.Duration(u.lastErrWriteDur.Load()))
+	}
+	if d := time.Duration(u.lastErrWriteDur.Load()); d != node.cfg.HeartbeatDur {
+		t.Fatalf("expected tube's fire-and-forget write deadline to be one heartbeat (%v), got %v", node.cfg.HeartbeatDur, d)
 	}
 }
 

@@ -51,6 +51,11 @@ var ErrContextCancelledCkt = fmt.Errorf("rpc25519 error: context cancelled: Circ
 var ErrHaltRequested = fmt.Errorf("rpc25519 error: halt requested")
 var ErrSendTimeout = fmt.Errorf("rpc25519 error: send timeout")
 
+// ErrSendQueueFull is returned by a non-blocking one-way
+// send (errWriteDur -1 or > 0 with Config.SendChannelBufferSlots > 0)
+// when the connection's send queue is full; the message was not sent.
+var ErrSendQueueFull = fmt.Errorf("rpc25519 error: send queue full; message not sent")
+
 // break deadlocks on cli/srv both blocked on sending.
 var ErrAntiDeadlockMustQueue = fmt.Errorf("rpc25519 error: must queue send to avoid deadlock. Could not send immediately.")
 
@@ -598,6 +603,13 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 				msg.LocalErr = err
 				if msg.DoneCh != nil {
 					msg.DoneCh.Close()
+				}
+				if errors.Is(err, ErrPartialFrameWritten) {
+					// Specular Bug 8: a deadline cut this frame
+					// short; the stream is unusable.
+					stopReason = fmt.Sprintf("rwPair send loop: %v", err)
+					conn.Close()
+					return
 				}
 				// can become very noisy on shutdown, comment out.
 				//alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
@@ -1983,7 +1995,8 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		cfg:    s.cfg.Clone(),
 		Server: s,
 		Conn:   conn,
-		SendCh: make(chan *Message),
+		// unbuffered by default; see Config.SendChannelBufferSlots.
+		SendCh: make(chan *Message, max(0, s.cfg.SendChannelBufferSlots)),
 		from:   local(conn),
 		to:     remote(conn),
 		epochV: EpochVers{EpochTieBreaker: NewCallID("")},
@@ -2459,13 +2472,26 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 //
 // So the new errWriteDur parameter is a value
 // of type Duration (which is int64) rather than a pointer *Duration.
-// An errWriteDur of 0 will mean block until sent. We will
-// allocate a local-only DoneCh to wait on if you don't have one.
-// A negative errWriteDur
-// will mean no waiting (to balance/avoid blocking other service
-// loops). A positive errWriteDur will wait for that long
-// before returning, and will supply the a DoneCh if it
-// is nil on msg.
+// The modes:
+//
+//	 0: block until the message has been written (back-pressure).
+//	-1: do not block; the canonical "never block" value.
+//	    With Config.SendChannelBufferSlots > 0 the hand-off to the
+//	    connection's send loop never waits: if its queue is full
+//	    (the peer stopped reading) we return ErrSendQueueFull and
+//	    the message is not sent. On an unbuffered connection (the
+//	    default) the hand-off itself still waits for the send loop.
+//	-2: internal: what pump.go promotes -1 to when closing circuits:
+//	    try once, else return ErrAntiDeadlockMustQueue and the send
+//	    channel, for the caller to queue the send in the background.
+//	>0: a write deadline: msg.HDR.Deadline is set to now+errWriteDur
+//	    (or kept, if already earlier). The send loop enforces any
+//	    non-zero HDR.Deadline: a message still queued then is failed
+//	    unwritten (ErrSendTimeout in msg.LocalErr), and a write
+//	    stalled then is abandoned (closing the connection if part of
+//	    the frame went out). With SendChannelBufferSlots > 0 the
+//	    hand-off never waits, as for -1; unbuffered, the hand-off
+//	    and the wait for the write both end by the deadline.
 func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWriteDur time.Duration) (error, *LoopComm) {
 
 	//if msg.HDR.Serial == 0 {
@@ -2497,6 +2523,38 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	msg.HDR.From = from
 
 	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
+
+	// HDR.Deadline: a positive errWriteDur is a deadline
+	// for this message. The send loop enforces any
+	// non-zero HDR.Deadline: a message still queued at its
+	// deadline is failed unwritten, and a stalled write is
+	// abandoned at it (see workspace.sendMessage).
+	if errWriteDur > 0 {
+		dl := time.Now().Add(errWriteDur)
+		if msg.HDR.Deadline.IsZero() || dl.Before(msg.HDR.Deadline) {
+			msg.HDR.Deadline = dl
+		}
+	}
+
+	// Specular Bug 8: with a buffered send channel
+	// (Config.SendChannelBufferSlots > 0), errWriteDur -1
+	// ("do not block") and > 0 never block the caller.
+	// If the connection's queue is full -- its peer has
+	// stopped reading -- the message is not sent and we
+	// say so, rather than freezing the caller (e.g. a
+	// Raft event loop that must keep serving other peers).
+	if cap(sendCh.sendCh) > 0 && (errWriteDur == -1 || errWriteDur > 0) {
+		select {
+		case sendCh.sendCh <- msg:
+			return nil, nil
+		case <-haltCh:
+			return ErrShutdown(), nil
+		case <-ctx.Done():
+			return ErrContextCancelled, nil
+		default:
+			return ErrSendQueueFull, nil
+		}
+	}
 
 	// An errWriteDur == -2 is a special case: it
 	// means that pump.go is trying to
@@ -2547,9 +2605,22 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		// whole server and not the client specific pair/socket!
 		// both could account for not cleaning up client sockets
 		// promptly and thus getting wedged trying to send on them.
+		// An unbuffered hand-off with errWriteDur > 0 waits
+		// at most until the message's deadline.
+		var handoffTimeoutCh <-chan time.Time
+		if errWriteDur > 0 {
+			handoff := s.NewTimer(time.Until(msg.HDR.Deadline))
+			if handoff == nil {
+				return ErrShutdown(), nil // system shutdown
+			}
+			defer handoff.Discard()
+			handoffTimeoutCh = handoff.C
+		}
 		select {
 		case sendCh.sendCh <- msg:
 			//vv("sendOneWayMessage did send on sendCh = %p", sendCh.SendCh)
+		case <-handoffTimeoutCh:
+			return ErrSendTimeout, nil
 		case <-haltCh:
 			//vv("shutting down on haltCh = %p", haltCh)
 			return ErrShutdown(), nil
