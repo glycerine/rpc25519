@@ -829,3 +829,73 @@ func TestIsolatedHostCannotTalkThroughNewAutoClient(t *testing.T) {
 		}
 	})
 }
+
+// A server that restarts at the same simnet address is a host that
+// rebooted with the same IP: a peer's next segment on its old
+// connection gets an RST, so the peer reconnects to the new process.
+// simnet instead dropped those sends silently, forever.
+func TestRestartedServerResetsStaleConnections(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		cfg := NewConfig()
+		cfg.UseSimNet = true
+		cfg.ServerAddr = "127.0.0.1:0"
+		cfg.ServerAutoCreateClientsToDialOtherServers = true
+
+		a := NewServer("srv_rst_a", cfg)
+		_, err := a.Start()
+		panicOn(err)
+		defer a.Close()
+		b := NewServer("srv_rst_b", cfg)
+		bAddr, err := b.Start()
+		panicOn(err)
+		simnet := cfg.GetSimnet()
+		defer simnet.Close()
+		to := bAddr.Network() + "://" + bAddr.String()
+
+		got := make(chan string, 100)
+		sink := func(in *Message) { got <- string(in.JobSerz) }
+		b.Register1Func("sink", sink)
+		send := func(what string) {
+			msg := NewMessage()
+			msg.HDR.Typ = CallOneWay
+			msg.HDR.To = to
+			msg.HDR.ToServiceName = "sink"
+			msg.JobSerz = []byte(what)
+			_, _, _ = a.SendOneWayMessage(context.Background(), msg, -1, false)
+		}
+		send("to the first b")
+		select {
+		case <-got:
+		case <-time.After(5 * time.Second):
+			t.Fatal("setup: first b never heard from a")
+		}
+
+		// b's host goes down (no RST), then comes back at the same
+		// address. (As TubeNode.Close does on simnet.)
+		b.Close()
+		panicOn(simnet.CloseSimnode("srv_rst_b", fmt.Errorf("host down")))
+		for {
+			if _, present := simnet.GetSimnetSnapshot(true).DNS["srv_rst_b"]; !present {
+				break
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		b2 := NewServer("srv_rst_b", cfg)
+		_, err = b2.Start()
+		panicOn(err)
+		defer b2.Close()
+		b2.Register1Func("sink", sink)
+
+		deadline := time.After(30 * time.Second)
+		for i := 0; ; i++ {
+			send(fmt.Sprintf("to the restarted b %v", i))
+			select {
+			case <-got:
+				return // a reached the restarted process
+			case <-time.After(500 * time.Millisecond):
+			case <-deadline:
+				t.Fatal("a never reached the restarted b: its sends on the old connection vanish")
+			}
+		}
+	})
+}

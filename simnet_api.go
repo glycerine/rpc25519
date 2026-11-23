@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 	//"runtime"
-	//"io"
+	"io"
 	"path/filepath"
 	"time"
 
@@ -525,6 +525,11 @@ func (s *Simnet) readMessage(conn uConn) (msg *Message, err error) {
 		}
 		msg = read.msg
 		err = read.err
+		if read.isEOF_RST {
+			// the peer reset or closed the connection: report it
+			// as simconn.Read does, not as an empty message.
+			return nil, io.EOF
+		}
 
 	case <-s.Halt.ReqStop.Chan:
 		return nil, ErrShutdown()

@@ -136,6 +136,11 @@ type mop struct {
 
 	isEOF_RST bool
 
+	// rstVia: an RST for a stale connection, answered by the live
+	// process now at that (rebooted) host's address; connectivity
+	// is judged through it, since the origin is the dead simnode.
+	rstVia *simnode
+
 	// have to adjust the probabililistic drop/deaf
 	// probability by the number of attempts at delivery/read
 	readAttempt int64
@@ -1982,6 +1987,26 @@ func (s *Simnet) statewiseConnected(origin, target *simnode) (linked bool) {
 	return true
 }
 
+// resetStaleConn queues an RST to the sender of a send whose target
+// process is gone while cur now holds that address.
+func (s *Simnet) resetStaleConn(send *mop, cur *simnode, now time.Time) {
+	m := NewMessage()
+	m.EOF = true
+	rst := s.newSendMop(m, false)
+	rst.origin = send.target // the dead end of the stale connection
+	rst.target = send.origin
+	rst.isEOF_RST = true
+	rst.rstVia = cur
+	rst.sendFileLine = fileLine(2)
+	rst.initTm = now
+	rst.senderLC = cur.lc
+	rst.originLC = cur.lc
+	rst.unmaskedSendArrivalTm = now.Add(s.scenario.rngHop())
+	rst.arrivalTm = rst.unmaskedSendArrivalTm.Add(s.scenario.tick)
+	rst.completeTm = now.Add(s.scenario.tick)
+	send.origin.preArrQ.add(rst)
+}
+
 func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	now := time.Now()
 	//vv("top of handleSend(send = '%v')", send)
@@ -1992,6 +2017,18 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	origin := send.origin
 	send.senderLC = origin.lc
 	send.originLC = origin.lc
+
+	// A send on a connection to a dead process, when a new process
+	// now has its address: the rebooted host answers with an RST, so
+	// the sender learns its connection is gone and reconnects. On a
+	// real network that is what happens; dropping it silently left
+	// peers sending into the void forever.
+	if !send.isEOF_RST && send.target.powerOff {
+		if cur, ok := s.dns[send.target.name]; ok && cur != send.target {
+			s.resetStaleConn(send, cur, now)
+			return
+		}
+	}
 
 	// do we want to always advance by 0.1 msec to allow
 	// any amount of extra sleep to get the reader goro
@@ -2309,6 +2346,10 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			// one roll of the dice. localDropSend increments it.
 			if send.sendDropFilteringApplied {
 				// don't double filter! dispatchAll calls in here alot.
+			} else if send.rstVia != nil {
+				// an RST from a rebooted host is answered by the live
+				// process there; the dead origin has no circuits.
+				drop = false
 			} else {
 				drop, connAttemptedSend = s.localDropSend(send)
 				_ = connAttemptedSend
@@ -2316,6 +2357,11 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 					send.origin.droppedSendDueToProb++
 				}
 				connected := s.statewiseConnected(send.origin, send.target)
+				if send.rstVia != nil {
+					// an RST from a rebooted host: its old simnode is
+					// powered off, so judge by the live one.
+					connected = s.statewiseConnected(send.rstVia, send.target)
+				}
 				if !connected || drop {
 
 					//vv("dispatchReadsSends DROP SEND %v; drop=%v; send.origin.droppedSendDueToProb=%v, connected=%v", send, drop, send.origin.droppedSendDueToProb, connected)
@@ -2341,7 +2387,12 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			// INVAR: send is okay to deliver wrt faults.
 
 			connectedR := s.statewiseConnected(read.origin, read.target)
-			if !connectedR || s.localDeafRead(read, send) {
+			if send.rstVia != nil {
+				// the reader's peer is the dead process; the RST
+				// comes from the live one at its address.
+				connectedR = s.statewiseConnected(read.origin, send.rstVia)
+			}
+			if !connectedR || (send.rstVia == nil && s.localDeafRead(read, send)) {
 				//vv("dispatchReadsSends DEAF READ %v; connectedR=%v", read, connectedR)
 
 				// we actually have to drop _the send_ on a deaf read,
