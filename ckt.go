@@ -92,7 +92,13 @@ type Circuit struct {
 	// involved spinning up a new auto-client.
 	MadeNewAutoCli bool
 
-	loopy *LoopComm
+	// loopy is written by whichever goroutine first finds the
+	// circuit's connection; use getLoopy/setLoopyIfUnset (CR-D-89).
+	loopy atomic.Pointer[LoopComm]
+
+	// idmut guards RemotePeerID/RemotePeerName updated from the
+	// ack while the pump may read them in cleanupCkt (CR-D-89).
+	idmut sync.Mutex
 }
 
 //msgp:ignore LoopComm
@@ -1220,8 +1226,8 @@ func (lpb *LocalPeer) newCircuit(
 
 		var lpy *LoopComm
 		madeNewAutoCli, lpy, err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur, false)
-		if ckt.loopy == nil {
-			ckt.loopy = lpy
+		if ckt.getLoopy() == nil {
+			ckt.setLoopyIfUnset(lpy)
 		}
 		ckt.MadeNewAutoCli = madeNewAutoCli
 		if err != nil {
@@ -1324,18 +1330,18 @@ func (lpb *LocalPeer) newCircuit(
 
 		var lpy *LoopComm
 		madeNewAutoCli, lpy, err = lpb.U.SendOneWayMessage(ctx2, msg, -1, false)
-		if ckt.loopy == nil {
-			ckt.loopy = lpy
+		if ckt.getLoopy() == nil {
+			ckt.setLoopyIfUnset(lpy)
 		}
 		ckt.MadeNewAutoCli = madeNewAutoCli
 	}
 	if err == nil && ckt != nil {
-		if ckt.loopy == nil {
+		if ckt.getLoopy() == nil {
 			lpb.setLoopy(ckt)
 		}
-		if ckt.loopy != nil {
+		if ckt.getLoopy() != nil {
 			select {
-			case ckt.loopy.cktServedAdd <- ckt:
+			case ckt.getLoopy().cktServedAdd <- ckt:
 				// this communication finally stopped the
 				// leak of server side circuit support goro.
 				//vv("in lbp.newCircuit: ckt.loopy available and ckt.loopy.cktServedAdd <- ckt ok.")
@@ -1377,19 +1383,30 @@ func (lpb *LocalPeer) addUserMeta(msg *Message) {
 // Close must be called on a Circuit to release resources
 // when you are done with it. use reason nil for normal
 // all-good shutdown of a circuit, or to report an error.
+// getLoopy returns the circuit's send-loop channels, if any.
+func (h *Circuit) getLoopy() *LoopComm { return h.loopy.Load() }
+
+// setLoopyIfUnset sets the send-loop channels once. A new connection
+// can repair a parked circuit while its owner uses it (CR-D-89).
+func (h *Circuit) setLoopyIfUnset(lc *LoopComm) {
+	if lc != nil {
+		h.loopy.CompareAndSwap(nil, lc)
+	}
+}
+
 func (h *Circuit) Close(reason error) {
 	// must be idemopotent. Often called many times
 	// during normal Circuit shutdown.
 
-	if h.loopy == nil {
+	if h.getLoopy() == nil {
 		//vv("not-great: ckt.loopy nil at end of Circuit.Close(), cktID='%v'", h.CircuitID)
 	} else if h.delPosted.CompareAndSwap(false, true) {
 		// Post the removal once; and never wait on a send
 		// loop that has stopped servicing cktServedDel (CR-D-92).
 		select {
-		case h.loopy.cktServedDel <- h:
+		case h.getLoopy().cktServedDel <- h:
 		case <-h.LpbFrom.Halt.ReqStop.Chan:
-		case <-h.loopy.sendLoopGone:
+		case <-h.getLoopy().sendLoopGone:
 		}
 	}
 

@@ -71,9 +71,9 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName, user
 	ckt, ackMsg, madeNewAutoCli, onlyPossibleAddr, err = p.implRemotePeerAndGetCircuit(lpb.Ctx, lpb, circuitName, userString, frag, remotePeerServiceName, remotePeerServiceNameVersion, remoteAddr, errWriteDur, waitForAck, preferExtant)
 
 	if err == nil && ckt != nil {
-		if ckt.loopy != nil {
+		if ckt.getLoopy() != nil {
 			select {
-			case ckt.loopy.cktServedAdd <- ckt:
+			case ckt.getLoopy().cktServedAdd <- ckt:
 				//vv("peerAPI.StartRemotePeerAndGetCircuit sent cktServedAdd <- ckt")
 			case <-ckt.Halt.ReqStop.Chan:
 				err = ErrHaltRequested
@@ -122,11 +122,11 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName, user
 
 // if we need it and can now, set ckt.loopy
 func (lpb *LocalPeer) setLoopy(ckt *Circuit) {
-	if ckt.loopy != nil {
+	if ckt.getLoopy() != nil {
 		return
 	}
 	if lpb.PeerAPI.isCli && lpb.PeerAPI.cliLoopy != nil {
-		ckt.loopy = lpb.PeerAPI.cliLoopy
+		ckt.setLoopyIfUnset(lpb.PeerAPI.cliLoopy)
 		return
 	}
 	if lpb.PeerAPI.remote2pair == nil {
@@ -139,7 +139,7 @@ func (lpb *LocalPeer) setLoopy(ckt *Circuit) {
 	}
 	pair, ok := lpb.PeerAPI.remote2pair.Get(ckt.RpbTo.NetAddr)
 	if ok {
-		ckt.loopy = pair.loopy
+		ckt.setLoopyIfUnset(pair.loopy)
 	} else {
 		// usually an auto-client must be spun up first...
 		if lpb.PeerAPI.cktWantsPair != nil {
@@ -323,12 +323,12 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	//vv("madeNewAutoCli = %v", madeNewAutoCli)
 
 	// try hard to set ckt.loopy
-	if ckt.loopy == nil {
+	if ckt.getLoopy() == nil {
 		if loopy != nil {
-			ckt.loopy = loopy
+			ckt.setLoopyIfUnset(loopy)
 		} else {
 			lpb.setLoopy(ckt)
-			if ckt.loopy == nil {
+			if ckt.getLoopy() == nil {
 				//vv("not-great: ckt.loopy nil in implRemotePeerAndGetCircuit(), cktID='%v' to netAddr='%v' waitForAck=%v; remote2peer='%v'", ckt.CircuitID, netAddr, waitForAck, lpb.PeerAPI.remote2pair.String())
 			}
 		}
@@ -407,8 +407,10 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 			//vv("setting actual PeerID from guess '%v' -> actual '%v'", rpb.PeerID, ackMsg.HDR.FromPeerID)
 			rpb.PeerID = ackMsg.HDR.FromPeerID
 			rpb.PeerName = ackMsg.HDR.FromPeerName
+			ckt.idmut.Lock()
 			ckt.RemotePeerID = ackMsg.HDR.FromPeerID
 			ckt.RemotePeerName = ackMsg.HDR.FromPeerName
+			ckt.idmut.Unlock()
 
 			if pleaseAssignNewRemotePeerID != "" {
 				lpb.Remotes.Del(pleaseAssignNewRemotePeerID)

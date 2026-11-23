@@ -504,9 +504,10 @@ func TestCircuitCloseDoesNotBlockOnGoneSendLoop(t *testing.T) {
 	gone := make(chan struct{})
 	close(gone)
 	mk := func(del chan *Circuit, loopGone <-chan struct{}) *Circuit {
-		return &Circuit{CircuitID: "c", Halt: idem.NewHalter(),
-			loopy:   &LoopComm{cktServedDel: del, sendLoopGone: loopGone},
+		c := &Circuit{CircuitID: "c", Halt: idem.NewHalter(),
 			LpbFrom: &LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *Circuit, 10)}}
+		c.setLoopyIfUnset(&LoopComm{cktServedDel: del, sendLoopGone: loopGone})
+		return c
 	}
 	ckt := mk(make(chan *Circuit), gone) // nobody will ever receive
 	done := make(chan struct{})
@@ -668,4 +669,23 @@ func TestFailedCircuitSetupDoesNotLeakRegisteredCircuit(t *testing.T) {
 			t.Fatalf("%v failed circuit setups left registered circuits", q.OpenCircuitCount)
 		}
 	})
+}
+
+// CR-D-89: ckt.loopy was written by one goroutine (a new
+// connection repairing a parked circuit) while the circuit's owner
+// read it, unsynchronized. Run with -race.
+func TestCircuitLoopyIsRaceFree(t *testing.T) {
+	ckt := &Circuit{CircuitID: "c", Halt: idem.NewHalter(),
+		LpbFrom: &LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *Circuit, 10)}}
+	lc := &LoopComm{cktServedDel: make(chan *Circuit, 10), sendLoopGone: make(chan struct{})}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ckt.setLoopyIfUnset(lc) // e.g. newRWPair repairing a parked circuit
+	}()
+	ckt.Close(nil) // the owner reads loopy
+	<-done
+	if ckt.getLoopy() != lc {
+		t.Fatal("loopy not set")
+	}
 }

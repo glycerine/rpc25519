@@ -2080,7 +2080,7 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		ckt, ok := m[key]
 		if ok {
 			addMeCkt = ckt
-			ckt.loopy = p.loopy
+			ckt.setLoopyIfUnset(p.loopy)
 			delete(m, key)
 			//vv("not-great repaired: just set ckt.loopy for late made rwPair: cktID= '%v'", ckt.CircuitID)
 		}
@@ -2495,7 +2495,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			ckt, ok := m[key]
 			if ok {
 				addMeCkt = ckt
-				ckt.loopy = p.loopy
+				ckt.setLoopyIfUnset(p.loopy)
 				delete(m, key)
 				//vv("not-great repaired: auto-cli just set ckt.loopy for late made rwPair: cktID= '%v'", ckt.CircuitID)
 			}
@@ -3566,12 +3566,12 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error) {
 	defer func() {
 		if ckt != nil {
-			if ckt.loopy == nil {
+			if ckt.getLoopy() == nil {
 				lpb.setLoopy(ckt)
 			}
-			if ckt.loopy != nil {
+			if ckt.getLoopy() != nil {
 				select {
-				case ckt.loopy.cktServedAdd <- ckt:
+				case ckt.getLoopy().cktServedAdd <- ckt:
 				case <-s.halt.ReqStop.Chan:
 				}
 			} else {
