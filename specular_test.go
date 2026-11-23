@@ -211,3 +211,15 @@ func TestDecompressRejectsBadPeerInput(t *testing.T) {
 		}
 	}()
 }
+
+// CR-D-93: an empty, non-nil frag.Args became a nil map in
+// ToMessage, and newCircuit then panicked writing into it.
+func TestEmptyFragArgsGiveWritableMessageArgs(t *testing.T) {
+	frag := NewFragment()
+	frag.Args = map[string]string{}
+	msg := frag.ToMessage()
+	if msg.HDR.Args == nil {
+		t.Fatal("ToMessage turned empty frag.Args into a nil map")
+	}
+	msg.HDR.Args["#circuitName"] = "ok" // newCircuit writes here
+}
