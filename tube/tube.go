@@ -3153,6 +3153,8 @@ func (s *RaftState) clone() (clon *RaftState) {
 	return
 }
 
+//msgp:ignore TubeNode
+
 // TubeNode represents a single node in the Arb cluster
 type TubeNode struct {
 	cfg TubeConfig
@@ -4016,6 +4018,8 @@ func (s *RequestVote) String() (r string) {
 // Allows us length delimited messages; with
 // length knowledge up front.
 type ByteSlice []byte
+
+//msgp:ignore TubeCluster
 
 type TubeCluster struct {
 	TestName               string
