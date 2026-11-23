@@ -5,12 +5,14 @@ import (
 	"context"
 	"fmt"
 	//"reflect"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
+	"github.com/glycerine/rpc25519/tube/leased"
 	rpc "github.com/glycerine/rpc25519"
 	"golang.org/x/time/rate" // for rate.Limiter
 )
@@ -134,6 +136,11 @@ type Czar struct {
 	blake *blake3.Hasher
 
 	testingCrashIfNotMonotone bool // czar_test 809.
+
+	// stepDownUntil: after stepping down because members cannot
+	// reach us, do not contend for the czar key before this time,
+	// so a reachable member can take it (CR-D-76).
+	stepDownUntil time.Time
 
 	// testingFreezeHeartbeat, when set by a test, makes the member
 	// skip its heartbeat pings, as a member stuck behind a dead
@@ -291,6 +298,59 @@ func (s *Czar) pingerConfig(base *rpc.Config, dialTarget string) rpc.Config {
 	ccfg.ClientDialToHostPort = dialTarget
 	ccfg.ConnectTimeout = s.heartbeatPingTimeout()
 	return ccfg
+}
+
+// czarUnreachablePrefix keys members' reports, in the czar's
+// table, that they reach Tube but not the czar.
+const czarUnreachablePrefix = "czar-unreachable/"
+
+// unreachableReportFresh reports whether any member said, within
+// window, that it reaches Tube but not czarName (CR-D-76). Values
+// are "czarName|unixNanos".
+func unreachableReportFresh(leaves []*leased.Leaf, czarName string, now time.Time, window time.Duration) bool {
+	for _, lf := range leaves {
+		if lf == nil {
+			continue
+		}
+		who, at, ok := strings.Cut(string(lf.Value), "|")
+		if !ok || who != czarName {
+			continue
+		}
+		ns, err := strconv.ParseInt(at, 10, 64)
+		if err != nil {
+			continue
+		}
+		age := now.Sub(time.Unix(0, ns))
+		if age < window && age > -window {
+			return true
+		}
+	}
+	return false
+}
+
+// reportCzarUnreachable records in Tube that this member reaches
+// Tube but not czarName, so a czar cut off from its members can
+// learn it and step down (CR-D-76). Best effort.
+func (s *Czar) reportCzarUnreachable(ctx context.Context, czarName string) {
+	if czarName == "" || czarName == s.name || s.cli == nil {
+		return
+	}
+	ctx2, canc := context.WithTimeout(ctx, s.writeAttemptDur)
+	defer canc()
+	val := fmt.Sprintf("%v|%v", czarName, time.Now().UnixNano())
+	_, _ = s.cli.Write(ctx2, Key(s.tableSpace), Key(czarUnreachablePrefix+s.name), Val(val), s.writeAttemptDur, nil, "", 0, false)
+}
+
+// membersCannotReachUs reports a fresh member report that this
+// czar is unreachable.
+func (s *Czar) membersCannotReachUs(ctx context.Context) bool {
+	ctx2, canc := context.WithTimeout(ctx, s.writeAttemptDur)
+	defer canc()
+	tkt, err := s.cli.ReadPrefixRange(ctx2, Key(s.tableSpace), Key(czarUnreachablePrefix), false, s.writeAttemptDur, nil)
+	if err != nil || tkt == nil || tkt.KeyValRangeScan == nil {
+		return false
+	}
+	return unreachableReportFresh(tkt.KeyValRangeScan.sorted(false), s.name, time.Now(), 2*s.memberLeaseDur)
 }
 
 func (s *Czar) setVers(v *RMVersionTuple, list *ReliableMembershipList, upcall bool, note string) (err error) {
@@ -1141,6 +1201,17 @@ fullRestart:
 				// do make an effort to not reset WithinCzarVersion to 0
 				// if the lease epoch is the same.
 
+				if wait := time.Until(czar.stepDownUntil); wait > 0 {
+					// we stepped down (CR-D-76): let a reachable member
+					// take the key once our lease expires.
+					select {
+					case <-time.After(min(wait, time.Second)):
+					case <-czar.Halt.ReqStop.Chan:
+						return
+					}
+					continue fullRestart
+				}
+
 				var czarTkt *Ticket
 				// stuck here 35 minutes huh. use a timeout.
 				ctx5, canc := context.WithTimeout(ctx, time.Second*5)
@@ -1408,6 +1479,16 @@ fullRestart:
 
 				case <-czar.renewCzarLeaseCh:
 
+					if czar.membersCannotReachUs(ctx) {
+						// Members reach Tube but not us: stop renewing,
+						// and stay out until our lease expires so one of
+						// them can take the key (CR-D-76).
+						alwaysPrintf("%v: members report they cannot reach this czar; stepping down", name)
+						czar.stepDownUntil = czar.vers.CzarLeaseUntilTm.Add(czar.clockDriftBound + czar.renewCzarLeaseDur)
+						czar.cState.Store(int32(UnknownCzarState))
+						continue fullRestart
+					}
+
 					// if we update, are we going to lose the Plus part leases?
 					// naw, I think that does not apply to the czar,
 					// who gives out leases and only itself lease from the Tube/Raft cluster.
@@ -1560,6 +1641,7 @@ fullRestart:
 					canc()
 					if err != nil {
 						vv("%v: error back from Ping: '%v'", name, err)
+						czar.reportCzarUnreachable(ctx, list.CzarName)
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}
@@ -1623,6 +1705,7 @@ fullRestart:
 					////vv("member called to Czar.Ping, err='%v'", err)
 					if err != nil {
 						vv("%v: connection refused to (old?) czar, transition to UnknownCzarState and write/elect a new czar", name)
+						czar.reportCzarUnreachable(ctx, czar.members.CzarName)
 						if rpcClientToCzar != nil {
 							rpcClientToCzar.Close()
 						}

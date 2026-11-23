@@ -2768,3 +2768,24 @@ func TestCzarPingerDialsWithinTheLeases(t *testing.T) {
 		t.Fatalf("czar pinger connect timeout %v must be positive and below the leases", ccfg.ConnectTimeout)
 	}
 }
+
+// CR-D-76: a czar that reached Tube but not its members renewed
+// its lease forever: nothing it checked could depose it. Members
+// now report "czar unreachable" in Tube; a fresh report about this
+// czar makes it step down.
+func TestCzarSeesFreshUnreachableReports(t *testing.T) {
+	now := time.Now()
+	report := func(member, czar string, at time.Time) *leased.Leaf {
+		return leased.NewLeaf(czarUnreachablePrefix+member, []byte(fmt.Sprintf("%v|%v", czar, at.UnixNano())), "")
+	}
+	window := 12 * time.Second
+	if unreachableReportFresh([]*leased.Leaf{report("m2", "other", now)}, "czar1", now, window) {
+		t.Fatal("a report about another czar deposed this one")
+	}
+	if unreachableReportFresh([]*leased.Leaf{report("m2", "czar1", now.Add(-time.Minute))}, "czar1", now, window) {
+		t.Fatal("a stale report deposed the czar")
+	}
+	if !unreachableReportFresh([]*leased.Leaf{report("m2", "czar1", now.Add(-time.Second))}, "czar1", now, window) {
+		t.Fatal("a fresh report that members cannot reach this czar was ignored")
+	}
+}
