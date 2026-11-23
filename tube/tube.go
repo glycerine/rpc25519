@@ -2254,7 +2254,9 @@ func (s *TubeNode) handleNewCircuit(
 		// and we like to gc the resources of this goroutine after a minute.
 		lastHeard := time.Now()
 		var gcClientCh <-chan time.Time
-		if ckt.RemoteServiceName != TUBE_REPLICA {
+		// Membership observers wait silently for notices; never
+		// collect their circuits for being idle (CR-D-46).
+		if ckt.RemoteServiceName != TUBE_REPLICA && ckt.RemoteServiceName != TUBE_OBS_MEMBERS {
 			gcClientCh = time.After(time.Second * 10)
 		}
 
@@ -15778,6 +15780,25 @@ func newReconnect(addr, netAddr, url, from string) *packReconnect {
 }
 
 // called by adjustCktReplicaForNewMembership().
+// membershipObserverCircuits lists the circuits of non-replica
+// peers (observers, clients, hermes) to tell of a new membership.
+func (s *TubeNode) membershipObserverCircuits() (observers []*rpc.Circuit) {
+	for _, cktP := range s.cktAllByName {
+		// Select by open circuit: non-replica circuits have no
+		// watchdog, so isPending() is always true for them (CR-D-46).
+		if cktP.ckt == nil || cktP.ckt.IsClosed() {
+			continue
+		}
+		switch cktP.PeerServiceName {
+		case TUBE_REPLICA:
+			continue
+		default: // TUBE_OBS_MEMBERS, TUBE_CLIENT, "hermes", etc.
+		}
+		observers = append(observers, cktP.ckt)
+	}
+	return
+}
+
 func (s *TubeNode) serviceMembershipObservers() {
 	if s.state.MC == nil {
 		return
@@ -15786,20 +15807,7 @@ func (s *TubeNode) serviceMembershipObservers() {
 		// boot up config, not really together yet.
 		return
 	}
-	var observers []*rpc.Circuit
-	for name, cktP := range s.cktAllByName {
-		_ = name
-		if cktP.isPending() {
-			continue
-		}
-		switch cktP.PeerServiceName {
-		case TUBE_REPLICA:
-			continue
-		default: // TUBE_OBS_MEMBERS, TUBE_CLIENT, "hermes", etc.
-		}
-		alwaysPrintf("%v sees observer '%v'", s.name, name)
-		observers = append(observers, cktP.ckt)
-	}
+	observers := s.membershipObserverCircuits()
 	if len(observers) == 0 {
 		return
 	}

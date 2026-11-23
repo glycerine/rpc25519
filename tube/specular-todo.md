@@ -97,7 +97,7 @@ transcripts). This keeps only findings **not already fixed** by the first round
 | 55 | CR-D-50 | R FIXED | A lagging follower that restarts below the `MC.CommitIndex` it copied from a newer leader is fenced as PAR `unknown` with no disk fault. | Base the fence on a locally earned witness, `min(MC.CommitIndex, highest index durably appended here)`. |
 | 52 | CR-D-47 | M FIXED | Interleaved multipart snapshots (two circuits) keep discarding each other in the single reassembly buffer. **Related to Bug 2:** snapshots are still sent per ack circuit. | Keep a buffer per (circuit, checksum) or per transfer ID; allow one snapshot in flight per follower. |
 | 34 | CR-D-27 | M FIXED | The P1 prefix-quorum reconfiguration guard is a no-op whenever `s.par == nil` (all NoDisk tests), so the default suite never exercises production reconfiguration admission. | Make P1 unconditional; run the PAR membership tests in the default suite. |
-| 51 | CR-D-46 | M | Membership observers are never notified (`isPending()` is always true for non-replicas), and idle observer circuits are closed after 60 s. | Select recipients by open circuit; keep observers alive or document a heartbeat requirement. |
+| 51 | CR-D-46 | M FIXED | Membership observers are never notified (`isPending()` is always true for non-replicas), and idle observer circuits are closed after 60 s. | Select recipients by open circuit; keep observers alive or document a heartbeat requirement. |
 
 ## 5. Resource leaks and data races
 
