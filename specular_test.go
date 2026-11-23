@@ -765,3 +765,67 @@ func Test409b_counts_wait_for_sender_bookkeeping(t *testing.T) {
 		t.Fatalf("checked the sender's counter before it recorded its sends: %v, want %v", got, before+N)
 	}
 }
+
+// AlterHost(ISOLATE) marked only the simnodes the host had at that
+// moment. An auto-client the isolated host dialed afterwards was
+// registered HEALTHY, so the "isolated" node could talk to anyone
+// as soon as it opened a new connection.
+func TestIsolatedHostCannotTalkThroughNewAutoClient(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		cfg := NewConfig()
+		cfg.UseSimNet = true
+		cfg.ServerAddr = "127.0.0.1:0"
+		cfg.ServerAutoCreateClientsToDialOtherServers = true
+
+		a := NewServer("srv_iso_a", cfg)
+		_, err := a.Start()
+		panicOn(err)
+		defer a.Close()
+		b := NewServer("srv_iso_b", cfg)
+		bAddr, err := b.Start()
+		panicOn(err)
+		defer b.Close()
+		simnet := cfg.GetSimnet()
+		defer simnet.Close()
+
+		got := make(chan string, 10)
+		b.Register1Func("sink", func(in *Message) { got <- string(in.JobSerz) })
+
+		_, err = simnet.AlterHost(a.name, ISOLATE)
+		panicOn(err)
+
+		// a dials b only now, through a brand new auto-client.
+		msg := NewMessage()
+		msg.HDR.Typ = CallOneWay
+		msg.HDR.To = bAddr.Network() + "://" + bAddr.String()
+		msg.HDR.ToServiceName = "sink"
+		msg.JobSerz = []byte("from an isolated host")
+		_, _, _ = a.SendOneWayMessage(context.Background(), msg, -1, false)
+
+		select {
+		case s := <-got:
+			t.Fatalf("an isolated host delivered %q through a new auto-client", s)
+		case <-time.After(10 * time.Second):
+		}
+
+		// control: once the host is unisolated, that same new
+		// connection works again.
+		_, err = simnet.AlterHost(a.name, UNISOLATE)
+		panicOn(err)
+		msg2 := NewMessage()
+		msg2.HDR.Typ = CallOneWay
+		msg2.HDR.To = msg.HDR.To
+		msg2.HDR.ToServiceName = "sink"
+		msg2.JobSerz = []byte("after unisolate")
+		_, _, err = a.SendOneWayMessage(context.Background(), msg2, -1, false)
+		panicOn(err)
+		select {
+		case s := <-got:
+			if s != "after unisolate" {
+				t.Fatalf("got %q, want the post-unisolate message", s)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatal("after UNISOLATE the host still could not reach its peer")
+		}
+	})
+}
