@@ -369,3 +369,22 @@ func TestCircuitSendNeverAutoDials(t *testing.T) {
 		t.Fatalf("circuit send allowed an auto-client dial: %v", u.forbidAutoCli)
 	}
 }
+
+// CR-D-41: when the hand-off of a new circuit lost its race
+// (full channel, then the call's deadline), PreferExtant still
+// returned err == nil with a live circuit nobody would read.
+func TestNewCircuitHandOffFailureClosesCircuit(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	ckt := &Circuit{CircuitID: "orphan", Context: context.Background(), Halt: idem.NewHalter(),
+		LpbFrom: &LocalPeer{Halt: idem.NewHalter(), HandleCircuitClose: make(chan *Circuit, 1)},
+		RpbTo:   &RemotePeer{}}
+	full := make(chan *Circuit) // nobody receiving
+	cancel()                    // the call's deadline has passed
+	err := handOffNewCircuit(ckt, full, ctx, nil, nil)
+	if err == nil {
+		t.Fatal("failed hand-off reported success")
+	}
+	if !ckt.IsClosed() {
+		t.Fatal("undelivered circuit left open")
+	}
+}

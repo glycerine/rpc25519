@@ -39,14 +39,8 @@ func (p *peerAPI) PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb 
 
 	if err == nil && ckt != nil && autoSendNewCircuitCh != nil {
 		// automatically send along the new ckt
-		select {
-		case autoSendNewCircuitCh <- ckt:
-			//vv("PreferExtantRemotePeerGetCircuit sent new ckt to '%v' on autoSendNewCircuitCh = %p", ckt.RemotePeerName, autoSendNewCircuitCh)
-		case <-ckt.Halt.ReqStop.Chan:
-		case <-ckt.Context.Done():
-		case <-lpb.Ctx.Done():
-		case <-callCtx.Done():
-		case <-p.u.GetHostHalter().ReqStop.Chan:
+		if err = handOffNewCircuit(ckt, autoSendNewCircuitCh, callCtx, lpb.Ctx.Done(), p.u.GetHostHalter().ReqStop.Chan); err != nil {
+			ckt = nil
 		}
 	}
 	return
@@ -362,7 +356,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 		ackMsg = errMsg
 		//vv("err0 = '%v'", err0) // only once seen when red 410.
 
-		//ckt.Close(err0) // ugh. commenting allows Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL green... but why leak the ckt?? oh well.
+		ckt.Close(err0) // the remote rejected it; do not leak our end (CR-D-41).
 		ckt = nil
 		return
 	case ackMsg = <-responseCh:
@@ -458,13 +452,8 @@ func (s *LocalPeer) PreferExtantRemotePeerGetCircuit(callCtx context.Context, ci
 	//vv("LocalPeer.PreferExtantRemotePeerGetCircuit back, have err='%v'; autoSendNewCircuitCh = %p; ckt='%v'", err, autoSendNewCircuitCh, ckt)
 	if err == nil && ckt != nil && autoSendNewCircuitCh != nil {
 		// automatically send along the new ckt
-		select {
-		case autoSendNewCircuitCh <- ckt:
-			//vv("LocalPeer.PreferExtantRemotePeerGetCircuit sent new ckt to '%v' on autoSendNewCircuitCh = %p", ckt.RemotePeerName, autoSendNewCircuitCh)
-		case <-ckt.Halt.ReqStop.Chan:
-		case <-ckt.Context.Done():
-		case <-s.Halt.ReqStop.Chan:
-		case <-callCtx.Done():
+		if err = handOffNewCircuit(ckt, autoSendNewCircuitCh, callCtx, s.Halt.ReqStop.Chan, nil); err != nil {
+			ckt = nil
 		}
 	}
 	return
@@ -476,13 +465,8 @@ func (s *LocalPeer) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName, us
 
 	if err == nil && ckt != nil && autoSendNewCircuitCh != nil {
 		// automatically send along the new ckt
-		select {
-		case autoSendNewCircuitCh <- ckt:
-
-		case <-ckt.Halt.ReqStop.Chan:
-		case <-ckt.Context.Done():
-		case <-s.Halt.ReqStop.Chan:
-		case <-s.Ctx.Done():
+		if err = handOffNewCircuit(ckt, autoSendNewCircuitCh, s.Ctx, s.Halt.ReqStop.Chan, nil); err != nil {
+			ckt = nil
 		}
 	}
 
@@ -518,4 +502,28 @@ func gcCktWants(cktWantsPair *Mutexmap[string, *Circuit]) {
 			delete(m, key)
 		}
 	})
+}
+
+// handOffNewCircuit delivers a newly acknowledged ckt on ch.
+// If anything else wins the race, nobody will read the ckt
+// while the remote already uses its end, so close it and
+// report the failure: never return a live, undelivered
+// circuit with a nil error (CR-D-41). nil stops never fire.
+func handOffNewCircuit(ckt *Circuit, ch chan *Circuit, callCtx context.Context, stop1, stop2 <-chan struct{}) (err error) {
+	select {
+	case ch <- ckt:
+		return nil
+	case <-ckt.Halt.ReqStop.Chan:
+		err = ErrHaltRequested
+	case <-ckt.Context.Done():
+		err = ErrContextCancelledCkt
+	case <-callCtx.Done():
+		err = ErrContextCancelled
+	case <-stop1:
+		err = ErrHaltRequested
+	case <-stop2:
+		err = ErrHaltRequested
+	}
+	ckt.Close(err)
+	return err
 }
