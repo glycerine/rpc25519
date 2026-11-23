@@ -2962,9 +2962,15 @@ func (s *TubeNode) updateSessTableByClientName(justOne *SessionTableEntry) {
 	}
 	for _, ste := range scanMe {
 		prior, ok := s.state.sessTableByClientName[ste.ClientName]
+		if ok && prior.SessionID == ste.SessionID {
+			// the same session, e.g. a copy from a snapshot.
+			s.state.sessTableByClientName[ste.ClientName] = ste
+			continue
+		}
 		if ok && prior != ste {
-			// which is latest, keep only it.
-			if gte(prior.T0, ste.T0) {
+			// which is latest, keep only it. Break T0 ties
+			// by SessionID so every replica keeps the same one.
+			if prior.T0.After(ste.T0) || (prior.T0.Equal(ste.T0) && prior.SessionID > ste.SessionID) {
 				// prior is more recently made. keep it.
 				s.state.sessTableByClientName[ste.ClientName] = prior
 				goners = append(goners, ste)
@@ -2982,6 +2988,30 @@ func (s *TubeNode) updateSessTableByClientName(justOne *SessionTableEntry) {
 		delete(s.state.SessTable, goner.SessionID)
 		s.sessByExpiry.Delete(goner)
 	}
+}
+
+// rebuildSessionIndexes recreates the node-local session
+// indexes from s.state.SessTable after the table has been
+// replaced by a snapshot install or loaded on restart.
+func (s *TubeNode) rebuildSessionIndexes() {
+	s.sessByExpiry = newSessTableByExpiry()
+	s.state.sessTableByClientName = make(map[string]*SessionTableEntry)
+	if s.state.SessTable == nil {
+		s.state.SessTable = make(map[string]*SessionTableEntry)
+	}
+	for _, ste := range s.state.SessTable {
+		if ste.SessionEndxTm.IsZero() {
+			ste.SessionEndxTm = ste.SessionReplicatedEndxTm
+		}
+		if ste.Serial2Ticket == nil {
+			ste.Serial2Ticket = NewOmap[int64, *Ticket]()
+		}
+		if ste.ticketID2tkt == nil {
+			ste.ticketID2tkt = make(map[string]*Ticket)
+		}
+		s.sessByExpiry.tree.Insert(ste)
+	}
+	s.updateSessTableByClientName(nil)
 }
 
 type IndexTerm struct {
@@ -5931,6 +5961,7 @@ func (s *SessionTableEntry) Clone() (r *SessionTableEntry) {
 		Serial2Ticket:               NewOmap[int64, *Ticket](),
 		ticketID2tkt:                make(map[string]*Ticket),
 		SessRequestedInitialDur:     s.SessRequestedInitialDur,
+		SessionEndxTm:               s.SessionEndxTm,
 		SessionReplicatedEndxTm:     s.SessionReplicatedEndxTm,
 		ClientName:                  s.ClientName,
 		ClientPeerID:                s.ClientPeerID,
@@ -9251,6 +9282,9 @@ func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
 	if st != nil {
 		s.state = st
 	} // else leave our state in place
+	if s.state != nil {
+		s.rebuildSessionIndexes()
+	}
 
 	// Specular Bug 12: our WAL can hold entries from a term
 	// newer than the saved CurrentTerm (e.g. we fsynced our
@@ -18022,10 +18056,12 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string, sendAck 
 
 	//vv("%v snapshot set s.state.CompactionDiscardedLastIndex=%v; s.state.CompactionDiscardedLast.Term=%v", s.name, s.state.CompactionDiscardedLastIndex, s.state.CompactionDiscardedLast.Term)
 
-	if state2.SessTable != nil {
-		// why is this not already done? because we applie state2 field-by-field.
-		s.state.SessTable = state2.SessTable
-		s.updateSessTableByClientName(nil)
+	// The snapshot's session table replaces ours entirely,
+	// even when empty, and the local indexes are rebuilt from it.
+	s.state.SessTable = state2.SessTable
+	s.rebuildSessionIndexes()
+	if state2.LastAppliedLogHLC > s.state.LastAppliedLogHLC {
+		s.state.LastAppliedLogHLC = state2.LastAppliedLogHLC
 	}
 
 	_, saveErr := s.saver.save(s.state)
