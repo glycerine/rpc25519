@@ -1146,3 +1146,49 @@ func TestBatchNeedsSoleSelfVoterToCommitLocally(t *testing.T) {
 		}
 	}
 }
+
+func TestEqualVersionMembershipCollision(t *testing.T) {
+	f := specularNode(t, "f", FOLLOWER, 4, nil, "f", "x")
+	f.cfg.NoBackgroundConnect = true
+	var err error
+	f.saver, _, err = f.cfg.NewRaftStatePersistor("", f, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.saver.close()
+	leaderConfig := specularMC(f, "f", "l")
+	leaderConfig.IsCommitted = true
+	if f.state.MC.VersionEqual(leaderConfig) {
+		t.Error("different voter sets counted as the same config")
+	}
+	vote := &RequestVote{FromPeerName: "l", CandidatesTerm: 5, MC: leaderConfig}
+	if f.logUpToDateAsOurs(vote) {
+		t.Error("accepted a candidate with conflicting membership at the same version")
+	}
+	f.aeMemberConfigHelper(&AppendEntries{MC: leaderConfig}, 0, &AppendEntriesAck{})
+	if !f.state.MC.SamePeers(leaderConfig) || !f.state.MC.IsCommitted {
+		t.Errorf("did not adopt leader membership: %v", f.state.MC.Short())
+	}
+}
+
+func TestForcedChangeContactingFollowerUsesLiveLeader(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		c, _, _, _ := SetupTestCluster(t, 3, 0, 1030)
+		defer c.Close()
+		leader, contact, caller := c.Nodes[0], c.Nodes[1], c.Nodes[2]
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		reply, _, err := caller.RemovePeerIDFromCluster(ctx, true, false, caller.name,
+			caller.PeerID, TUBE_REPLICA, caller.BaseServerHostPort(), contact.URL, time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reply == nil || reply.ResponderPeerID != leader.PeerID {
+			t.Fatalf("expected the current leader to handle the forced removal, got %v", reply)
+		}
+		mc := leader.Inspect().State.MC
+		if _, present := mc.PeerNames.Get2(caller.name); present {
+			t.Fatalf("leader retained removed voter %q", caller.name)
+		}
+	})
+}

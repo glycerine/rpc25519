@@ -2676,7 +2676,7 @@ func (s *TubeNode) parSnapshotAllowed(snap *Snapshot) bool {
 		state.KVstore.parFault != nil || state.MC == nil || s.state.MC == nil {
 		return false
 	}
-	return state.MC.ConfigTerm == s.state.MC.ConfigTerm && state.MC.ConfigVersion == s.state.MC.ConfigVersion
+	return state.MC.VersionEqual(s.state.MC)
 }
 
 // The enclosing snapshot journal is already durable. These handles contain no
