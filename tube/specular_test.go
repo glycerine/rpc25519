@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -2273,5 +2274,69 @@ func TestZappedMemberConfigIsMinimal(t *testing.T) {
 	m.becomeFollower(4, empty, false) // same term: the empty config still ranks higher
 	if m.state.MC.PeerNames.Len() != 3 {
 		t.Fatal("a peer's empty config replaced our populated member set")
+	}
+}
+
+// specularParDiskFixture writes count identified WAL entries
+// (as par_test.go's parDiskFixture, which needs -tags par).
+func specularParDiskFixture(t *testing.T, count int) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "tube.wal.msgp")
+	wal, err := (&TubeConfig{}).newRaftWriteAheadLog(path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < count; i++ {
+		e := &RaftLogEntry{Index: int64(i + 1), Term: 1, Ticket: &Ticket{TicketID: fmt.Sprintf("ticket-%d", i),
+			ClusterID: "par-test", Op: WRITE, Key: Key(fmt.Sprintf("k%d", i)), Val: Val("original")}}
+		if _, err := wal.saveRaftLogEntry(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := wal.close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// CR-D-49 / CR-9: a crash between a WAL append's fsync and the
+// publication of its identifiers left an unidentified tail that
+// fenced the node forever (no vote, no campaign, no donor).
+// Entries above every protected floor were never acknowledged:
+// the node may identify its own checksum-valid tail locally.
+func TestInterruptedAppendTailIsIdentifiedLocally(t *testing.T) {
+	for _, floor := range []int64{2, 4} {
+		t.Run(fmt.Sprintf("floor%v", floor), func(t *testing.T) {
+			path := specularParDiskFixture(t, 4)
+			// crash image: WAL fsynced, only 2 of 4 identifiers published.
+			if err := os.Truncate(path+".parlog", 2*maxParRecord); err != nil {
+				t.Fatal(err)
+			}
+			cfg := &TubeConfig{ClusterID: "par-test"}
+			wal, err := cfg.openPARWAL(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mc := &MemberConfig{PeerNames: NewOmap[string, *PeerDetail]()}
+			mc.PeerNames.Set("solo", &PeerDetail{Name: "solo", PeerID: "id-solo"})
+			node := &TubeNode{cfg: *cfg, name: "solo", PeerID: "id-solo", ClusterID: "par-test",
+				PeerServiceName: TUBE_REPLICA, wal: wal,
+				state: &RaftState{CurrentTerm: 1, CommitIndex: floor, LastApplied: 2, LastAppliedTerm: 1, MC: mc}}
+			defer func() { node.wal.close() }()
+			node.parAfterRestore()
+			if !node.parBlocked() {
+				t.Fatal("setup: expected the unidentified tail to fence the node")
+			}
+			for i := 0; i < 10 && node.parBlocked(); i++ {
+				node.parRecoveryStep()
+			}
+			if floor == 2 {
+				if node.parBlocked() || node.wal.lli != 4 {
+					t.Fatalf("single node stayed fenced by its own interrupted append (lli %v, err %v)", node.wal.lli, node.par.err)
+				}
+			} else if !node.parBlocked() {
+				t.Fatal("identified locally a tail at or below the protected floor; that needs a checked peer")
+			}
+		})
 	}
 }
