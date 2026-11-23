@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/tube/leased"
@@ -2423,5 +2424,58 @@ func TestLaggingFollowerRestartIsNotFenced(t *testing.T) {
 					node.parBlocked(), tc.fenced, node.wal.lli, tc.high)
 			}
 		})
+	}
+}
+
+// CR-D-47: two multipart snapshots arriving interleaved (two
+// circuits) kept discarding each other in the single reassembly
+// buffer, so neither was ever installed.
+func TestInterleavedMultipartSnapshotsBothAssemble(t *testing.T) {
+	members := []string{"n1", "n2", "n3"}
+	lead := specularNode(t, "n2", LEADER, 1, []int64{1, 1, 1}, members...)
+	lead.state.CommitIndex, lead.state.CommitIndexEntryTerm = 1, 1
+	specularMarkApplied(lead, 1)
+	lead.leaderID, lead.leaderName = lead.PeerID, lead.name
+	older := lead.getStateSnapshot(false)
+	_, err := lead.wal.saveRaftLogEntry(&RaftLogEntry{Index: 4, Term: 1,
+		Ticket: &Ticket{Op: NOOP, LogIndex: 4, Term: 1, Desc: "n2 entry 4"}})
+	panicOn(err)
+	newer := lead.getStateSnapshot(false)
+
+	foll := specularNode(t, "n1", FOLLOWER, 1, nil, members...)
+	foll.leaderID, foll.leaderName = lead.PeerID, lead.name
+	foll.host = &ackCaptureHost{hoster: foll}
+
+	parts := func(snap *Snapshot) []*rpc.Fragment {
+		bts, err := snap.MarshalMsg(nil)
+		panicOn(err)
+		h := blake3.New(64, nil)
+		h.Write(bts)
+		whole := blake3ToString33B(h)
+		third := len(bts) / 3
+		chunks := [][]byte{bts[:third], bts[third : 2*third], bts[2*third:]}
+		var frags []*rpc.Fragment
+		for i, c := range chunks {
+			f := lead.newFrag()
+			f.FromPeerID, f.FromPeerName = lead.PeerID, lead.name
+			f.FragPart = int64(i + 1)
+			if i == len(chunks)-1 {
+				f.FragPart = -f.FragPart
+			}
+			f.Payload = c
+			f.SetUserArg("b3checksumWhole", whole)
+			frags = append(frags, f)
+		}
+		return frags
+	}
+	a, b := parts(newer), parts(older)
+	cktA := &rpc.Circuit{CircuitID: "ckt_a", RemotePeerID: lead.PeerID}
+	cktB := &rpc.Circuit{CircuitID: "ckt_b", RemotePeerID: lead.PeerID}
+	for i := range a {
+		foll.handleStateSnapshotEnclosed(a[i], cktA, "test a")
+		foll.handleStateSnapshotEnclosed(b[i], cktB, "test b")
+	}
+	if lli := foll.wal.LastLogIndex(); lli != 4 {
+		t.Fatalf("interleaved multipart snapshot never installed: follower lli %v, want 4", lli)
 	}
 }
