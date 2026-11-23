@@ -1817,3 +1817,39 @@ func TestPeerJoinDropsFragFromUnexpectedPeerID(t *testing.T) {
 		t.Fatal("peerJoin accepted a frag whose PeerID differs from its circuit")
 	}
 }
+
+// CR-D-34: a remote circuit-start for a stale PeerID made
+// rpc25519 run a second TubeNode.Start on a client node.
+func TestClientServicesLimitedToOneLocalPeer(t *testing.T) {
+	cfg := specularTestCfg(t, 1)
+	for _, name := range []string{TUBE_REPLICA, TUBE_CLIENT, "hermes"} {
+		if got := cfg.RpcCfg.GetLimitMax(name); got != 1 {
+			t.Errorf("service %q limit %v per process, want 1", name, got)
+		}
+	}
+}
+
+func TestStartRefusesToRunTwice(t *testing.T) {
+	n := specularNode(t, "c1", CLIENT, 0, nil, "n1")
+	n.startRunning.Store(true) // as if a first Start loop owned the node
+	done := make(chan error, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				done <- fmt.Errorf("panic: %v", r)
+			}
+		}()
+		done <- n.Start(&rpc.LocalPeer{PeerID: "second_id", Halt: idem.NewHalter()}, context.Background(), nil)
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrAlreadyStarted) {
+			t.Fatalf("second Start returned %v, want ErrAlreadyStarted", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("second Start kept running on the same node")
+	}
+	if n.PeerID == "second_id" {
+		t.Fatal("second Start overwrote the node's PeerID")
+	}
+}

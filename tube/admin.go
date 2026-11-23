@@ -337,6 +337,7 @@ var (
 	ErrTimeOut           = fmt.Errorf("error timeout")
 	ErrResultTooLarge    = fmt.Errorf("result too large for one reply message")
 	ErrKeyTooLarge       = fmt.Errorf("table and key too large")
+	ErrAlreadyStarted    = fmt.Errorf("TubeNode.Start is already running on this node")
 )
 
 // GetConfigDir returns the config dir
