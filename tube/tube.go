@@ -6806,6 +6806,20 @@ func (s *TubeNode) resetElectionTimeout(where string) time.Duration {
 	return dur
 }
 
+func (s *TubeNode) persistSelfVote() {
+	s.state.VotedFor = s.PeerID
+	s.state.VotedForName = s.name
+	s.state.HaveVoted = true
+	s.state.HaveVotedTerm = s.state.CurrentTerm
+
+	// Specular Bug 12: Raft requires currentTerm and
+	// votedFor on stable storage before we ask for votes.
+	if s.saver != nil {
+		_, err := s.saver.save(s.state)
+		panicOn(err)
+	}
+}
+
 // become a candidate, send out RequestVote
 // Two elections in a row due to the election
 // timer should NOT increment the term again!
@@ -6865,17 +6879,7 @@ func (s *TubeNode) beginElection() {
 		// ? do we want here: s.state.MC.ConfigTerm = s.state.CurrentTerm
 	}
 	s.role = CANDIDATE
-	s.state.VotedFor = s.PeerID
-	s.state.VotedForName = s.name
-	s.state.HaveVoted = true
-	s.state.HaveVotedTerm = s.state.CurrentTerm
-
-	// Specular Bug 12: Raft requires currentTerm and
-	// votedFor on stable storage before we ask for votes.
-	if s.saver != nil {
-		_, err := s.saver.save(s.state)
-		panicOn(err)
-	}
+	s.persistSelfVote()
 
 	// discard as stale (section 6.2)
 	s.leaderID = ""
@@ -18286,14 +18290,21 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 		//vv("%v not trying to remove self to MC", s.me())
 		return false
 	}
-	if n == 1 {
-		_, justMe := s.state.MC.PeerNames.Get2(s.name)
-		if !justMe {
-			//vv("%v not just me 2; MC=%v", s.name, s.state.MC)
-			return false
+	// Self-add can bootstrap an isolated replica. A live leader or another
+	// connected replica can supply the authoritative cluster membership.
+	recentLeader, _ := s.haveStickyLeader(&RequestVote{})
+	visible := recentLeader && s.role != LEADER
+	for _, peer := range s.cktall {
+		if peer.PeerName != s.name && peer.PeerServiceName == TUBE_REPLICA && peer.atomicIsUp.Load() {
+			visible = true
+			break
 		}
 	}
-	// empty MC, or just Me.
+	if visible {
+		tkt.Err = fmt.Errorf("cannot bootstrap %s while another replica is visible", s.name)
+		s.respondToClientTicketApplied(tkt)
+		return true
+	}
 
 	detail := s.getMyDetails()
 	s.state.MC.setNameDetail(s.name, detail, s)
@@ -18302,6 +18313,8 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 	s.state.ShadowReplicas.PeerNames.Delkey(s.name)
 	//vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
 	if s.role != LEADER {
+		s.state.CurrentTerm++
+		s.persistSelfVote()
 		s.becomeLeader()
 	}
 	s.addInspectionToTicket(tkt)
