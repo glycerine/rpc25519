@@ -451,3 +451,47 @@ func TestCloseWithReasonStaysEndCircuit(t *testing.T) {
 		t.Fatal("an ordinary error fragment must still be CallPeerError")
 	}
 }
+
+// lockProbeU reports whether a lock token was free when the
+// circuit-established ack was sent.
+type lockProbeU struct {
+	UniversalCliSrv
+	mut          chan bool
+	sawLockHeld  bool
+	sendsChecked int
+}
+
+func (u *lockProbeU) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration, forbidAutoCli bool) (bool, *LoopComm, error) {
+	u.sendsChecked++
+	select {
+	case <-u.mut: // free: put it back
+		u.mut <- true
+	default:
+		u.sawLockHeld = true
+	}
+	return false, nil, ErrNetConnectionNotFound
+}
+
+// CR-D-33: bootstrapCircuit held the node-wide chanmut lock
+// while sending CircuitEstablishedAck, so one peer with a stuck
+// send loop blocked every other circuit setup on the node.
+func TestCircuitAckSentWithoutSetupLockHeld(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	chanmut := make(chan bool, 1) // held: no token inside
+	u := &lockProbeU{mut: chanmut}
+	lpb := &LocalPeer{Halt: idem.NewHalter(), Ctx: ctx, U: u, PeerID: "me", PeerServiceName: "svc",
+		TellPumpNewCircuit: make(chan *Circuit, 1), Remotes: NewMutexmap[string, *RemotePeer]()}
+	msg := NewMessage()
+	msg.HDR.Typ = CallPeerStartCircuit
+	msg.HDR.FromPeerID, msg.HDR.From = "them", "tcp://127.0.0.1:9"
+	msg.HDR.CallID = "ckt1"
+	var skipUnlock bool
+	lpb.provideRemoteOnNewCircuitCh(false, msg, ctx, &LoopComm{}, false, onRemote2ndSide, true, chanmut, &skipUnlock)
+	if u.sendsChecked == 0 {
+		t.Fatal("setup: the ack was never sent")
+	}
+	if u.sawLockHeld {
+		t.Fatal("circuit-established ack sent while holding the node-wide setup lock")
+	}
+}
