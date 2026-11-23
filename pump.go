@@ -133,7 +133,7 @@ func (pb *LocalPeer) peerbackPump() {
 		//vv("calling ckt.Halt for ckt=%p and ckt.Halt=%p", ckt, ckt.Halt)
 		ckt.Halt.ReqStop.Close()
 		ckt.Halt.Done.Close()
-		removeHalterChild(pb.Halt, ckt.Halt) // undo the AddChild (CR-D-87)
+		pb.Halt.RemoveChild(ckt.Halt) // undo the AddChild (CR-D-87)
 
 		if pb.AutoShutdownWhenNoMoreCircuits && len(m) == 0 {
 			//zz("%v: peerbackPump exiting on autoShutdownWhenNoMoreCircuits", name)

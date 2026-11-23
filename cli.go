@@ -615,7 +615,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 
 			g.pair.halt.ReqStop.Close()
 			g.pair.halt.Done.Close() // essential since the client is the auto-cli rwPair loops.
-			removeHalterChild(c.halt, g.pair.halt)
+			c.halt.RemoveChild(g.pair.halt)
 
 			// needed? methinks the above handles it, but maybe...
 			//for ckt := range gcMe.pair.cktServed {
