@@ -914,3 +914,44 @@ func Test1012_term_and_vote_durable_before_campaign(t *testing.T) {
 		t.Fatalf("Bug 12: restarted with CurrentTerm %v below its WAL's last term 1; it can campaign for, and lead, term 1 again", re.state.CurrentTerm)
 	}
 }
+
+// Bug 13 (Medium): the leader's read lease counted every
+// TUBE_REPLICA peer with a fresh ping, including non-voting
+// shadow replicas. A shadow's ack carries no promise not to
+// elect another leader, so a leader cut off from the voters
+// but still talking to a shadow kept serving stale reads.
+func Test1013_read_lease_does_not_count_shadows(t *testing.T) {
+
+	// voters {n1, n2, n3}; n4 is a non-voting shadow.
+	lead := specularNode(t, "n1", LEADER, 1, []int64{1}, "n1", "n2", "n3")
+	lead.initialNoop0HasCommitted = true
+	lead.leaderID = lead.PeerID
+	lead.leaderName = lead.name
+
+	now := time.Now()
+	shadow := lead.newRaftNodeInfo("n4_id", "n4", TUBE_REPLICA, "")
+	shadow.MinElectionTimeoutDur = lead.cfg.MinElectionDur
+	shadow.LastHeardAnything = now
+	shadow.LastFullPing.Sent = now
+	lead.peers["n4_id"] = shadow
+
+	// the voters n2, n3 are unreachable: no fresh pings.
+	for _, name := range []string{"n2", "n3"} {
+		info := lead.newRaftNodeInfo(name+"_id", name, TUBE_REPLICA, "")
+		info.MinElectionTimeoutDur = lead.cfg.MinElectionDur
+		info.LastHeardAnything = now.Add(-time.Hour)
+		info.LastFullPing.Sent = now.Add(-time.Hour)
+		lead.peers[name+"_id"] = info
+	}
+
+	if canServe, until := lead.leaderCanServeReadsLocally(); canServe {
+		t.Fatalf("Bug 13: leader granted itself a read lease (until %v) on the strength of a non-voting shadow's ack", until)
+	}
+
+	// a voter's fresh ack does give the lease.
+	lead.peers["n2_id"].LastHeardAnything = now
+	lead.peers["n2_id"].LastFullPing.Sent = now
+	if canServe, _ := lead.leaderCanServeReadsLocally(); !canServe {
+		t.Fatalf("expected a read lease once voter n2 (with the leader, 2 of 3) has a fresh ping")
+	}
+}
