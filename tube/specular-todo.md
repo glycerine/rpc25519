@@ -88,7 +88,7 @@ transcripts). This keeps only findings **not already fixed** by the first round
 
 | Entry | ID | St | Problem | Fix direction |
 |---|---|---|---|---|
-| 29 | CR-D-22 | R | A member that reconnects but never acks (`cktPlus.MC == nil`) stalls every membership change forever. The early return skips quorum, the 10 s timeout and `-f`. | Treat it as a stale member (not counted) and let Q1/Q2 decide; enforce the ticket deadline on every re-stall. |
+| 29 | CR-D-22 | R FIXED | A member that reconnects but never acks (`cktPlus.MC == nil`) stalls every membership change forever. The early return skips quorum, the 10 s timeout and `-f`. | Treat it as a stale member (not counted) and let Q1/Q2 decide; enforce the ticket deadline on every re-stall. |
 | 28 | CR-D-21 | M | A membership change that timed out (client told it failed) leaves copies in the `stalledOnSeenTkt` queues, which are re-run later. **Overlap:** Bug 10 clears the queues only on step-down. | On every error reply, finish the ticket and remove all copies; don't queue duplicates. |
 | 58 | CR-D-57 | R | Tickets with `LogIndex == 0` are invisible to `imap.all()`, so `resubmitStalledTickets`, `becomeLeader`'s takeover of `WaitingAtFollow`, and `tellClientsImNotLeader` miss them, and callers hang. | Add `imap.allIncludingUnindexed()` and use it at those sites. |
 | 60 | CR-D-59 | R | Tickets leak and clients hang: failed redirects are neither finished nor queued, a leader's own local tickets are dropped on step-down and batch clear, and waiting tickets never expire. | Finish or re-queue on every failure path; re-forward or fail follower tickets when the leader changes; add expiry. |
