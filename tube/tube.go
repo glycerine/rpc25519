@@ -1565,9 +1565,11 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				//vv("%v calling resetElectionTimeout as leader", s.name)
 				s.resetElectionTimeout("leader election timeout")
 
-				// periodically (on election timeouts), we
-				// want to cleanup un-refreshed sessions.
-				s.garbageCollectOldSessions()
+				// Specular Bug 6: no session GC here. Deleting
+				// sessions outside the log mutates replicated
+				// state on the leader only; sessions are expired
+				// deterministically, at log time, as entries
+				// are applied (commitWhatWeCan).
 
 				continue
 				// end if leader
@@ -10478,7 +10480,14 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		}
 
 		// update LastAppliedLogHLC from the RaftLogEntry.LogHLC
-		s.state.LastAppliedLogHLC.ReceiveMessageWithHLC(do.LogHLC)
+		// Specular Bug 6: use only log-carried time here.
+		// ReceiveMessageWithHLC also takes the max with this
+		// replica's wall clock, which made the session GC
+		// below (and anything else decided during apply)
+		// depend on each replica's clock.
+		if do.LogHLC > s.state.LastAppliedLogHLC {
+			s.state.LastAppliedLogHLC = do.LogHLC
+		}
 		// below do s.garbageCollectOldSessions() to let session
 		// refresh have a chance.
 
