@@ -2641,3 +2641,23 @@ func TestExpireSilentNodesKeepsNewcomerFromFromList(t *testing.T) {
 		t.Fatal("silent node kept")
 	}
 }
+
+// CR-D-66: when a member's first Ping reply was rejected locally
+// (non-monotone version), it restarted with its stale rpc client
+// still set, skipped the dial/ping block, and waited forever on a
+// select none of whose cases could fire.
+func TestRejectedPingReplyDropsTheCzarClient(t *testing.T) {
+	n := specularNode(t, "m1", CLIENT, 0, nil, "n0")
+	cz := NewCzar("hermes", "m1", n, 500*time.Millisecond)
+	cz.vers = &RMVersionTuple{CzarLeaseEpoch: 9, WithinCzarVersion: 9}
+	cz.cState.Store(int32(NotCzar))
+	cli, err := rpc.NewClient("m1-to-czar", rpc.NewConfig())
+	panicOn(err)
+	stale := &RMVersionTuple{CzarLeaseEpoch: 1, CzarLeaseUntilTm: time.Now().Add(time.Minute)}
+	if !cz.adoptPingReply(stale, n.NewReliableMembershipList(), "test", &cli) {
+		t.Fatal("setup: expected the non-monotone reply to be rejected")
+	}
+	if cli != nil || CzarState(cz.cState.Load()) != UnknownCzarState {
+		t.Fatal("rejected ping reply left the stale czar client in place")
+	}
+}
