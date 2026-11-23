@@ -2509,3 +2509,17 @@ func TestReconfigurationGuardAppliesWithoutPAR(t *testing.T) {
 		t.Fatal("reconfiguration refused although a quorum holds the committed prefix")
 	}
 }
+
+// CR-D-46: membership observers were never notified: observer
+// circuits have no watchdog, so isPending() was always true.
+func TestMembershipObserversAreSelectedByOpenCircuit(t *testing.T) {
+	n := specularNode(t, "n0", LEADER, 1, nil, "n0")
+	obs := &cktPlus{node: n, PeerName: "obs", PeerID: "obs_id", PeerServiceName: TUBE_OBS_MEMBERS,
+		ckt: &rpc.Circuit{CircuitID: "obs_ckt", Halt: idem.NewHalter()}}
+	gone := &cktPlus{node: n, PeerName: "gone", PeerID: "gone_id", PeerServiceName: TUBE_OBS_MEMBERS}
+	n.cktAllByName["obs"], n.cktAllByName["gone"] = obs, gone
+	got := n.membershipObserverCircuits()
+	if len(got) != 1 || got[0] != obs.ckt {
+		t.Fatalf("observers selected: %v, want only the open observer circuit", len(got))
+	}
+}
