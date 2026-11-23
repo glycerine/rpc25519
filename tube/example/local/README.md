@@ -42,17 +42,16 @@ $ mkdir -p ~/.config/tube
 $ cp tup.default.config ~/.config/tube/
 ~~~
 
-2. Generate a certificate for the CLI and a distinct key pair for each replica.
+2. generate TLS certs for service 'tube' (one time task)
 ~~~
 $ cd rpc25519
-$ make # installs selfy
+$ make # installs selfy key creation tool (only run if selfy not already on hand)
 $ selfy -k tube -nopass
-$ for name in node_0 node_1 node_2; do selfy -k "$name" -nopass; done
 ~~~
 
-The three local replica configs load their respective keys from
-`~/.config/rpc25519/certs/`. Generate an additional key pair before
-starting another replica.
+selfy generated tube.crt and placed it in ~/.config/rpc25519/certs/tube.crt
+
+It saved the private key to ~/.config/rpc25519/certs/tube.key
 
 3. Be sure that your $GOPATH/bin is on your $PATH, so
 that `go install` will leave `tube` in $GOPATH/bin/tube

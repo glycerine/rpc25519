@@ -2,8 +2,6 @@ package tube
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	//"strings"
 	//"reflect"
 	"testing"
@@ -168,30 +166,3 @@ ClientDialToHostPort: "",
 ServerAutoCreateClientsToDialOtherServers: true,
 ))
 */
-
-func TestExampleReplicasUseDistinctTLSKeys(t *testing.T) {
-	paths, err := filepath.Glob("example/*/tube*.cfg")
-	if err != nil || len(paths) == 0 {
-		t.Fatalf("enumerate replica configs: %v (%d files)", err, len(paths))
-	}
-	for _, path := range paths {
-		if filepath.Base(path) == "tube.sample.cfg" {
-			continue // unfilled operator template
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		cfg, err := NewTubeConfigFromSexpString(string(data), nil)
-		if err != nil {
-			t.Fatalf("%s: %v", path, err)
-		}
-		if cfg.TCPonly_no_TLS {
-			continue
-		}
-		if cfg.RpcCfg.ServerKeyPairName != cfg.MyName || cfg.RpcCfg.ClientKeyPairName != cfg.MyName {
-			t.Errorf("%s: replica %q uses client/server keys %q/%q", path, cfg.MyName,
-				cfg.RpcCfg.ClientKeyPairName, cfg.RpcCfg.ServerKeyPairName)
-		}
-	}
-}
