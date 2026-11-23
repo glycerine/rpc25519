@@ -82,7 +82,7 @@ transcripts). This keeps only findings **not already fixed** by the first round
 | 91 | CR-D-92 | R FIXED | (rpc25519) `Circuit.Close` blocks on the per-connection `cktServedDel` channel (100 slots) once that connection's send loop is gone, and can stall the Raft event loop through the audit GC. | Add a send-loop-gone signal to the select; post the removal once; keep blocking closes off the event loop. |
 | 50 | CR-D-45 | R FIXED | Closing a non-replica circuit always waits the full 10 ms on the event loop (no watchdog marks it done). A prune of hundreds of circuits stalls heartbeats long enough to cause an election. | Skip the wait when no watchdog was started; bound or offload the prune. |
 | 38 | CR-D-32 | M FIXED | (rpc25519) Receive path: the pump drops frags and tears down a *live* circuit after 2 s of a full `ckt.Reads`; new circuits reset that timer; the read loop drops silently every 5 s; untimed waits elsewhere. | Close only on evidence a circuit is dead; otherwise apply back-pressure or report the error. |
-| 37 | CR-D-31 | M | (rpc25519) The client read loop keeps reading after framing, decrypt or sticky TLS/QUIC errors, unlike the server, and spins or reads mid-frame. | Return on all non-timeout errors, like the server; check total frame length on the send side. |
+| 37 | CR-D-31 | M FIXED | (rpc25519) The client read loop keeps reading after framing, decrypt or sticky TLS/QUIC errors, unlike the server, and spins or reads mid-frame. | Return on all non-timeout errors, like the server; check total frame length on the send side. |
 
 ## 4. Liveness: membership, tickets and PAR
 

@@ -487,6 +487,10 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		panic(fmt.Sprintf("sanity check on tagEndx failed. tagEndx = %v; sz = %v", tagEndx, sz))
 	}
 
+	if sz > maxMessage {
+		// the reader checks the whole sealed frame size (CR-D-31).
+		return ErrTooLong
+	}
 	// write len.
 	binary.BigEndian.PutUint64(buf2[lenBegin:lenEndx], uint64(sz))
 	assocData := buf2[:8]

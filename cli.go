@@ -345,6 +345,48 @@ type cliPairState struct {
 	lastPingSentTmu     atomic.Int64
 }
 
+// clientReadLoopShouldContinue reports whether the client read
+// loop may keep reading the connection after err.
+func clientReadLoopShouldContinue(err error) bool {
+	r := err.Error()
+
+	// under TCP: its normal to see 'read tcp y.y.y.y:59705->x.x.x.x:9999: i/o timeout'
+	if strings.Contains(r, "i/o timeout") || strings.Contains(r, "deadline exceeded") {
+		// just our readTimeout happening, so we can poll on shutting down, above.
+		return true
+	}
+	if strings.Contains(r, "timeout: no recent network activity") {
+		// we will hard spin the CPU to 100% (after disconnect)
+		// if we don't exit on this.
+		return false
+	}
+	// quic server specific
+	if strings.Contains(r, "Application error 0x0 (remote)") {
+		return false
+	}
+	if strings.Contains(r, "server shutdown") {
+		return false
+	}
+	if strings.Contains(r, "use of closed network connection") {
+		return false
+	}
+	if strings.Contains(r, "connection reset by peer") {
+		return false
+	}
+	if strings.Contains(r, "Application error 0x0 (local)") {
+		return false
+	}
+	if r == "EOF" || err == io.EOF {
+		return false
+	}
+	// Anything else (framing, decrypt, decode, sticky TLS or QUIC
+	// errors) leaves us mid-frame or spinning on a stored error:
+	// stop, as the server's read loop does (CR-D-31). The deferred
+	// cleanup closes the client and its circuits.
+	alwaysPrintf("client read loop stopping on error: '%v'", err)
+	return false
+}
+
 func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	if c.cfg.UseSimNet {
 		// might () or might not () be a new goroutine, but
@@ -417,48 +459,9 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			if msg != nil {
 				panic("should not have a message if error back!")
 			}
-			r := err.Error()
-
-			// under TCP: its normal to see 'read tcp y.y.y.y:59705->x.x.x.x:9999: i/o timeout'
-			if strings.Contains(r, "i/o timeout") || strings.Contains(r, "deadline exceeded") {
-				//if strings.Contains(r, "deadline exceeded") {
-				// just our readTimeout happening, so we can poll on shutting down, above.
-				continue
-			}
-			//vv("err = '%v'", err)
-			if strings.Contains(r, "timeout: no recent network activity") {
-				// we will hard spin the CPU to 100% (after disconnect)
-				// if we don't exit on this.
-				//vv("cli read loop exiting on '%v'", err)
+			if !clientReadLoopShouldContinue(err) {
 				return
 			}
-			// quic server specific
-			if strings.Contains(r, "Application error 0x0 (remote)") {
-				//vv("normal quic shutdown.")
-				return
-			}
-
-			if strings.Contains(r, "server shutdown") {
-				//vv("client sees quic server shutdown")
-				return
-			}
-			if strings.Contains(r, "use of closed network connection") {
-				return
-			}
-			if strings.Contains(r, "connection reset by peer") {
-				return
-			}
-			if strings.Contains(r, "Application error 0x0 (local)") {
-				return
-			}
-			if r == "EOF" && msg == nil {
-				//vv("cli readLoop sees EOF, exiting.")
-				return
-			}
-			if err == io.EOF && msg == nil {
-				return
-			}
-			//v//vv("ignore err = '%v'; msg = '%v'", err, msg)
 		}
 		if msg == nil {
 			continue
