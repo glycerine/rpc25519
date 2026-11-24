@@ -1,12 +1,14 @@
 package tube
 
 import (
-	//"context"
+	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
-	//rpc "github.com/glycerine/rpc25519"
+
+	rpc "github.com/glycerine/rpc25519"
 )
 
 /* TODO testing plan for membership changes.
@@ -722,4 +724,145 @@ func TestJoinRejectsOccupiedReplicaName(t *testing.T) {
 			t.Fatalf("duplicate join changed membership from %v to %v", before.Short(), after.Short())
 		}
 	})
+}
+
+// Test104 saw small clusters sending progressively larger AppendEntries.
+// Generate the two provenance records from changeMembership and setMC
+// directly so this reproduces the wire size without starting a cluster.
+func TestHeartbeatFitsAfterMembershipChurn(t *testing.T) {
+	node := &TubeNode{name: "node_0", wal: &raftWriteAheadLog{logIndex: newTermsRLE()}, state: &RaftState{CurrentTerm: 1}}
+	mc := node.NewMemberConfig("bootstrap")
+	node.state.MC = mc
+	for i := range 5 {
+		name := fmt.Sprintf("node_%d", i)
+		mc.PeerNames.Set(name, &PeerDetail{Name: name})
+	}
+	for i := range 10_000 {
+		tkt := &Ticket{}
+		if i%2 == 0 {
+			tkt.AddPeerName = "node_5"
+			mc.PeerNames.Set("node_5", &PeerDetail{Name: "node_5"})
+		} else {
+			tkt.RemovePeerName = "node_5"
+			mc.PeerNames.Delkey("node_5")
+		}
+		mc.ConfigVersion++
+		mc.addProv(fmt.Sprintf("changeMembership tkt={%v}", tkt.addRmString()), node.name, int64(i+1))
+		mc.addProv(fmt.Sprintf("setMC: changeMembership to newConfig '%v'", mc.Short()), node.name, int64(i+1))
+	}
+	b, err := node.newAE().MarshalMsg(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b) > rpc.UserMaxPayload {
+		t.Fatalf("empty heartbeat with %d voters after %d changes is %d bytes, exceeding the %d-byte payload budget", mc.Len(), mc.ConfigVersion, len(b), rpc.UserMaxPayload)
+	}
+	t.Logf("empty heartbeat after %d changes: %d bytes", mc.ConfigVersion, len(b))
+}
+
+func TestRestoreMembershipWithLongProvenance(t *testing.T) {
+	// Model a snapshot made by a version that kept every diagnostic.
+	mc := &MemberConfig{ConfigVersion: 123, IsCommitted: true, PeerNames: NewOmap[string, *PeerDetail]()}
+	mc.PeerNames.Set("node_0", &PeerDetail{Name: "node_0"})
+	for range 2_000 {
+		mc.Prov = append(mc.Prov, strings.Repeat("x", 1024))
+	}
+	mc.Prov = append(mc.Prov, "latest change")
+	b, err := (&RaftState{MC: mc}).MarshalMsg(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored RaftState
+	if _, err := restored.UnmarshalMsg(b); err != nil {
+		t.Fatal(err)
+	}
+	got := restored.MC
+	if !got.VersionEqual(mc) || !got.IsCommitted || got.Len() != 1 || len(got.Prov) == 0 || got.Prov[len(got.Prov)-1] != "latest change" {
+		t.Fatalf("lost membership or latest diagnostic while restoring configuration %s", got.Short())
+	}
+	b, err = (&AppendEntries{MC: got}).MarshalMsg(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b) > rpc.UserMaxPayload {
+		t.Fatalf("heartbeat after restoring old membership is %d bytes, payload budget %d", len(b), rpc.UserMaxPayload)
+	}
+	// A log entry from before the upgrade must still replicate with its
+	// original contents. PAR identifies entries by their serialized bytes.
+	oldEntry := &RaftLogEntry{Ticket: &Ticket{MC: mc}}
+	b, err = oldEntry.MarshalMsg(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var entry RaftLogEntry
+	if _, err := entry.UnmarshalMsg(b); err != nil {
+		t.Fatal(err)
+	}
+	again, err := entry.MarshalMsg(nil)
+	if err != nil || !bytes.Equal(b, again) {
+		t.Fatalf("historical WAL entry changed after round trip: %v", err)
+	}
+}
+
+// A joining voter can learn just the leader's ID from GuessLeaderURL on an
+// existing circuit. Its next AppendEntries must establish the leader before
+// it can accept the snapshot needed to fill a log gap.
+func TestJoiningVoterAcceptsSnapshotAfterLeaderHeartbeat(t *testing.T) {
+	voters := []string{"n1", "n2", "n3"}
+	leader := specularNode(t, "n2", LEADER, 2, []int64{1, 2, 2}, voters...)
+	leader.URL = "simnet://n2/tube-replica/n2_id"
+	leader.state.CommitIndex, leader.state.CommitIndexEntryTerm = 3, 2
+	specularMarkApplied(leader, 3)
+	follower := specularNode(t, "n3", FOLLOWER, 2, []int64{1}, voters...)
+	follower.state.CommitIndex, follower.state.CommitIndexEntryTerm = 1, 1
+	specularMarkApplied(follower, 1)
+	follower.leaderID = leader.PeerID
+	host := &ackCaptureHost{hoster: follower}
+	follower.host = host
+
+	snapshot := &rpc.Fragment{FromPeerID: leader.PeerID, FromPeerName: leader.name}
+	var err error
+	snapshot.Payload, err = leader.getStateSnapshot(false).MarshalMsg(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	follower.handleStateSnapshotEnclosed(snapshot, nil, "before heartbeat")
+	if follower.state.LastApplied != 1 {
+		t.Fatal("installed snapshot on the strength of a routing hint")
+	}
+	ae := leader.newAE()
+	ae.PrevLogIndex, ae.PrevLogTerm = 3, 2
+	follower.handleAppendEntries(ae, true)
+	if len(host.acks) != 1 || !host.acks[0].Rejected || !host.acks[0].NeedSnapshotGap {
+		t.Fatal("expected the follower to request a snapshot for its missing prefix")
+	}
+	follower.handleStateSnapshotEnclosed(snapshot, nil, "after heartbeat")
+	if follower.state.LastApplied != 3 {
+		t.Fatalf("snapshot after current-term heartbeat left applied index %d, want 3 (leader ID %q, name %q, term %d)", follower.state.LastApplied, follower.leaderID, follower.leaderName, follower.leaderTerm)
+	}
+}
+
+func TestOversizedMembershipReplyFitsAsError(t *testing.T) {
+	leader := specularNode(t, "n1", LEADER, 1, nil, "n1", "n2", "n3")
+	tkt := leader.NewTicket("add n3", "", "", nil, "n3_id", "n3", MEMBERSHIP_SET_UPDATE, 0, bkg)
+	tkt.FromID, tkt.FromName = "n3_id", "n3"
+	// Test104's reply carried the config on the ticket and in its inspection.
+	// Both copies fit individually, but together they exceed the wire limit.
+	mc := &MemberConfig{Prov: []string{strings.Repeat("x", rpc.UserMaxPayload/2)}}
+	tkt.MC, tkt.Insp = mc, &Inspection{MC: mc}
+	b := leader.marshalClientReply(tkt)
+	if !errors.Is(tkt.Err, ErrResultTooLarge) {
+		t.Fatalf("expected oversized reply error, got %v", tkt.Err)
+	}
+	if len(b) > rpc.UserMaxPayload {
+		t.Fatalf("membership error reply still requires %d bytes; the caller will time out", len(b))
+	}
+	var reply Ticket
+	if _, err := reply.UnmarshalMsg(b); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("membership error reply: %d bytes", len(b))
+	if reply.ClusterID != leader.ClusterID || reply.TicketID != tkt.TicketID || reply.Op != tkt.Op || reply.Err == nil {
+		t.Fatal("membership caller cannot match the error reply to its request")
+	}
 }
