@@ -27,7 +27,9 @@ func Test059_new_node_joins_after_compaction(t *testing.T) {
 		for numNodes := minClusterSz; numNodes <= maxClusterSz; numNodes++ {
 
 			forceLeader := 0
-			c, leader, leadi, maxterm := SetupTestCluster(t, numNodes, forceLeader, 55)
+			cfg := NewTubeConfigTest(numNodes, t.Name(), faketime)
+			cfg.CompactionThresholdBytes = 256
+			c, leader, leadi, maxterm := SetupTestClusterWithCustomConfig(cfg, t, numNodes, forceLeader, 55)
 			_, _, _ = leader, leadi, maxterm
 
 			time.Sleep(time.Second * 5)
@@ -51,6 +53,9 @@ func Test059_new_node_joins_after_compaction(t *testing.T) {
 			var leaderInsp *Inspection
 			for j := range numNodes {
 				insp := c.Nodes[j].Inspect()
+				if insp.LogIndexBaseC == 0 {
+					t.Fatalf("%s still has its WAL prefix before the new voter joins", c.Nodes[j].name)
+				}
 				if j == leadi {
 					leaderInsp = insp
 				}

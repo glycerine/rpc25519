@@ -18,6 +18,15 @@ import (
 
 var errProtectedLogEntry = errors.New("cannot overwrite a committed or applied log entry")
 
+const defaultCompactionThresholdBytes = 6 << 20
+
+func (cfg *TubeConfig) walCompactionThreshold() int64 {
+	if cfg.CompactionThresholdBytes == 0 {
+		return defaultCompactionThresholdBytes
+	}
+	return cfg.CompactionThresholdBytes
+}
+
 type raftWriteAheadLog struct {
 	// onDurable, if set, learns the last durably identified index
 	// after each sync (the CR-D-50 restart witness).
@@ -30,7 +39,8 @@ type raftWriteAheadLog struct {
 	w *msgp.Writer
 	r *msgp.Reader
 
-	raftLog []*RaftLogEntry
+	raftLog      []*RaftLogEntry
+	memEncodeBuf []byte // reusable encoding buffer for sizing memory WAL entries
 
 	// these are used to allow state snapshots
 	// to clear out the log and still let us
@@ -302,10 +312,7 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 		testNum:                  cfg.testNum,
 		lli:                      0,
 		llt:                      0,
-		compactionThresholdBytes: cfg.CompactionThresholdBytes,
-	}
-	if s.compactionThresholdBytes == 0 {
-		s.compactionThresholdBytes = 6 << 20 // 6MB default.
+		compactionThresholdBytes: cfg.walCompactionThreshold(),
 	}
 	//vv("%v made newRaftWriteAheadLog(path = '%v'); nodisk=%v; cfg.MyName='%v'; noLogCompaction=%v", s.name, path, cfg.NoDisk, cfg.MyName, s.noLogCompaction)
 
@@ -320,7 +327,7 @@ func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raft
 
 func (s *raftWriteAheadLog) logSizeOnDisk() int64 {
 	if s.nodisk {
-		return int64(len(s.raftLog))
+		return s.endpos
 	}
 
 	if s.fd == nil {

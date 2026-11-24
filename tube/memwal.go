@@ -25,15 +25,16 @@ func (cfg *TubeConfig) newRaftWriteAheadLogMemoryOnlyTestingOnly() (s *raftWrite
 	}
 
 	return &raftWriteAheadLog{
-		name:            cfg.MyName,
-		logIndex:        newTermsRLE(),
-		nodisk:          true,
-		parlog:          parlog,
-		isTest:          cfg.isTest,
-		testNum:         cfg.testNum,
-		noLogCompaction: cfg.NoLogCompaction,
-		lli:             0,
-		llt:             0,
+		name:                     cfg.MyName,
+		logIndex:                 newTermsRLE(),
+		nodisk:                   true,
+		parlog:                   parlog,
+		isTest:                   cfg.isTest,
+		testNum:                  cfg.testNum,
+		noLogCompaction:          cfg.NoLogCompaction,
+		compactionThresholdBytes: cfg.walCompactionThreshold(),
+		lli:                      0,
+		llt:                      0,
 	}, nil
 }
 
@@ -57,14 +58,23 @@ func (s *raftWriteAheadLog) saveRaftLogEntry_NODISK(entry *RaftLogEntry) (nw int
 			"lastIndex+1 = %v", entry.Index, lastIndex+1))
 	}
 
+	// Tickets can change after apply. Record their encoded size at append
+	// so an overwrite or a prefix compaction removes the original bytes.
+	encoded, err := entry.MarshalMsg(s.memEncodeBuf[:0])
+	if err != nil {
+		return 0, err
+	}
+	s.memEncodeBuf = encoded
+	nw = len(encoded)
+	if err := s.parlog.append1(entry, 0, int64(nw), 0, ""); err != nil {
+		return 0, err
+	}
+	s.endpos += int64(nw)
 	s.logIndex.AddTerm(entry.Term)
 
 	s.raftLog = append(s.raftLog, entry)
 	s.lli++
 	s.llt = entry.Term
-	var posnow, nw0, nw2 int64
-	b3string := ""
-	s.parlog.append1(entry, posnow, nw0, nw2, b3string)
 	return
 }
 
@@ -129,6 +139,9 @@ func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftL
 		}
 
 		// okay then
+		for _, pr := range s.parlog.e[keepCount:] {
+			s.endpos -= pr.Len0
+		}
 		s.raftLog = s.raftLog[:keepCount]
 		mayNeedTruncate = true
 		err = s.parlog.truncate(keepCount)
@@ -150,15 +163,8 @@ func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftL
 	if mayNeedTruncate {
 		// get rid of any not overwritten garbage.
 	}
-	if !s.noLogCompaction {
-		// THIS IS THE LOG COMPACTION CALL.
-		//
-		// We currently compact after
-		// every new commit, to catch bugs/issues early ASAP--
-		// per the Raft Dissertation suggestion (page 57,
-		// section 5.1.3 -- "Implementation concerns").
-		//
-		s.maybeCompact(lastAppliedIndex, syncme, nil) // like wal.go
+	if !s.noLogCompaction && s.logSizeOnDisk() > s.compactionThresholdBytes {
+		s.maybeCompact(lastAppliedIndex, syncme, nil)
 	}
 
 	return
@@ -231,6 +237,13 @@ func (s *raftWriteAheadLog) Compact_NODISK(keepIndex, keep0 int64) {
 	//vv("%v Compact_NODISK keepIndex=%v; keep0=%v; len(s.raftLog) = %v", s.name, keepIndex, keep0, len(s.raftLog))
 	//vv("%v before Compact_NODISK:\n%v", s.name, s.StringWithCommit(keepIndex))
 	s.raftLog = s.raftLog[keep0:]
+	for _, pr := range s.parlog.e[:keep0] {
+		s.endpos -= pr.Len0
+	}
+	clear(s.parlog.e[:keep0])
+	s.parlog.e = s.parlog.e[keep0:]
+	s.parlog.n -= keep0
+	s.parlog.durable -= keep0
 
 	// do this in caller now
 	//s.logIndex.CompactNewBeg(keepIndex)

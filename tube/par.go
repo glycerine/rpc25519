@@ -2059,10 +2059,7 @@ func (cfg *TubeConfig) openPARWAL(path string) (*raftWriteAheadLog, error) {
 		return cfg.newRaftWriteAheadLog(path, false)
 	}
 	wal := &raftWriteAheadLog{path: path, name: cfg.MyName, parInv: inv, logIndex: newTermsRLE(), checkEach: blake3.New(64, nil),
-		noLogCompaction: cfg.NoLogCompaction, isTest: cfg.isTest, testNum: cfg.testNum, compactionThresholdBytes: cfg.CompactionThresholdBytes}
-	if wal.compactionThresholdBytes == 0 {
-		wal.compactionThresholdBytes = 6 << 20
-	}
+		noLogCompaction: cfg.NoLogCompaction, isTest: cfg.isTest, testNum: cfg.testNum, compactionThresholdBytes: cfg.walCompactionThreshold()}
 	// Open existing evidence without creating a missing identifier file.
 	fd, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {

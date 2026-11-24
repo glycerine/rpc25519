@@ -1,0 +1,71 @@
+package tube
+
+import "testing"
+
+func TestMemWALCompactionThreshold(t *testing.T) {
+	entries := createLogEntries(1, 25, 1)
+	size := func(e *RaftLogEntry) int64 {
+		t.Helper()
+		b, err := e.MarshalMsg(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return int64(len(b))
+	}
+	var threshold int64
+	for i, e := range entries {
+		e.Ticket.Val = make([]byte, 128+(i%3)*48)
+		if i < 6 {
+			threshold += size(e)
+		}
+	}
+	cfg := &TubeConfig{NoDisk: true, CompactionThresholdBytes: threshold}
+	w, err := cfg.newRaftWriteAheadLog("", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.close()
+
+	var base, retained int64
+	var cuts []int64
+	for _, e := range entries {
+		i := e.Index
+		if err := w.overwriteEntries(i-1, []*RaftLogEntry{e}, false, i-1, i-1, nil, nil); err != nil {
+			t.Fatal(err)
+		}
+		retained += size(e)
+		if retained > threshold {
+			// The follower keeps the last applied entry as its snapshot anchor.
+			base = i - 2
+			retained = size(entries[i-2]) + size(e)
+			cuts = append(cuts, i)
+		}
+		if w.logIndex.BaseC != base || w.logSizeOnDisk() != retained {
+			t.Fatalf("write %d: compacted through %d, retained %d bytes; want %d and %d bytes",
+				i, w.logIndex.BaseC, w.logSizeOnDisk(), base, retained)
+		}
+	}
+	if len(cuts) < 2 || cuts[0] != 7 {
+		t.Fatalf("expected repeated compactions starting at write 7, got %v", cuts)
+	}
+	t.Logf("threshold %d bytes, compactions at writes %v", threshold, cuts)
+
+	// A leader change can replace an uncommitted suffix after compaction.
+	last := entries[len(entries)-1]
+	replacement := &RaftLogEntry{Index: last.Index, Term: 2, Ticket: &Ticket{Val: []byte("short")}}
+	if err := w.overwriteEntries(last.Index-1, []*RaftLogEntry{replacement}, false, last.Index-1, last.Index-1, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if want := retained - size(last) + size(replacement); w.logSizeOnDisk() != want {
+		t.Fatalf("retained %d bytes after overwrite, want %d", w.logSizeOnDisk(), want)
+	}
+	for i := range w.raftLog {
+		if _, err := w.loadRaftLogEntry(i, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.installedSnapshot(&RaftState{CompactionDiscardedLast: IndexTerm{Index: last.Index, Term: 2}})
+	if n := w.logSizeOnDisk(); n != 0 {
+		t.Fatalf("retained %d bytes after snapshot install", n)
+	}
+}
