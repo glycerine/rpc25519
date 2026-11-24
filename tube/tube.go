@@ -2564,8 +2564,24 @@ func (s *TubeNode) pruneDown(goner, keeper *cktPlus) {
 }
 
 func (s *TubeNode) deleteFromCktAll(oldCktP *cktPlus) {
-	//vv("%v deleteFromCktAll called on '%v'", s.me(), oldCktP)
-	oldCktP.Close() // shut down watchdog
+	oldCktP.Close()
+	s.removeCircuitMappings(oldCktP)
+}
+
+func (s *TubeNode) retireReplacedCircuit(old *cktPlus, next *rpc.Circuit) {
+	if old.isReplica() && next.RemoteServiceName == TUBE_REPLICA && old.PeerName == next.RemotePeerName &&
+		(old.PeerID == "" || old.PeerID == next.RemotePeerID) {
+		// When two replica dials cross, the incoming circuit can arrive
+		// before our outgoing dial receives its ACK. Let that dial finish
+		// installing the endpoint the remote has already selected.
+		old.stopWatchdog()
+	} else {
+		old.Close()
+	}
+	s.removeCircuitMappings(old)
+}
+
+func (s *TubeNode) removeCircuitMappings(oldCktP *cktPlus) {
 	s.parkedRemove(oldCktP) // do not leak it (CR-D-44)
 	// Peer IDs and names are reused on reconnect. Only remove mappings
 	// that still belong to this exact circuit (or pending watchdog).
@@ -17085,60 +17101,14 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	}
 	// INVAR: any oldCktP has a different ckt.CircuitID, or a different instance
 
-	samePeerID := false
-	// A replacement circuit from the same follower incarnation
-	// (same PeerID) keeps the leader's replication record.
+	// Keep the replication record when the circuit changes within the
+	// same follower incarnation.
 	var keepFoll *RaftNodeInfo
-	if haveOld && oldCktP.PeerID == ckt.RemotePeerID {
-		samePeerID = true
-		if f := s.peers[ckt.RemotePeerID]; f != nil && f.PeerName == ckt.RemotePeerName {
+	if haveOld {
+		if f := s.peers[ckt.RemotePeerID]; oldCktP.PeerID == ckt.RemotePeerID && f != nil && f.PeerName == ckt.RemotePeerName {
 			keepFoll = f
 		}
-		//vv("%v oldCktP.PeerID(%v) == ckt.RemotePeerID; and CircuitID differ=%v: will keep the lower lex sorting of circuitID", s.me(), oldCktP.PeerID, oldCktP.ckt.CircuitID != ckt.CircuitID) // not seen 057
-	}
-	if haveOld {
-		//vv("%v addToCktall have old ckt from '%v'", s.name, ckt.RemotePeerName) // not seen 057
-		if samePeerID {
-			if oldCktP.ckt.CircuitID != ckt.CircuitID {
-
-				// keep the smaller circuit. arg. still problems.
-				// what if we keep at most 2 circuits? the lower
-				// one as the primary, the other one just not
-				// killed? we can read from it but don't send on it.
-				// call them "dreadOnlyParked2ndCkt". Yes, just
-				// NOT closing the ckt below makes 057 happier.
-				// Ugh. still recycling drat. try keep all, but only
-				// sending on the latest?
-
-				//if oldCktP.ckt.CircuitID > ckt.CircuitID {
-				//vv("%v doing cleanup old ckt: have old ckt for ckt.RemotePeerID = '%v'; oldCkt = %p'", s.name, alias(ckt.RemotePeerID), oldCktP) // not seen on 057 now that we have suppressWatchdogs() called in handleAE.
-
-				// make room for new
-				s.deleteFromCktAll(oldCktP)
-				//s.parkedInsert(oldCktP)
-				//oldCktP.ckt.Close(nil)
-
-				//} else {
-				//	return oldCktP // and ignore the new one.
-				//}
-			} else {
-				vv("%v same circuit we already have, just ignore dup call to addToCktall for '%v'", s.name, oldCktP.PeerName) // not seen 057
-
-				if ckt != oldCktP.ckt {
-					panic(fmt.Sprintf("how did we get two different ckt that look the same? ckt='%v'; oldCktP.ckt = '%v'", ckt, oldCktP.ckt))
-				}
-				cktP = oldCktP
-				rejected = true
-				return
-			}
-		} else {
-			//vv("%v addToCktall: PeerID is different for '%v', let us take the new one only.", s.me(), oldCktP.PeerName) // not seen 057
-			s.deleteFromCktAll(oldCktP)
-			//s.parkedInsert(oldCktP)
-			//oldCktP.ckt.Close(nil)
-		}
-	} else {
-		//vv("%v addToCktall we see completely new ckt from '%v'; RemotePeerID='%v'", s.name, ckt.RemotePeerName, ckt.RemotePeerID)
+		s.retireReplacedCircuit(oldCktP, ckt)
 	}
 	cktP = s.newCktPlus(ckt.RemotePeerName, ckt.RemoteServiceName)
 	cktP.ckt = ckt
@@ -17154,8 +17124,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus, rejected bool) 
 	if prev := s.cktAllByName[cktP.PeerName]; prev != nil && prev != cktP && prev.ckt == nil {
 		// a pending entry for this name is replaced by a real
 		// circuit: retire its watchdog and parking (CR-D-44).
-		prev.Close()
-		s.parkedRemove(prev)
+		s.retireReplacedCircuit(prev, ckt)
 	}
 	s.cktAllByName[cktP.PeerName] = cktP
 	s.cktAuditByName.Set(ckt.RemotePeerName, ckt)
@@ -17406,19 +17375,22 @@ func (s *TubeNode) newCktPlus(peerName, peerServiceName string) *cktPlus {
 	return c
 }
 
-func (c *cktPlus) Close() {
-	// caller include :1244 in <-s.electionTimeoutCh:
-	//vv("%v cktPlus.Close called by stack=\n\n%v\n", c.node.me(), stack())
-	c.perCktWatchdogHalt.RequestStop()
-
-	// try to avoid leaking cktPlus -- counter-part to tube.go:16813 in newCktPlus().
-	c.node.Halt.RemoveChild(c.perCktWatchdogHalt)
-
+// stopWatchdog prevents further dials and returns ownership of any active
+// dial's cancellation. A replacement for the same replica lets it finish
+// under the peer context and its own timeout. A disconnect cancels it.
+func (c *cktPlus) stopWatchdog() context.CancelFunc {
 	c.latestCancFuncMut.Lock()
-	cancelFunc := c.latestCancFunc
+	c.perCktWatchdogHalt.RequestStop()
+	cancel := c.latestCancFunc
+	c.latestCancFunc = nil
 	c.latestCancFuncMut.Unlock()
-	if cancelFunc != nil {
-		cancelFunc()
+	c.node.Halt.RemoveChild(c.perCktWatchdogHalt)
+	return cancel
+}
+
+func (c *cktPlus) Close() {
+	if cancel := c.stopWatchdog(); cancel != nil {
+		cancel()
 	}
 	if !c.watchdogStarted.Load() {
 		// nothing to wait for: non-replica circuits have no

@@ -439,8 +439,12 @@ func (c *cktPlus) reconnect(pack *packReconnect, why string) (isUp bool, err err
 
 	t0 := time.Now()
 	_ = t0
-	ctxCanc, cancFunc := context.WithTimeout(context.Background(), errWriteDur)
 	c.latestCancFuncMut.Lock()
+	if c.perCktWatchdogHalt.ReqStop.IsClosed() {
+		c.latestCancFuncMut.Unlock()
+		return false, rpc.ErrHaltRequested
+	}
+	ctxCanc, cancFunc := context.WithTimeout(s.MyPeer.Ctx, errWriteDur)
 	c.latestCancFunc = cancFunc
 	c.latestCancFuncMut.Unlock()
 	// placeholder until we implement versions fully
