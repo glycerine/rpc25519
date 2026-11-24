@@ -189,72 +189,16 @@ func runChainBlocks(t *testing.T, seed, writes int64, voters int) {
 	}
 
 	t.Logf("seed %d, %d voters, %d writes, compaction threshold bytes %d", seed, voters, writes, cfg.CompactionThresholdBytes)
-	var lastIndex, acked, faults, swizzles int64
-	var lastFault string
+	var lastIndex, acked int64
+	faults := chainFaults{cluster: c, rng: rng, nodes: nodes}
 	defer func() {
-		t.Logf("seed %d: %d/%d acknowledged, %d faults including %d swizzles; last fault %s", seed, acked, writes, faults, swizzles, lastFault)
+		t.Logf("seed %d: %d/%d acknowledged, %d faults including %d swizzles; last fault %s", seed, acked, writes, faults.count, faults.swizzles, faults.last)
 	}()
-	var swizzleDone chan struct{}
-	active := false
-	heal := func() {
-		if swizzleDone != nil {
-			<-swizzleDone
-			swizzleDone = nil
-		}
-		if active {
-			c.AllHealthyAndPowerOn(rng.pseudoRandBool())
-			active = false
-		}
-	}
-	defer heal()
+	defer faults.heal()
 	for range writes {
-		// One Bernoulli trial per client command, including while faults are active.
+		// One Bernoulli trial per command, including while faults are active.
 		if rnd(3) == 0 {
-			heal()
-			faults++
-			victim := int(rnd(int64(voters)))
-			switch rnd(4) {
-			case 0:
-				plan := newSwizzleClog(rng, nodes, voters)
-				lastFault = fmt.Sprintf("swizzle at write %d: %+v", acked+1, plan)
-				swizzles++
-				done := make(chan struct{})
-				swizzleDone = done
-				go func() {
-					defer close(done)
-					plan.run(c)
-				}()
-			default:
-				leader = latestChainLeader(c, leader)
-				active = true
-				if victim == leader || rng.pseudoRandBool() {
-					lastFault = fmt.Sprintf("isolate voter %d at write %d", victim, acked+1)
-					c.IsolateNode(victim)
-					if victim == leader {
-						select {
-						case name := <-c.LeaderNoop0committedCh:
-							leader = c.Name2num[name]
-							if leader == victim {
-								t.Fatalf("isolated %s reported a new committed term", name)
-							}
-						case <-time.After(time.Minute):
-							t.Fatalf("no new leader after isolating %s", c.Nodes[victim].name)
-						}
-					}
-				} else {
-					p := 1.0
-					if rng.pseudoRandBool() {
-						p = rng.float64prob()
-					}
-					if rng.pseudoRandBool() {
-						lastFault = fmt.Sprintf("drop sends on voter %d p=%g at write %d", victim, p, acked+1)
-						c.Nodes[victim].DropSends(p)
-					} else {
-						lastFault = fmt.Sprintf("deaf reads on voter %d p=%g at write %d", victim, p, acked+1)
-						c.Nodes[victim].DeafToReads(p)
-					}
-				}
-			}
+			leader = faults.inject(t, leader, acked+1)
 		}
 		leader = latestChainLeader(c, leader)
 		payload := client.next()
@@ -264,13 +208,97 @@ func runChainBlocks(t *testing.T, seed, writes int64, voters int) {
 			return
 		}
 		if acked%10_000 == 0 {
-			t.Logf("seed %d: %d writes acknowledged, %d faults, %d swizzles", seed, acked, faults, swizzles)
+			t.Logf("seed %d: %d writes acknowledged, %d faults, %d swizzles", seed, acked, faults.count, faults.swizzles)
 		}
 	}
-	heal()
+	faults.heal()
 	for _, node := range c.Nodes {
 		checkChainHead(t, node, lastIndex, writes, client.digest)
 	}
+}
+
+type chainFaults struct {
+	cluster         *TubeCluster
+	rng             *prng
+	nodes           []int
+	done            chan struct{} // timed faults recover even if a client write blocks
+	partition       bool
+	count, swizzles int64
+	last            string
+}
+
+func (f *chainFaults) heal() {
+	if f.done != nil {
+		<-f.done
+		f.done = nil
+	}
+	if f.partition {
+		f.cluster.AllHealthyAndPowerOn(f.rng.pseudoRandBool())
+		f.partition = false
+	}
+}
+
+func (f *chainFaults) inject(t *testing.T, leader int, write int64) int {
+	t.Helper()
+	f.heal()
+	c, rng := f.cluster, f.rng
+	rnd := rng.pseudoRandNonNegInt64Range
+	leader = latestChainLeader(c, leader)
+	f.count++
+	victim := int(rnd(int64(len(f.nodes))))
+	node := c.Nodes[victim]
+	// All random choices depend only on the seed and write number. Elections
+	// can change where the client submits, without changing future faults.
+	switch rnd(4) {
+	case 0:
+		steps := newSwizzleClog(rng, f.nodes, len(f.nodes))
+		f.last = fmt.Sprintf("swizzle at write %d: %+v", write, steps)
+		f.swizzles++
+		done := make(chan struct{})
+		f.done = done
+		go func() {
+			defer close(done)
+			steps.run(c)
+		}()
+	case 1:
+		f.partition = true
+		f.last = fmt.Sprintf("isolate %s at write %d", node.name, write)
+		c.IsolateNode(victim)
+		if victim == leader {
+			select {
+			case name := <-c.LeaderNoop0committedCh:
+				leader = c.Name2num[name]
+				if leader == victim {
+					t.Fatalf("isolated %s reported a new committed term", name)
+				}
+			case <-time.After(time.Minute):
+				t.Fatalf("no new leader after isolating %s", node.name)
+			}
+		}
+	case 2, 3:
+		p := 1.0
+		if rng.pseudoRandBool() {
+			p = rng.float64prob()
+		}
+		if rng.pseudoRandBool() {
+			f.last = fmt.Sprintf("drop sends on %s p=%g at write %d", node.name, p, write)
+			node.DropSends(p)
+		} else {
+			f.last = fmt.Sprintf("deaf reads on %s p=%g at write %d", node.name, p, write)
+			node.DeafToReads(p)
+		}
+		delay := time.Duration(500+rnd(4501)) * time.Millisecond
+		deliver := rng.pseudoRandBool()
+		done := make(chan struct{})
+		f.done = done
+		go func() {
+			defer close(done)
+			time.Sleep(delay)
+			sim := c.Cfg.RpcCfg.GetSimnet()
+			panicOn(sim.RepairHost(node.srvname, false, false, false, deliver))
+		}()
+	}
+	return leader
 }
 
 // Consume committed-term notifications, including elections during a swizzle.

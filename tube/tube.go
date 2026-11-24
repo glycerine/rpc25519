@@ -3235,13 +3235,13 @@ type TubeNode struct {
 	PeerServiceName        string   `zid:"3"`
 	PeerServiceNameVersion string   `zid:"4"`
 
-	pushToPeerURL    chan string
-	MyPeer           *rpc.LocalPeer `msg:"-"`
+	pushToPeerURL chan string
+	MyPeer        *rpc.LocalPeer `msg:"-"`
 
 	// startRunning guards against a second concurrent Start
 	// loop on the same node (CR-D-34).
-	startRunning atomic.Bool
-	Halt             *idem.Halter   `msg:"-"`
+	startRunning     atomic.Bool
+	Halt             *idem.Halter `msg:"-"`
 	peerLeftCh       chan *cktPlus
 	gotNewPeerListCh chan []string
 
@@ -3411,7 +3411,7 @@ type TubeNode struct {
 	// cached election timeout param,
 	// these don't change after startup,
 	// so cache rather than recompute.
-	restartVoteDeadline         time.Time
+	restartVoteDeadline time.Time
 
 	// deferredCampaignCh fires at restartVoteDeadline when a
 	// campaign was requested inside the restart window; then
@@ -3419,8 +3419,8 @@ type TubeNode struct {
 	// pre-vote). The window delays such a request, it does not
 	// drop it: with no election timer running, nothing else would
 	// ever campaign.
-	deferredCampaignCh <-chan time.Time
-	deferredElection   bool
+	deferredCampaignCh          <-chan time.Time
+	deferredElection            bool
 	cachedMinElectionTimeoutDur time.Duration
 	cachedMaxElectionTimeoutDur time.Duration
 
@@ -18360,7 +18360,8 @@ func (s *TubeNode) applyNewStateSnapshot(snap *Snapshot, caller string, sendAck 
 		snapEnd := snap.AE.LogTermsRLE.lastIndex()
 		_, lcp, _ := snap.AE.LogTermsRLE.Extends(s.wal.getTermsRLE())
 		if lcp >= snapEnd && snapEnd <= s.wal.LastLogIndex() {
-			alwaysPrintf("%v ignoring stale state snapshot: our log already holds the snapshot's whole leader log (through %v; our lli=%v)", s.me(), snapEnd, s.wal.LastLogIndex())
+			// noisy under chainblocks_test.go
+			//alwaysPrintf("%v ignoring stale state snapshot: our log already holds the snapshot's whole leader log (through %v; our lli=%v)", s.me(), snapEnd, s.wal.LastLogIndex())
 			s.handleAppendEntries(snap.AE, sendAck)
 			return
 		}
