@@ -272,7 +272,24 @@ func (f *chainFaults) inject(t *testing.T, leader int, write int64) int {
 					t.Fatalf("isolated %s reported a new committed term", name)
 				}
 			case <-time.After(time.Minute):
-				t.Fatalf("no new leader after isolating %s", node.name)
+				// The channel only reports the leader's first no-op. A
+				// majority can already have a committed leader when we
+				// start waiting, for example just after a swizzle.
+				leader = -1
+				for i, voter := range c.Nodes {
+					look := voter.Inspect()
+					s := look.State
+					t.Logf("%s: role=%v term=%d leader=%s commit=%d applied=%d appliedTerm=%d lastIndex=%d lastTerm=%d",
+						voter.name, look.Role, s.CurrentTerm, look.CurrentLeaderName, s.CommitIndex,
+						s.LastApplied, s.LastAppliedTerm, look.LastLogIndex, look.LastLogTerm)
+					s.KVstore.Close()
+					if i != victim && look.Role == LEADER && s.LastAppliedTerm == s.CurrentTerm {
+						leader = i
+					}
+				}
+				if leader < 0 {
+					t.Fatalf("no majority leader committed in its term within one minute of isolating %s", node.name)
+				}
 			}
 		}
 	case 2, 3:
