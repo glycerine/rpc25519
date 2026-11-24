@@ -57,14 +57,14 @@ func runMemberFuzz(t *testing.T, seed, writes int64, initial int) {
 
 	for range writes {
 		n := len(voters)
-		nextSize, target := n, -1
+		next, target := voters, -1
 		change := acked > 0 && rng.pseudoRandNonNegInt64Range(8) == 0
 		if change {
 			faults.heal()
 			leader = waitMemberConfig(t, c, voters)
 			var candidates []int
-			if n == minVoters || (n < maxVoters && rng.pseudoRandBool()) {
-				nextSize++
+			add := n == minVoters || (n < maxVoters && rng.pseudoRandBool())
+			if add {
 				// Removed voters stay online as Tube's nonvoting shadows. Up
 				// to two additional processes can join this five-voter bootstrap.
 				for i := range min(len(c.Nodes)+1, maxVoters) {
@@ -73,7 +73,6 @@ func runMemberFuzz(t *testing.T, seed, writes int64, initial int) {
 					}
 				}
 			} else {
-				nextSize--
 				for _, i := range voters {
 					if i != leader {
 						candidates = append(candidates, i)
@@ -81,13 +80,21 @@ func runMemberFuzz(t *testing.T, seed, writes int64, initial int) {
 				}
 			}
 			target = candidates[rng.pseudoRandNonNegInt64Range(int64(len(candidates)))]
-			if target == len(c.Nodes) {
-				startMemberFuzzReplica(t, c, seed, writes)
+			next = slices.Clone(voters)
+			if add {
+				if target == len(c.Nodes) {
+					startMemberFuzzReplica(t, c, seed, writes)
+				}
+				next = append(next, target)
+				slices.Sort(next)
+			} else {
+				pos := slices.Index(next, target)
+				next = slices.Delete(next, pos, pos+1)
 			}
 		}
 
 		if faultRNG.pseudoRandNonNegInt64Range(3) == 0 {
-			faults.maxFaults = memberFaultBudget(n, nextSize)
+			faults.maxFaults = memberFaultBudget(n, len(next))
 			faults.nodes = faults.nodes[:0]
 			for _, i := range voters {
 				if change && (i == leader || i == target) {
@@ -103,34 +110,45 @@ func runMemberFuzz(t *testing.T, seed, writes int64, initial int) {
 			}
 		}
 
+		// Submit the client write while this change can still be in flight.
+		// Each membership request is reconciled before starting the next one.
+		var changeReply chan error
+		writeVoters := voters
 		if change {
-			var next []int
-			if nextSize > n {
-				next = append(slices.Clone(voters), target)
-				slices.Sort(next)
-			} else {
-				pos := slices.Index(voters, target)
-				next = slices.Delete(slices.Clone(voters), pos, pos+1)
+			changeReply = make(chan error, 1)
+			l, node := c.Nodes[leader], c.Nodes[target]
+			add := len(next) > n
+			if add {
+				// Either configuration could elect the leader that resolves a write.
+				writeVoters = next
 			}
-			changeMemberVoters(t, c, leader, target, voters, next, &faults)
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+				defer cancel()
+				changeReply <- requestMemberChange(ctx, l, node, add)
+			}()
+		}
+		leader = latestChainLeader(c, leader)
+		payload := client.next()
+		leader, lastIndex = submitChainBlock(t, c, leader, payload, &client, writeVoters)
+		acked++
+		if t.Failed() {
+			return
+		}
+
+		if change {
+			finishMemberChange(t, c, leader, target, voters, next, &faults, <-changeReply)
 			leader = waitMemberConfig(t, c, next)
-			if nextSize > n {
+			if len(next) > n {
 				adds++
 				checkChainHead(t, c.Nodes[target], lastIndex, acked, client.digest)
 			} else {
 				removes++
 			}
 			voters = next
-			minSeen, maxSeen = min(minSeen, nextSize), max(maxSeen, nextSize)
+			minSeen, maxSeen = min(minSeen, len(next)), max(maxSeen, len(next))
 		}
 
-		leader = latestChainLeader(c, leader)
-		payload := client.next()
-		leader, lastIndex = submitChainBlock(t, c, leader, payload, &client, voters)
-		acked++
-		if t.Failed() {
-			return
-		}
 		if acked == 1 || acked%1_000 == 0 {
 			t.Logf("seed %d: %d/%d writes acknowledged at committed index %d, %d voters, %d additions, %d removals, %d faults, %d swizzles",
 				seed, acked, writes, lastIndex, len(voters), adds, removes, faults.count, faults.swizzles)
@@ -182,48 +200,44 @@ func memberSetMatches(mc *MemberConfig, c *TubeCluster, voters []int) bool {
 	return true
 }
 
-// One non-forced voting change is in flight at a time. A lost acknowledgment
-// can leave the new configuration installed. Inspect the committed state
-// before deciding whether to retry the same change.
-func changeMemberVoters(t *testing.T, c *TubeCluster, leader, target int, old, next []int, f *chainFaults) {
+func requestMemberChange(ctx context.Context, leader, target *TubeNode, add bool) error {
+	if add {
+		_, _, err := target.AddPeerIDToCluster(ctx, false, false, target.name, target.PeerID, target.PeerServiceName, target.BaseServerHostPort(), leader.URL, 0)
+		return err
+	}
+	_, _, err := leader.RemovePeerIDFromCluster(ctx, false, false, target.name, target.PeerID, target.PeerServiceName, target.BaseServerHostPort(), leader.URL, 0)
+	return err
+}
+
+// A lost acknowledgment can leave the new configuration installed. Inspect
+// the committed state before deciding whether to retry the same change.
+func finishMemberChange(t *testing.T, c *TubeCluster, leader, target int, old, next []int, f *chainFaults, lastErr error) {
 	t.Helper()
+	f.heal()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	node := c.Nodes[target]
-	var lastErr error
-	for {
-		l := c.Nodes[leader]
-		if len(next) > len(old) {
-			_, _, lastErr = node.AddPeerIDToCluster(ctx, false, false, node.name, node.PeerID, node.PeerServiceName, node.BaseServerHostPort(), l.URL, 0)
-		} else {
-			_, _, lastErr = l.RemovePeerIDFromCluster(ctx, false, false, node.name, node.PeerID, node.PeerServiceName, node.BaseServerHostPort(), l.URL, 0)
+	for lastErr != nil {
+		if ctx.Err() != nil {
+			t.Fatalf("change voter %s from %v to %v: %v (last RPC: %v)", node.name, old, next, ctx.Err(), lastErr)
 		}
-		f.heal()
-		if lastErr == nil {
+		time.Sleep(c.Cfg.HeartbeatDur)
+		leader = latestChainLeader(c, leader)
+		look := c.Nodes[leader].Inspect()
+		if look.State == nil {
+			t.Fatalf("leader %s stopped during change: %v", c.Nodes[leader].name, lastErr)
+		}
+		look.State.KVstore.Close()
+		if look.Role != LEADER || look.State.LastAppliedTerm != look.State.CurrentTerm || look.MC == nil || !look.MC.IsCommitted {
+			continue
+		}
+		if memberSetMatches(look.MC, c, next) {
 			return
 		}
-		for {
-			if ctx.Err() != nil {
-				t.Fatalf("change voter %s from %v to %v: %v (last RPC: %v)", node.name, old, next, ctx.Err(), lastErr)
-			}
-			time.Sleep(c.Cfg.HeartbeatDur)
-			leader = latestChainLeader(c, leader)
-			look := c.Nodes[leader].Inspect()
-			if look.State == nil {
-				t.Fatalf("leader %s stopped during change: %v", c.Nodes[leader].name, lastErr)
-			}
-			look.State.KVstore.Close()
-			if look.Role != LEADER || look.State.LastAppliedTerm != look.State.CurrentTerm || look.MC == nil || !look.MC.IsCommitted {
-				continue
-			}
-			if memberSetMatches(look.MC, c, next) {
-				return
-			}
-			if !memberSetMatches(look.MC, c, old) {
-				t.Fatalf("unexpected committed configuration %s during change %v -> %v", look.MC.Short(), old, next)
-			}
-			break // Old configuration is still committed. Retry on its leader.
+		if !memberSetMatches(look.MC, c, old) {
+			t.Fatalf("unexpected committed configuration %s during change %v -> %v", look.MC.Short(), old, next)
 		}
+		lastErr = requestMemberChange(ctx, c.Nodes[leader], node, len(next) > len(old))
 	}
 }
 
