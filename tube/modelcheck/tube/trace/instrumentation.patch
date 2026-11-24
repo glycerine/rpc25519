@@ -1,0 +1,798 @@
+--- a/ckt.go
++++ b/ckt.go
+@@ -1163,6 +1163,10 @@
+ 	if ckt.CircuitID == "" {
+ 		ckt.CircuitID = NewCallID(circuitName)
+ 	}
++	if tlaTransportOn() { // TLA+ trace: dialer side of the circuit
++		tlaTransport(TLATransportEvent{Name: "NewCircuit", LocalPeerID: lpb.PeerID,
++			LocalPeerName: lpb.PeerName, CallID: ckt.CircuitID, IsDialer: isRemoteSide == onOriginLocalSide})
++	}
+ 
+ 	//if ckt.CircuitSN == 199 || ckt.CircuitSN == 188 {
+ 	//vv("CircuitSN: %v, made at stack \n %v \n", ckt.CircuitSN, stack())
+--- a/ckt2.go
++++ b/ckt2.go
+@@ -174,6 +174,11 @@
+ 	// frag = p.u.newFragment()
+ 
+ 	circuitID := NewCallID(circuitName)
++	if callCtx != nil && tlaTransportOn() {
++		if id, ok := callCtx.Value(tlaDialIDKey{}).(*string); ok {
++			*id = circuitID
++		}
++	}
+ 	if frag == nil {
+ 		frag = p.u.newFragment()
+ 	}
+--- a/cli.go
++++ b/cli.go
+@@ -431,6 +431,15 @@
+ 	cliLocalAddr := c.LocalAddr()
+ 	_ = cliLocalAddr
+ 
++	// TLA+ trace: ConnAbort when this read loop exits on a read error/EOF.
++	tlaReadErr := false
++	defer func() {
++		if tlaReadErr && tlaTransportOn() {
++			tlaTransport(TLATransportEvent{Name: "ConnAbort", ServerName: c.cfg.BaseServerName,
++				RemoteName: c.cfg.ClientDialToHostPort})
++		}
++	}()
++
+ 	//vv("about to make a newBlabber for client read loop; c.cfg = %p ", c.cfg)
+ 	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, c.cfg, nil, cpair)
+ 
+@@ -466,6 +475,7 @@
+ 				panic("should not have a message if error back!")
+ 			}
+ 			if !clientReadLoopShouldContinue(err) {
++				tlaReadErr = true
+ 				return
+ 			}
+ 		}
+@@ -551,6 +561,11 @@
+ 				alwaysPrintf("cli readLoop shutting down on unexpected CallPeerTraffic/WithServiceFallback/Error")
+ 				return
+ 			default:
++			}
++			if tlaTransportOn() {
++				tlaTransport(TLATransportEvent{Name: "DropStaleTarget", ServerName: c.cfg.BaseServerName,
++					RemoteName: c.cfg.ClientDialToHostPort, FromPeerID: msg.HDR.FromPeerID, ToPeerID: msg.HDR.ToPeerID,
++					CallID: msg.HDR.CallID, MsgType: msg.HDR.Typ.String()})
+ 			}
+ 			continue
+ 		}
+--- a/pump.go
++++ b/pump.go
+@@ -226,6 +226,11 @@
+ 					// we have not yet instantiated a circuit. Do so? No.
+ 					// For now we have client do a CallPeerStartCircuit call.
+ 				}
++				if tlaTransportOn() && callID != "" { // TLA+ trace: DropUnroutable
++					tlaTransport(TLATransportEvent{Name: "DropUnroutable", LocalPeerID: pb.PeerID,
++						LocalPeerName: pb.PeerName, FromPeerID: msg.HDR.FromPeerID,
++						ToPeerID: msg.HDR.ToPeerID, CallID: callID, MsgType: msg.HDR.Typ.String()})
++				}
+ 				continue
+ 			}
+ 			if msg.HDR.FromPeerID == "node_0" {
+@@ -234,6 +239,11 @@
+ 			if msg.HDR.Typ == CallPeerEndCircuit {
+ 				//vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg)
+ 				cleanupCkt(ckt, false)
++				if tlaTransportOn() { // TLA+ trace: HandleEndCircuit
++					tlaTransport(TLATransportEvent{Name: "HandleEndCircuit", LocalPeerID: pb.PeerID,
++						LocalPeerName: pb.PeerName, FromPeerID: msg.HDR.FromPeerID,
++						ToPeerID: msg.HDR.ToPeerID, CallID: callID, MsgType: msg.HDR.Typ.String()})
++				}
+ 				//zz("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg. back from cleanupCkt, about to continue: '%v'", name, ckt.Name, msg)
+ 				continue
+ 			}
+@@ -388,6 +398,11 @@
+ 			//vv("pump %v: ckt ok=%v on errorsIn", name, ok)
+ 			if !ok {
+ 				//vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
++				if tlaTransportOn() && callID != "" { // TLA+ trace: DropUnroutable
++					tlaTransport(TLATransportEvent{Name: "DropUnroutable", LocalPeerID: pb.PeerID,
++						LocalPeerName: pb.PeerName, FromPeerID: msgerr.HDR.FromPeerID,
++						ToPeerID: msgerr.HDR.ToPeerID, CallID: callID, MsgType: msgerr.HDR.Typ.String()})
++				}
+ 				continue
+ 			}
+ 			//vv("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
+--- a/srv.go
++++ b/srv.go
+@@ -662,6 +662,15 @@
+ 	localAddr := local(conn)
+ 	remoteAddr := remote(conn)
+ 
++	// TLA+ trace: ConnAbort when this read loop exits on a read error/EOF.
++	tlaReadErr := false
++	defer func() {
++		if tlaReadErr && tlaTransportOn() {
++			tlaTransport(TLATransportEvent{Name: "ConnAbort", ServerName: s.Server.name,
++				RemoteName: remoteAddr})
++		}
++	}()
++
+ 	symkey := s.cfg.preSharedKey
+ 	if s.cfg.encryptPSK {
+ 		s.mut.Lock()
+@@ -702,6 +711,7 @@
+ 			// shutdown this connection or we'll just
+ 			// spin here at 500% cpu.
+ 			stopReason = fmt.Sprintf("err==io.EOF s.halt=%p", s.halt)
++			tlaReadErr = true
+ 			return
+ 		}
+ 		if err != nil {
+@@ -743,6 +753,7 @@
+ 				alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
+ 			}
+ 			stopReason = fmt.Sprintf("some other error s.halt=%p ; err='%v'", s.halt, err)
++			tlaReadErr = true
+ 			return
+ 		}
+ 		if req == nil {
+@@ -843,6 +854,11 @@
+ 				stopReason = fmt.Sprintf("CallPeerTraffic|CallPeerError|CallPeerTrafficWithServiceFallback during shutdown s.halt=%p ; req='%v'", s.halt, req)
+ 				return
+ 			default:
++			}
++			if tlaTransportOn() {
++				tlaTransport(TLATransportEvent{Name: "DropStaleTarget", ServerName: s.Server.name,
++					RemoteName: remoteAddr, FromPeerID: req.HDR.FromPeerID, ToPeerID: req.HDR.ToPeerID,
++					CallID: req.HDR.CallID, MsgType: req.HDR.Typ.String()})
+ 			}
+ 			continue
+ 		}
+--- a/tube/par.go
++++ b/tube/par.go
+@@ -2353,6 +2353,7 @@
+ 			// own checksum-valid, chained bytes locally rather than wait
+ 			// for a donor that cannot exist (CR-D-49, CR-9).
+ 			if s.parIdentifyInterruptedLocally(candidateSlot, candidate) {
++				s.tlaEmit("ParIdentifyInterrupted", tkv{"index", candidate.Index})
+ 				return
+ 			}
+ 		}
+@@ -2416,6 +2417,17 @@
+ 		return
+ 	}
+ 	if decision == parRepair {
++		tlaDonor := ""
++		for name, reply := range p.round.replies {
++			if reply.Kind == parValid && (tlaDonor == "" || name < tlaDonor) {
++				tlaDonor = name
++			}
++		}
++		defer func() {
++			if p.round == nil { // the repair succeeded (failures keep the round)
++				s.tlaEmit("ParRecoverFromDonor", tkv{"donor", tlaDonor}) // TLA+ trace
++			}
++		}()
+ 		var err error
+ 		if rebuild {
+ 			err = parInstallIdentifier(s.wal.path, int64(slot), p.round.target, data)
+@@ -2685,6 +2697,7 @@
+ 	request.FragOp = RequestStateSnapshot
+ 	request.FragSubject = "PAR needs verified snapshot history"
+ 	_ = s.SendOneWay(c.ckt, request, -1, 0)
++	s.tlaEmit("ParRequestSnapshot") // TLA+ trace
+ }
+ 
+ func (s *TubeNode) parSnapshotAllowed(snap *Snapshot) bool {
+@@ -2902,6 +2915,8 @@
+ 		old.parentDirFd.Close()
+ 	}
+ 	p.active, p.unknown, p.round = false, false, nil
++	s.tlaPendSet("ParFinish")
++	defer s.tlaPendFlush()
+ 	p.chunks = nil
+ 	p.generation++
+ 	if p.pendingLeader && s.role == LEADER {
+--- a/tube/persistor.go
++++ b/tube/persistor.go
+@@ -290,6 +290,7 @@
+ 		panicOn(s.parRetireInitialState())
+ 		s.parInitial = false
+ 	}
++	tlaNoteSaved(state) // TLA+ trace: durable term/vote now on disk
+ 	return
+ }
+ 
+--- a/tube/tube.go
++++ b/tube/tube.go
+@@ -837,6 +837,7 @@
+ 	s.myid = rpc.AliasDecode(myPeer.PeerID)
+ 	s.URL = myPeer.URL()
+ 	s.PeerID = myPeer.PeerID
++	s.tlaRegisterStart() // TLA+ trace: incarnation; reserves Restart for restarts
+ 
+ 	//vv("%v: node.Start() top. myPeer.PeerID = '%v'", s.name, myPeer.PeerID)
+ 
+@@ -912,6 +913,7 @@
+ 		if err != nil {
+ 			return
+ 		}
++		s.tlaNoteLoaded() // TLA+ trace: durable term/vote as loaded
+ 
+ 		// make sure our wal and state are sycned at load time;
+ 		s.parAfterRestore()
+@@ -1103,6 +1105,8 @@
+ 	arrivingNetworkFrag := make(chan fragCkt)
+ 
+ 	//vv("%v about to enter for/select loop. nextElection timeout '%v'; MC=%v ; cfg.Node2Addr = '%v'", s.me(), time.Until(s.nextElection), s.state.MC, s.cfg.Node2Addr)
++
++	s.tlaStartupDone() // TLA+ trace: fill the reserved Restart event
+ 
+ 	var loopPrevBeg, loopCurBeg time.Time
+ 	for i := 0; ; i++ {
+@@ -1176,6 +1180,7 @@
+ 		// wal/raft log.
+ 
+ 		var err error
++		s.tlaStepBegin() // TLA+ trace: new event-loop step
+ 		select {
+ 		case <-s.batchSubmitTimeCh:
+ 			//vv("%v <-s.batchSubmitTimeCh fired", s.name)
+@@ -1203,6 +1208,7 @@
+ 		if s.par != nil && s.par.active {
+ 			parRecovery = s.par.tick
+ 		}
++		s.tlaStepBegin() // TLA+ trace: new event-loop step
+ 		select {
+ 		case <-s.hupRequestCIDsCh:
+ 			s.handleHUPLoggingCIDs()
+@@ -1226,7 +1232,11 @@
+ 				//vv("%v <-s.leaderSendsHeartbeatsCh fired, term=%v: %v ; followers='%v'", s.me(), s.state.CurrentTerm, s.countLeaderHeartbeat, s.followers())
+ 				//}
+ 			}
++			tlaHB := s.role == LEADER && !s.parBlocked()
+ 			s.leaderSendsHeartbeats(false)
++			if tlaHB {
++				s.tlaEmit("LeaderHeartbeat") // TLA+ trace
++			}
+ 			continue
+ 
+ 		case ckt := <-s.setLeaderCktChan:
+@@ -1260,7 +1270,9 @@
+ 			return rpc.ErrHaltRequested
+ 			//return ErrShutDown
+ 		case <-s.deferredCampaignCh:
++			s.tlaPendSet("RunDeferredCampaign")
+ 			s.runDeferredCampaign()
++			s.tlaPendFlush()
+ 
+ 		case <-s.testBeginElection:
+ 			//s.ay("%v s.testBeginElection fired", s.me())
+@@ -1275,6 +1287,7 @@
+ 			// Retire only the circuit whose reader exited.
+ 			s.cleanupGoneCktP(goneCkt)
+ 			s.deleteFromCktAll(goneCkt)
++			s.tlaEmit("HandlePeerLeft", s.tlaCktFields(goneCkt.ckt)...) // TLA+ trace
+ 		case ins := <-s.requestInpsect:
+ 			//s.ay("%v requestInspect", s.me())
+ 			s.inspectHandler(ins)
+@@ -1382,17 +1395,21 @@
+ 			// verify we are in phase 2 and this isn't a spurious or
+ 			// racy wake up; also that the term we won the
+ 			// pre-vote for is still viable to stand for.
++			s.tlaPendSet("PreVotePhase2Timeout") // TLA+ trace (split becomeLeader)
+ 			if s.role != FOLLOWER {
+ 				// already a leader or candidate, probably
+ 				// just a racy alarm. ignore.
++				s.tlaPendFlush(tkv{"exit", "notFollower"})
+ 				continue
+ 			}
+ 			if s.preVoteTerm > 0 {
+ 				//vv("%v preVoteOkLeaderElecTimeoutCh in another phase one, can't do phase 2 yet.", s.me())
++				s.tlaPendFlush(tkv{"exit", "phase1Going"})
+ 				continue
+ 			}
+ 			if s.preVoteOkLeaderElecDeadline.IsZero() {
+ 				//vv("%v preVoteOkLeaderElecTimeoutCh not in phase two, hmm..", s.me())
++				s.tlaPendFlush(tkv{"exit", "notPhase2"})
+ 				continue
+ 			}
+ 			if s.preVoteOkLeaderElecTerm != s.state.CurrentTerm+1 {
+@@ -1400,6 +1417,7 @@
+ 				//	" != s.state.CurrentTerm+1(%v): no longer the pre-vote "+
+ 				//	"we won. probably had another leader come in.", s.me(),
+ 				//	s.preVoteOkLeaderElecTerm, s.state.CurrentTerm+1)
++				s.tlaPendFlush(tkv{"exit", "staleTerm"})
+ 				continue
+ 			}
+ 
+@@ -1407,6 +1425,7 @@
+ 
+ 			s.preVotePhase2EndedAt = now
+ 			s.beginElection()
++			s.tlaPendFlush(tkv{"exit", "beginElection"})
+ 			continue
+ 
+ 		case <-s.electionTimeoutCh:
+@@ -1418,6 +1437,7 @@
+ 			s.countElections++
+ 			s.lastElectionTimeOut = time.Now()
+ 			s.lastElectionTimeCount = s.countElections
++			s.tlaPendSet("ElectionTimeout") // TLA+ trace
+ 
+ 			s.errorOutAwaitingLeaderTooLongTickets()
+ 
+@@ -1493,6 +1513,7 @@
+ 					s.lastLeaderActiveStepDown = time.Now()
+ 					s.becomeFollower(s.state.CurrentTerm, nil, SAVE_STATE)
+ 
++					s.tlaPendFlush(tkv{"exit", "leaderPongStepDown"})
+ 					continue
+ 				}
+ 				// WHY? regularly check for step down? not sure but it is needed:
+@@ -1509,6 +1530,7 @@
+ 				// deterministically, at log time, as entries
+ 				// are applied (commitWhatWeCan).
+ 
++				s.tlaPendFlush(tkv{"exit", "leader"})
+ 				continue
+ 				// end if leader
+ 			} else {
+@@ -1544,6 +1566,7 @@
+ 			// should always be on now.
+ 			//vv("%v calling beginPreVote", s.me())
+ 			s.beginPreVote()
++			s.tlaPendFlush(tkv{"exit", "beginPreVote"})
+ 			continue
+ 
+ 		case tkt := <-s.singleUpdateMembershipReqCh:
+@@ -1822,10 +1845,14 @@
+ 
+ 	case RequestStateSnapshot:
+ 		//vv("%v sees frag.FragOp RequestStateSnapshot", s.name)
++		s.tlaPendSet("HandleRequestStateSnapshot", tlaMsgFrom(frag))
+ 		s.handleRequestStateSnapshot(frag, ckt, fmt.Sprintf("frag.FragOp=RequestStateSnapshot from '%v'", frag.FromPeerName))
++		s.tlaPendFlush()
+ 
+ 	case StateSnapshotEnclosed:
++		s.tlaPendSet("HandleStateSnapshot", tlaMsgSnap(frag))
+ 		s.handleStateSnapshotEnclosed(frag, ckt, fmt.Sprintf("frag with FragOp==StateSnapshotEnclosed from '%v'", ckt.RemotePeerName))
++		s.tlaPendFlush()
+ 
+ 	case CircuitSetupHasBaseServerAddr:
+ 		// the first frag of a new circuit setup.
+@@ -1862,7 +1889,9 @@
+ 			return s.dropFrag(frag, "wrong ClusterID in payload")
+ 		}
+ 		//vv("%v sees RequestPreVote '%v'", s.me(), reqPreVote)
++		s.tlaPendSet("HandleRequestPreVote", tlaMsgRV(frag, reqPreVote))
+ 		s.handleRequestPreVote(reqPreVote, ckt)
++		s.tlaPendFlush()
+ 
+ 	case PreVoteMsg:
+ 		//s.ay("%v PreVoteMsg", s.me())
+@@ -1877,7 +1906,9 @@
+ 			return s.dropFrag(frag, "wrong ClusterID in payload")
+ 		}
+ 		//vv("%v sees RequestPreVote '%v'", s.me(), preVote)
++		s.tlaPendSet("HandlePreVote", tlaMsgVote(frag, preVote))
+ 		s.tallyPreVote(preVote)
++		s.tlaPendFlush()
+ 
+ 	case LeaderToClientTicketAppliedMsg:
+ 		//vv("%v LeaderToClientTicketAppliedMsg", s.me())
+@@ -1994,7 +2025,9 @@
+ 		if reqVote.ClusterID != s.ClusterID {
+ 			return s.dropFrag(frag, "wrong ClusterID in payload")
+ 		}
++		s.tlaPendSet("HandleRequestVote", tlaMsgRV(frag, reqVote))
+ 		s.handleRequestVote(reqVote, ckt)
++		s.tlaPendFlush()
+ 		return nil
+ 
+ 	case VoteMsg:
+@@ -2009,7 +2042,9 @@
+ 			//vv("%v wrong ClusterID VoteMsg='%v'", s.me(), vote)
+ 			return s.dropFrag(frag, "wrong ClusterID in payload")
+ 		}
++		s.tlaPendSet("HandleVote", tlaMsgVote(frag, vote))
+ 		s.tallyVote(vote)
++		s.tlaPendFlush()
+ 
+ 	case AppendEntriesMsg:
+ 		//s.ay("%v AppendEntriesMsg", s.me())
+@@ -2025,7 +2060,10 @@
+ 			//vv("%v wrong ClusterID ae='%v'", s.me(), ae)
+ 			return s.dropFrag(frag, "wrong ClusterID in payload")
+ 		}
++		s.tlaPendSet("HandleAppendEntries", tlaMsgAE(frag, ae))
++		s.tla.aeBranch = ""
+ 		s.handleAppendEntries(ae, true)
++		s.tlaPendFlush(tkv{"branch", s.tla.aeBranch})
+ 
+ 		// Ugh. checking isFollowerKaput causes
+ 		// pre-mature shutdown of node_4
+@@ -2056,7 +2094,10 @@
+ 			//vv("%v wrong ClusterID aeAck='%v'", s.me(), aeAck)
+ 			return s.dropFrag(frag, "wrong ClusterID in payload")
+ 		}
+-		if err0 := s.handleAppendEntriesAck(aeAck, ckt); err0 != nil {
++		s.tlaPendSet("HandleAppendEntriesAck", tlaMsgAEA(frag, aeAck))
++		err0 := s.handleAppendEntriesAck(aeAck, ckt)
++		s.tlaPendFlush(s.tlaAckPeerRec(aeAck.FromPeerID)...)
++		if err0 != nil {
+ 			return err0 // try shutdown on commited MC without us.
+ 		}
+ 
+@@ -2323,6 +2364,7 @@
+ 				lastHeard = time.Now()
+ 				//zz("%v: (ckt '%v') fragerr = '%v'", s.name, ckt.Name, fragerr)
+ 				_ = fragerr
++				s.tlaPeerError(ckt, fragerr) // TLA+ trace: HandlePeerError
+ 				select {
+ 				case cktHasError <- &cktAndError{ckt: ckt, fragerr: fragerr}:
+ 				case <-s.Halt.ReqStop.Chan:
+@@ -2362,6 +2404,7 @@
+ 		}
+ 
+ 	}(ckt, cktP, ckt.CircuitSN)
++	s.tlaEmit("HandleNewCircuit", s.tlaCktFields(ckt)...) // TLA+ trace
+ 	return
+ }
+ 
+@@ -2458,6 +2501,7 @@
+ 			// ckt has closed.
+ 		}
+ 	}
++	tlaPruned := make([]tkv, 0)
+ 	for _, cktP := range auditByCID {
+ 		// this garbage collects the circuits that
+ 		// pruning otherwise misses.
+@@ -2471,8 +2515,14 @@
+ 			continue
+ 		}
+ 		//vv("deleting cktP in auditByCID but not in cktall: '%v'", cktP.ckt.CircuitID)
++		if ctxLive(cktP.ckt.Context) {
++			tlaPruned = append(tlaPruned, tkv{cktP.ckt.CircuitID, tlaPeerRef(cktP.ckt.RemotePeerID)})
++		}
+ 		cktP.Close() // stop watchdog, fire cancel func.
+ 		cktP.ckt.Close(ErrPruned)
++	}
++	if len(tlaPruned) > 0 {
++		s.tlaEmit("AuditGC", tkv{"pruned", tlaMsgObj(tlaPruned)})
+ 	}
+ 	s.expireAbandonedTickets()
+ 	s.pruneDupClientCktCheckCh = time.After(s.pruneDupDur)
+@@ -2563,7 +2613,7 @@
+ 
+ func (s *TubeNode) deleteFromCktAll(oldCktP *cktPlus) {
+ 	//vv("%v deleteFromCktAll called on '%v'", s.me(), oldCktP)
+-	oldCktP.Close() // shut down watchdog
++	oldCktP.Close()         // shut down watchdog
+ 	s.parkedRemove(oldCktP) // do not leak it (CR-D-44)
+ 	// Peer IDs and names are reused on reconnect. Only remove mappings
+ 	// that still belong to this exact circuit (or pending watchdog).
+@@ -3159,6 +3209,8 @@
+ type TubeNode struct {
+ 	cfg TubeConfig
+ 
++	tla tlaNodeState // TLA+ trace harness state (tla_trace.go)
++
+ 	Ctx context.Context `msg:"-"` // from s.MyPeer.Ctx once available
+ 
+ 	// shutdown might need to do different
+@@ -3217,13 +3269,13 @@
+ 	PeerServiceName        string   `zid:"3"`
+ 	PeerServiceNameVersion string   `zid:"4"`
+ 
+-	pushToPeerURL    chan string
+-	MyPeer           *rpc.LocalPeer `msg:"-"`
++	pushToPeerURL chan string
++	MyPeer        *rpc.LocalPeer `msg:"-"`
+ 
+ 	// startRunning guards against a second concurrent Start
+ 	// loop on the same node (CR-D-34).
+-	startRunning atomic.Bool
+-	Halt             *idem.Halter   `msg:"-"`
++	startRunning     atomic.Bool
++	Halt             *idem.Halter `msg:"-"`
+ 	peerLeftCh       chan *cktPlus
+ 	gotNewPeerListCh chan []string
+ 
+@@ -3393,7 +3445,7 @@
+ 	// cached election timeout param,
+ 	// these don't change after startup,
+ 	// so cache rather than recompute.
+-	restartVoteDeadline         time.Time
++	restartVoteDeadline time.Time
+ 
+ 	// deferredCampaignCh fires at restartVoteDeadline when a
+ 	// campaign was requested inside the restart window; then
+@@ -3401,8 +3453,8 @@
+ 	// pre-vote). The window delays such a request, it does not
+ 	// drop it: with no election timer running, nothing else would
+ 	// ever campaign.
+-	deferredCampaignCh <-chan time.Time
+-	deferredElection   bool
++	deferredCampaignCh          <-chan time.Time
++	deferredElection            bool
+ 	cachedMinElectionTimeoutDur time.Duration
+ 	cachedMaxElectionTimeoutDur time.Duration
+ 
+@@ -6420,8 +6472,12 @@
+ 	if s.wal.logSizeOnDisk() > s.wal.compactionThresholdBytes { // over 6MB, then compact (if compact on).
+ 		didCompact := s.wal.maybeCompact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
+ 		if !s.cfg.NoLogCompaction && !didCompact {
++			tlaBase := s.state.CompactionDiscardedLast.Index
+ 			_, _, err := s.wal.Compact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
+ 			panicOn(err)
++			if s.state.CompactionDiscardedLast.Index > tlaBase { // TLA+ trace: base advanced
++				s.tlaEmit("Compact", tkv{"where", "replicateTicket"})
++			}
+ 		}
+ 	}
+ 	//if true {
+@@ -6710,6 +6766,7 @@
+ 		for _, tkt := range batch {
+ 			tkt.Stage += ":_batch_cluster_size_1_immediate_commit"
+ 		}
++		s.tlaEmit("ClientRequest", tkv{"nents", len(es)}) // TLA+ trace
+ 		return
+ 	}
+ 
+@@ -6718,6 +6775,7 @@
+ 	for _, tkt := range batch {
+ 		tkt.Stage += ":_batch_bcastAppendEntries_called"
+ 	}
++	s.tlaEmit("ClientRequest", tkv{"nents", len(es)}) // TLA+ trace
+ 	return
+ }
+ 
+@@ -7014,6 +7072,8 @@
+ 	}
+ 	s.role = CANDIDATE
+ 	s.persistSelfVote()
++	s.tlaPendFlush(tkv{"exit", "persistSelfVote"})
++	s.tlaPendSet("ResumeCampaign")
+ 
+ 	// discard as stale (section 6.2)
+ 	s.leaderID = ""
+@@ -7117,6 +7177,7 @@
+ 		left--
+ 	}
+ 	s.resetElectionTimeout("end of beginElection")
++	s.tlaPendFlush()
+ }
+ 
+ // includes ourselves in the count (if we are in s.state.MC)
+@@ -7689,9 +7750,11 @@
+ 
+ 	s.dispatchAwaitingLeaderTickets()
+ 
++	s.tlaBecomeLeaderBeforeSave() // TLA+ trace: triggering event, post-broadcast state
+ 	if s.saver != nil {
+ 		s.saver.save(s.state)
+ 	}
++	s.tlaEmit("BecomeLeaderSave") // TLA+ trace
+ 	// client sessions were with the old leader and otherwise
+ 	// may not know to contact the new one.
+ 	s.notifyClientSessionsOfNewLeader()
+@@ -8110,6 +8173,7 @@
+ 
+ 	if s.parBlocked() {
+ 		s.parObserveAE(ae)
++		s.tla.aeBranch = "ParObserve" // TLA+ trace
+ 		return
+ 	}
+ 
+@@ -8206,6 +8270,7 @@
+ 		s.host.choice(report)
+ 		alwaysPrintf(report)
+ 		//vv("%v early AE return 0", s.name)
++		s.tla.aeBranch = "BadTerm" // TLA+ trace
+ 		return
+ 	}
+ 
+@@ -8347,6 +8412,7 @@
+ 		ack.RejectReason = fmt.Sprintf("term too low: ae.Term(%v) < s.state.CurrentTerm(%v)", ae.LeaderTerm, s.state.CurrentTerm)
+ 		s.host.ackAE(ack, ae, sendAck)
+ 		//vv("%v early AE return 1", s.name)
++		s.tla.aeBranch = "RejectTerm" // TLA+ trace
+ 		return
+ 	}
+ 
+@@ -8456,6 +8522,7 @@
+ 		reject = true
+ 	}
+ 	if reject {
++		s.tla.aeBranch = "Mismatch"
+ 		alsoGap := ae.PrevLogIndex > largestCommonRaftIndex
+ 		ack.RejectReason = fmt.Sprintf("ae.PrevLogIndex(%v) not compatible. conflictTerm=%v, conflictTerm1stIndex=%v; largestCommonRaftIndex=%v; alsoGap=%v (true if ae.PrevLogIndex(%v) > largestCommonRaftIndex(%v))", ae.PrevLogIndex, conflictTerm, conflictTerm1stIndex, largestCommonRaftIndex, alsoGap, ae.PrevLogIndex, largestCommonRaftIndex)
+ 
+@@ -8496,6 +8563,7 @@
+ 		ack.LogsMatchExactly = true
+ 		s.host.ackAE(ack, ae, sendAck)
+ 		//vv("%v early AE return 2", s.name)
++		s.tla.aeBranch = "UpToDate" // TLA+ trace
+ 		return
+ 	}
+ 	if numNew == 0 { // isHeartbeat equivalent
+@@ -8504,6 +8572,7 @@
+ 		s.host.choice(ack.RejectReason)
+ 		s.host.ackAE(ack, ae, sendAck)
+ 		//vv("%v early AE return 4", s.name)
++		s.tla.aeBranch = "HeartbeatReject" // TLA+ trace
+ 		return
+ 	}
+ 
+@@ -8523,6 +8592,7 @@
+ 		ack.RejectReason = fmt.Sprintf("gap: need earlier in leader log: ae.PrevLogIndex(%v) > largestCommonRaftIndex(%v)", ae.PrevLogIndex, largestCommonRaftIndex)
+ 		s.host.ackAE(ack, ae, sendAck)
+ 		//vv("%v early AE return 5", s.name)
++		s.tla.aeBranch = "GapReject" // TLA+ trace
+ 		return
+ 	}
+ 	// INVAR: we should be able to do something, if
+@@ -8551,6 +8621,7 @@
+ 			ack.RejectReason = fmt.Sprintf("cannot gap: entriesIdxBeg(%v) > largestCommonRaftIndex+1(%v)", entriesIdxBeg, largestCommonRaftIndex+1)
+ 			s.host.ackAE(ack, ae, sendAck)
+ 			//vv("%v early AE return 6", s.name)
++			s.tla.aeBranch = "CannotGap" // TLA+ trace
+ 			return
+ 		} // else we can apply (append or overwrite, or both).
+ 
+@@ -8583,6 +8654,7 @@
+ 			ack.Rejected = false
+ 			s.host.ackAE(ack, ae, sendAck)
+ 			//vv("%v early AE return 7", s.name)
++			s.tla.aeBranch = "NothingNew" // TLA+ trace
+ 			return
+ 		}
+ 		// !extends. no gap. Cannot just append. entriesIdxEnd > lcp.
+@@ -8611,6 +8683,7 @@
+ 			ack.RejectReason = fmt.Sprintf("nothing new after clipping off redundant. largestCommonRaftIndex(%v); ae=[%v,%v)", largestCommonRaftIndex, entriesIdxBeg, entriesIdxEnd+1)
+ 			s.host.ackAE(ack, ae, sendAck)
+ 			//vv("%v early AE return 8", s.name)
++			s.tla.aeBranch = "NothingNew" // TLA+ trace
+ 			return
+ 		}
+ 		writeBegIdx := neededEntries[0].Index
+@@ -8634,6 +8707,7 @@
+ 
+ 		err := s.wal.overwriteEntries(keepCount, neededEntries, false, prevci, s.state.LastApplied, &s.state.CompactionDiscardedLast, s) // prefer to pass prevci
+ 		if err == errProtectedLogEntry {
++			s.tla.aeBranch = "Protected"
+ 			ack.RejectReason = err.Error()
+ 			ack.NeedSnapshotGap = true
+ 			s.host.ackAE(ack, ae, sendAck)
+@@ -8644,7 +8718,8 @@
+ 			s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
+ 		}
+ 		didAddOrOverData = true
+-		done = true // don't call s.wal.overwriteEntries() again below.
++		done = true                  // don't call s.wal.overwriteEntries() again below.
++		s.tla.aeBranch = "Overwrite" // TLA+ trace (common tail follows)
+ 
+ 	} // end !extends
+ 
+@@ -8673,12 +8748,14 @@
+ 				numOverwrote = 0
+ 				numTruncated = 0
+ 				numAppended = 0
++				s.tla.aeBranch = "ExtendsNoData" // TLA+ trace (common tail follows)
+ 			case from < 0:
+ 				//vv("keepCount = %v; from = %v; entriesIdxBeg = %v", keepCount, from, entriesIdxBeg) // keepCount = 0; from = -1; entriesIdxBeg = 2
+ 				ack.RejectReason = fmt.Sprintf("from(%v) was negative: gap/insuffic follower log (rlogicalLen= %v); entriesIdxBeg=%v", from, rlogicalLen, entriesIdxBeg)
+ 				s.host.choice("from index negative: gap/insufficient follower log")
+ 				s.host.ackAE(ack, ae, sendAck)
+ 				//vv("%v early AE return 9", s.name)
++				s.tla.aeBranch = "ExtendsGap" // TLA+ trace
+ 				return
+ 
+ 			default:
+@@ -8700,6 +8777,7 @@
+ 					s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
+ 				}
+ 				didAddOrOverData = true
++				s.tla.aeBranch = "ExtendsAppend" // TLA+ trace (common tail follows)
+ 			}
+ 		} // end if extends
+ 	} // end if !done
+@@ -9283,6 +9361,7 @@
+ 			if rejected {
+ 				return false
+ 			}
++			s.tlaNoteReReg(ckt.RemotePeerID) // TLA+ trace (reported on the frame event)
+ 		}
+ 	}
+ 
+@@ -9324,7 +9403,11 @@
+ 		//vv("%v added %v to Peers. cluster size including ourself = %v; size of state.peers = %v; onlineReplicaCount() = %v", s.me(), frag.FromPeerID, s.clusterSize(), len(s.peers), s.onlineReplicaCount()) // not seen, manual
+ 
+ 		//vv("%v as leader sending heartbeat to new peer (and everyone)", s.me())
++		tlaHB := !s.parBlocked()
+ 		s.leaderSendsHeartbeats(true)
++		if tlaHB {
++			s.tlaEmit("LeaderHeartbeat", tkv{"via", "peerJoin"}) // TLA+ trace
++		}
+ 	}
+ 	return true
+ }
+@@ -14518,6 +14601,7 @@
+ 	// INVAR: we are leader.
+ 	//vv("%v I am leader with request to change membership: tkt='%v'", s.me(), tkt.Short())
+ 	s.changeMembership(tkt)
++	s.tlaEmitChangeMembership(tkt) // TLA+ trace
+ 
+ 	// when finished, let regular replication do this, not us!
+ 	// so comment out: tkt.Done.Close().
+@@ -17026,7 +17110,9 @@
+ 		errWriteDur = tubeSendDeadlineHeartbeats * s.cfg.HeartbeatDur
+ 	}
+ 	var anew bool
++	tlaRec := s.tlaSendRec(ckt, frag) // TLA+ trace: frames this step sends
+ 	anew, err = ckt.SendOneWay(frag, errWriteDur, keepFragIfPositive)
++	s.tlaNoteSend(tlaRec, err)
+ 	_ = anew
+ 	if err != nil {
+ 		//alwaysPrintf("%v SendOneWay: non nil error on '%v': '%v'; ckt.RemotePeerName='%v'; is ckt.Context live: %v; caller(0) = '%v'; caller(1) = '%v'; fileLine(2)='%v'; fileLine(3)='%v'", s.me(), frag.FragSubject, err, ckt.RemotePeerName, ctxLive(ckt.Context), caller(0), caller(1), fileLine(2), fileLine(3))
+@@ -17589,6 +17675,7 @@
+ 
+ 	case MEMBERSHIP_SET_UPDATE:
+ 		s.changeMembership(tkt)
++		s.tlaEmitChangeMembership(tkt) // TLA+ trace
+ 		//vv("%v changeMembership finished, returning from commandSpecificLocalActionsThenReplicateTicket without doing replicateTicket().", s.me())
+ 		return
+ 	case READ, SHOW_KEYS, READ_KEYRANGE, READ_PREFIX_RANGE:
+--- a/tube/wal.go
++++ b/tube/wal.go
+@@ -1068,9 +1068,13 @@
+ 		s.prevLastAppliedIndex = lastAppliedIndex
+ 		var err error
+ 		// only live call (non-test) to Compact is here in maybeCompact().
++		tlaBase := s.logIndex.BaseC
+ 		_, _, err = s.Compact(lastAppliedIndex, syncme, node)
+ 		panicOn(err)
+ 		didCompact = true
++		if node != nil && s.logIndex.BaseC > tlaBase { // TLA+ trace: base advanced
++			node.tlaEmit("Compact", tkv{"where", "maybeCompact"})
++		}
+ 	} else {
+ 		//vv("%v compaction is on, but skipping because lastAppliedIndex(%v) <= s.prevLastAppliedIndex(%v)", s.name, lastAppliedIndex, s.prevLastAppliedIndex)
+ 	}
+--- a/tube/watchdog.go
++++ b/tube/watchdog.go
+@@ -403,6 +403,7 @@
+ 
+ 	if addr == "" {
+ 		//vv("%v empty address in pack! pack='%#v'", s.name, pack)
++		s.tlaDialEnd(nil, c.PeerName, false, "empty addr") // TLA+ trace: DialAttempt
+ 		return false, fmt.Errorf("skip reconnect with empty addr")
+ 	}
+ 
+@@ -430,6 +431,7 @@
+ 		// does this mean we already have one in progress?
+ 		// maybe on another watchdog. Should we shutdown?
+ 		//vv("%v pending addr ugh. do we have info in pack='%#v'", pack)
++		s.tlaDialEnd(nil, c.PeerName, false, "pending addr") // TLA+ trace: DialAttempt
+ 		return false, fmt.Errorf("skip reconnect with pending addr")
+ 	}
+ 
+@@ -453,6 +455,18 @@
+ 	var onlyPossibleAddr string
+ 	circuitName := "tube-ckt"
+ 	var userString string
++	var tlaCID string
++	if tlaOn() {
++		ctxCanc = rpc.WithTLADialID(ctxCanc, &tlaCID)
++	}
++	tlaDial := s.tlaDialBegin() // TLA+ trace: DialAttempt takes effect here
++	defer func() {
++		why := ""
++		if err != nil {
++			why = err.Error()
++		}
++		s.tlaDialEnd(tlaDial, c.PeerName, err == nil, why, tlaCID)
++	}()
+ 	ckt, _, madeNewAutoCli, onlyPossibleAddr, err = s.MyPeer.PreferExtantRemotePeerGetCircuit(
+ 		ctxCanc,
+ 		circuitName,
