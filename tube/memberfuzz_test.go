@@ -137,7 +137,11 @@ func runMemberFuzz(t *testing.T, seed, writes int64, initial int) {
 		}
 
 		if change {
-			finishMemberChange(t, c, leader, target, voters, next, &faults, <-changeReply)
+			changeErr := <-changeReply
+			faults.heal()
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			finishMemberChange(t, ctx, c, leader, target, voters, next, changeErr)
+			cancel()
 			leader = waitMemberConfig(t, c, next)
 			if len(next) > n {
 				adds++
@@ -211,15 +215,17 @@ func requestMemberChange(ctx context.Context, leader, target *TubeNode, add bool
 
 // A lost acknowledgment can leave the new configuration installed. Inspect
 // the committed state before deciding whether to retry the same change.
-func finishMemberChange(t *testing.T, c *TubeCluster, leader, target int, old, next []int, f *chainFaults, lastErr error) {
+func finishMemberChange(t *testing.T, ctx context.Context, c *TubeCluster, leader, target int, old, next []int, lastErr error) {
 	t.Helper()
-	f.heal()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
 	node := c.Nodes[target]
-	var firstErr = lastErr
+	firstErr := lastErr
 	for lastErr != nil {
 		if ctx.Err() != nil {
+			// The retry can consume the entire deadline even if a new
+			// leader has already committed the requested membership.
+			var committed *MemberConfig
+			var leaderTerm int64
+			maxTerm := int64(0)
 			for _, peer := range c.Nodes {
 				look := peer.Inspect()
 				if look.State == nil {
@@ -230,6 +236,15 @@ func finishMemberChange(t *testing.T, c *TubeCluster, leader, target int, old, n
 					peer.name, look.Role, look.State.CurrentTerm, look.CurrentLeaderName,
 					look.State.CommitIndex, look.State.LastApplied, look.MC.Short())
 				look.State.KVstore.Close()
+				term := look.State.CurrentTerm
+				maxTerm = max(maxTerm, term)
+				if look.Role == LEADER && look.MC != nil && look.MC.IsCommitted &&
+					look.State.LastAppliedTerm == term && term > leaderTerm {
+					committed, leaderTerm = look.MC, term
+				}
+			}
+			if leaderTerm == maxTerm && memberSetMatches(committed, c, next) {
+				return
 			}
 			t.Fatalf("change voter %s from %v to %v: %v (first RPC: %v, last RPC: %v)", node.name, old, next, ctx.Err(), firstErr, lastErr)
 		}
@@ -251,6 +266,20 @@ func finishMemberChange(t *testing.T, c *TubeCluster, leader, target int, old, n
 		}
 		lastErr = requestMemberChange(ctx, c.Nodes[leader], node, len(next) > len(old))
 	}
+}
+
+func TestMemberFuzzReconcilesCommittedChangeAtDeadline(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		c, _, _, _ := SetupTestCluster(t, 4, 0, 104)
+		defer closeChainCluster(c)
+		old, next := []int{0, 1, 2}, []int{0, 1, 2, 3}
+		waitMemberConfig(t, c, next)
+		// The reconfiguration has committed under a different leader,
+		// but the membership RPC reached its deadline before replying.
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now())
+		defer cancel()
+		finishMemberChange(t, ctx, c, 1, 3, old, next, context.DeadlineExceeded)
+	})
 }
 
 // Require each expected voter to see the committed voting set. A connected
