@@ -24,7 +24,7 @@ import (
 const chainTable, chainKey = "chainblocks", "head"
 
 // Each seed drives one cluster for CHAINBLOCKS_WRITES commands (default 80,000).
-// SCEN0=990 SCEN_BATCH=1 go test -short -tags synctest -run '^Test103_ChainOfBlocks$' -count=1 -timeout=0
+// SCEN0=990 SCEN_BATCH=1 go test -v -short -tags synctest -run '^Test103_ChainOfBlocks$' -count=1 -timeout=2h
 func Test103_ChainOfBlocks(t *testing.T) {
 	if !testing.Short() {
 		t.Skip("pass -short to run the Chain of Blocks soak")
@@ -210,8 +210,9 @@ func runChainBlocks(t *testing.T, seed, writes int64, voters int) {
 		if t.Failed() {
 			return
 		}
-		if acked%10_000 == 0 {
-			t.Logf("seed %d: %d writes acknowledged, %d faults, %d swizzles", seed, acked, faults.count, faults.swizzles)
+		if acked == 1 || acked%1_000 == 0 {
+			t.Logf("seed %d: %d/%d writes acknowledged, committed index %d, %d faults, %d swizzles",
+				seed, acked, writes, lastIndex, faults.count, faults.swizzles)
 		}
 	}
 	faults.heal()
