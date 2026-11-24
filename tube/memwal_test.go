@@ -27,17 +27,23 @@ func TestMemWALCompactionThreshold(t *testing.T) {
 	defer w.close()
 
 	var base, retained int64
-	var cuts []int64
+	var cuts, suffixLengths []int64
 	for _, e := range entries {
 		i := e.Index
-		if err := w.overwriteEntries(i-1, []*RaftLogEntry{e}, false, i-1, i-1, nil, nil); err != nil {
+		// Let apply lag behind commit by different amounts across cuts.
+		applied := max(int64(0), i-1-(i/5)%3)
+		if err := w.overwriteEntries(i-1, []*RaftLogEntry{e}, false, i-1, applied, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 		retained += size(e)
 		if retained > threshold {
 			// The follower keeps the last applied entry as its snapshot anchor.
-			base = i - 2
-			retained = size(entries[i-2]) + size(e)
+			base = applied - 1
+			suffixLengths = append(suffixLengths, i-base)
+			retained = 0
+			for _, kept := range entries[base:i] {
+				retained += size(kept)
+			}
 			cuts = append(cuts, i)
 		}
 		if w.logIndex.BaseC != base || w.logSizeOnDisk() != retained {
@@ -48,7 +54,7 @@ func TestMemWALCompactionThreshold(t *testing.T) {
 	if len(cuts) < 2 || cuts[0] != 7 {
 		t.Fatalf("expected repeated compactions starting at write 7, got %v", cuts)
 	}
-	t.Logf("threshold %d bytes, compactions at writes %v", threshold, cuts)
+	t.Logf("threshold %d bytes, compactions at writes %v, retained suffix lengths %v", threshold, cuts, suffixLengths)
 
 	// A leader change can replace an uncommitted suffix after compaction.
 	last := entries[len(entries)-1]
