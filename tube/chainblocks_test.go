@@ -26,6 +26,10 @@ const chainTable, chainKey = "chainblocks", "head"
 // Each seed drives one cluster for CHAINBLOCKS_WRITES commands (default 80,000).
 // SCEN0=990 SCEN_BATCH=1 go test -v -short -tags synctest -run '^Test103_ChainOfBlocks$' -count=1 -timeout=2h
 func Test103_ChainOfBlocks(t *testing.T) {
+	runChainSeeds(t, runChainBlocks)
+}
+
+func runChainSeeds(t *testing.T, run func(*testing.T, int64, int64, int)) {
 	if !testing.Short() {
 		t.Skip("pass -short to run the Chain of Blocks soak")
 	}
@@ -59,7 +63,7 @@ func Test103_ChainOfBlocks(t *testing.T) {
 	for offset := range batch {
 		seed := first + offset
 		t.Run(fmt.Sprintf("seed_%d", seed), func(t *testing.T) {
-			onlyBubbled(t, func(t *testing.T) { runChainBlocks(t, seed, writes, voters) })
+			onlyBubbled(t, func(t *testing.T) { run(t, seed, writes, voters) })
 		})
 	}
 }
@@ -133,14 +137,12 @@ func (s *chainBlockStream) next() []byte {
 	return payload
 }
 
-func runChainBlocks(t *testing.T, seed, writes int64, voters int) {
+func startChainCluster(t *testing.T, seed, writes int64, voters, testNum int) (*TubeCluster, int, *prng) {
 	seedBytes := intSeedToBytes(seed)
-	client := chainBlockStream{rng: newPRNG(seedBytes)}
-	replicas := make([]chainBlockStream, voters)
-	nodes := make([]int, voters)
+	// Bootstrap replicas retain their own cursors even if membership indices change.
+	replicas := make(map[string]*chainBlockStream, voters)
 	for i := range voters {
-		replicas[i].rng = newPRNG(seedBytes)
-		nodes[i] = i
+		replicas[fmt.Sprintf("node_%d", i)] = &chainBlockStream{rng: newPRNG(seedBytes)}
 	}
 	// Changing the fault schedule must not change the command stream.
 	faultSeed := seedBytes
@@ -162,38 +164,53 @@ func runChainBlocks(t *testing.T, seed, writes int64, voters int) {
 		cfg.CompactionThresholdBytes = 1
 	}
 	cfg.testApplyUserDefinedOp = func(node *TubeNode, cmd *Ticket) {
-		i := node.cfg.testCluster.Name2num[node.name]
-		applyChainBlock(t, node, cmd, &replicas[i], writes)
+		applyChainBlock(t, node, cmd, replicas[node.name], writes)
 	}
-	c, _, leader, _ := SetupTestClusterWithCustomConfig(cfg, t, voters, 0, 103)
-	sim := cfg.RpcCfg.GetSimnet()
-	defer func() {
-		c.Close()
-		<-sim.Halt.Done.Chan
-	}()
-	// Setup has consumed the startup notifications. Drain the diagnostic
-	// copies of each AppendEntries and ACK throughout the long run.
+	c, _, leader, _ := SetupTestClusterWithCustomConfig(cfg, t, voters, 0, testNum)
 	for _, node := range c.Nodes {
-		go func() {
-			for {
-				select {
-				case <-node.testGotAeFromLeader:
-				case <-node.testGotAeAckFromFollower:
-				case <-node.testGotGoodAE_lastLogIndexNow:
-				case <-node.testWatchdogTimeoutReconnectCh:
-				case <-node.verifyPeerReplicaOrNot:
-				case <-c.termChanges:
-				case <-c.LeaderElectedCh:
-				case <-node.Halt.ReqStop.Chan:
-					return
-				}
-			}
-		}()
+		drainChainDiagnostics(c, node)
 	}
-
 	t.Logf("seed %d, %d voters, %d writes, compaction threshold bytes %d", seed, voters, writes, cfg.CompactionThresholdBytes)
+	return c, leader, rng
+}
+
+func closeChainCluster(c *TubeCluster) {
+	sim := c.Cfg.RpcCfg.GetSimnet()
+	c.Close()
+	<-sim.Halt.Done.Chan
+}
+
+// Setup has consumed the startup notifications. Drain the diagnostic copies
+// of each AppendEntries and ACK throughout the run, including on new voters.
+func drainChainDiagnostics(c *TubeCluster, node *TubeNode) {
+	go func() {
+		for {
+			select {
+			case <-node.testGotAeFromLeader:
+			case <-node.testGotAeAckFromFollower:
+			case <-node.testGotGoodAE_lastLogIndexNow:
+			case <-node.testWatchdogTimeoutReconnectCh:
+			case <-node.verifyPeerReplicaOrNot:
+			case <-c.termChanges:
+			case <-c.LeaderElectedCh:
+			case <-node.Halt.ReqStop.Chan:
+				return
+			}
+		}
+	}()
+}
+
+func runChainBlocks(t *testing.T, seed, writes int64, voters int) {
+	c, leader, rng := startChainCluster(t, seed, writes, voters, 103)
+	defer closeChainCluster(c)
+	client := chainBlockStream{rng: newPRNG(intSeedToBytes(seed))}
+	nodes := make([]int, voters)
+	for i := range nodes {
+		nodes[i] = i
+	}
+	rnd := rng.pseudoRandNonNegInt64Range
 	var lastIndex, acked int64
-	faults := chainFaults{cluster: c, rng: rng, nodes: nodes}
+	faults := chainFaults{cluster: c, rng: rng, nodes: nodes, maxFaults: voters}
 	defer func() {
 		t.Logf("seed %d: %d/%d acknowledged, %d faults including %d swizzles; last fault %s", seed, acked, writes, faults.count, faults.swizzles, faults.last)
 	}()
@@ -205,7 +222,7 @@ func runChainBlocks(t *testing.T, seed, writes int64, voters int) {
 		}
 		leader = latestChainLeader(c, leader)
 		payload := client.next()
-		leader, lastIndex = submitChainBlock(t, c, leader, payload, &client)
+		leader, lastIndex = submitChainBlock(t, c, leader, payload, &client, nodes)
 		acked++
 		if t.Failed() {
 			return
@@ -225,6 +242,7 @@ type chainFaults struct {
 	cluster         *TubeCluster
 	rng             *prng
 	nodes           []int
+	maxFaults       int
 	done            chan struct{} // timed faults recover even if a client write blocks
 	partition       bool
 	count, swizzles int64
@@ -249,13 +267,13 @@ func (f *chainFaults) inject(t *testing.T, leader int, write int64) int {
 	rnd := rng.pseudoRandNonNegInt64Range
 	leader = latestChainLeader(c, leader)
 	f.count++
-	victim := int(rnd(int64(len(f.nodes))))
+	victim := f.nodes[rnd(int64(len(f.nodes)))]
 	node := c.Nodes[victim]
 	// All random choices depend only on the seed and write number. Elections
 	// can change where the client submits, without changing future faults.
-	switch rnd(4) {
-	case 0:
-		steps := newSwizzleClog(rng, f.nodes, len(f.nodes))
+	switch kind := rnd(4); {
+	case kind == 0 && f.maxFaults >= 2:
+		steps := newSwizzleClog(rng, f.nodes, f.maxFaults)
 		f.last = fmt.Sprintf("swizzle at write %d: %+v", write, steps)
 		f.swizzles++
 		done := make(chan struct{})
@@ -264,7 +282,7 @@ func (f *chainFaults) inject(t *testing.T, leader int, write int64) int {
 			defer close(done)
 			steps.run(c)
 		}()
-	case 1:
+	case kind <= 1:
 		f.partition = true
 		f.last = fmt.Sprintf("isolate %s at write %d", node.name, write)
 		c.IsolateNode(victim)
@@ -296,7 +314,7 @@ func (f *chainFaults) inject(t *testing.T, leader int, write int64) int {
 				}
 			}
 		}
-	case 2, 3:
+	default:
 		p := 1.0
 		if rng.pseudoRandBool() {
 			p = rng.float64prob()
@@ -399,10 +417,11 @@ func checkChainHead(t *testing.T, node *TubeNode, lastIndex, count int64, digest
 // A leader can lose its term after appending but before acknowledging. A new
 // leader that has applied an entry of its own term has decided the fate of
 // every entry from that old term. Inspect the chain there before resubmitting.
-func resolveChainWrite(t *testing.T, ctx context.Context, c *TubeCluster, oldTerm int64, client *chainBlockStream) (leader int, appliedIndex int64) {
+func resolveChainWrite(t *testing.T, ctx context.Context, c *TubeCluster, oldTerm int64, client *chainBlockStream, voters []int) (leader int, appliedIndex int64) {
 	t.Helper()
 	for {
-		for i, node := range c.Nodes {
+		for _, i := range voters {
+			node := c.Nodes[i]
 			look := node.Inspect()
 			s := look.State
 			if look.Role != LEADER || s.CurrentTerm <= oldTerm || s.LastAppliedTerm != s.CurrentTerm {
@@ -437,7 +456,7 @@ func resolveChainWrite(t *testing.T, ctx context.Context, c *TubeCluster, oldTer
 	}
 }
 
-func submitChainBlock(t *testing.T, c *TubeCluster, leader int, payload []byte, client *chainBlockStream) (int, int64) {
+func submitChainBlock(t *testing.T, c *TubeCluster, leader int, payload []byte, client *chainBlockStream, voters []int) (int, int64) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -461,7 +480,7 @@ func submitChainBlock(t *testing.T, c *TubeCluster, leader int, payload []byte, 
 			t.Fatalf("%s did not apply write %d: applied=%v index=%d err=%v", node.name, client.count, cmd.Applied, cmd.AsOfLogIndex, cmd.Err)
 		}
 		var index int64
-		leader, index = resolveChainWrite(t, ctx, c, cmd.Term, client)
+		leader, index = resolveChainWrite(t, ctx, c, cmd.Term, client, voters)
 		if index != 0 {
 			return leader, index
 		}
