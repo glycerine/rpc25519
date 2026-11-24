@@ -9,10 +9,36 @@ model actions and abstraction limits. Inherited line numbers and finding IDs in
 the module refer to the historical run. Use the Go function names to navigate
 the current implementation.
 
+## Run the full suite
+
+From the repository root, run
+
+```sh
+make -C tube tla
+```
+
+From `tube/`, the same command is `make tla`. It runs every configured TLC
+profile and named witness, including a control that must reproduce the old
+session-cache bug. It also replays the twelve archived Go scenarios from
+`44d0b71d` (5,978 events). A trace control checks that TLC accepts an election
+prefix and rejects the same prefix with a changed commit term. Make exits with
+an error if any check gives an unexpected result.
+
+The target uses Python 3, Java, Bash and gzip. Both `tla2tools.jar` and
+`CommunityModules-deps.jar` are bundled in `tube/modelcheck/`, so the suite
+runs offline with a Java runtime. To select a different pair, set
+`TLA_LIB=/path/to/jars` on the Make command line.
+[JAR versions, notices and checksums](../README.md)
+
+`tla-profiles` and `tla-traces` run the two parts individually.
+`make -C tube -j2 tla` runs them concurrently. Each TLC process defaults to
+a 2 GB heap. Profile exploration defaults to four workers. The seeded
+simulations and trace replays use one worker. Set `TLC_HEAP` and `TLC_WORKERS`
+on the Make command line to adjust the resources.
+
 ## Run a check
 
-Set `TLA2TOOLS_JAR` to a local `tla2tools.jar`. A Specular installation includes
-one in its `lib/` directory. From the repository root, run
+The profile runner uses the bundled TLC JAR. From the repository root, run
 
 ```sh
 cd tube/modelcheck/tube
@@ -54,7 +80,7 @@ are zero. Deadlock checking is disabled because a quiet cluster can exhaust
 its timer budget. Run the full two-voter check with
 
 ```sh
-java -XX:+UseParallelGC -Xmx2g -cp "$TLA2TOOLS_JAR" tlc2.TLC \
+java -XX:+UseParallelGC -Xmx2g -cp ../tla2tools.jar tlc2.TLC \
   -workers 4 -config tube.cfg tube.tla
 ```
 
@@ -79,12 +105,10 @@ safety profiles use full state.
 
 The collector exports the selected Git revision into a fresh directory, applies
 the trace hooks there, and runs the instrumented Go scenarios with the
-repository’s `synctest` build tag. The replay uses `tla2tools.jar` and
-`CommunityModules-deps.jar` from the same Specular `lib/` directory.
+repository’s `synctest` build tag. The replay uses the two bundled JARs.
 
 ```sh
 # From tube/modelcheck/tube
-export TLA_LIB="$(dirname "$TLA2TOOLS_JAR")"
 trace_output="$(mktemp -d)/tube-run"
 bash trace/collect.sh ../../.. 44d0b71d "$trace_output" cold_start_election
 bash trace/replay.sh tube.tla "$trace_output/traces/cold_start_election.ndjson"
@@ -92,7 +116,9 @@ bash trace/replay.sh tube.tla "$trace_output/traces/cold_start_election.ndjson"
 
 Omit `cold_start_election` from the collector command to run all twelve Go
 scenarios. Each produces an NDJSON file in `traces/` and a Go log in `logs/`
-under the output directory. Replay checks the recorded event order and
+under the output directory. To replay a complete fresh collection from the
+repository root, run `make -C tube tla-traces TLA_TRACE_DIR="$trace_output/traces"`.
+Replay checks the recorded event order and
 post-state against actions in `tube.tla`. Observations include term, vote, log
 tail, applied and committed indexes, commit term, membership, circuit identity,
 and the durable vote on events that report it. The trace adapter allows
@@ -158,7 +184,7 @@ Copy `tube.cfg` to `extension.cfg`, add `AppliedWithinLog` to the
 `INVARIANTS` list, then run
 
 ```sh
-java -cp "$TLA2TOOLS_JAR" tlc2.TLC -config extension.cfg TubeExtension.tla
+java -cp ../tla2tools.jar tlc2.TLC -config extension.cfg TubeExtension.tla
 ```
 
 To experiment with a new Raft action in a sibling module, define

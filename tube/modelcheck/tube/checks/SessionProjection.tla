@@ -1,5 +1,7 @@
 -------------------------- MODULE SessionProjection --------------------------
 EXTENDS KVRegression
+\* The pre-fix apply path accepted every cached reply, including a lease read.
+LegacyCanReplayAtApply(reply) == TRUE
 CheckVars == <<testVars>>
 ProjectNext ==
     /\ step < 13

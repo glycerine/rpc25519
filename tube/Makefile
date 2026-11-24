@@ -1,4 +1,4 @@
-.PHONY: all wasm rr replay
+.PHONY: all wasm rr replay tla tla-profiles tla-traces
 all:
 	##go generate
 	cd cmd/tube; go install
@@ -28,3 +28,21 @@ replay:
 # our 30 second test run (under -tags synctest) that wer are used to.
 partest:
 	go test -v -tags synctest,par
+
+# Run the Tube model suite with "make tla" using the bundled JARs.
+TLA_LIB ?= modelcheck
+TLA2TOOLS_JAR ?= $(TLA_LIB)/tla2tools.jar
+TLC_WORKERS ?= 4
+TLC_HEAP ?= 2g
+TLA_TRACE_DIR ?= modelcheck/tube/trace/fixtures/44d0b71d
+
+tla: tla-traces tla-profiles
+	@echo "All Tube TLA+ profiles, witnesses, and trace checks passed."
+
+tla-profiles:
+	python3 modelcheck/tube/check.py --all --jar "$(TLA2TOOLS_JAR)" --workers "$(TLC_WORKERS)" --heap "$(TLC_HEAP)"
+
+tla-traces:
+	@test -d "$(TLA_TRACE_DIR)" || { echo "Missing trace directory: $(TLA_TRACE_DIR)" >&2; exit 1; }
+	TLA_LIB="$(TLA_LIB)" TLA2TOOLS_JAR="$(TLA2TOOLS_JAR)" TLC_HEAP="$(TLC_HEAP)" \
+	    bash modelcheck/tube/trace/replay.sh modelcheck/tube/tube.tla "$(TLA_TRACE_DIR)"

@@ -1,0 +1,12 @@
+cold_start_election
+leader_crash_restart
+follower_crash_restart
+leader_isolate_heal
+leader_isolate_divergent_overwrite
+follower_drop_sends
+leader_deaf
+membership_add_remove
+compaction_snapshot
+follower_torn_wal_restart
+follower_wal_loss_restart
+interrupted_uncommitted_tail

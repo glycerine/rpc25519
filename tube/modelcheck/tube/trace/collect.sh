@@ -15,9 +15,9 @@ done
 cd "$out/src/tube"
 go test -tags synctest -c -o "$out/trace.test" .
 if (( $# == 0 )); then
-    set -- cold_start_election leader_crash_restart follower_crash_restart leader_isolate_heal \
-      leader_isolate_divergent_overwrite follower_drop_sends leader_deaf membership_add_remove \
-      compaction_snapshot follower_torn_wal_restart follower_wal_loss_restart interrupted_uncommitted_tail
+    while IFS= read -r scenario; do
+        set -- "$@" "$scenario"
+    done < "$here/scenarios.txt"
 fi
 for sc; do
     echo "$sc"
