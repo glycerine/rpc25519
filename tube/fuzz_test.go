@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/trace"
+	"slices"
 	"sort"
 	"strings"
 	//"strconv"
@@ -1882,6 +1883,65 @@ func (s *fuzzUser) Read(key string) (val Val, redir *LeaderRedirect, err error) 
 	return
 }
 
+// A swizzle holds outbound traffic on several hosts. Starts occur in the
+// a staggered sequence followed by staggered releases. Each host
+// recovers separately, including sends queued during its stall.
+type swizzleStep struct {
+	at      time.Duration
+	node    int
+	release bool
+}
+
+type swizzleClog []swizzleStep
+
+func newSwizzleClog(rng *prng, eligible []int, maxHosts int) swizzleClog {
+	nodes := slices.Clone(eligible)
+	rnd := rng.pseudoRandNonNegInt64Range
+	shuffle := func(a []int) {
+		for i := len(a) - 1; i > 0; i-- {
+			j := int(rnd(int64(i + 1)))
+			a[i], a[j] = a[j], a[i]
+		}
+	}
+	shuffle(nodes)
+	// At least two independent interfaces are needed for staggered recovery.
+	n := 2 + int(rnd(int64(min(maxHosts, len(nodes))-1)))
+	nodes = nodes[:n]
+	release := slices.Clone(nodes)
+	shuffle(release)
+	if slices.Equal(nodes, release) {
+		release[0], release[1] = release[1], release[0]
+	}
+	step := func() time.Duration { return time.Duration(200+rnd(601)) * time.Millisecond }
+	var at time.Duration
+	var steps swizzleClog
+	for _, id := range nodes {
+		steps = append(steps, swizzleStep{at: at, node: id})
+		at += step()
+	}
+	at += time.Duration(500+rnd(1501)) * time.Millisecond
+	for _, id := range release {
+		steps = append(steps, swizzleStep{at: at, node: id, release: true})
+		at += step()
+	}
+	return steps
+}
+
+func (steps swizzleClog) run(c *TubeCluster) {
+	start := time.Now()
+	sim := c.Cfg.RpcCfg.GetSimnet()
+	for _, step := range steps {
+		time.Sleep(time.Until(start.Add(step.at)))
+		node := c.Nodes[step.node]
+		if step.release {
+			// Repair just this host. deliverDroppedSends releases its backlog.
+			panicOn(sim.RepairHost(node.srvname, false, false, false, true))
+		} else {
+			node.DropSends(1)
+		}
+	}
+}
+
 // nemesis injects faults, makes trouble for user.
 type fuzzNemesis struct {
 	//mut sync.Mutex
@@ -1978,12 +2038,6 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 		if numDamaged < maxDamaged {
 			// any node can take damage
 			node = int(s.rnd(int64(nn)))
-
-			_, already := s.damaged[node]
-			if !already {
-				s.damaged[node] = len(s.damagedSlc)
-				s.damagedSlc = append(s.damagedSlc, node)
-			}
 		} else {
 			// only an already damaged node can take more damage.
 			if numDamaged > 0 {
@@ -1997,6 +2051,13 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 			}
 		}
 		r = fuzzFault(s.rnd(int64(fuzz_HEAL_NODE)))
+	}
+
+	if r == fuzz_PARTITON || r == fuzz_ONE_WAY_FAULT || r == fuzz_ONE_WAY_FAULT_PROBABALISTIC {
+		if _, already := s.damaged[node]; !already {
+			s.damaged[node] = len(s.damagedSlc)
+			s.damagedSlc = append(s.damagedSlc, node)
+		}
 	}
 
 	implemented := false
@@ -2025,6 +2086,17 @@ func (s *fuzzNemesis) makeTrouble(caller string) {
 	case fuzz_MEMBER_REMOVE:
 	case fuzz_MEMBER_RESTART:
 	case fuzz_SWIZZLE_CLOG:
+		var healthy []int
+		for i := range s.clus.Nodes {
+			if _, damaged := s.damaged[i]; !damaged {
+				healthy = append(healthy, i)
+			}
+		}
+		if room := maxDamaged - numDamaged; room >= 2 {
+			implemented = true
+			swizzle := newSwizzleClog(s.rng, healthy, room)
+			swizzle.run(s.clus)
+		}
 	case fuzz_ONE_WAY_FAULT:
 		implemented = true
 
