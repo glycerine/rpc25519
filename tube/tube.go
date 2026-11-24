@@ -681,6 +681,8 @@ type TubeConfig struct {
 	testCluster *TubeCluster
 	isTest      bool // for 802 simae_test too
 	testNum     int
+	// Runs on each replica's event loop when it applies a user-defined command.
+	testApplyUserDefinedOp func(*TubeNode, *Ticket)
 
 	deadOnStartCount int // test 024 need 2 nodes, only have 1 started.
 
@@ -18992,8 +18994,9 @@ func (s *TubeNode) doRemoveShadow(tkt *Ticket) {
 // changes, e.g. hermes protocol use case. Something like
 // RegisterMemberChangeCallback().
 func (s *TubeNode) doApplyUserDefinedOp(tkt *Ticket) {
-	//vv("%v top of doApplyUserDefinedOp() tkt='%v'", s.me(), tkt.Short())
-	_ = tkt.UserDefinedOpCode
+	if apply := s.cfg.testApplyUserDefinedOp; apply != nil {
+		apply(s, tkt)
+	}
 }
 
 func (s *TubeNode) doUserDefinedLegitCheck(tkt *Ticket) error {
