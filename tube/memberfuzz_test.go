@@ -155,11 +155,12 @@ func startMemberFuzzReplica(t *testing.T, c *TubeCluster, seed, writes int64) {
 	// NoDisk test startup preserves the supplied state. The bootstrap
 	// helper creates an in-memory persistor for each original voter.
 	// Joining voters need one too to apply entries committed by heartbeat.
-	var err error
-	node.saver, _, err = cfg.NewRaftStatePersistor(node.GetPersistorPath(), node, false)
+	saver, state, err := cfg.NewRaftStatePersistor(node.GetPersistorPath(), node, false)
 	if err != nil {
 		t.Fatalf("open joining voter %s state: %v", name, err)
 	}
+	node.state.KVstore.Close()
+	node.saver, node.state = saver, state
 	if err := node.InitAndStart(); err != nil {
 		t.Fatalf("start joining voter %s: %v", name, err)
 	}
