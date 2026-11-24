@@ -24,8 +24,11 @@ import (
 const chainTable, chainKey = "chainblocks", "head"
 
 // Each seed drives one cluster for CHAINBLOCKS_WRITES commands (default 80,000).
-// SCEN0=990 SCEN_BATCH=1 go test -tags synctest -run '^Test103_ChainOfBlocks$' -count=1 -timeout=0
+// SCEN0=990 SCEN_BATCH=1 go test -short -tags synctest -run '^Test103_ChainOfBlocks$' -count=1 -timeout=0
 func Test103_ChainOfBlocks(t *testing.T) {
+	if !testing.Short() {
+		t.Skip("pass -short to run the Chain of Blocks soak")
+	}
 	if !faketime {
 		t.Skip("Chain of Blocks uses simnet with the synctest build tag")
 	}
