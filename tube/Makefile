@@ -36,6 +36,8 @@ TLC_WORKERS ?= 4
 TLC_HEAP ?= 2g
 TLA_TRACE_DIR ?= modelcheck/tube/trace/fixtures/44d0b71d
 
+# Re-model check the TLA+ spec for Tube.
+# Takes about 48 minutes on an linux/amd64 box. AMD Ryzen Threadripper 3960X 24-Core Processor
 tla: tla-traces tla-profiles
 	@echo "All Tube TLA+ profiles, witnesses, and trace checks passed."
 
