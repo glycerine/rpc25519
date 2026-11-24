@@ -217,9 +217,21 @@ func finishMemberChange(t *testing.T, c *TubeCluster, leader, target int, old, n
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	node := c.Nodes[target]
+	var firstErr = lastErr
 	for lastErr != nil {
 		if ctx.Err() != nil {
-			t.Fatalf("change voter %s from %v to %v: %v (last RPC: %v)", node.name, old, next, ctx.Err(), lastErr)
+			for _, peer := range c.Nodes {
+				look := peer.Inspect()
+				if look.State == nil {
+					t.Logf("%s stopped during membership change", peer.name)
+					continue
+				}
+				t.Logf("%s: role=%v term=%d leader=%q commit=%d applied=%d config=%s",
+					peer.name, look.Role, look.State.CurrentTerm, look.CurrentLeaderName,
+					look.State.CommitIndex, look.State.LastApplied, look.MC.Short())
+				look.State.KVstore.Close()
+			}
+			t.Fatalf("change voter %s from %v to %v: %v (first RPC: %v, last RPC: %v)", node.name, old, next, ctx.Err(), firstErr, lastErr)
 		}
 		time.Sleep(c.Cfg.HeartbeatDur)
 		leader = latestChainLeader(c, leader)

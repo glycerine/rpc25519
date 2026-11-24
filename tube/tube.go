@@ -275,6 +275,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -283,6 +284,7 @@ import (
 	"time"
 
 	"github.com/glycerine/blake3"
+	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/idem"
 	"runtime/debug"
 
@@ -3148,6 +3150,17 @@ PeerServiceName: %q,
 		rpc.AliasDecode(s.VotedFor),
 		s.VotedForName,
 	)
+}
+
+// Older snapshots and state files may contain the full membership history.
+// Trim the live configuration on restore. Historical WAL entries retain
+// their original contents so they can still be replicated and verified.
+func (s *RaftState) PostLoadHook() {
+	for _, mc := range []*MemberConfig{s.MC, s.Known, s.Observers, s.ShadowReplicas} {
+		if mc != nil {
+			mc.Prov = recentMemberProvenance(mc.Prov)
+		}
+	}
 }
 
 func (s *RaftState) clone() (clon *RaftState) {
@@ -8386,11 +8399,12 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, sendAck bool) (numOver
 
 	// INVAR: we are follower from here on.
 
-	// record leader for client forwarding
-	//if s.leaderID != ae.FromPeerID {
-	leaderChanged := false
-	if s.leaderID != ae.LeaderID {
-		leaderChanged = true
+	// A membership request's routing hint can set only leaderID. Even if
+	// it guessed correctly, this AppendEntries must establish the rest of
+	// the leader identity before a snapshot from that leader can be accepted.
+	leaderChanged := s.leaderID != ae.LeaderID || s.leaderName != ae.LeaderName ||
+		s.leaderTerm != ae.LeaderTerm || s.leaderURL != ae.LeaderURL
+	if leaderChanged {
 		//s.choice( "New leader detected: %v", ae.LeaderID)
 		//s.choice( "New leader detected: %v", ae.FromPeerID)
 		s.leaderID = ae.LeaderID
@@ -11160,23 +11174,7 @@ func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
 	frag := s.newFrag()
 	frag.FragOp = LeaderToClientTicketAppliedMsg
 	frag.FragSubject = "LeaderToClientTicketApplied"
-	bts, err := tkt.MarshalMsg(nil)
-	panicOn(err)
-	if len(bts) > rpc.UserMaxPayload { // 1_200_000
-		// A large key range scan can exceed one message.
-		// Fail the request instead of crashing: every later
-		// leader would hit the same reply on the client's retry.
-		alwaysPrintf("%v reply of %v bytes exceeds rpc.UserMaxPayload(%v); failing ticket instead. footprint = %v", s.me(), len(bts), rpc.UserMaxPayload, tkt.Footprint())
-		tkt.dropReplyPayload()
-		tkt.Err = fmt.Errorf("%w: reply of %v bytes exceeds rpc.UserMaxPayload(%v); narrow the scan", ErrResultTooLarge, len(bts), rpc.UserMaxPayload)
-		bts, err = tkt.MarshalMsg(nil)
-		panicOn(err)
-		if len(bts) > rpc.UserMaxPayload {
-			alwaysPrintf("%v reply still %v bytes after dropping results; not sending", s.me(), len(bts))
-			return
-		}
-	}
-	frag.Payload = bts
+	frag.Payload = s.marshalClientReply(tkt)
 
 	frag.SetUserArg("leaderID", s.leaderID)
 	frag.SetUserArg("leaderName", s.leaderName)
@@ -11215,7 +11213,7 @@ func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
 		// TODO: add to dead letter?
 		return
 	}
-	err = s.SendOneWay(ckt, frag, -1, 0)
+	err := s.SendOneWay(ckt, frag, -1, 0)
 	_ = err // don't panic on halting.
 	if err != nil {
 		alwaysPrintf("%v non nil error '%v' on Redirect to '%v'", s.me(), err, ckt.RemotePeerID)
@@ -13973,8 +13971,7 @@ type MemberConfig struct {
 	CreateTm  time.Time `zid:"7"`
 	CreateWho string    `zid:"8"`
 
-	// provenance: track flow of information/chain of custody
-	// to figure out where we are getting it wrong/backwards/flipped.
+	// Recent diagnostic history, carried alongside the voting configuration.
 	Prov []string `zid:"9"`
 
 	// ConfigVersion gives a total order on versions from the
@@ -14177,7 +14174,29 @@ func (s *MemberConfig) addProv(loc string, who string, raftLogIndex int64) {
 	s.RaftLogIndex = raftLogIndex
 	s.OriginPeerName = who
 	// since we just updated s.RaftLogIndex/IsCommitted for replicateTicket:
-	s.Prov = append(s.Prov, fmt.Sprintf("[idx %02d] %v: %v", raftLogIndex, who, loc))
+	s.Prov = recentMemberProvenance(append(s.Prov, fmt.Sprintf("[idx %02d] %v: %v", raftLogIndex, who, loc)))
+}
+
+// Heartbeats, votes and snapshots carry this history. Keep the newest
+// diagnostics within 4 KiB regardless of the number of membership changes.
+func recentMemberProvenance(history []string) []string {
+	const budget = 4 << 10
+	remaining := budget - msgp.ArrayHeaderSize
+	start := len(history)
+	for start > 0 {
+		entry := history[start-1]
+		cost := len(entry) + msgp.StringPrefixSize
+		if cost > remaining {
+			if start == len(history) {
+				end := remaining - msgp.StringPrefixSize - len("...")
+				return []string{strings.ToValidUTF8(entry[:end], "") + "..."}
+			}
+			break
+		}
+		remaining -= cost
+		start--
+	}
+	return slices.Clone(history[start:])
 }
 
 func (s *MemberConfig) check(who *TubeNode) (now time.Time) {
@@ -14334,10 +14353,7 @@ func (s *MemberConfig) Clone() (r *MemberConfig) {
 	for peerName, det := range s.PeerNames.All() {
 		r.PeerNames.Set(peerName, det.Clone())
 	}
-	r.Prov = nil
-	for _, prov := range s.Prov {
-		r.Prov = append(r.Prov, prov)
-	}
+	r.Prov = recentMemberProvenance(s.Prov)
 	return
 }
 
@@ -15151,13 +15167,11 @@ func (s *TubeNode) replyToForwardedTicketWithError(tkt *Ticket) {
 	fragErr := s.newFrag()
 	fragErr.FragOp = LeaderToClientTicketAppliedMsg
 	fragErr.FragSubject = "LeaderToClientTicketAppliedMsg"
-	bts, err := tkt.MarshalMsg(nil)
-	panicOn(err)
-	fragErr.Payload = bts
+	fragErr.Payload = s.marshalClientReply(tkt)
 
 	fragErr.SetUserArg("leaderID", s.leaderID)
 	fragErr.SetUserArg("leaderName", s.leaderName)
-	err = s.SendOneWay(cktP.ckt, fragErr, -1, 0)
+	err := s.SendOneWay(cktP.ckt, fragErr, -1, 0)
 	_ = err // don't panic on halting.
 	if err != nil {
 		alwaysPrintf("%v non nil error '%v' on LeaderToClientTicketAppliedMsg to '%v'", s.me(), err, cktP.ckt.RemotePeerID)
@@ -16991,9 +17005,43 @@ func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, 
 	return
 }
 
+// marshalClientReply keeps even a membership or scan error deliverable
+// when the original reply (including its inspection) cannot fit on the wire.
+func (s *TubeNode) marshalClientReply(tkt *Ticket) []byte {
+	bts, err := tkt.MarshalMsg(nil)
+	panicOn(err)
+	if len(bts) <= rpc.UserMaxPayload {
+		return bts
+	}
+	sizeErr := fmt.Errorf("%w: %v reply is %d bytes, limit %d", ErrResultTooLarge, tkt.Op, len(bts), rpc.UserMaxPayload)
+	alwaysPrintf("%s ticket %q: %v", s.name, tkt.TicketID, sizeErr)
+	tkt.dropReplyPayload()
+	if tkt.Err == nil {
+		tkt.Err = sizeErr
+	}
+	// These fields correlate the reply and identify any applied operation.
+	// Echoing the original request and diagnostics can overflow the fallback.
+	reply := Ticket{
+		TicketID: tkt.TicketID, ClusterID: tkt.ClusterID, Op: tkt.Op, Err: tkt.Err,
+		Term: tkt.Term, LogIndex: tkt.LogIndex, AsOfLogIndex: tkt.AsOfLogIndex,
+		CreateHLC: tkt.CreateHLC, Committed: tkt.Committed, Applied: tkt.Applied,
+	}
+	bts, err = reply.MarshalMsg(nil)
+	panicOn(err)
+	if len(bts) > rpc.UserMaxPayload {
+		// The original error text itself was too large to forward.
+		tkt.Err, reply.Err = sizeErr, sizeErr
+		bts, err = reply.MarshalMsg(nil)
+		panicOn(err)
+	}
+	return bts
+}
+
 // dropReplyPayload clears the result-bearing fields of a
 // reply that will not fit in one message.
 func (tkt *Ticket) dropReplyPayload() {
+	tkt.Insp = nil
+	tkt.MC = nil
 	tkt.KeyValRangeScan = nil
 	tkt.Val = nil
 	tkt.OldVal = nil
