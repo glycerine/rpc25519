@@ -1,6 +1,7 @@
 package tube
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -29,6 +30,67 @@ import (
 // Test024_one_node_cannot_elect_leader: > 1 configured cluster size
 // where a single node tries to elect itself and should fail if
 // others are expected.
+
+// The surviving majority contains two voters with the committed suffix and
+// two whose unsuccessful campaigns advanced their terms without a log append.
+func TestElectionAfterHigherTermPreVoteDenial(t *testing.T) {
+	if !faketime {
+		t.Skip("requires the simulated network")
+	}
+	onlyBubbled(t, func(t *testing.T) {
+		c, _, leader, _ := SetupTestCluster(t, 5, 0, 103)
+		defer c.Close()
+		c.IsolateNode(3)
+		c.IsolateNode(4)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		write, err := c.Nodes[leader].Write(ctx, "", "before", Val("committed"), 0, nil, "", 0, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Model the lost RequestVote messages from two unsuccessful
+		// campaigns. The real election handler persists the term and vote.
+		for _, i := range []int{3, 4} {
+			c.Nodes[i].testBeginElection <- true
+		}
+		synctestWait_LetAllOtherGoroFinish()
+		for i, n := range c.Nodes {
+			look := n.Inspect()
+			term := look.State.CurrentTerm
+			look.State.KVstore.Close()
+			if i < 3 {
+				if term != write.Term || look.LastLogIndex != write.LogIndex {
+					t.Fatalf("%s: term %d, last index %d; want term %d, index %d", n.name, term, look.LastLogIndex, write.Term, write.LogIndex)
+				}
+			} else if term != write.Term+1 || look.LastLogIndex >= write.LogIndex {
+				t.Fatalf("%s: expected a higher term and shorter log, got term %d, last index %d", n.name, term, look.LastLogIndex)
+			}
+		}
+		c.IsolateNode(leader)
+		sim := c.Cfg.RpcCfg.GetSimnet()
+		for _, i := range []int{3, 4} {
+			if _, err := sim.AlterHost(c.Nodes[i].srvname, rpc.UNISOLATE); err != nil {
+				t.Fatal(err)
+			}
+		}
+		select {
+		case name := <-c.LeaderNoop0committedCh:
+			i := c.Name2num[name]
+			if i != 1 && i != 2 {
+				t.Fatalf("%s won without the committed suffix", name)
+			}
+			ticket, err := c.Nodes[i].Write(ctx, "", "after", Val("elected"), 0, nil, "", 0, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ticket.Term <= write.Term+1 || ticket.LogIndex <= write.LogIndex {
+				t.Fatalf("new leader committed index %d in term %d after index %d in term %d", ticket.LogIndex, ticket.Term, write.LogIndex, write.Term)
+			}
+		case <-time.After(time.Minute):
+			t.Fatal("four connected voters failed to elect a leader and commit its no-op")
+		}
+	})
+}
 
 func Test020_election_on_sim_net(t *testing.T) {
 

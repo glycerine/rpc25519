@@ -7262,63 +7262,35 @@ func (s *TubeNode) tallyPreVote(vote *Vote) {
 		panic(fmt.Sprintf("pre-vote must have FromPeerID; vote= '%v'", vote))
 	}
 
-	// this seems to be preventing alot of voting in 401
-	// as we try to remove node_5. node_5 is rejecting
-	// pre-votes with later MC that do not include node_5.
-	// But that seems correct: we want node_5 out so
-	// it should not be able to win a pre-vote.
-	//
-	// mongo reconfig: is our config >= their config. If not, exit.
+	if vote.CandidateID != s.PeerID {
+		return
+	}
+	if _, voter := s.state.MC.PeerNames.Get2(vote.FromPeerName); !voter {
+		return
+	}
+	if !ok && s.PeerID != vote.FromPeerID {
+		alwaysPrintf("%v warning! drat! not live vote-- arg: '%v'", s.me(), vote)
+		return
+	}
+
+	// A rejection can report a term the responder has already persisted.
+	// Learn that term so a voter with the latest log can campaign again.
+	// CandidatesTerm is only the proposed election term.
+	if !vote.VoteGranted && vote.FromPeerCurrentTerm > s.state.CurrentTerm {
+		s.becomeFollower(vote.FromPeerCurrentTerm, nil, SAVE_STATE)
+		return
+	}
+
+	// Count votes only from compatible membership configurations.
 	if vote.MC != nil && (vote.MC.VersionGT(s.state.MC) || vote.MC.conflictsWith(s.state.MC)) {
-		//vv("%v mongo ignore pre-vote from: '%v' since vote.MC(%v) > s.state.MC(%v); vote.VoteGranted=%v", s.me(), vote.FromPeerName, vote.MC.Short(), s.state.MC.Short(), vote.VoteGranted)
 		return
 	}
-
-	// mongo reconfig: are both we and the voter in
-	// our current config?
-	//
-	// Update: actually, per section 4.2.2 of the Raft dissertation,
-	// I don't think we want to require that we
-	// ourselves (the leader) are in the current MC,
-	// since for liveness we may have to manage a
-	// cluster we are leaving for a while longer.
-	//_, weOK := s.state.MC.PeerNames.Get2(s.name)
-	//if !weOK {
-	//	vv("%v in tallyPreVote, mongo ignore pre-vote received since I am not in MC", s.me())
-	//	return
-	//}
-
-	// Is the voter in our current config? (checks our own vote too).
-	_, voterOK := s.state.MC.PeerNames.Get2(vote.FromPeerName)
-	if !voterOK {
-		//vv("%v mongo ignore pre-vote received since voter is not in MC: '%v'", s.me(), vote.FromPeerName)
-		return
-	}
-
-	// is self vote? accept even though self never in cktall.
-	// to allow single node cluster to elect its only node.
-	fromSelf := s.PeerID == vote.FromPeerID
-
-	// double check that they were intending to vote for us.
-	if vote.CandidateID == s.PeerID {
-		// dedup votes
-		_, already := s.preVotes[vote.FromPeerName]
-		if !already {
-			// are they live?
-			// Per Ch 4, we allow voting for non-replicas, to
-			// allow configuration changes to work.
-			_, alive := s.cktall[vote.FromPeerID]
-			if alive || fromSelf { // since self is never in cktall
-				s.preVotes[vote.FromPeerName] = vote.VoteGranted
-				//vv("%v pre-vote from '%v' is '%v'", s.name, vote.FromPeerName, vote.VoteGranted)
-				if vote.VoteGranted {
-					s.yesPreVotes++
-				} else {
-					s.noPreVotes++
-				}
-			} else {
-				alwaysPrintf("%v warning! drat! not live vote-- arg: '%v'", s.me(), vote)
-			}
+	if _, already := s.preVotes[vote.FromPeerName]; !already {
+		s.preVotes[vote.FromPeerName] = vote.VoteGranted
+		if vote.VoteGranted {
+			s.yesPreVotes++
+		} else {
+			s.noPreVotes++
 		}
 	}
 
