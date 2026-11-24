@@ -75,3 +75,55 @@ func TestMemWALCompactionThreshold(t *testing.T) {
 		t.Fatalf("retained %d bytes after snapshot install", n)
 	}
 }
+
+func TestMemWALCompactionAcrossCommitBatches(t *testing.T) {
+	const threshold = 4 << 10
+	cfg := &TubeConfig{NoDisk: true, CompactionThresholdBytes: threshold}
+	w, err := cfg.newRaftWriteAheadLog("", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.close()
+	entries := createLogEntries(1, 21, 1)
+	for i, e := range entries {
+		e.Ticket.Val = make([]byte, 384+64*(i%4))
+	}
+	var previous int64
+	for _, step := range []struct {
+		end, commit, applied, wantBase int64
+	}{
+		{3, 0, 0, 0},
+		{7, 0, 0, 0},
+		{12, 0, 0, 0}, // Over the byte threshold with all twelve writes uncommitted.
+		{16, 8, 5, 4}, // Keep the applied anchor and the three committed, unapplied entries.
+		{20, 16, 14, 13},
+	} {
+		if err := w.overwriteEntries(previous, entries[previous:step.end], false, step.commit, step.applied, nil, nil); err != nil {
+			t.Fatal(err)
+		}
+		if w.logIndex.BaseC != step.wantBase || int64(len(w.raftLog)) != step.end-step.wantBase {
+			t.Fatalf("after %d writes, commit %d, applied %d: compacted through %d, retained %d entries",
+				step.end, step.commit, step.applied, w.logIndex.BaseC, len(w.raftLog))
+		}
+		var bytes int64
+		for i, want := range entries[step.wantBase:step.end] {
+			got, err := w.loadRaftLogEntry(i, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Index != want.Index || got.Term != want.Term || got.Ticket.Key != want.Ticket.Key {
+				t.Fatalf("retained entry %d has index %d, term %d, key %v", want.Index, got.Index, got.Term, got.Ticket.Key)
+			}
+			record, err := want.MarshalMsg(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bytes += int64(len(record))
+		}
+		if w.logSizeOnDisk() != bytes || step.end == 12 && bytes <= threshold {
+			t.Fatalf("after %d writes: WAL reports %d bytes, encoded suffix is %d, threshold is %d",
+				step.end, w.logSizeOnDisk(), bytes, threshold)
+		}
+		previous = step.end
+	}
+}
