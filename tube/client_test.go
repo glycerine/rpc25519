@@ -563,3 +563,102 @@ func Test710_client_linz_SessionSerial_leadership_change(t *testing.T) {
 
 // TODO: test for deletion of session after they timeout/go stale.
 // TODO: test all the stuff that chapter 6 discusses.
+
+// A local read is cached only at the leader that served it. If its retry
+// goes through the log, every replica must apply the same session renewal.
+func TestLocalReadRetryRenewsSessionOnEveryReplica(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		c, _, oldLeader, _ := SetupTestCluster(t, 3, 0, 711)
+		defer c.Close()
+		old := c.Nodes[oldLeader]
+		cfg := *c.Cfg
+		cfg.PeerServiceName = TUBE_CLIENT
+		cli := NewTubeNode("session-reader", &cfg)
+		if err := cli.InitAndStart(); err != nil {
+			t.Fatal(err)
+		}
+		defer cli.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		defer cancel()
+		if _, err := old.Write(ctx, "", "k", Val("v"), 0, nil, "", 0, false); err != nil {
+			t.Fatal(err)
+		}
+		sess, redirect, err := cli.CreateNewSession(ctx, old.name, old.URL)
+		if err != nil || redirect != nil {
+			t.Fatalf("create session: redirect=%v err=%v", redirect, err)
+		}
+		local, err := sess.Read(ctx, "", "k", 0)
+		if err != nil || local.LeaderLocalReadAtTm.IsZero() || string(local.Val) != "v" {
+			t.Fatalf("expected leader-local read of v, ticket=%v err=%v", local, err)
+		}
+
+		// Keep the old process alive so its local read cache survives step-down.
+		c.IsolateNode(oldLeader)
+		var leader *TubeNode
+		for until := time.Now().Add(time.Minute); leader == nil && time.Now().Before(until); {
+			time.Sleep(time.Second)
+			for _, n := range c.Nodes {
+				if n != old && n.Inspect().Role == LEADER {
+					leader = n
+					break
+				}
+			}
+		}
+		if leader == nil {
+			t.Fatal("majority did not elect a new leader")
+		}
+		c.AllHealthy(false, false)
+		// Even with a valid read lease, the new leader logs a read in the
+		// second half of the session so that all replicas renew it.
+		time.Sleep(time.Until(sess.SessionIndexEndxTm.Add(-sess.SessRequestedInitialDur / 2)))
+		if _, _, _, _, err := cli.ExternalGetCircuitToLeader(ctx, leader.name, leader.URL, nil, t.Name()); err != nil {
+			t.Fatal(err)
+		}
+		// TubeNode.Read resubmits the existing session serial.
+		retry, err := cli.Read(ctx, "", "k", 0, sess)
+		if err != nil || retry.SessionSerial != local.SessionSerial || retry.LogIndex <= local.AsOfLogIndex ||
+			!retry.LeaderLocalReadAtTm.IsZero() || string(retry.Val) != "v" {
+			t.Fatalf("expected logged retry of serial %d, ticket=%v err=%v", local.SessionSerial, retry, err)
+		}
+
+		sessionAt := func(n *TubeNode, index int64) *SessionTableEntry {
+			t.Helper()
+			state := n.Inspect().State
+			for until := time.Now().Add(time.Minute); state.LastApplied < index && time.Now().Before(until); {
+				time.Sleep(c.Cfg.HeartbeatDur)
+				state = n.Inspect().State
+			}
+			if state.LastApplied != index {
+				t.Fatalf("%s last applied %d, want %d", n.name, state.LastApplied, index)
+			}
+			return state.SessTable[sess.SessionID]
+		}
+		wantEnd := retry.RaftLogEntryTm.Add(sess.SessRequestedInitialDur)
+		for _, n := range c.Nodes {
+			entry := sessionAt(n, retry.LogIndex)
+			if entry == nil {
+				t.Fatalf("%s missing session at index %d", n.name, retry.LogIndex)
+			}
+			if entry.MaxAppliedSerial != retry.SessionSerial || !entry.SessionReplicatedEndxTm.Equal(wantEnd) {
+				t.Errorf("%s at index %d: applied serial %d, deadline %v; want serial %d, deadline %v",
+					n.name, retry.LogIndex, entry.MaxAppliedSerial, entry.SessionReplicatedEndxTm, retry.SessionSerial, wantEnd)
+			}
+		}
+
+		// Advance the replicated GC clock past the original deadline but
+		// before the renewed one. This write belongs to no session.
+		time.Sleep(time.Until(sess.SessionIndexEndxTm.Add(time.Second)))
+		pulse, err := leader.Write(ctx, "", "advance-log-clock", Val("v"), 0, nil, "", 0, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !pulse.RaftLogEntryTm.After(sess.SessionIndexEndxTm) || !pulse.RaftLogEntryTm.Before(wantEnd) {
+			t.Fatalf("GC entry at %v outside expected renewal interval", pulse.RaftLogEntryTm)
+		}
+		for _, n := range c.Nodes {
+			if sessionAt(n, pulse.LogIndex) == nil {
+				t.Errorf("%s expired the renewed session at index %d", n.name, pulse.LogIndex)
+			}
+		}
+	})
+}

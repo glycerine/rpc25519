@@ -122,11 +122,20 @@ model interfaces. The implementation traces cover Raft and transport.
 violation. A leader serves a session read locally. After failover the client
 retries that serial through the log. At applied index 3, the former leader's
 cache hit leaves its maximum applied serial at 0 and its session deadline at
-tick 3. The new leader records serial 1 and deadline 4. The corresponding Go
-branches are `leaderServedLocalRead`, `appliedSessionDuplicate` and the
-duplicate path in `commitWhatWeCan`. This is a model counterexample with
-source-level support. End-to-end confirmation in Go remains open.
-[Scenario](checks/SessionProjection.tla)
+tick 3. The new leader records serial 1 and deadline 4.
+[TLC scenario](checks/SessionProjection.tla)
+
+A three-replica Go test reproduces the discrepancy. `leaderServedLocalRead`
+caches the original reply on the old leader. After step-down,
+`appliedSessionDuplicate` finds that reply when the retry arrives through the
+log, so `commitWhatWeCan` skips the session renewal. On the next committed
+write past the original deadline, the former leader deletes the session while
+the other two replicas retain it. Run the red regression from the repository
+root with the command below. [Go regression](../../client_test.go)
+
+```sh
+go test -tags synctest ./tube -run '^TestLocalReadRetryRenewsSessionOnEveryReplica$' -count=1
+```
 
 ## Extend the model
 
