@@ -668,9 +668,8 @@ type TubeConfig struct {
 
 	InitialSimnetScenario int64 `zid:"22"`
 
-	// CompactionThresholdBytes defaults to 6MB but
-	// memwal tests can set it to 1 to get very
-	// frequent compaction.
+	// CompactionThresholdBytes defaults to 6 MiB. The memory WAL measures
+	// serialized entry bytes, excluding disk-only framing and checksums.
 	CompactionThresholdBytes int64 `zid:"23"`
 
 	// for tests, of leader election, using LeaderElectedCh
@@ -2644,7 +2643,7 @@ func NewTubeConfigProd(clusterSize int, clusterID string) (cfg *TubeConfig) {
 func newTubeConfig(clusterSize int, clusterID string, useSimNet, isTest bool) (cfg *TubeConfig) {
 
 	cfg = &TubeConfig{
-		CompactionThresholdBytes: 6 << 20,      // 6MB
+		CompactionThresholdBytes: defaultCompactionThresholdBytes,
 		PeerServiceName:          TUBE_REPLICA, // default
 		ClusterID:                clusterID,
 		ClusterSize:              clusterSize,

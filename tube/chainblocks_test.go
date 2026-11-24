@@ -160,9 +160,9 @@ func startChainCluster(t *testing.T, seed, writes int64, voters, testNum int) (*
 	cfg.InitialSimnetScenario = seed
 	cfg.RpcCfg.InitialSimnetScenario = seed
 	cfg.prng = newPRNG(seedBytes)
-	if rnd(2) == 0 {
-		cfg.CompactionThresholdBytes = 1
-	}
+	// The same seed replays the same WAL pressure and fault schedule.
+	thresholds := [...]int64{16 << 10, 64 << 10, 256 << 10, 1 << 20}
+	cfg.CompactionThresholdBytes = thresholds[rnd(int64(len(thresholds)))]
 	cfg.testApplyUserDefinedOp = func(node *TubeNode, cmd *Ticket) {
 		applyChainBlock(t, node, cmd, replicas[node.name], writes)
 	}
