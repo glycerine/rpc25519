@@ -1771,7 +1771,7 @@ func (s *TubeNode) handleArrivingFrag(frag *rpc.Fragment, ckt *rpc.Circuit) erro
 	// in the future/wrong cluster garbage.
 	if drop, reason := s.insaneTooOldOrNew(frag); drop {
 		_ = reason
-		alwaysPrintf("dropping frag outside our window: %v", reason)
+		// noisy on chainblock_test: alwaysPrintf("dropping frag outside our window: %v", reason)
 		// can be from SESS_END for instance.
 		return nil // ignore it
 	}
