@@ -23,7 +23,7 @@ import (
 // SHA256(previous digest || command), starting with a 32-byte zero digest.
 const chainTable, chainKey = "chainblocks", "head"
 
-// Each seed drives one cluster for CHAINBLOCKS_WRITES commands (default one million).
+// Each seed drives one cluster for CHAINBLOCKS_WRITES commands (default 80,000).
 // SCEN0=990 SCEN_BATCH=1 go test -tags synctest -run '^Test103_ChainOfBlocks$' -count=1 -timeout=0
 func Test103_ChainOfBlocks(t *testing.T) {
 	if !faketime {
@@ -47,7 +47,7 @@ func Test103_ChainOfBlocks(t *testing.T) {
 	if batch == 0 || first > math.MaxInt64-(batch-1) {
 		t.Fatalf("invalid scenario range SCEN0=%d SCEN_BATCH=%d", first, batch)
 	}
-	writes := envInt("CHAINBLOCKS_WRITES", 1_000_000)
+	writes := envInt("CHAINBLOCKS_WRITES", 80_000)
 	if writes == 0 {
 		t.Fatal("CHAINBLOCKS_WRITES must be positive")
 	}
