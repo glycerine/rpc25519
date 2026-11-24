@@ -1,0 +1,634 @@
+#lang ivy1.7
+
+# Raft safety projection of modelcheck/tube/tube.tla (revision 98e05525).
+# From tube/: python -O "$(which ivy_check)" tube.ivy
+#
+# The 'general' isolate checks elections, leader append-only, log matching,
+# and WAL/apply structure for any fixed family of intersecting voter quorums.
+# 'two_voters' instantiates Server = InitMembers = {n1,n2} from tube.cfg.
+# Both votes are then required. It also checks leader completeness, state
+# machine safety, the quorum holding each commit, and follower match evidence.
+# Both instances admit arbitrarily many terms, entries, and intact-WAL restarts.
+#
+# Server names identify votes and match records. Each immutable log handle
+# contains one-based (term, entry id) pairs, including the compacted prefix.
+# Zero denotes the empty prefix. Message relations retain observations made
+# at send time and allow delay, loss and redelivery. Sending, recording a vote,
+# and tallying it are separate scheduling points. An ACK that raises a match
+# index runs the commit calculation in the same step.
+#
+# This projection fixes the voter set and uses the logical common prefix as
+# the RLE interface. It abstracts incarnation/circuit management, timing of
+# leases and startup unanimity, physical PAR/WAL faults, and ticket routing.
+# Singleton elections use the same campaign as multi-voter elections here.
+# The KV, czar, Hermes and fairness entry points are separate TLA+ behaviors.
+# The invariants below are inductive safety checks; Ivy does not enumerate
+# the TLC state graph or establish equivalence of the two transition systems.
+
+module natural_order(s) = {
+    axiom X:s <= X
+    axiom X:s <= Y & Y <= Z -> X <= Z
+    axiom X:s <= Y & Y <= X -> X = Y
+    axiom X:s <= Y | Y <= X
+    axiom 0 <= X:s
+    axiom X:s < Y <-> X <= Y & X ~= Y
+}
+
+module tube_raft = {
+
+type node
+type quorum
+type term
+type index
+type entry_id
+type log
+type role = {follower,candidate,leader}
+instance term_order : natural_order(term)
+instance index_order : natural_order(index)
+
+relation voter(N:node)
+relation member(Q:quorum,N:node)
+axiom member(Q,N) -> voter(N)
+axiom forall A:quorum,B:quorum. exists N:node. member(A,N) & member(B,N)
+
+# The sequence representation only constrains how log handles are read. The
+# node that appends chooses the new entry. LogMatching is a checked invariant.
+individual empty_log : log
+function last(L:log) : index
+relation at_term(L:log,I:index,T:term)
+function id_at(L:log,I:index) : entry_id
+axiom last(empty_log) = 0
+axiom at_term(L,I,T) -> I <= last(L) & (I = 0 <-> T = 0)
+axiom at_term(L,0,0)
+axiom at_term(L,I,T) & at_term(L,I,U) -> T = U
+
+relation same_prefix(A:log,B:log,K:index) =
+    K <= last(A) & K <= last(B) &
+    (forall I:index. (0 < I & I <= K) -> id_at(A,I) = id_at(B,I)) &
+    (forall I:index,T:term. I <= K -> (at_term(A,I,T) <-> at_term(B,I,T)))
+
+relation successor(I:index,J:index) =
+    I < J & (forall K:index. K < J -> K <= I)
+relation next_term(T:term,U:term) =
+    T < U & (forall V:term. V < U -> V <= T)
+
+relation up(N:node)
+function state(N:node) : role
+function wal(N:node) : log
+relation current(N:node,T:term)
+relation passed(N:node,T:term)
+relation durable(N:node,T:term)
+relation voted_for(N:node,C:node)
+relation durable_vote(N:node,C:node)
+relation vote_history(V:node,T:term,C:node)
+relation held(N:node)
+relation sticky(N:node)
+relation resume_votes(N:node)
+relation polling(N:node,T:term)
+relation armed(N:node,T:term)
+relation pre_request(C:node,T:term,L:log)
+relation pre_yes(C:node,T:term,V:node)
+relation pre_no(C:node,T:term,V:node)
+relation pre_grants(C:node,V:node)
+relation pre_denials(C:node,V:node)
+relation vote_request(C:node,T:term,L:log)
+relation vote_yes(C:node,T:term,V:node)
+relation vote_no(C:node,T:term,V:node)
+relation grants(C:node,V:node)
+relation denials(C:node,V:node)
+relation elected(C:node,T:term)
+relation elected_origin(T:term)
+function term_leader(T:term) : node
+function election_quorum(T:term) : quorum
+
+# Largest log published by a leader of each term, used as a proof witness.
+function leader_log(T:term) : log
+relation published(T:term,L:log)
+relation valid(L:log)
+relation used(E:entry_id)
+relation noop(N:node,I:index)
+function ci(N:node) : index
+relation ci_term(N:node,T:term)
+function applied_id(N:node,I:index) : entry_id
+function applied_to(N:node) : index
+function base(N:node) : index
+
+# AE carries the term summary (log handle), predecessor, upper bound on the
+# batch, and leaderCommit. A heartbeat carries an empty range.
+relation ae(S:node,T:term,L:log,P:index,H:index,C:index)
+relation ack(S:node,T:term,F:node,I:index)
+relation matched(S:node,F:node,I:index)
+# Histories used to prove commitment across elections. Record replication at
+# the WAL write/response, before the leader consumes the reply.
+relation replicated(V:node,T:term,I:index)
+relation committed(I:index,T:term,E:entry_id)
+
+after init {
+    up(N) := true;
+    state(N) := follower;
+    wal(N) := empty_log;
+    current(N,T) := T = 0;
+    durable(N,T) := T = 0;
+    passed(N,T) := false;
+    voted_for(N,C) := false;
+    durable_vote(N,C) := false;
+    vote_history(N,T,C) := false;
+    held(N) := false;
+    sticky(N) := false;
+    resume_votes(N) := false;
+    polling(N,T) := false;
+    armed(N,T) := false;
+    pre_request(N,T,L) := false;
+    pre_yes(N,T,V) := false;
+    pre_no(N,T,V) := false;
+    pre_grants(N,V) := false;
+    pre_denials(N,V) := false;
+    vote_request(N,T,L) := false;
+    vote_yes(N,T,V) := false;
+    vote_no(N,T,V) := false;
+    grants(N,V) := false;
+    denials(N,V) := false;
+    elected(N,T) := false;
+    elected_origin(T) := false;
+    leader_log(T) := empty_log;
+    published(T,L) := false;
+    valid(L) := L = empty_log;
+    used(E) := false;
+    noop(N,I) := false;
+    ci(N) := 0;
+    ci_term(N,T) := T = 0;
+    applied_to(N) := 0;
+    base(N) := 0;
+    ae(S,T,L,P,H,C) := false;
+    ack(S,T,F,I) := false;
+    matched(S,F,I) := false;
+    replicated(V,T,I) := false;
+    committed(I,T,E) := false
+}
+
+action reset_campaign(n:node) = {
+    polling(n,T) := false;
+    armed(n,T) := false;
+    resume_votes(n) := false
+}
+
+action follow(n:node) = {
+    state(n) := follower;
+    noop(n,I) := false;
+    call reset_campaign(n)
+}
+
+action adopt_term(n:node,t:term) = {
+    current(n,T) := T = t;
+    passed(n,T) := T < t;
+    durable(n,T) := T = t;
+    voted_for(n,C) := false;
+    durable_vote(n,C) := false;
+    call follow(n)
+}
+
+# LogUpToDateAsOurs compares last term first, then last index.
+relation up_to_date(A:log,B:log,TA:term,TB:term) =
+    at_term(A,last(A),TA) & at_term(B,last(B),TB) &
+    (TB < TA | (TB = TA & last(B) <= last(A)))
+
+# BeginPreVote and HandleRequestPreVote. The restart window and recent leader
+# contact inhibit a grant. The self pre-vote is counted by stable voter name.
+action election_timeout(n:node,t:term,u:term) = {
+    require up(n) & voter(n) & state(n) ~= leader & ~held(n) & ~resume_votes(n);
+    require current(n,t) & next_term(t,u) & ~armed(n,u);
+    call follow(n);
+    polling(n,u) := true;
+    pre_request(n,u,wal(n)) := true;
+    pre_yes(n,u,n) := true;
+    pre_grants(n,V) := V = n;
+    pre_denials(n,V) := false
+}
+export election_timeout
+
+action handle_request_pre_vote(v:node,c:node,t:term,u:term,l:log,ct:term,vt:term) = {
+    require up(v) & v ~= c & ~resume_votes(v);
+    require pre_request(c,u,l) & current(v,t);
+    require at_term(l,last(l),ct) & at_term(wal(v),last(wal(v)),vt);
+    if ~held(v) & ~sticky(v) & state(v) ~= leader & t < u & up_to_date(l,wal(v),ct,vt) {
+        pre_yes(c,u,v) := true
+    } else {
+        pre_no(c,u,v) := true
+    }
+}
+export handle_request_pre_vote
+
+action record_pre_vote(n:node,t:term,v:node,yes:bool) = {
+    require up(n) & polling(n,t) & voter(v) & ~pre_grants(n,v) & ~pre_denials(n,v);
+    require (yes & pre_yes(n,t,v)) | (~yes & pre_no(n,t,v));
+    pre_grants(n,v) := yes;
+    pre_denials(n,v) := ~yes
+}
+export record_pre_vote
+
+action tally_pre_vote(n:node,t:term,q:quorum) = {
+    require up(n) & polling(n,t);
+    if forall V. member(q,V) -> pre_grants(n,V) {
+        polling(n,t) := false;
+        armed(n,t) := true
+    } else if (forall V. member(q,V) -> pre_denials(n,V)) |
+              (forall V. voter(V) -> pre_grants(n,V) | pre_denials(n,V)) {
+        # The exhausted split vote resets only if no quorum granted.
+        if ~(exists Q:quorum. forall V. member(Q,V) -> pre_grants(n,V)) {
+            call reset_campaign(n)
+        }
+    }
+}
+export tally_pre_vote
+
+# BeginElection/ResumeCampaign. A crash can intervene after the self-vote
+# fsync and before any peer can see a RequestVote.
+action phase_two_timeout(n:node,t:term,u:term) = {
+    require up(n) & voter(n) & state(n) = follower & ~held(n);
+    require current(n,t) & next_term(t,u) & armed(n,u);
+    call adopt_term(n,u);
+    state(n) := candidate;
+    voted_for(n,n) := true;
+    durable_vote(n,n) := true;
+    vote_history(n,u,n) := true;
+    grants(n,V) := false;
+    denials(n,V) := false;
+    resume_votes(n) := true
+}
+export phase_two_timeout
+
+action send_request_votes(n:node,t:term) = {
+    require up(n) & resume_votes(n) & current(n,t);
+    resume_votes(n) := false;
+    vote_request(n,t,wal(n)) := true;
+    vote_yes(n,t,n) := true;
+    grants(n,n) := true
+}
+export send_request_votes
+
+# HandleRequestVote snapshots the voter's term before stepping down.
+# TallyVote only counts a granted remote reply with vterm < cterm.
+action request_vote(v:node,c:node,t:term,prior:term,l:log,ct:term,vt:term) = {
+    require v ~= c & up(v) & ~resume_votes(v);
+    require vote_request(c,t,l) & current(v,prior);
+    require at_term(l,last(l),ct) & at_term(wal(v),last(wal(v)),vt);
+    if t < prior | held(v) | sticky(v) | state(v) = leader {
+        vote_no(c,prior,v) := true
+    } else {
+        if prior < t { call adopt_term(v,t) };
+        if ~(exists C. voted_for(v,C) & C ~= c) & up_to_date(l,wal(v),ct,vt) {
+            voted_for(v,c) := true;
+            durable_vote(v,c) := true;
+            vote_history(v,t,c) := true;
+            if prior < t { vote_yes(c,t,v) := true }
+        } else {
+            vote_no(c,t,v) := true
+        }
+    }
+}
+export request_vote
+
+action record_vote(n:node,t:term,v:node,yes:bool) = {
+    require up(n) & ~resume_votes(n) & voter(v);
+    require (yes & vote_yes(n,t,v)) | (~yes & vote_no(n,t,v));
+    if ~current(n,t) & ~passed(n,t) {
+        call adopt_term(n,t)
+    } else if current(n,t) & state(n) = candidate & ~grants(n,v) & ~denials(n,v) {
+        grants(n,v) := yes;
+        denials(n,v) := ~yes
+    }
+}
+export record_vote
+
+action election_denied(n:node,q:quorum) = {
+    require up(n) & state(n) = candidate;
+    require forall V. member(q,V) -> denials(n,V);
+    call follow(n)
+}
+export election_denied
+
+# Append/fsync a fresh entry. The successor and prefix constraints construct
+# a sequence exactly one entry longer. Every log actually used is valid.
+action append_local(n:node,t:term,l:log,i:index,e:entry_id) = {
+    assume successor(last(wal(n)),i) & last(l) = i;
+    assume same_prefix(wal(n),l,last(wal(n)));
+    assume at_term(l,i,t) & id_at(l,i) = e & ~used(e);
+    used(e) := true;
+    valid(l) := true;
+    wal(n) := l;
+    leader_log(t) := l;
+    published(t,l) := true;
+    replicated(n,t,J) := replicated(n,t,J) | (0 < J & J <= i);
+    matched(n,n,J) := 0 < J & J <= i
+}
+
+# BecomeLeader publishes the initial no-op in the same transition.
+action become_leader(n:node,t:term,q:quorum,l:log,i:index,e:entry_id) = {
+    require up(n) & state(n) = candidate & ~resume_votes(n) & current(n,t);
+    require forall V. member(q,V) -> grants(n,V);
+    state(n) := leader;
+    elected(n,t) := true;
+    elected_origin(t) := true;
+    term_leader(t) := n;
+    election_quorum(t) := q;
+    matched(n,F,J) := false;
+    noop(n,J) := J = i;
+    call append_local(n,t,l,i,e)
+}
+export become_leader
+
+action send_append_entries(n:node,t:term,p:index,h:index) = {
+    require up(n) & state(n) = leader & current(n,t);
+    require (p = 0 & h = 0) | (base(n) <= p & p < h & h <= last(wal(n)));
+    ae(n,t,wal(n),p,h,ci(n)) := true
+}
+export send_append_entries
+
+# CommitWhatWeCan/ApplyFrom apply only the newly committed suffix. Previously
+# applied identities stay in the application history across WAL changes.
+action apply_through(n:node,i:index) = {
+    if ci(n) < i {
+        ci(n) := i;
+        ci_term(n,T) := at_term(wal(n),i,T);
+        applied_id(n,J) := id_at(wal(n),J) if applied_to(n) < J & J <= i else applied_id(n,J);
+        applied_to(n) := i
+    }
+}
+
+# Receive the logical effect of an AE. K is the common term prefix reported
+# by the sender's term summary (Extends). P+1..H is the actual batch. The
+# receiver can accept a matching heartbeat, append a tail, replace a
+# conflicting uncommitted suffix, or reject a gap. Prefix comparison here
+# uses terms. Equality of entry identities is a proof obligation.
+relation term_prefix(A:log,B:log,K:index) =
+    K <= last(A) & K <= last(B) &
+    (forall I:index,T:term. I <= K -> (at_term(A,I,T) <-> at_term(B,I,T)))
+
+action receive_append_entries(n:node,s:node,t:term,l:log,p:index,h:index,c:index,
+                              k:index,kt:term,result:log) = {
+    require up(n) & n ~= s & ~resume_votes(n);
+    require ae(s,t,l,p,h,c) & ~passed(n,t);
+    require term_prefix(l,wal(n),k) & at_term(l,k,kt) & at_term(wal(n),k,kt);
+    require forall J. k < J -> ~term_prefix(l,wal(n),J);
+    if ~current(n,t) { call adopt_term(n,t) } else { call follow(n) };
+    sticky(n) := true;
+    var verified := k;
+    if p <= k {
+        if k < h & ci(n) <= k & base(n) <= k {
+            # OverwriteEntries retains the verified prefix, then writes only
+            # the entries in this batch. It truncates the old suffix.
+            assume last(result) = h & same_prefix(wal(n),result,k);
+            assume forall J. k < J & J <= h -> id_at(result,J) = id_at(l,J);
+            assume forall J,U. k < J & J <= h -> (at_term(result,J,U) <-> at_term(l,J,U));
+            wal(n) := result;
+            valid(result) := true;
+            verified := h
+        };
+        call apply_through(n, c if c <= verified else verified)
+    };
+    # The logical prefix abstracts RLE/physical-last and snapshot-gap hints.
+    # AckStep may use the common prefix even from a rejecting reply.
+    replicated(n,t,J) := replicated(n,t,J) | (0 < J & J <= verified);
+    ack(s,t,n,verified) := true
+}
+export receive_append_entries
+
+# LeaderAdvanceCommitIndex runs inside AckStep on an increase in MI. Choose
+# the largest quorum-replicated index before testing its entry term, as the
+# source does. Zero is the result when no positive index has a quorum.
+action advance_commit(n:node,t:term) = {
+    var i:index;
+    var q:quorum;
+    assume i = 0 | (forall V. member(q,V) -> matched(n,V,i));
+    assume forall J:index,Q:quorum. i < J -> exists V. member(Q,V) & ~matched(n,V,J);
+    if ci(n) < i & base(n) < i & i <= last(wal(n)) & at_term(wal(n),i,t) {
+        committed(J,T,E) := committed(J,T,E) |
+            (ci(n) < J & J <= i & at_term(wal(n),J,T) & E = id_at(wal(n),J));
+        call apply_through(n,i)
+    }
+}
+
+action commit_singleton_noop(n:node,t:term) = {
+    require up(n) & state(n) = leader & current(n,t);
+    require forall V. voter(V) -> V = n;
+    require exists I. noop(n,I) & ci(n) < I;
+    call advance_commit(n,t)
+}
+export commit_singleton_noop
+
+action client_request(n:node,t:term,l:log,i:index,e:entry_id) = {
+    require up(n) & state(n) = leader & current(n,t);
+    require exists J. noop(n,J) & J <= applied_to(n);
+    call append_local(n,t,l,i,e);
+    if forall V. voter(V) -> V = n { call advance_commit(n,t) }
+}
+export client_request
+
+action receive_ack(n:node,t:term,f:node,i:index) = {
+    require up(n) & state(n) = leader & current(n,t) & ack(n,t,f,i);
+    if 0 < i & ~matched(n,f,i) {
+        matched(n,f,J) := matched(n,f,J) | (0 < J & J <= i);
+        call advance_commit(n,t)
+    }
+}
+export receive_ack
+
+# A receiver with a newer term rejects a delayed AE. Its reply can depose
+# the sender even when no replication progress was made.
+relation newer_reply(N:node,T:term)
+after init { newer_reply(N,T) := false }
+
+action reject_stale_entries(n:node,s:node,t:term,u:term,l:log,p:index,h:index,c:index) = {
+    require up(n) & ~resume_votes(n) & n ~= s & current(n,u) & t < u;
+    require ae(s,t,l,p,h,c);
+    newer_reply(s,u) := true
+}
+export reject_stale_entries
+
+action observe_newer_reply(n:node,t:term,u:term) = {
+    require up(n) & ~resume_votes(n) & newer_reply(n,u) & current(n,t) & t < u;
+    call adopt_term(n,u)
+}
+export observe_newer_reply
+
+# Compact retains logical history. A complete state snapshot transfers the
+# applied prefix and its boundary. Multipart assembly and PAR disk loss live
+# below this model's intact-WAL interface.
+relation snapshot(S:node,T:term,L:log,I:index)
+after init { snapshot(S,T,L,I) := false }
+
+action compact(n:node) = {
+    require up(n) & base(n) < applied_to(n);
+    base(n) := applied_to(n)
+}
+export compact
+
+action send_snapshot(n:node,t:term) = {
+    require up(n) & state(n) = leader & current(n,t);
+    snapshot(n,t,wal(n),applied_to(n)) := true
+}
+export send_snapshot
+
+action install_snapshot(n:node,s:node,t:term,l:log,i:index) = {
+    require n ~= s & up(n) & state(n) = follower & current(n,t);
+    require snapshot(s,t,l,i) & ci(n) < i;
+    if ~term_prefix(l,wal(n),last(l)) {
+        # The installation includes the trailing entries of the embedded AE.
+        wal(n) := l;
+        applied_id(n,J) := id_at(l,J) if 0 < J & J <= i else applied_id(n,J);
+        base(n) := i
+    };
+    call apply_through(n,i)
+}
+export install_snapshot
+
+action crash(n:node) = {
+    require up(n);
+    up(n) := false
+}
+export crash
+
+action restart(n:node) = {
+    require ~up(n);
+    up(n) := true;
+    current(n,T) := durable(n,T);
+    voted_for(n,C) := durable_vote(n,C);
+    held(n) := true;
+    sticky(n) := false;
+    matched(n,F,J) := false;
+    call follow(n)
+}
+export restart
+
+action restart_window_elapsed(n:node) = {
+    require up(n) & held(n);
+    held(n) := false
+}
+export restart_window_elapsed
+
+action sticky_expire(n:node) = {
+    require up(n) & sticky(n);
+    sticky(n) := false
+}
+export sticky_expire
+
+# Timeout without a fresh pong quorum (LeaderPongCheck).
+action leader_steps_down(n:node) = {
+    require up(n) & state(n) = leader;
+    call follow(n)
+}
+export leader_steps_down
+
+# Inductive facts for elections and immutable log versions.
+invariant [current_unique] current(N,T) & current(N,U) -> T = U
+invariant [term_ordered] current(N,T) -> (passed(N,U) <-> U < T)
+invariant [passed_downward] passed(N,T) & U < T -> passed(N,U)
+invariant [durable_term] durable(N,T) <-> current(N,T)
+invariant [voted_at_most_once] vote_history(V,T,C) & vote_history(V,T,D) -> C = D
+invariant [historical_vote_term] vote_history(V,T,C) -> passed(V,T) | current(V,T)
+invariant [current_vote] vote_history(V,T,C) & current(V,T) -> voted_for(V,C)
+invariant [one_vote] voted_for(V,C) & voted_for(V,D) -> C = D
+invariant [tally_evidence] state(C) = candidate & current(C,T) & grants(C,V) -> vote_yes(C,T,V)
+invariant [granted_vote] vote_yes(C,T,V) -> vote_history(V,T,C)
+invariant [candidate_vote_durable] state(N) = candidate & current(N,T) ->
+    durable(N,T) & durable_vote(N,N) & voted_for(N,N) & vote_history(N,T,N)
+invariant [send_continuation] resume_votes(N) -> state(N) = candidate
+invariant [election_certificate] elected(N,T) & member(election_quorum(T),V) -> vote_yes(N,T,V)
+invariant [election_safety] elected(N,T) & elected(M,T) -> N = M
+invariant [leader_elected] state(N) = leader & current(N,T) -> elected(N,T)
+invariant [election_precedes_term] elected(N,T) -> current(N,T) | passed(N,T)
+invariant [leader_owns_log] state(N) = leader & current(N,T) -> wal(N) = leader_log(T) & published(T,wal(N))
+invariant [published_log_valid] valid(leader_log(T))
+invariant [local_log_valid] valid(wal(N))
+invariant [packet_log_valid] ae(S,T,L,P,H,C) -> valid(L) & H <= last(L) & C <= last(L)
+invariant [snapshot_log_valid] snapshot(S,T,L,I) -> valid(L) & I <= last(L)
+invariant [term_origin] valid(L) & 0 < I & at_term(L,I,T) ->
+    same_prefix(L,leader_log(T),I)
+invariant [log_matching] valid(A) & valid(B) & 0 < I & at_term(A,I,T) & at_term(B,I,T) ->
+    same_prefix(A,B,I)
+invariant [term_log_bound] at_term(leader_log(T),I,U) -> U <= T
+invariant [local_term_bound] at_term(wal(N),I,T) -> current(N,T) | passed(N,T)
+invariant [packet_term_bound] ae(S,T,L,P,H,C) & at_term(L,I,U) -> U <= T
+invariant [snapshot_term_bound] snapshot(S,T,L,I) & at_term(L,J,U) -> U <= T
+invariant [applied_len_ok] base(N) <= applied_to(N) & applied_to(N) = ci(N) & ci(N) <= last(wal(N))
+invariant [commit_index_term_sound] ci_term(N,T) <-> at_term(wal(N),ci(N),T)
+invariant [applied_prefix] 0 < I & I <= applied_to(N) -> applied_id(N,I) = id_at(wal(N),I)
+invariant [log_terms_monotone] valid(L) & at_term(L,I,T) & at_term(L,J,U) & I <= J -> T <= U
+invariant [candidate_before_election] state(N) = candidate & current(N,T) -> ~elected(N,T)
+invariant [published_by_elected] 0 < last(leader_log(T)) -> elected_origin(T)
+
+# Quantification over all larger quorum-replicated indices in the commit
+# rule uses general first-order verification conditions. Check inductively.
+attribute complete = fo
+
+invariant [leader_append_only] published(T,L) -> same_prefix(L,leader_log(T),last(L))
+invariant [published_history] published(T,L) -> elected_origin(T) & valid(L)
+invariant [request_valid] vote_request(C,T,L) -> valid(L) & (current(C,T) | passed(C,T))
+invariant [request_stable] vote_request(C,T,L) & ~passed(C,T) & ~elected_origin(T) -> wal(C) = L
+invariant [ae_source] ae(S,T,L,P,H,C) -> elected(S,T) & published(T,L)
+invariant [snapshot_source] snapshot(S,T,L,I) -> elected(S,T) & published(T,L)
+invariant [replication_source] replicated(V,T,I) ->
+    0 < I & I <= last(leader_log(T)) & (current(V,T) | passed(V,T))
+invariant [replicated_prefix] replicated(V,T,I) & 0 < J & J <= I -> replicated(V,T,J)
+invariant [ack_source] ack(S,T,V,I) -> elected(S,T) & (I = 0 | replicated(V,T,I))
+invariant [match_source] state(S) = leader & current(S,T) & matched(S,V,I) -> replicated(V,T,I)
+invariant [durable_vote_agrees] voted_for(N,C) <-> durable_vote(N,C)
+invariant [election_exists] elected_origin(T) -> elected(term_leader(T),T)
+invariant [elected_term] elected(N,T) -> elected_origin(T)
+}
+
+isolate general = {
+    instantiate tube_raft
+}
+
+# The fixed voter set of modelcheck/tube/tube.cfg. Its only majority contains
+# both voters. Terms, entries, crashes and election timers are still unbounded.
+isolate two_voters = {
+    instantiate tube_raft
+    individual n1 : node
+    individual n2 : node
+    axiom n1 ~= n2
+    axiom N:node = n1 | N = n2
+    axiom member(Q,N)
+
+    # Global append history for the proof. These fields observe completed
+    # appends and are never read by protocol actions.
+    individual longest : log
+    individual author : node
+    function elected_term_of(N:node) : term
+    after become_leader { elected_term_of(n) := t }
+    after init { longest := empty_log }
+    after append_local {
+        longest := l;
+        author := n
+    }
+
+    invariant [leader_term_witness] state(N) = leader ->
+        current(N,elected_term_of(N)) & elected(N,elected_term_of(N))
+    invariant [one_current_leader] state(N) = leader & state(M) = leader -> N = M
+    invariant [all_prefixes] valid(L) -> same_prefix(L,longest,last(L))
+    invariant [longest_valid] valid(longest)
+    invariant [longest_holder] same_prefix(longest,wal(author),last(longest))
+    invariant [active_leader_prefix] state(N) = leader -> same_prefix(longest,wal(N),last(longest))
+    invariant [voter_freshness] vote_yes(C,T,V) & ~passed(C,T) & ~elected_origin(T) ->
+        last(wal(V)) <= last(wal(C))
+    invariant [acked_prefix] replicated(V,T,I) -> I <= last(wal(V))
+    invariant [acked_stays] up(V) & current(V,T) & replicated(V,T,I) ->
+        same_prefix(wal(V),leader_log(T),I)
+    invariant [committed_on_quorum] committed(I,T,E) ->
+        0 < I & I <= last(wal(N)) & at_term(wal(N),I,T) & id_at(wal(N),I) = E
+    invariant [leader_completeness] up(N) & state(N) = leader & current(N,U) &
+        committed(I,T,E) & T < U -> I <= last(wal(N)) & id_at(wal(N),I) = E
+    invariant [match_index_sound] up(N) & state(N) = leader & matched(N,F,I) & up(F) ->
+        same_prefix(wal(N),wal(F),I)
+    invariant [applied_entry_committed] 0 < I & I <= applied_to(N) & at_term(wal(N),I,T) ->
+        committed(I,T,applied_id(N,I))
+    invariant [ae_commit_evidence] ae(S,T,L,P,H,C) & 0 < I & I <= C & at_term(L,I,U) ->
+        committed(I,U,id_at(L,I))
+    invariant [snapshot_commit_evidence] snapshot(S,T,L,K) & 0 < I & I <= K & at_term(L,I,U) ->
+        committed(I,U,id_at(L,I))
+    invariant [state_machine_safety] 0 < I & I <= applied_to(N) & I <= applied_to(M) ->
+        applied_id(N,I) = applied_id(M,I)
+}
+
+attribute complete = fo
