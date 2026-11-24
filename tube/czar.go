@@ -889,9 +889,8 @@ type RMember struct {
 
 	OperatingLeaseRenewCh chan time.Time
 
-	// Ready is closed when UpcallMembershipChangeCh is set
-	// and the RMember is ready to use (call Start(), then
-	// wait for Ready to be closed).
+	// After Start, wait for Ready.Chan to close before using Czar or
+	// receiving membership updates.
 	Ready *idem.IdemCloseChan
 
 	ClockDriftBound time.Duration

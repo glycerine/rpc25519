@@ -2820,6 +2820,7 @@ func TestMemberSurvivesUnreachableTubeCluster(t *testing.T) {
 		cliCfg.InitialLeaderName = ""
 		mem := NewRMember(t.Name(), &cliCfg)
 		mem.Start()
+		<-mem.Ready.Chan
 		time.Sleep(20 * time.Second) // keeps failing to find a leader
 		mem.Czar.Halt.RequestStop()
 		select {
