@@ -11208,9 +11208,9 @@ func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
 		// did we get a replacement ckt maybe? try to recover...
 		cktP, ok = s.cktAllByName[tkt.FromName]
 		if !ok {
-			// still nope
-
-			alwaysPrintf("%v in respondToClientTicketApplied: loss of ticket... don't know how to contact tkt.FromID='%v' (tkt.FromName='%v') (!= s.PeerID='%v'/'%v') to fwd tkt in respondToClientTicketApplied. Assuming they died. tkt=%v; s.cktall='%v'", s.me(), tkt.FromID, tkt.FromName, alias(s.PeerID), s.PeerID, tkt, s.cktall2string())
+			// A replayed ticket can have a large value and a long-gone client.
+			// Keep its payload out of the synchronous Raft event-loop log.
+			alwaysPrintf("%s cannot deliver applied %v ticket %q (index %d, term %d) to %q (%s): no circuit", s.name, tkt.Op, tkt.TicketID, tkt.LogIndex, tkt.Term, tkt.FromName, tkt.FromID)
 
 			tkt.Stage += ":__cannot_find_ckt_for_client_lose_ticket"
 			// TODO: add to dead letter?

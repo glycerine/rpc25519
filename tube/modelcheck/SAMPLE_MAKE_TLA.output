@@ -1,0 +1,2042 @@
+# at: * db9f49d2 (HEAD -> specular, tag: v1.56.5, origin/specular, origin/master, origin/HEAD, master) atgrs. fix race in specular_test.go TestMemberSurvivesUnreachableTubeCluster
+
+(goivy-venv) jaten@rog ~/rpc25519/tube (specular) $ time make tla
+
+TLA_LIB="modelcheck" TLA2TOOLS_JAR="modelcheck/tla2tools.jar" TLC_HEAP="2g" \
+    bash modelcheck/tube/trace/replay.sh modelcheck/tube/tube.tla "modelcheck/tube/trace/fixtures/44d0b71d"
+Replaying /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/trace/fixtures/44d0b71d/cold_start_election.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 121 and seed -5458405285048213961 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3278827] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-14007608798501560650/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14007608798501560650/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14007608798501560650/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14007608798501560650/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14007608798501560650/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14007608798501560650/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14007608798501560650/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 19:58:59)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 19:59:00.
+Checking temporal properties for the current state space with 135 total distinct states at (2026-11-23 19:59:03)
+Finished checking temporal properties in 00s at 2026-11-23 19:59:03
+Progress(135) at 2026-11-23 19:59:03: 146 states generated (146 s/min), 135 distinct states found (135 ds/min), 0 states left on queue.
+Progress(519) at 2026-11-23 19:59:13: 542 states generated, 519 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 519 total distinct states at (2026-11-23 19:59:13)
+Finished checking temporal properties in 00s at 2026-11-23 19:59:13
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 6.5E-16
+542 states generated, 519 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 519.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 14s at (2026-11-23 19:59:13)
+Replaying /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/trace/fixtures/44d0b71d/leader_crash_restart.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 19 and seed -417469979718766304 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3278947] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-13223752421939088406/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-13223752421939088406/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-13223752421939088406/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-13223752421939088406/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-13223752421939088406/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-13223752421939088406/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-13223752421939088406/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 19:59:13)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 19:59:14.
+Checking temporal properties for the current state space with 151 total distinct states at (2026-11-23 19:59:17)
+Finished checking temporal properties in 00s at 2026-11-23 19:59:17
+Progress(151) at 2026-11-23 19:59:17: 161 states generated (161 s/min), 151 distinct states found (151 ds/min), 0 states left on queue.
+Progress(504) at 2026-11-23 19:59:28: 532 states generated, 504 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 504 total distinct states at (2026-11-23 19:59:28)
+Finished checking temporal properties in 00s at 2026-11-23 19:59:28
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 7.7E-16
+532 states generated, 504 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 504.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 15s at (2026-11-23 19:59:28)
+Replaying /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/trace/fixtures/44d0b71d/follower_crash_restart.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 48 and seed 414735309412173735 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3279072] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-7233575608990586888/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-7233575608990586888/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-7233575608990586888/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-7233575608990586888/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-7233575608990586888/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-7233575608990586888/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-7233575608990586888/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 19:59:29)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 19:59:30.
+Checking temporal properties for the current state space with 133 total distinct states at (2026-11-23 19:59:33)
+Finished checking temporal properties in 00s at 2026-11-23 19:59:33
+Progress(133) at 2026-11-23 19:59:33: 144 states generated (144 s/min), 133 distinct states found (133 ds/min), 0 states left on queue.
+Progress(512) at 2026-11-23 19:59:45: 549 states generated, 517 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 517 total distinct states at (2026-11-23 19:59:45)
+Finished checking temporal properties in 00s at 2026-11-23 19:59:45
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 9.0E-16
+549 states generated, 517 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 512.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 1).
+Finished in 16s at (2026-11-23 19:59:45)
+Replaying /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/trace/fixtures/44d0b71d/leader_isolate_heal.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 0 and seed 431936471193108626 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3279187] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-1854743369083394054/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1854743369083394054/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1854743369083394054/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1854743369083394054/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1854743369083394054/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1854743369083394054/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1854743369083394054/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 19:59:46)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 19:59:47.
+Checking temporal properties for the current state space with 151 total distinct states at (2026-11-23 19:59:50)
+Finished checking temporal properties in 00s at 2026-11-23 19:59:50
+Progress(141) at 2026-11-23 19:59:50: 164 states generated (164 s/min), 151 distinct states found (151 ds/min), 0 states left on queue.
+Progress(722) at 2026-11-23 20:00:04: 821 states generated, 748 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 748 total distinct states at (2026-11-23 20:00:04)
+Finished checking temporal properties in 00s at 2026-11-23 20:00:04
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 3.0E-15
+821 states generated, 748 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 722.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 1).
+Finished in 18s at (2026-11-23 20:00:04)
+Replaying /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/trace/fixtures/44d0b71d/leader_isolate_divergent_overwrite.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 17 and seed -8801809901626313224 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3279320] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-2160441751105072087/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2160441751105072087/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2160441751105072087/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2160441751105072087/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2160441751105072087/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2160441751105072087/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2160441751105072087/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 20:00:05)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:00:05.
+Checking temporal properties for the current state space with 154 total distinct states at (2026-11-23 20:00:08)
+Finished checking temporal properties in 00s at 2026-11-23 20:00:08
+Progress(140) at 2026-11-23 20:00:08: 168 states generated (168 s/min), 154 distinct states found (154 ds/min), 0 states left on queue.
+Progress(642) at 2026-11-23 20:00:20: 745 states generated, 674 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 674 total distinct states at (2026-11-23 20:00:20)
+Finished checking temporal properties in 00s at 2026-11-23 20:00:20
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 2.6E-15
+745 states generated, 674 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 642.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 1).
+Finished in 16s at (2026-11-23 20:00:20)
+Replaying /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/trace/fixtures/44d0b71d/follower_drop_sends.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 66 and seed -4334176724403619940 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3279437] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-12787965269872941635/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-12787965269872941635/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-12787965269872941635/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-12787965269872941635/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-12787965269872941635/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-12787965269872941635/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-12787965269872941635/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 20:00:21)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:00:22.
+Checking temporal properties for the current state space with 113 total distinct states at (2026-11-23 20:00:25)
+Finished checking temporal properties in 00s at 2026-11-23 20:00:25
+Progress(113) at 2026-11-23 20:00:25: 123 states generated (123 s/min), 113 distinct states found (113 ds/min), 0 states left on queue.
+Progress(573) at 2026-11-23 20:01:15: 2,720 states generated, 1,482 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 1482 total distinct states at (2026-11-23 20:01:15)
+Finished checking temporal properties in 00s at 2026-11-23 20:01:16
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 9.9E-14
+2720 states generated, 1482 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 573.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 3 and the 95th percentile is 1).
+Finished in 54s at (2026-11-23 20:01:16)
+Replaying /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/trace/fixtures/44d0b71d/leader_deaf.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 12 and seed -2492557363990165087 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3279671] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-5029503185155097055/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5029503185155097055/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5029503185155097055/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5029503185155097055/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5029503185155097055/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5029503185155097055/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5029503185155097055/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 20:01:16)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:01:17.
+Checking temporal properties for the current state space with 114 total distinct states at (2026-11-23 20:01:20)
+Finished checking temporal properties in 00s at 2026-11-23 20:01:20
+Progress(114) at 2026-11-23 20:01:20: 124 states generated (124 s/min), 114 distinct states found (114 ds/min), 0 states left on queue.
+Progress(646) at 2026-11-23 20:01:56: 3,008 states generated, 1,637 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 1637 total distinct states at (2026-11-23 20:01:56)
+Finished checking temporal properties in 00s at 2026-11-23 20:01:56
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.2E-13
+3008 states generated, 1637 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 646.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 3 and the 95th percentile is 1).
+Finished in 40s at (2026-11-23 20:01:56)
+Replaying /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/trace/fixtures/44d0b71d/membership_add_remove.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 125 and seed -4970330195313650401 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3279872] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-16251519105863158850/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16251519105863158850/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16251519105863158850/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16251519105863158850/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16251519105863158850/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16251519105863158850/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16251519105863158850/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 20:01:57)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:01:59.
+Checking temporal properties for the current state space with 145 total distinct states at (2026-11-23 20:02:02)
+Finished checking temporal properties in 00s at 2026-11-23 20:02:02
+Progress(145) at 2026-11-23 20:02:02: 161 states generated (161 s/min), 145 distinct states found (145 ds/min), 0 states left on queue.
+Progress(513) at 2026-11-23 20:02:15: 540 states generated, 513 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 513 total distinct states at (2026-11-23 20:02:15)
+Finished checking temporal properties in 00s at 2026-11-23 20:02:15
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 7.5E-16
+540 states generated, 513 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 513.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 18s at (2026-11-23 20:02:15)
+Replaying /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/trace/fixtures/44d0b71d/compaction_snapshot.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 41 and seed 1030494791093942061 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3280001] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-7050984351988872641/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-7050984351988872641/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-7050984351988872641/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-7050984351988872641/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-7050984351988872641/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-7050984351988872641/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-7050984351988872641/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 20:02:16)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:02:17.
+Checking temporal properties for the current state space with 139 total distinct states at (2026-11-23 20:02:20)
+Finished checking temporal properties in 00s at 2026-11-23 20:02:20
+Progress(139) at 2026-11-23 20:02:20: 149 states generated (149 s/min), 139 distinct states found (139 ds/min), 0 states left on queue.
+Progress(518) at 2026-11-23 20:02:33: 562 states generated, 522 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 522 total distinct states at (2026-11-23 20:02:33)
+Finished checking temporal properties in 00s at 2026-11-23 20:02:33
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.1E-15
+562 states generated, 522 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 518.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 1).
+Finished in 17s at (2026-11-23 20:02:33)
+Replaying /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/trace/fixtures/44d0b71d/follower_torn_wal_restart.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 79 and seed -7007083618842706950 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3280134] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-8273716062452515635/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8273716062452515635/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8273716062452515635/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8273716062452515635/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8273716062452515635/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8273716062452515635/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8273716062452515635/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 20:02:34)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:02:34.
+Checking temporal properties for the current state space with 136 total distinct states at (2026-11-23 20:02:38)
+Finished checking temporal properties in 00s at 2026-11-23 20:02:38
+Progress(136) at 2026-11-23 20:02:38: 147 states generated (147 s/min), 136 distinct states found (136 ds/min), 0 states left on queue.
+Progress(496) at 2026-11-23 20:02:49: 531 states generated, 496 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 496 total distinct states at (2026-11-23 20:02:49)
+Finished checking temporal properties in 00s at 2026-11-23 20:02:49
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 9.4E-16
+531 states generated, 496 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 496.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 15s at (2026-11-23 20:02:49)
+Replaying /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/trace/fixtures/44d0b71d/follower_wal_loss_restart.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 43 and seed 2432076569123935212 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3280251] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-17912703834967168848/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17912703834967168848/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17912703834967168848/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17912703834967168848/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17912703834967168848/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17912703834967168848/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17912703834967168848/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 20:02:50)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:02:50.
+Checking temporal properties for the current state space with 136 total distinct states at (2026-11-23 20:02:53)
+Finished checking temporal properties in 00s at 2026-11-23 20:02:53
+Progress(136) at 2026-11-23 20:02:53: 147 states generated (147 s/min), 136 distinct states found (136 ds/min), 0 states left on queue.
+Progress(500) at 2026-11-23 20:03:04: 536 states generated, 500 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 500 total distinct states at (2026-11-23 20:03:04)
+Finished checking temporal properties in 00s at 2026-11-23 20:03:04
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 9.8E-16
+536 states generated, 500 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 500.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 15s at (2026-11-23 20:03:04)
+Replaying /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/trace/fixtures/44d0b71d/interrupted_uncommitted_tail.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 27 and seed -8435278386170816605 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3280375] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-15484008644707246039/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15484008644707246039/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15484008644707246039/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15484008644707246039/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15484008644707246039/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15484008644707246039/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15484008644707246039/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 20:03:05)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:03:06.
+Progress(179) at 2026-11-23 20:03:09: 197 states generated, 179 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 179 total distinct states at (2026-11-23 20:03:09)
+Finished checking temporal properties in 00s at 2026-11-23 20:03:09
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.7E-16
+197 states generated, 179 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 179.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 04s at (2026-11-23 20:03:09)
+Replaying /home/jaten/rpc25519/tube/modelcheck/tube/trace/fixtures/controls/valid-prefix.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 63 and seed 5638518790251686520 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3280457] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-1731906059410721231/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1731906059410721231/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1731906059410721231/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1731906059410721231/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1731906059410721231/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1731906059410721231/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1731906059410721231/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 20:03:09)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:03:10.
+Progress(43) at 2026-11-23 20:03:10: 52 states generated, 43 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 43 total distinct states at (2026-11-23 20:03:10)
+Finished checking temporal properties in 00s at 2026-11-23 20:03:10
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 2.1E-17
+52 states generated, 43 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 43.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:03:10)
+TraceMatched rejected inconsistent-prefix.ndjson.gz at event 13 as expected.
+Replaying /home/jaten/rpc25519/tube/modelcheck/tube/trace/fixtures/controls/watchdog-restarted-peer.ndjson.gz
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 48 and seed 1038989180915649286 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3280544] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/Trace.tla
+Parsing file /mnt/oldrog/tmp/tmp.BCz6cSDQxa/tube.tla
+Parsing file /mnt/oldrog/tmp/tlc-9520634025553502361/Json.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9520634025553502361/IOUtils.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/CommunityModules-deps.jar!/IOUtils.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9520634025553502361/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9520634025553502361/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9520634025553502361/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9520634025553502361/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9520634025553502361/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Json
+Semantic processing of module IOUtils
+Semantic processing of module Trace
+Linting of module tube
+Linting of module Json
+Linting of module IOUtils
+Linting of module Trace
+Starting... (2026-11-23 20:03:13)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:03:13.
+Checking temporal properties for the current state space with 136 total distinct states at (2026-11-23 20:03:16)
+Finished checking temporal properties in 00s at 2026-11-23 20:03:16
+Progress(136) at 2026-11-23 20:03:16: 147 states generated (147 s/min), 136 distinct states found (136 ds/min), 0 states left on queue.
+Progress(498) at 2026-11-23 20:03:28: 533 states generated, 498 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 498 total distinct states at (2026-11-23 20:03:28)
+Finished checking temporal properties in 00s at 2026-11-23 20:03:28
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 9.4E-16
+533 states generated, 498 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 498.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 15s at (2026-11-23 20:03:28)
+TraceMatched rejected watchdog-stale-peer.ndjson.gz at event 447 as expected.
+python3 modelcheck/tube/check.py --all --jar "modelcheck/tla2tools.jar" --workers "4" --heap "2g"
+Checking quick
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 75 and seed 3249272688151158584 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3280811] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-bjvw4ujs/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-6672827978526989770/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-6672827978526989770/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-6672827978526989770/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-6672827978526989770/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-6672827978526989770/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Linting of module tube
+Starting... (2026-11-23 20:03:51)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:03:51.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 3.1E-13
+5641 states generated, 1300 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 20.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 6 and the 95th percentile is 3).
+Finished in 03s at (2026-11-23 20:03:54)
+Checking raft
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 5 and seed -8445375922861946510 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3280892] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/Update.tla (file:/mnt/oldrog/tmp/tube-tlc-bt_rcklf/Update.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-bt_rcklf/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4564690370687980416/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4564690370687980416/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4564690370687980416/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4564690370687980416/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4564690370687980416/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Update
+Linting of module tube
+Linting of module Update
+Starting... (2026-11-23 20:03:55)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:03:55.
+Progress(13) at 2026-11-23 20:03:58: 9,388 states generated (9,388 s/min), 3,026 distinct states found (3,026 ds/min), 1,164 states left on queue.
+Progress(20) at 2026-11-23 20:04:58: 352,095 states generated (342,707 s/min), 92,379 distinct states found (89,353 ds/min), 35,111 states left on queue.
+Progress(21) at 2026-11-23 20:05:58: 714,145 states generated (362,050 s/min), 176,159 distinct states found (83,780 ds/min), 61,815 states left on queue.
+Progress(22) at 2026-11-23 20:06:58: 1,075,306 states generated (361,161 s/min), 253,564 distinct states found (77,405 ds/min), 82,251 states left on queue.
+Progress(23) at 2026-11-23 20:07:58: 1,432,799 states generated (357,493 s/min), 325,931 distinct states found (72,367 ds/min), 97,730 states left on queue.
+Progress(23) at 2026-11-23 20:08:58: 1,800,235 states generated (367,436 s/min), 396,007 distinct states found (70,076 ds/min), 109,994 states left on queue.
+Progress(24) at 2026-11-23 20:09:58: 2,154,296 states generated (354,061 s/min), 462,521 distinct states found (66,514 ds/min), 119,840 states left on queue.
+Progress(24) at 2026-11-23 20:10:58: 2,509,796 states generated (355,500 s/min), 525,682 distinct states found (63,161 ds/min), 126,015 states left on queue.
+Progress(25) at 2026-11-23 20:11:58: 2,857,914 states generated (348,118 s/min), 585,306 distinct states found (59,624 ds/min), 129,818 states left on queue.
+Progress(25) at 2026-11-23 20:12:58: 3,205,711 states generated (347,797 s/min), 644,352 distinct states found (59,046 ds/min), 132,001 states left on queue.
+Progress(26) at 2026-11-23 20:13:58: 3,542,109 states generated (336,398 s/min), 701,055 distinct states found (56,703 ds/min), 133,446 states left on queue.
+Progress(26) at 2026-11-23 20:14:58: 3,885,652 states generated (343,543 s/min), 755,155 distinct states found (54,100 ds/min), 131,138 states left on queue.
+Progress(26) at 2026-11-23 20:15:58: 4,218,911 states generated (333,259 s/min), 809,535 distinct states found (54,380 ds/min), 130,326 states left on queue.
+Progress(27) at 2026-11-23 20:16:58: 4,540,383 states generated (321,472 s/min), 860,294 distinct states found (50,759 ds/min), 125,838 states left on queue.
+Progress(27) at 2026-11-23 20:17:58: 4,868,160 states generated (327,777 s/min), 909,308 distinct states found (49,014 ds/min), 120,440 states left on queue.
+Progress(28) at 2026-11-23 20:18:58: 5,181,436 states generated (313,276 s/min), 955,881 distinct states found (46,573 ds/min), 113,597 states left on queue.
+Progress(28) at 2026-11-23 20:19:58: 5,498,883 states generated (317,447 s/min), 1,003,007 distinct states found (47,126 ds/min), 105,651 states left on queue.
+Progress(29) at 2026-11-23 20:20:58: 5,805,287 states generated (306,404 s/min), 1,047,806 distinct states found (44,799 ds/min), 96,774 states left on queue.
+Progress(29) at 2026-11-23 20:21:58: 6,112,346 states generated (307,059 s/min), 1,090,311 distinct states found (42,505 ds/min), 84,993 states left on queue.
+Progress(30) at 2026-11-23 20:22:58: 6,411,261 states generated (298,915 s/min), 1,132,177 distinct states found (41,866 ds/min), 73,034 states left on queue.
+Progress(30) at 2026-11-23 20:23:58: 6,705,638 states generated (294,377 s/min), 1,171,382 distinct states found (39,205 ds/min), 58,855 states left on queue.
+Progress(30) at 2026-11-23 20:24:58: 6,986,858 states generated (281,220 s/min), 1,208,110 distinct states found (36,728 ds/min), 42,250 states left on queue.
+Progress(32) at 2026-11-23 20:25:58: 7,262,771 states generated (275,913 s/min), 1,241,232 distinct states found (33,122 ds/min), 23,115 states left on queue.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 4.3E-7
+  based on the actual fingerprints:  val = 2.5E-7
+7493857 states generated, 1266052 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 40.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 12 and the 95th percentile is 3).
+Finished in 23min 00s at (2026-11-23 20:26:54)
+Checking raft (BeforeReplicatedWrite)
+Reached the milestone excluded by BeforeReplicatedWrite
+Progress(13) at 2026-11-23 20:26:58: 8,184 states generated (8,184 s/min), 2,650 distinct states found (2,650 ds/min), 1,000 states left on queue.
+State 1: <Initial predicate>
+State 2: <MCElectionTimeout(n1) line 4920, col 5 to line 4921, col 52 of module tube>
+State 3: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 4: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 5: <MCPreVotePhase2Timeout(n1) line 4953, col 5 to line 4954, col 50 of module tube>
+State 6: <MCResumeCampaign(n1) line 4960, col 24 to line 4960, col 60 of module tube>
+State 7: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 8: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 9: <MCBecomeLeaderSave(n1) line 4961, col 26 to line 4961, col 64 of module tube>
+State 10: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 11: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 12: <MCClientRequest(n1) line 4926, col 5 to line 4928, col 30 of module tube>
+State 13: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 14: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 15: <MCLeaderHeartbeat(n1) line 4923, col 5 to line 4924, col 51 of module tube>
+State 16: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+90963 states generated, 26228 distinct states found, 11139 states left on queue.
+Checking restart-vote
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 87 and seed -798393382045520857 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3289570] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/Update.tla (file:/mnt/oldrog/tmp/tube-tlc-expc0b_a/Update.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-expc0b_a/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16346032143052244805/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16346032143052244805/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16346032143052244805/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16346032143052244805/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16346032143052244805/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Update
+Linting of module tube
+Linting of module Update
+Starting... (2026-11-23 20:27:14)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:27:14.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 2.7E-16
+142 states generated, 77 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 14.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 3 and the 95th percentile is 2).
+Finished in 01s at (2026-11-23 20:27:15)
+Checking restart-vote (BeforeCampaignerRestarts)
+Reached the milestone excluded by BeforeCampaignerRestarts
+State 1: <Initial predicate>
+State 2: <CrashCampaignNext line 52, col 8 to line 52, col 42 of module Update>
+State 3: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 4: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 5: <CrashCampaignNext line 52, col 8 to line 52, col 42 of module Update>
+State 6: <MCResumeCampaign(n1) line 4960, col 24 to line 4960, col 60 of module tube>
+State 7: <CrashCampaignNext line 53, col 8 to line 55, col 24 of module Update>
+State 8: <MCRestart(n1,"a1") line 4912, col 5 to line 4916, col 15 of module tube>
+65 states generated, 43 distinct states found, 8 states left on queue.
+Checking membership
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 115 and seed -5209049591529440564 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3289653] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/Update.tla (file:/mnt/oldrog/tmp/tube-tlc-eu149xuh/Update.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-eu149xuh/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9771351813978414003/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9771351813978414003/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9771351813978414003/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9771351813978414003/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9771351813978414003/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Update
+Linting of module tube
+Linting of module Update
+Starting... (2026-11-23 20:27:17)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:27:17.
+Progress(17) at 2026-11-23 20:27:20: 14,241 states generated (14,241 s/min), 4,778 distinct states found (4,778 ds/min), 1,957 states left on queue.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.5E-10
+  based on the actual fingerprints:  val = 2.7E-11
+127632 states generated, 28851 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 31.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 9 and the 95th percentile is 3).
+Finished in 18s at (2026-11-23 20:27:34)
+Checking membership (BeforeMembershipAck)
+Reached the milestone excluded by BeforeMembershipAck
+State 1: <Initial predicate>
+State 2: <MCElectionTimeout(n1) line 4920, col 5 to line 4921, col 52 of module tube>
+State 3: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 4: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 5: <MCPreVotePhase2Timeout(n1) line 4953, col 5 to line 4954, col 50 of module tube>
+State 6: <MCResumeCampaign(n1) line 4960, col 24 to line 4960, col 60 of module tube>
+State 7: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 8: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 9: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 10: <MCBecomeLeaderSave(n1) line 4961, col 26 to line 4961, col 64 of module tube>
+State 11: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 12: <MCClientChangeMembership(n1,"remove",n2) line 4934, col 5 to line 4934, col 97 of module tube>
+757 states generated, 373 distinct states found, 132 states left on queue.
+Checking membership (BeforePendingChangeStepsDown)
+Reached the milestone excluded by BeforePendingChangeStepsDown
+State 1: <Initial predicate>
+State 2: <MCElectionTimeout(n1) line 4920, col 5 to line 4921, col 52 of module tube>
+State 3: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 4: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 5: <MCPreVotePhase2Timeout(n1) line 4953, col 5 to line 4954, col 50 of module tube>
+State 6: <MCResumeCampaign(n1) line 4960, col 24 to line 4960, col 60 of module tube>
+State 7: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 8: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 9: <MCLeaderAge(n1) line 4996, col 29 to line 4996, col 60 of module tube>
+State 10: <MCBecomeLeaderSave(n1) line 4961, col 26 to line 4961, col 64 of module tube>
+State 11: <MCClientChangeMembership(n1,"remove",n2) line 4934, col 5 to line 4934, col 97 of module tube>
+State 12: <MCElectionTimeout(n1) line 4920, col 5 to line 4921, col 52 of module tube>
+924 states generated, 437 distinct states found, 156 states left on queue.
+Checking membership-contacts
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 30 and seed 7961172350780736914 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3289936] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/QuorumChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-yg05m043/QuorumChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-yg05m043/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-3878884158712785339/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-3878884158712785339/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-3878884158712785339/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-3878884158712785339/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-3878884158712785339/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module QuorumChecks
+Linting of module tube
+Linting of module QuorumChecks
+Starting... (2026-11-23 20:27:40)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:27:40.
+Progress(3) at 2026-11-23 20:27:40: 5 states generated, 5 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 5 total distinct states at (2026-11-23 20:27:40)
+Finished checking temporal properties in 00s at 2026-11-23 20:27:40
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+5 states generated, 5 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 3.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 3 and the 95th percentile is 3).
+Finished in 01s at (2026-11-23 20:27:40)
+Checking solo-election
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 29 and seed 4336056866838168305 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3289983] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/Update.tla (file:/mnt/oldrog/tmp/tube-tlc-04aajwd2/Update.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-04aajwd2/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2365652542809991331/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2365652542809991331/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2365652542809991331/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2365652542809991331/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2365652542809991331/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Update
+Linting of module tube
+Linting of module Update
+Starting... (2026-11-23 20:27:41)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:27:41.
+Progress(5) at 2026-11-23 20:27:41: 5 states generated, 5 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 5 total distinct states at (2026-11-23 20:27:41)
+Finished checking temporal properties in 00s at 2026-11-23 20:27:41
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+5 states generated, 5 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 5.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:27:41)
+Checking post-restart-progress
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 69 and seed 8896307438856935233 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3290024] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/Update.tla (file:/mnt/oldrog/tmp/tube-tlc-l3fro3rz/Update.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-l3fro3rz/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15869387936355638144/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15869387936355638144/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15869387936355638144/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15869387936355638144/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15869387936355638144/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Update
+Linting of module tube
+Linting of module Update
+Starting... (2026-11-23 20:27:42)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:27:42.
+Progress(11) at 2026-11-23 20:27:43: 16 states generated, 14 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 14 total distinct states at (2026-11-23 20:27:43)
+Finished checking temporal properties in 00s at 2026-11-23 20:27:43
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.5E-18
+16 states generated, 14 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 11.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 2).
+Finished in 01s at (2026-11-23 20:27:43)
+Checking packet-storage
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 119 and seed -6319001987222526466 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3290068] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/UpdateCases.tla (file:/mnt/oldrog/tmp/tube-tlc-zmrqn0i8/UpdateCases.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-zmrqn0i8/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17730731345288123661/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17730731345288123661/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17730731345288123661/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17730731345288123661/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17730731345288123661/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module UpdateCases
+Linting of module tube
+Linting of module UpdateCases
+Starting... (2026-11-23 20:27:43)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Computed 2 initial states...
+Computed 4 initial states...
+Computed 8 initial states...
+Finished computing initial states: 12 distinct states generated at 2026-11-23 20:27:44.
+Progress(7) at 2026-11-23 20:27:44: 126 states generated, 102 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 102 total distinct states at (2026-11-23 20:27:44)
+Finished checking temporal properties in 00s at 2026-11-23 20:27:44
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.3E-16
+126 states generated, 102 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 7.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 2).
+Finished in 01s at (2026-11-23 20:27:44)
+Checking admin
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 13 and seed -395314874782509857 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3290106] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/Update.tla (file:/mnt/oldrog/tmp/tube-tlc-x93531za/Update.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-x93531za/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14648851283982537610/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14648851283982537610/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14648851283982537610/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14648851283982537610/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14648851283982537610/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Update
+Linting of module tube
+Linting of module Update
+Starting... (2026-11-23 20:27:45)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:27:45.
+Progress(8) at 2026-11-23 20:27:48: 13,977 states generated (13,977 s/min), 6,226 distinct states found (6,226 ds/min), 3,967 states left on queue.
+Progress(14) at 2026-11-23 20:28:48: 312,576 states generated (298,599 s/min), 87,172 distinct states found (80,946 ds/min), 22,499 states left on queue.
+Progress(16) at 2026-11-23 20:29:48: 634,435 states generated (321,859 s/min), 178,545 distinct states found (91,373 ds/min), 53,353 states left on queue.
+Progress(17) at 2026-11-23 20:30:48: 991,033 states generated (356,598 s/min), 271,816 distinct states found (93,271 ds/min), 82,849 states left on queue.
+Progress(18) at 2026-11-23 20:31:48: 1,344,432 states generated (353,399 s/min), 358,056 distinct states found (86,240 ds/min), 103,281 states left on queue.
+Progress(18) at 2026-11-23 20:32:48: 1,686,583 states generated (342,151 s/min), 435,322 distinct states found (77,266 ds/min), 115,023 states left on queue.
+Progress(19) at 2026-11-23 20:33:48: 2,033,357 states generated (346,774 s/min), 505,577 distinct states found (70,255 ds/min), 117,690 states left on queue.
+Progress(19) at 2026-11-23 20:34:48: 2,359,068 states generated (325,711 s/min), 571,412 distinct states found (65,835 ds/min), 116,270 states left on queue.
+Progress(20) at 2026-11-23 20:35:48: 2,680,255 states generated (321,187 s/min), 630,872 distinct states found (59,460 ds/min), 109,205 states left on queue.
+Progress(21) at 2026-11-23 20:36:48: 2,992,242 states generated (311,987 s/min), 687,895 distinct states found (57,023 ds/min), 98,044 states left on queue.
+Progress(21) at 2026-11-23 20:37:48: 3,283,995 states generated (291,753 s/min), 742,979 distinct states found (55,084 ds/min), 88,628 states left on queue.
+Progress(21) at 2026-11-23 20:38:48: 3,576,538 states generated (292,543 s/min), 792,031 distinct states found (49,052 ds/min), 71,205 states left on queue.
+Progress(21) at 2026-11-23 20:39:48: 3,849,545 states generated (273,007 s/min), 840,682 distinct states found (48,651 ds/min), 54,936 states left on queue.
+Progress(22) at 2026-11-23 20:40:48: 4,112,712 states generated (263,167 s/min), 885,378 distinct states found (44,696 ds/min), 36,524 states left on queue.
+Progress(23) at 2026-11-23 20:41:48: 4,375,777 states generated (263,065 s/min), 926,398 distinct states found (41,020 ds/min), 14,902 states left on queue.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.8E-7
+  based on the actual fingerprints:  val = 3.6E-8
+4501645 states generated, 940460 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 29.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 31 and the 95th percentile is 3).
+Finished in 14min 32s at (2026-11-23 20:42:17)
+Checking admin (BeforeRedirectedForceApplied)
+Reached the milestone excluded by BeforeRedirectedForceApplied
+Progress(8) at 2026-11-23 20:42:21: 14,180 states generated (14,180 s/min), 6,319 distinct states found (6,319 ds/min), 4,024 states left on queue.
+Progress(14) at 2026-11-23 20:43:21: 304,179 states generated (289,999 s/min), 84,788 distinct states found (78,469 ds/min), 21,875 states left on queue.
+Progress(16) at 2026-11-23 20:44:21: 614,373 states generated (310,194 s/min), 173,624 distinct states found (88,836 ds/min), 52,245 states left on queue.
+State 1: <Initial predicate>
+State 2: <MCElectionTimeout(n1) line 4920, col 5 to line 4921, col 52 of module tube>
+State 3: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 4: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 5: <MCPreVotePhase2Timeout(n1) line 4953, col 5 to line 4954, col 50 of module tube>
+State 6: <MCResumeCampaign(n1) line 4960, col 24 to line 4960, col 60 of module tube>
+State 7: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 8: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 9: <MCBecomeLeaderSave(n1) line 4961, col 26 to line 4961, col 64 of module tube>
+State 10: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 11: <MCAdminNext line 5079, col 13 to line 5080, col 43 of module tube>
+State 12: <MCNextFrames line 5043, col 5 to line 5047, col 65 of module tube>
+State 13: <MCAdminNext line 5077, col 8 to line 5077, col 37 of module tube>
+712781 states generated, 199875 distinct states found, 61507 states left on queue.
+Checking client-ticket
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 23 and seed 7223483351680809812 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3293447] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/TicketGuardFixture.tla (file:/mnt/oldrog/tmp/tube-tlc-re1qj84x/TicketGuardFixture.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-re1qj84x/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-6171123193801123573/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-6171123193801123573/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-6171123193801123573/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-6171123193801123573/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-6171123193801123573/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module TicketGuardFixture
+Linting of module tube
+Linting of module TicketGuardFixture
+Starting... (2026-11-23 20:44:42)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:44:42.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 5.4E-20
+2 states generated, 1 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 1.
+The average outdegree of the complete state graph is 0 (minimum is 0, the maximum 0 and the 95th percentile is 0).
+Finished in 00s at (2026-11-23 20:44:42)
+Checking transport
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 123 and seed 5723352122065485299 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3293490] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/NetworkChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-p7437vef/NetworkChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-p7437vef/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14411339878411726775/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14411339878411726775/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14411339878411726775/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14411339878411726775/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14411339878411726775/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module NetworkChecks
+Linting of module tube
+Linting of module NetworkChecks
+Starting... (2026-11-23 20:44:43)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Computed 2 initial states...
+Computed 4 initial states...
+Finished computing initial states: 7 distinct states generated at 2026-11-23 20:44:43.
+Progress(6) at 2026-11-23 20:44:43: 28 states generated, 26 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 26 total distinct states at (2026-11-23 20:44:43)
+Finished checking temporal properties in 00s at 2026-11-23 20:44:43
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 2.8E-18
+28 states generated, 26 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 6.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:44:43)
+Checking transport-psk
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 86 and seed -3546927695591219531 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3293528] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/NetworkChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-cjw2mdv9/NetworkChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-cjw2mdv9/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14171193839692691530/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14171193839692691530/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14171193839692691530/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14171193839692691530/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-14171193839692691530/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module NetworkChecks
+Linting of module tube
+Linting of module NetworkChecks
+Starting... (2026-11-23 20:44:44)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Computed 2 initial states...
+Computed 4 initial states...
+Finished computing initial states: 7 distinct states generated at 2026-11-23 20:44:44.
+Progress(6) at 2026-11-23 20:44:44: 30 states generated, 26 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 26 total distinct states at (2026-11-23 20:44:44)
+Finished checking temporal properties in 00s at 2026-11-23 20:44:44
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 5.6E-18
+30 states generated, 26 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 6.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:44:44)
+Checking handshake
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 114 and seed 5180616839220903841 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3293573] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/HandshakeCheck.tla (file:/mnt/oldrog/tmp/tube-tlc-4_g7aryd/HandshakeCheck.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-4_g7aryd/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2569478896963776445/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2569478896963776445/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2569478896963776445/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2569478896963776445/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-2569478896963776445/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module HandshakeCheck
+Linting of module tube
+Linting of module HandshakeCheck
+Starting... (2026-11-23 20:44:45)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 2 distinct states generated at 2026-11-23 20:44:46.
+Progress(13) at 2026-11-23 20:44:46: 23 states generated, 21 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 21 total distinct states at (2026-11-23 20:44:46)
+Finished checking temporal properties in 00s at 2026-11-23 20:44:46
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 2.3E-18
+23 states generated, 21 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 13.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:44:46)
+Checking identity
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 126 and seed 5653086850006976538 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3293613] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/IdentityChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-8i3900fh/IdentityChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-8i3900fh/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-12607323702692695896/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-12607323702692695896/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-12607323702692695896/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-12607323702692695896/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-12607323702692695896/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module IdentityChecks
+Linting of module tube
+Linting of module IdentityChecks
+Starting... (2026-11-23 20:44:46)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Computed 2 initial states...
+Finished computing initial states: 3 distinct states generated at 2026-11-23 20:44:47.
+Progress(5) at 2026-11-23 20:44:47: 11 states generated, 11 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 11 total distinct states at (2026-11-23 20:44:47)
+Finished checking temporal properties in 00s at 2026-11-23 20:44:47
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+11 states generated, 11 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 5.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:44:47)
+Checking kv
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 127 and seed -5615058294344033440 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3293657] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-8txumm5c/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10690646540762128300/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10690646540762128300/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10690646540762128300/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10690646540762128300/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10690646540762128300/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Linting of module tube
+Starting... (2026-11-23 20:44:48)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:44:48.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.3E-12
+12083 states generated, 2590 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 5.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 31 and the 95th percentile is 3).
+Finished in 01s at (2026-11-23 20:44:49)
+Checking kv-cases
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 51 and seed 8774646570942445789 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3293732] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/KVRegression.tla (file:/mnt/oldrog/tmp/tube-tlc-tw5kb53x/KVRegression.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-tw5kb53x/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4803298046912019503/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4803298046912019503/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4803298046912019503/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4803298046912019503/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4803298046912019503/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module KVRegression
+Linting of module tube
+Linting of module KVRegression
+Starting... (2026-11-23 20:44:50)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Computed 2 initial states...
+Computed 4 initial states...
+Finished computing initial states: 8 distinct states generated at 2026-11-23 20:44:50.
+Progress(22) at 2026-11-23 20:44:50: 241 states generated, 241 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 241 total distinct states at (2026-11-23 20:44:50)
+Finished checking temporal properties in 00s at 2026-11-23 20:44:50
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+241 states generated, 241 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 22.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 4 and the 95th percentile is 2).
+Finished in 01s at (2026-11-23 20:44:50)
+Checking hermes-round
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 113 and seed -5667614591343492776 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3293776] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-31hd7__7/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16322567330790679114/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16322567330790679114/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16322567330790679114/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16322567330790679114/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16322567330790679114/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Linting of module tube
+Starting... (2026-11-23 20:44:51)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:44:51.
+Progress(14) at 2026-11-23 20:44:54: 250,460 states generated (250,460 s/min), 57,669 distinct states found (57,669 ds/min), 18,917 states left on queue.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.7E-8
+  based on the actual fingerprints:  val = 2.2E-9
+1693761 states generated, 218112 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 24.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 8 and the 95th percentile is 3).
+Finished in 16s at (2026-11-23 20:45:07)
+Checking hermes-circuits
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 62 and seed -3259797411773652124 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3293979] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-3ke6puez/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-3689479945097404721/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-3689479945097404721/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-3689479945097404721/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-3689479945097404721/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-3689479945097404721/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Linting of module tube
+Starting... (2026-11-23 20:45:08)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:08.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 4.9E-14
+2135 states generated, 577 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 21.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 4 and the 95th percentile is 3).
+Finished in 01s at (2026-11-23 20:45:08)
+Checking hermes-joint
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running Random Simulation with seed 25519 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294019] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-3fthmg8p/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9562508421029190167/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9562508421029190167/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9562508421029190167/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9562508421029190167/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-9562508421029190167/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Linting of module tube
+Starting... (2026-11-23 20:45:09)
+Computed 1 initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:09.
+Progress: 22023 states checked, 200 traces generated (trace length: mean=80, var(x)=0, sd=0)
+The number of states generated: 22023
+Simulation using seed 25519 and aril 0
+Finished in 02s at (2026-11-23 20:45:11)
+Checking hermes-replay (WitnessExpected)
+Reached the milestone excluded by WitnessExpected
+State 1: <Initial predicate>
+State 2: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 3: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 4: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 5: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 6: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 7: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 8: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 9: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 10: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 11: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 12: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 13: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 14: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 15: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+State 16: <Action line 26, col 54 to line 26, col 91 of module HermesWitness>
+16 states generated, 16 distinct states found, 0 states left on queue.
+Checking hermes-publication (Goal)
+Reached the milestone excluded by Goal
+State 1: <Initial predicate>
+State 2: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 3: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 4: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 5: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 6: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 7: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 8: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 9: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 10: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 11: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 12: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 13: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 14: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 15: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 16: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 17: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 18: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 19: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 20: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 21: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 22: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 23: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 24: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 25: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 26: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 27: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 28: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 29: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 30: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 31: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 32: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+State 33: <Action line 42, col 35 to line 42, col 76 of module HermesPublication>
+69 states generated, 64 distinct states found, 0 states left on queue.
+Checking campaign
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 12 and seed 1599077503154876564 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294189] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/ElectionChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-p5s0bh4r/ElectionChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-p5s0bh4r/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10181512821067197495/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10181512821067197495/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10181512821067197495/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10181512821067197495/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10181512821067197495/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module ElectionChecks
+Linting of module tube
+Linting of module ElectionChecks
+Starting... (2026-11-23 20:45:15)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:15.
+Progress(11) at 2026-11-23 20:45:15: 11 states generated, 11 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 11 total distinct states at (2026-11-23 20:45:15)
+Finished checking temporal properties in 00s at 2026-11-23 20:45:15
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+11 states generated, 11 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 11.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:45:15)
+Checking bootstrap
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 89 and seed -2801874204229545727 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294240] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/ElectionChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-svgj3ik7/ElectionChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-svgj3ik7/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-354531364929369939/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-354531364929369939/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-354531364929369939/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-354531364929369939/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-354531364929369939/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module ElectionChecks
+Linting of module tube
+Linting of module ElectionChecks
+Starting... (2026-11-23 20:45:16)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:16.
+Progress(5) at 2026-11-23 20:45:16: 5 states generated, 5 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 5 total distinct states at (2026-11-23 20:45:16)
+Finished checking temporal properties in 00s at 2026-11-23 20:45:16
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+5 states generated, 5 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 5.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:45:16)
+Checking restart-wal
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 60 and seed 8423949285478939266 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294278] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/ElectionChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-vlerdzp_/ElectionChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-vlerdzp_/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-11403443823395943098/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-11403443823395943098/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-11403443823395943098/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-11403443823395943098/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-11403443823395943098/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module ElectionChecks
+Linting of module tube
+Linting of module ElectionChecks
+Starting... (2026-11-23 20:45:17)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:17.
+Progress(5) at 2026-11-23 20:45:17: 5 states generated, 5 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 5 total distinct states at (2026-11-23 20:45:17)
+Finished checking temporal properties in 00s at 2026-11-23 20:45:17
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+5 states generated, 5 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 5.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:45:17)
+Checking restart-delay
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 92 and seed 7440659210383569500 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294323] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/ElectionChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-9aush22a/ElectionChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-9aush22a/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4397768544461450465/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4397768544461450465/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4397768544461450465/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4397768544461450465/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-4397768544461450465/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module ElectionChecks
+Linting of module tube
+Linting of module ElectionChecks
+Starting... (2026-11-23 20:45:18)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:18.
+Progress(13) at 2026-11-23 20:45:19: 13 states generated, 13 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 13 total distinct states at (2026-11-23 20:45:19)
+Finished checking temporal properties in 00s at 2026-11-23 20:45:19
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+13 states generated, 13 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 13.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:45:19)
+Checking singleton-wal
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 111 and seed -5715720391415628743 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294366] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/ElectionChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-d6t97t2s/ElectionChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-d6t97t2s/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-464041405570077767/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-464041405570077767/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-464041405570077767/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-464041405570077767/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-464041405570077767/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module ElectionChecks
+Linting of module tube
+Linting of module ElectionChecks
+Starting... (2026-11-23 20:45:19)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:20.
+Progress(5) at 2026-11-23 20:45:20: 5 states generated, 5 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 5 total distinct states at (2026-11-23 20:45:20)
+Finished checking temporal properties in 00s at 2026-11-23 20:45:20
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+5 states generated, 5 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 5.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:45:20)
+Checking donor
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 74 and seed -6859060571161816087 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294419] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/DonorChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-_457f68s/DonorChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/UpdateCases.tla (file:/mnt/oldrog/tmp/tube-tlc-_457f68s/UpdateCases.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-_457f68s/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17857785401987817476/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17857785401987817476/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17857785401987817476/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17857785401987817476/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17857785401987817476/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module UpdateCases
+Semantic processing of module DonorChecks
+Linting of module tube
+Linting of module UpdateCases
+Linting of module DonorChecks
+Starting... (2026-11-23 20:45:20)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 2 distinct states generated at 2026-11-23 20:45:21.
+Progress(8) at 2026-11-23 20:45:21: 12 states generated, 12 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 12 total distinct states at (2026-11-23 20:45:21)
+Finished checking temporal properties in 00s at 2026-11-23 20:45:21
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+12 states generated, 12 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 8.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:45:21)
+Checking startup-unanimity
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 110 and seed -388695183303829651 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294460] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/StartupCheck.tla (file:/mnt/oldrog/tmp/tube-tlc-7a5osw0s/StartupCheck.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-7a5osw0s/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16335363856107206839/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16335363856107206839/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16335363856107206839/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16335363856107206839/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-16335363856107206839/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module StartupCheck
+Linting of module tube
+Linting of module StartupCheck
+Starting... (2026-11-23 20:45:22)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:22.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 4.7E-17
+59 states generated, 30 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 20.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 2).
+Finished in 01s at (2026-11-23 20:45:23)
+Checking startup-unanimity (BeforeCommit)
+Reached the milestone excluded by BeforeCommit
+State 1: <Initial predicate>
+State 2: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 3: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 4: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 5: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 6: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 7: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 8: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 9: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 10: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 11: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 12: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 13: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 14: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 15: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 16: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 17: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 18: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 19: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+State 20: <Action line 30, col 27 to line 30, col 51 of module StartupCheck>
+58 states generated, 30 distinct states found, 0 states left on queue.
+Checking restart-votes
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 35 and seed 1749952776542116489 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294586] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/ElectionChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-yjqovf_d/ElectionChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-yjqovf_d/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15407858821483828632/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15407858821483828632/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15407858821483828632/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15407858821483828632/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15407858821483828632/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module ElectionChecks
+Linting of module tube
+Linting of module ElectionChecks
+Starting... (2026-11-23 20:45:25)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:25.
+Progress(11) at 2026-11-23 20:45:26: 89 states generated, 47 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 47 total distinct states at (2026-11-23 20:45:26)
+Finished checking temporal properties in 00s at 2026-11-23 20:45:26
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.1E-16
+89 states generated, 47 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 11.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 3 and the 95th percentile is 2).
+Finished in 01s at (2026-11-23 20:45:26)
+Checking admin-cases
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 51 and seed -7309646244169296052 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294626] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/AdminCases.tla (file:/mnt/oldrog/tmp/tube-tlc-_dd_5wjk/AdminCases.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-_dd_5wjk/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17631170627632218423/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17631170627632218423/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17631170627632218423/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17631170627632218423/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-17631170627632218423/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module AdminCases
+Linting of module tube
+Linting of module AdminCases
+Starting... (2026-11-23 20:45:27)
+Computing initial states...
+Computed 2 initial states...
+Computed 4 initial states...
+Computed 8 initial states...
+Finished computing initial states: 9 distinct states generated at 2026-11-23 20:45:27.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.1E-15
+287 states generated, 162 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 21.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 2).
+Finished in 01s at (2026-11-23 20:45:27)
+Checking durable-save
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 80 and seed -1650552959802733739 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294670] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/DurableChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-5c8u4foy/DurableChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-5c8u4foy/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5724775392645103267/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5724775392645103267/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5724775392645103267/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5724775392645103267/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5724775392645103267/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module DurableChecks
+Linting of module tube
+Linting of module DurableChecks
+Starting... (2026-11-23 20:45:28)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:28.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+3 states generated, 3 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 2.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 2).
+Finished in 01s at (2026-11-23 20:45:28)
+Checking durable-save (BeforeSave)
+Reached the milestone excluded by BeforeSave
+State 1: <Initial predicate>
+State 2: <DurableAction line 17, col 5 to line 21, col 32 of module DurableChecks>
+2 states generated, 2 distinct states found, 0 states left on queue.
+Checking caller-timeout
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 18 and seed -3303547494663827162 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294753] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/CallerChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-f_1e_zd7/CallerChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-f_1e_zd7/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8228832108805110788/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8228832108805110788/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8228832108805110788/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8228832108805110788/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8228832108805110788/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module CallerChecks
+Linting of module tube
+Linting of module CallerChecks
+Starting... (2026-11-23 20:45:30)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Computed 2 initial states...
+Finished computing initial states: 3 distinct states generated at 2026-11-23 20:45:31.
+Progress(8) at 2026-11-23 20:45:31: 23 states generated, 23 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 23 total distinct states at (2026-11-23 20:45:31)
+Finished checking temporal properties in 00s at 2026-11-23 20:45:31
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+23 states generated, 23 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 8.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:45:31)
+Checking redirect
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 99 and seed 2100484075611802984 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294797] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/RedirectChecks.tla (file:/mnt/oldrog/tmp/tube-tlc-dux3q6ng/RedirectChecks.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-dux3q6ng/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5223911401157841589/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5223911401157841589/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5223911401157841589/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5223911401157841589/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5223911401157841589/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module RedirectChecks
+Linting of module tube
+Linting of module RedirectChecks
+Starting... (2026-11-23 20:45:32)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Computed 2 initial states...
+Finished computing initial states: 4 distinct states generated at 2026-11-23 20:45:32.
+Progress(9) at 2026-11-23 20:45:33: 26 states generated, 24 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 24 total distinct states at (2026-11-23 20:45:33)
+Finished checking temporal properties in 00s at 2026-11-23 20:45:33
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 2.6E-18
+26 states generated, 24 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 9.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:45:33)
+Checking ticket-inputs
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 103 and seed -2119647611710740086 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294840] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/TicketInputs.tla (file:/mnt/oldrog/tmp/tube-tlc-yr61ux37/TicketInputs.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-yr61ux37/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8922474021173571541/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8922474021173571541/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8922474021173571541/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8922474021173571541/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-8922474021173571541/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module TicketInputs
+Linting of module tube
+Linting of module TicketInputs
+Starting... (2026-11-23 20:45:34)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:34.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 5.4E-20
+2 states generated, 1 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 1.
+The average outdegree of the complete state graph is 0 (minimum is 0, the maximum 0 and the 95th percentile is 0).
+Finished in 01s at (2026-11-23 20:45:34)
+Checking kv-session-diagnostic
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 53 and seed 722948193214350845 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3294877] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/SessionProjection.tla (file:/mnt/oldrog/tmp/tube-tlc-dhki_nyc/SessionProjection.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/KVRegression.tla (file:/mnt/oldrog/tmp/tube-tlc-dhki_nyc/KVRegression.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-dhki_nyc/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1197261810788075266/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1197261810788075266/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1197261810788075266/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1197261810788075266/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-1197261810788075266/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module KVRegression
+Semantic processing of module SessionProjection
+Linting of module tube
+Linting of module KVRegression
+Linting of module SessionProjection
+Starting... (2026-11-23 20:45:35)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:35.
+Progress(14) at 2026-11-23 20:45:35: 20 states generated, 20 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 20 total distinct states at (2026-11-23 20:45:35)
+Finished checking temporal properties in 00s at 2026-11-23 20:45:35
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+20 states generated, 20 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 14.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 2).
+Finished in 01s at (2026-11-23 20:45:35)
+Checking kv-session-diagnostic (BeforeRenewal)
+Reached the milestone excluded by BeforeRenewal
+State 1: <Initial predicate>
+State 2: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 3: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 4: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 5: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 6: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 7: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 8: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 9: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 10: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 11: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 12: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 13: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 14: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+20 states generated, 20 distinct states found, 0 states left on queue.
+Checking kv-session-cache-control (KVSessDeterminism)
+Reached the milestone excluded by KVSessDeterminism
+State 1: <Initial predicate>
+State 2: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 3: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 4: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 5: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 6: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 7: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 8: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 9: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 10: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 11: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 12: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 13: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+State 14: <ProjectNext line 7, col 5 to line 19, col 59 of module SessionProjection>
+20 states generated, 20 distinct states found, 0 states left on queue.
+Checking czar
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 76 and seed 5328742379662824467 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3295351] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-mg_uyfu8/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10009493022573343630/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10009493022573343630/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10009493022573343630/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10009493022573343630/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-10009493022573343630/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Linting of module tube
+Starting... (2026-11-23 20:45:39)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:39.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 4.0E-14
+1710 states generated, 838 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 37.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 3 and the 95th percentile is 2).
+Finished in 01s at (2026-11-23 20:45:39)
+Checking czar-contacts
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 104 and seed -3018800269436635519 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3295389] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/CzarFlow.tla (file:/mnt/oldrog/tmp/tube-tlc-8pi0w5f4/CzarFlow.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-8pi0w5f4/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5271187799734654219/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5271187799734654219/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5271187799734654219/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5271187799734654219/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-5271187799734654219/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module CzarFlow
+Linting of module tube
+Linting of module CzarFlow
+Starting... (2026-11-23 20:45:40)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:41.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 2.0E-18
+37 states generated, 36 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 36.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:45:41)
+Checking czar-handoff
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 104 and seed -6723646193277836395 with 4 workers on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3295434] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/checks/CzarHandoff.tla (file:/mnt/oldrog/tmp/tube-tlc-v1e9ixtc/CzarHandoff.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-v1e9ixtc/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15438668217025265287/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15438668217025265287/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15438668217025265287/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15438668217025265287/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15438668217025265287/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module CzarHandoff
+Linting of module tube
+Linting of module CzarHandoff
+Starting... (2026-11-23 20:45:41)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:42.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.9E-18
+36 states generated, 35 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 35.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 01s at (2026-11-23 20:45:42)
+Checking hermes-exit (NoLateExit)
+Reached the milestone excluded by NoLateExit
+State 1: <Initial predicate>
+State 2: <Action line 5152, col 50 to line 5152, col 72 of module tube>
+State 3: <Action line 5152, col 50 to line 5152, col 72 of module tube>
+State 4: <Action line 5152, col 50 to line 5152, col 72 of module tube>
+State 5: <Action line 5152, col 50 to line 5152, col 72 of module tube>
+172 states generated, 83 distinct states found, 22 states left on queue.
+Checking raft-faults
+TLC2 Version 2026.11.19.180144 (rev: bc1b506)
+Running Random Simulation with seed 25519 with 1 worker on 48 cores with 1963MB heap and 64MB offheap memory [pid: 3295514] (Linux 6.18.56-061856-generic amd64, Ubuntu 21.0.12.1 64bit).
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/Update.tla (file:/mnt/oldrog/tmp/tube-tlc-owlv8yix/Update.tla)
+Parsing file /mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tube/tube.tla (file:/mnt/oldrog/tmp/tube-tlc-owlv8yix/tube.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15205874146745573011/Integers.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15205874146745573011/Sequences.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15205874146745573011/FiniteSets.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15205874146745573011/TLC.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /mnt/oldrog/tmp/tlc-15205874146745573011/Naturals.tla (jar:file:/mnt/oldrog/home/jaten/go/src/github.com/glycerine/rpc25519/tube/modelcheck/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module tube
+Semantic processing of module Update
+Linting of module tube
+Linting of module Update
+Starting... (2026-11-23 20:45:44)
+Computed 1 initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-23 20:45:44.
+Progress: 47546 states checked, 232 traces generated (trace length: mean=100, var(x)=0, sd=0)
+Progress: 61623 states checked, 300 traces generated (trace length: mean=100, var(x)=0, sd=0)
+The number of states generated: 61623
+Simulation using seed 25519 and aril 0
+Finished in 01min 18s at (2026-11-23 20:47:02)
+All Tube TLA+ profiles, witnesses, and trace checks passed.
+
+real	48m3.740s
+user	183m58.457s
+sys	2m44.032s
+(goivy-venv) jaten@rog ~/rpc25519/tube (specular) $
