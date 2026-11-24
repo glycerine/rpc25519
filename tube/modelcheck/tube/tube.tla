@@ -3887,6 +3887,8 @@ KVNewSession(st, e) ==
        ELSE IF prior.t0 < e.tm \/ (prior.t0 = e.tm /\ prior.id < e.sid)
             THEN KVSetSession(st, e.cl, s) ELSE st
 
+KVCanReplayAtApply(reply) == reply.fromLog
+
 \* commitWhatWeCan (tube/tube.go) advances the replicated HLC before all
 \* branches. Duplicate returns skip execution, refresh and GC. A missing
 \* session skips execution but still runs GC. The cache stores failures too.
@@ -3900,7 +3902,7 @@ KVApplyStep(before, e, i) ==
        ELSE IF e.op = "sessend"
             THEN control(IF s = KVNil THEN st ELSE KVSetSession(st, e.cl, KVNil), "closed")
        ELSE IF e.sid /= 0 /\ s = KVNil THEN control(st, "unknownSession")
-       ELSE IF s /= KVNil /\ e.serial \in DOMAIN s.cache /\ s.cache[e.serial].fromLog
+       ELSE IF s /= KVNil /\ e.serial \in DOMAIN s.cache /\ KVCanReplayAtApply(s.cache[e.serial])
             THEN done(st, s.cache[e.serial].res, FALSE)
        ELSE IF s /= KVNil /\ e.op \notin KVReads /\ e.serial <= s.maxApplied
             THEN done(st, KVResponse("acknowledged", KVNil), FALSE)
