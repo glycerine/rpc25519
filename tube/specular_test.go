@@ -1541,6 +1541,47 @@ func TestLocalReadCannotExtendSessionOnLeaderAlone(t *testing.T) {
 	}
 }
 
+func TestLocalReplyForCommittedSerialStillNeedsLogApply(t *testing.T) {
+	n := specularNode(t, "n1", LEADER, 1, nil, "n1")
+	now := time.Now()
+	appendTicket := func(tkt *Ticket, tm time.Time) {
+		t.Helper()
+		e := n.prepOne(tkt, tm, n.wal.LastLogIndex()+1, 0)
+		if _, err := n.wal.saveRaftLogEntry(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	appendTicket(specularSessNew("s1", 1, now), now)
+	specularApplyAll(n)
+
+	local := n.NewTicket("lease read", "t", "k", nil, n.PeerID, n.name, READ, 0, context.Background())
+	local.SessionID, local.SessionSerial = "s1", 1
+	logged := local.clone()
+	logged.TicketID = "logged-read"
+	logged.LeaderLocalReadAtTm = now // A retry can carry an earlier reply's stamp.
+	logTm := now.Add(time.Second)
+	appendTicket(logged, logTm)
+	n.state.CommitIndex, n.state.CommitIndexEntryTerm = 2, 1
+	local.Committed = true
+	if !n.leaderServedLocalRead(local, false) {
+		t.Fatal("expected leader to serve the retry under its lease")
+	}
+	ste := n.state.SessTable["s1"]
+	cached, ok := ste.Serial2Ticket.Get2(1)
+	if !ok || !cached.Committed || cached.LeaderLocalReadAtTm.IsZero() || n.state.LastApplied != 1 {
+		t.Fatal("expected a lease-read reply retaining its commit flag while index 2 awaits apply")
+	}
+	n.commitWhatWeCan(false)
+	applied, ok := ste.Serial2Ticket.Get2(1)
+	if !ok || applied.TicketID != logged.TicketID || !applied.LeaderLocalReadAtTm.IsZero() ||
+		ste.MaxAppliedSerial != 1 || !ste.SessionReplicatedEndxTm.Equal(logTm.Add(ste.SessRequestedInitialDur)) {
+		t.Fatal("expected index 2 to replace the cached lease read and renew the session")
+	}
+	if dup, prior := n.appliedSessionDuplicate(logged); !dup || prior != applied {
+		t.Fatal("expected a later log duplicate to replay the applied reply")
+	}
+}
+
 // CR-D-48: session expiry metadata survived neither
 // Clone, snapshot install, nor restart.
 func TestSessionTableEntryCloneKeepsExpiry(t *testing.T) {

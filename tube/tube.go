@@ -10895,6 +10895,11 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) (saved bool) {
 		if ste := s.state.SessTable[tkt.SessionID]; tkt.SessionID != "" && tkt.Op != SESS_END && ste != nil {
 			// cache the Ticket for dedup; extend session.
 
+			// This result was computed at applyIdx, even if the incoming
+			// ticket carried lease-read metadata from an earlier attempt.
+			tkt.LeaderLocalReadAtTm = time.Time{}
+			tkt.LeaderLocalReadGoodUntil = time.Time{}
+			tkt.LeaderLocalReadHLC = 0
 			ste.ticketID2tkt[tkt.TicketID] = tkt
 			ste.Serial2Ticket.Set(tkt.SessionSerial, tkt)
 			if tkt.SessionSerial > ste.MaxAppliedSerial {
@@ -16710,7 +16715,9 @@ func (s *TubeNode) appliedSessionDuplicate(tkt *Ticket) (dup bool, prior *Ticket
 	if !ok {
 		return
 	}
-	if p, ok := ste.Serial2Ticket.Get2(tkt.SessionSerial); ok {
+	// A lease read stamps its own reply, even if the same serial also
+	// reached the log. Only a cached log-apply result can replay that apply.
+	if p, ok := ste.Serial2Ticket.Get2(tkt.SessionSerial); ok && p.Committed && p.LeaderLocalReadAtTm.IsZero() {
 		return true, p
 	}
 	switch tkt.Op {

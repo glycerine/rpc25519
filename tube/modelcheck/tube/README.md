@@ -1,6 +1,7 @@
 # Model checking Tube
 
-[tube.tla](tube.tla) models the Tube implementation at `44d0b71d`. It started
+[tube.tla](tube.tla) models the Tube implementation at `44d0b71d` with the
+subsequent fix for session renewal after a local read. It started
 from Specular run `20261122-010209-d9f6`, which analyzed `a66e9b9c`. The
 reference module uses only the standard TLA+ modules. The
 [coverage table](coverage.md) maps the 119 intervening commits to Go functions,
@@ -34,6 +35,7 @@ profile defines its actions, properties, bounds and any assumed scheduling.
 | Operator overrides, bootstrap and restart with a cleared configuration | `admin-cases bootstrap` |
 | Plain and extra-ChaCha framing, circuit identity and redirected ticket outcomes | `transport transport-psk handshake identity redirect caller-timeout` |
 | Deterministic KV apply, duplicate requests, CAS and leased tables | `kv kv-cases` |
+| Session renewal when a local read is retried through the log after failover | `kv-session-diagnostic` |
 | Czar grants, leadership handoff and Hermes recovery after message loss | `czar-contacts czar-handoff hermes-replay hermes-publication` |
 | Sample three-voter schedules with reconfiguration, crash, restart, compaction and link failure | `raft-faults` |
 
@@ -98,7 +100,7 @@ unobserved transport and clock steps between logged events. For a later source
 revision, rebase the hooks when an instrumented Go function changes.
 [Trace adapter](trace/Trace.tla)
 
-## Validation at this revision
+## Validation at `44d0b71d`
 
 TLC matched 5,978 recorded events across all twelve Go scenarios at
 `44d0b71d`. The trace fixtures stagger restored process starts by 20 ms. In
@@ -116,25 +118,27 @@ compaction boundaries. The three-voter `raft-faults` profile sampled 300
 schedules of 100 steps. The KV, czar and Hermes checks exercise their own
 model interfaces. The implementation traces cover Raft and transport.
 
-## Known session result
+## Session renewal after failover
 
-`python3 check.py kv-session-diagnostic` reports a `KVSessDeterminism`
-violation. A leader serves a session read locally. After failover the client
-retries that serial through the log. At applied index 3, the former leader's
-cache hit leaves its maximum applied serial at 0 and its session deadline at
-tick 3. The new leader records serial 1 and deadline 4.
+`python3 check.py kv-session-diagnostic` checks a leader that serves a session
+read locally. After failover the client retries the same serial through the
+log. When both replicas have applied the retry at index 3, the model checks
+that each records serial 1, the deadline from the logged read, and a reply
+produced by log application. Use `--witness` to see the schedule reach that state.
 [TLC scenario](checks/SessionProjection.tla)
 
-A three-replica Go test reproduces the discrepancy. `leaderServedLocalRead`
-caches the original reply on the old leader. After step-down,
-`appliedSessionDuplicate` finds that reply when the retry arrives through the
-log, so `commitWhatWeCan` skips the session renewal. On the next committed
-write past the original deadline, the former leader deletes the session while
-the other two replicas retain it. Run the red regression from the repository
-root with the command below. [Go regression](../../client_test.go)
+`leaderServedLocalRead` caches the original reply for client retries.
+`appliedSessionDuplicate` reuses a cached reply during apply only when the
+ticket is committed and carries no leader-local read timestamp. A fresh
+lease read stamps its reply, and a fresh log execution clears that stamp.
+One Go test checks that a replica can cache a local reply while the committed
+entry for that serial still awaits application. A second test commits an
+unrelated write past the original deadline and checks that all three replicas
+retain the renewed session. Run both from the repository root.
+[Commit and apply test](../../specular_test.go) and [failover test](../../client_test.go)
 
 ```sh
-go test -tags synctest ./tube -run '^TestLocalReadRetryRenewsSessionOnEveryReplica$' -count=1
+go test -tags synctest ./tube -run '^Test(LocalReplyForCommittedSerialStillNeedsLogApply|LocalReadRetryRenewsSessionOnEveryReplica)$' -count=1
 ```
 
 ## Extend the model

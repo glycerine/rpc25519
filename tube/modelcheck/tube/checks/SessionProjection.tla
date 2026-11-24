@@ -17,4 +17,12 @@ ProjectNext ==
     /\ KVOnly /\ NoFc /\ UNCHANGED scenario /\ step'=step+1
 ProjectSpec == Init /\ scenario="cacheRetention" /\ step=0 /\ [][ProjectNext]_CheckVars /\ WF_CheckVars(ProjectNext)
 Completed == <>(step=13)
+BeforeRenewal == step < 13
+RenewalRecorded ==
+    step = 13 => \A n \in {L,F} :
+        LET e == kvMem[n][kvApplied[n]]
+            s == kvState[n].sessions[A]
+        IN /\ s /= KVNil /\ s.maxApplied = e.serial
+           /\ s.repEnd = e.tm + KVSessDur /\ s.endTm = s.repEnd
+           /\ e.serial \in DOMAIN s.cache /\ s.cache[e.serial].fromLog
 =============================================================================

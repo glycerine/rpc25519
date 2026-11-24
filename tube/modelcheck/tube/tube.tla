@@ -1,5 +1,5 @@
 -------------------------------- MODULE tube --------------------------------
-\* Tube protocol model, revised against glycerine/rpc25519 at 44d0b71d.
+\* Tube protocol model, based on 44d0b71d with the local-read retry fix.
 \* Specular run 20261122-010209-d9f6 at a66e9b9c supplied the original
 \* model. S and D numbers and inherited numeric line references locate that
 \* run. Named Go functions on revised actions locate the current behavior.
@@ -3900,11 +3900,13 @@ KVApplyStep(before, e, i) ==
        ELSE IF e.op = "sessend"
             THEN control(IF s = KVNil THEN st ELSE KVSetSession(st, e.cl, KVNil), "closed")
        ELSE IF e.sid /= 0 /\ s = KVNil THEN control(st, "unknownSession")
-       ELSE IF s /= KVNil /\ e.serial \in DOMAIN s.cache THEN done(st, s.cache[e.serial].res, FALSE)
+       ELSE IF s /= KVNil /\ e.serial \in DOMAIN s.cache /\ s.cache[e.serial].fromLog
+            THEN done(st, s.cache[e.serial].res, FALSE)
        ELSE IF s /= KVNil /\ e.op \notin KVReads /\ e.serial <= s.maxApplied
             THEN done(st, KVResponse("acknowledged", KVNil), FALSE)
        ELSE LET result == KVExecute(st, e, i)
-                cache == IF s = KVNil THEN KVEmptyCache ELSE KVCachePut(s.cache, e.serial, [res |-> result.res, at |-> i])
+                cache == IF s = KVNil THEN KVEmptyCache ELSE KVCachePut(s.cache, e.serial,
+                            [res |-> result.res, at |-> i, fromLog |-> TRUE])
                 refreshed == IF s = KVNil THEN result.state
                              ELSE KVSetSession(result.state, e.cl,
                                   [s EXCEPT !.endTm = e.tm + KVSessDur, !.repEnd = e.tm + KVSessDur,
@@ -4110,7 +4112,8 @@ KVLocal(c, op) ==
           /\ kvLast' = KVDeliver(c,op,probe.res)
           /\ kvIssued' = [kvIssued EXCEPT ![c] = e]
           /\ kvState' = IF sid = 0 THEN kvState
-                        ELSE [kvState EXCEPT ![l].sessions[c].cache = KVCachePut(@,serial,[res |-> probe.res, at |-> kvApplied[l]])]
+                        ELSE [kvState EXCEPT ![l].sessions[c].cache = KVCachePut(@, serial,
+                                 [res |-> probe.res, at |-> kvApplied[l], fromLog |-> FALSE])]
           /\ kvSerial' = [kvSerial EXCEPT ![c][sid] = @ + 1]
           /\ UNCHANGED <<kvNow, kvLeader, kvMem, kvApplied, kvBelieves, kvMuts, kvDup, kvFirst, kvReply>>
 KVLeaderLocalRead(c) == \E op \in KVReads \cup {"lwrite"} : KVLocal(c,op)
