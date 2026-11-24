@@ -468,24 +468,20 @@ func (c *cktPlus) reconnect(pack *packReconnect, why string) (isUp bool, err err
 	// We thought we could do waitForAck=false, but then
 	// the PeerName and PeerID are empty because we
 	// have not heard back yet.
-	_, _ = ckt, madeNewAutoCli
+	_ = madeNewAutoCli
 
-	if err != nil {
-		isUp = false
-		c.atomicIsUp.Store(isUp)
-		//alwaysPrintf("%v: ugh. watchdog reconnect(addr='%v') after '%v' got err = '%v'; netAddr='%v'; s.state.MC='%v'", s.me(), addr, time.Since(t0), err, pack.netAddr, s.state.MC.Short())
-	} else {
-		isUp = true
-		c.atomicIsUp.Store(isUp)
-
+	// A pending watchdog is dialing by name. An established watchdog tracks
+	// one PeerID. A successor can answer at the same address and reach
+	// NewCircuitCh before addToCktall checks whether its predecessor is silent.
+	isUp = err == nil && (c.ckt == nil || c.PeerID == ckt.RemotePeerID)
+	c.atomicIsUp.Store(isUp)
+	if isUp {
 		now := time.Now()
 		c.lastSeenMut.Lock()
 		if now.After(c.lastSeenTm) {
 			c.lastSeenTm = now
 		}
 		c.lastSeenMut.Unlock()
-
-		//alwaysPrintf("%v: good, watchdog reconnect() came back with nil err trying to connect to pack.addr='%v' (pack.url='%v'); s.MyPeer.NewCircuitCh=%p, we got ckt='%v'", s.me(), addr, pack.url, s.MyPeer.NewCircuitCh, ckt.RemotePeerName)
 	}
 
 	//if madeNewAutoCli {

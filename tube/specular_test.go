@@ -1973,6 +1973,47 @@ func TestCASReturnsErrorsForCancelledContextAndSession(t *testing.T) {
 	try("closed session", context.Background(), &Session{ctx: cancelled}, ErrNeedNewSession)
 }
 
+// A restarted replica can answer a watchdog dial at its predecessor's address.
+// The ACK identifies which process answered, even if both use the same name.
+func TestWatchdogReconnectCreditsOnlyAnsweringReplica(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		cluster, _, _, _ := SetupTestCluster(t, 2, 0, 1447)
+		defer cluster.Close()
+		dialer, peer := cluster.Nodes[0], cluster.Nodes[1]
+		addr := peer.BaseServerHostPort()
+		pack := newReconnect(addr, addr, "", t.Name())
+
+		for _, tc := range []struct {
+			name   string
+			peerID string
+			wantUp bool
+		}{
+			{"old incarnation", "previous-peer-id", false},
+			{"same incarnation", peer.PeerID, true},
+			{"pending first circuit", "", true},
+		} {
+			watch := dialer.newCktPlus(peer.name, TUBE_REPLICA)
+			defer watch.Close()
+			if tc.peerID != "" {
+				watch.PeerID = tc.peerID
+				watch.ckt = &rpc.Circuit{RemotePeerID: tc.peerID}
+			}
+			before := time.Now().Add(-2 * dialer.followerDownDur())
+			watch.lastSeenTm = before
+			up, err := watch.reconnect(pack, tc.name)
+			if err != nil {
+				t.Fatalf("%s: reconnect failed: %v", tc.name, err)
+			}
+			if up != tc.wantUp || watch.atomicIsUp.Load() != tc.wantUp {
+				t.Errorf("%s: reconnect reported up=%v, stored up=%v, want %v", tc.name, up, watch.atomicIsUp.Load(), tc.wantUp)
+			}
+			if refreshed := watch.lastSeenTm.After(before); refreshed != tc.wantUp {
+				t.Errorf("%s: lastSeenTm refreshed=%v, want %v", tc.name, refreshed, tc.wantUp)
+			}
+		}
+	})
+}
+
 // CR-D-30: the watchdog's periodic liveness check never ran
 // (pack was never assigned), so a circuit that went silent was
 // never reconnected by the watchdog.
