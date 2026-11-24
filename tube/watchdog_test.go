@@ -1,12 +1,44 @@
 package tube
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	//rpc "github.com/glycerine/rpc25519"
 	"testing"
 )
+
+// Both replicas can detect a silent circuit on the same watchdog tick.
+// Each must be able to send on its selected circuit after the two dials cross.
+func TestSimultaneousWatchdogReconnect(t *testing.T) {
+	onlyBubbled(t, func(t *testing.T) {
+		c, _, _, _ := SetupTestCluster(t, 2, 0, 103)
+		defer c.Close()
+		synctestWait_LetAllOtherGoroFinish()
+		a, b := c.Nodes[0], c.Nodes[1]
+		ab, ba := a.cktAllByName[b.name], b.cktAllByName[a.name]
+		a.backgroundConnectToPeer(ab, b.URL, b.BaseServerHostPort(), t.Name())
+		b.backgroundConnectToPeer(ba, a.URL, a.BaseServerHostPort(), t.Name())
+
+		// The original watchdogs exit when their replacements take over.
+		deadline := time.After(5 * time.Second)
+		for _, old := range []*cktPlus{ab, ba} {
+			select {
+			case <-old.perCktWatchdogHalt.Done.Chan:
+			case <-deadline:
+				t.Fatal("watchdog did not finish reconnecting")
+			}
+		}
+		// A write needs both AppendEntries and its ACK in this two-voter
+		// cluster. Exercise the replacement circuits before the next redial.
+		ctx, cancel := context.WithTimeout(context.Background(), c.Cfg.MinElectionDur)
+		defer cancel()
+		if _, err := a.Write(ctx, "", "reconnected", Val("ok"), 0, nil, "", 0, false); err != nil {
+			t.Fatalf("write after simultaneous reconnect: %v", err)
+		}
+	})
+}
 
 // work on test for watchdog cktPlus re-start ckt
 // mechanism.
