@@ -1,0 +1,2049 @@
+--- /dev/null
++++ b/tla_hook.go
+@@ -0,0 +1,75 @@
++package rpc25519
++
++// Transport hooks for the Tube implementation trace recorder.
++//
++// The rpc25519 transport cannot import the tube package, so transport-level
++// trace points (pump.go, srv.go, cli.go, ckt.go) report through this hook.
++// The tube package's tla_trace.go installs the hook while a trace is being
++// recorded; when no hook is installed every call is a cheap no-op.
++//
++// collect.sh adds this file to the isolated source checkout.
++
++import (
++	"context"
++	"sync/atomic"
++)
++
++// TLATransportEvent describes one transport-level step.
++type TLATransportEvent struct {
++	// Name is one of:
++	//   "NewCircuit"          ckt.go newCircuit: a circuit object was created
++	//                         (IsDialer: this side originated it, tellRemote).
++	//   "HandleEndCircuit"    pump.go: CallPeerEndCircuit closed the local end.
++	//   "DropUnroutable"      pump.go: frame for an unknown CallID dropped.
++	//   "DropStaleTarget"    srv.go/cli.go: a frame had no matching local
++	//                         ToPeerID and was discarded.
++	//   "ConnAbort"           srv.go/cli.go: read loop exited on a read error/EOF.
++	Name string
++
++	// pump / circuit events: the receiving LocalPeer.
++	LocalPeerID   string
++	LocalPeerName string
++
++	// read-loop events: owning server name (e.g. "srv_node_0") and the
++	// remote endpoint name/address of the connection.
++	ServerName string
++	RemoteName string
++
++	// frame identity
++	FromPeerID string
++	ToPeerID   string
++	CallID     string
++	MsgType    string
++
++	IsDialer bool
++}
++
++var tlaTransportHook atomic.Pointer[func(ev TLATransportEvent)]
++
++// SetTLATransportHook installs (or, with nil, removes) the transport hook.
++func SetTLATransportHook(h func(ev TLATransportEvent)) {
++	if h == nil {
++		tlaTransportHook.Store(nil)
++		return
++	}
++	tlaTransportHook.Store(&h)
++}
++
++// tlaTransport reports ev to the installed hook, if any.
++func tlaTransport(ev TLATransportEvent) {
++	if p := tlaTransportHook.Load(); p != nil {
++		(*p)(ev)
++	}
++}
++
++// tlaTransportOn is a cheap check used to avoid building events.
++func tlaTransportOn() bool {
++	return tlaTransportHook.Load() != nil
++}
++
++type tlaDialIDKey struct{}
++
++// WithTLADialID associates the watchdog call with its transport circuit.
++func WithTLADialID(ctx context.Context, out *string) context.Context {
++	return context.WithValue(ctx, tlaDialIDKey{}, out)
++}
+--- /dev/null
++++ b/tube/tla_trace.go
+@@ -0,0 +1,1141 @@
++package tube
++
++// TLA+ trace emission for replaying Tube implementation scenarios against Trace.tla.
++//
++// Category A (message passing): one NDJSON file per scenario, one
++// mutex-protected writer shared by every node of the in-process simnet
++// cluster. Reserved slots record the start of a handler or dial and retain
++// its eventual result even when a different goroutine emits first.
++//
++// Envelope of every event line:
++//
++//	{"tag":"trace","ts":<bubble time>,"wall":<real epoch ns>,
++//	 "event":{"name":...,"nid":...,"inc":...,"state":{...},"msg":{...},...}}
++//
++// "ts" is the clock the system runs on (the synctest bubble clock that
++// drives every Tube timer); "wall" is the real wall clock (CLOCK_REALTIME).
++//
++// collect.sh adds this file to the isolated source checkout for each run.
++
++import (
++	"bytes"
++	"encoding/json"
++	"fmt"
++	"os"
++	"sort"
++	"strings"
++	"sync"
++	"sync/atomic"
++	"time"
++
++	rpc "github.com/glycerine/rpc25519"
++	"golang.org/x/sys/unix"
++)
++
++// ---------------------------------------------------------------------
++// ordered JSON objects (keys keep their insertion order in the output)
++// ---------------------------------------------------------------------
++
++type tkv struct {
++	K string
++	V any
++}
++
++type tobj []tkv
++
++func (o tobj) MarshalJSON() ([]byte, error) {
++	var b bytes.Buffer
++	b.WriteByte('{')
++	for i, kv := range o {
++		if i > 0 {
++			b.WriteByte(',')
++		}
++		kb, err := json.Marshal(kv.K)
++		if err != nil {
++			return nil, err
++		}
++		b.Write(kb)
++		b.WriteByte(':')
++		vb, err := json.Marshal(kv.V)
++		if err != nil {
++			return nil, err
++		}
++		b.Write(vb)
++	}
++	b.WriteByte('}')
++	return b.Bytes(), nil
++}
++
++// PeerKey encoding: {"name":..., "inc":...};
++// an absent PeerID is {"name":"","inc":-1}.
++type tlaKey struct {
++	Name string `json:"name"`
++	Inc  int    `json:"inc"`
++}
++
++var tlaNilKey = tlaKey{Name: "", Inc: -1}
++
++// ---------------------------------------------------------------------
++// the tracer
++// ---------------------------------------------------------------------
++
++type tlaSlot struct {
++	env     tobj // full envelope; nil => dropped slot
++	isEvent bool // env[3] is the "event" object (notes are not events)
++	pending bool // reserved, not yet filled
++}
++
++type tlaDur struct {
++	term int64
++	vote string // PeerID
++}
++
++type tlaTracer struct {
++	mu   sync.Mutex
++	f    *os.File
++	path string
++
++	q []*tlaSlot // not yet written (head may be a pending reservation)
++
++	members  []string        // initial MC member names (first event carries them)
++	initial  map[string]bool // initial members
++	nlines   int             // trace lines written
++	counts   map[string]int  // per event name
++	byID     map[string]tlaKey
++	curID    map[string]string // name -> PeerID of the running process
++	starts   map[string]int    // name -> process starts so far
++	dead     map[string]bool   // PeerID -> crashed incarnation (events suppressed)
++	down     map[string]bool   // name -> currently crashed
++	dialerOf map[string]string // CircuitID -> PeerID of the side that originated it
++	accOf    map[string]string // CircuitID -> PeerID of the accepting side
++	dur      map[string]tlaDur // name -> last durable (term, vote) written by saver.save
++	addrs    map[string][]string
++	linkDown map[[2]string]bool
++}
++
++var tlaT = &tlaTracer{}
++var tlaOnFlag atomic.Bool
++
++func tlaOn() bool { return tlaOnFlag.Load() }
++
++func tlaWall() int64 {
++	var ts unix.Timespec
++	if err := unix.ClockGettime(unix.CLOCK_REALTIME, &ts); err != nil {
++		return 0
++	}
++	return ts.Nano()
++}
++
++func tlaEnvelope(ev tobj) tobj {
++	return tobj{
++		{"tag", "trace"},
++		{"ts", time.Now().UTC().Format(time.RFC3339Nano)},
++		{"wall", tlaWall()},
++		{"event", ev},
++	}
++}
++
++// TlaTraceStart opens path and starts recording. members are the names of
++// the initial MemberConfig (Trace.tla's TraceInitMembers); config is
++// written as a {"tag":"config"} first line (allNodes sets the model server domain).
++func TlaTraceStart(path string, members []string, config map[string]any) error {
++	t := tlaT
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	if t.f != nil {
++		return fmt.Errorf("tla trace already recording to '%v'", t.path)
++	}
++	f, err := os.Create(path)
++	if err != nil {
++		return err
++	}
++	t.f = f
++	t.path = path
++	t.q = nil
++	t.members = append([]string{}, members...)
++	sort.Strings(t.members)
++	t.initial = make(map[string]bool)
++	for _, m := range t.members {
++		t.initial[m] = true
++	}
++	t.nlines = 0
++	t.counts = make(map[string]int)
++	t.byID = make(map[string]tlaKey)
++	t.curID = make(map[string]string)
++	t.starts = make(map[string]int)
++	t.dead = make(map[string]bool)
++	t.down = make(map[string]bool)
++	t.dialerOf = make(map[string]string)
++	t.accOf = make(map[string]string)
++	t.dur = make(map[string]tlaDur)
++	t.addrs = make(map[string][]string)
++	t.linkDown = make(map[[2]string]bool)
++
++	cfg := tobj{{"servers", t.members}}
++	keys := make([]string, 0, len(config))
++	for k := range config {
++		keys = append(keys, k)
++	}
++	sort.Strings(keys)
++	for _, k := range keys {
++		cfg = append(cfg, tkv{k, config[k]})
++	}
++	line, err := json.Marshal(tobj{
++		{"tag", "config"},
++		{"ts", time.Now().UTC().Format(time.RFC3339Nano)},
++		{"wall", tlaWall()},
++		{"config", cfg},
++	})
++	if err != nil {
++		return err
++	}
++	f.Write(append(line, '\n'))
++	rpc.SetTLATransportHook(tlaTransportHook)
++	tlaOnFlag.Store(true)
++	return nil
++}
++
++// TlaTraceStop flushes and closes the trace. It discards pending reservations
++// whose outcome was still unobserved when the scenario stopped.
++func TlaTraceStop() (lines int, counts map[string]int) {
++	t := tlaT
++	tlaOnFlag.Store(false)
++	rpc.SetTLATransportHook(nil)
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	if t.f == nil {
++		return
++	}
++	for _, s := range t.q {
++		if s.pending {
++			s.pending = false // outcome unknown: drop it
++			s.env = nil
++		}
++	}
++	t.flushLocked()
++	t.f.Sync()
++	t.f.Close()
++	t.f = nil
++	lines = t.nlines
++	counts = make(map[string]int)
++	for k, v := range t.counts {
++		counts[k] = v
++	}
++	return
++}
++
++func (t *tlaTracer) flushLocked() {
++	for len(t.q) > 0 && !t.q[0].pending {
++		s := t.q[0]
++		t.q = t.q[1:]
++		if s.env == nil || t.f == nil {
++			continue
++		}
++		if s.isEvent {
++			ev := s.env[3].V.(tobj)
++			if t.nlines == 0 {
++				// the first event carries the initial MC members
++				ev = append(ev, tkv{"members", t.members})
++				s.env[3].V = ev
++			}
++			name, _ := ev[0].V.(string)
++			t.counts[name]++
++			t.nlines++
++		}
++		line, err := json.Marshal(s.env)
++		if err != nil {
++			panic(fmt.Sprintf("tla trace marshal: %v", err))
++		}
++		t.f.Write(append(line, '\n'))
++	}
++}
++
++// emitLocked appends ev (an event object) to the queue.
++func (t *tlaTracer) emitLocked(ev tobj) {
++	if t.f == nil {
++		return
++	}
++	t.q = append(t.q, &tlaSlot{env: tlaEnvelope(ev), isEvent: true})
++	t.flushLocked()
++}
++
++// reserveLocked holds a position in the file order for an event whose
++// content is only known later (a dial attempt that takes effect when it
++// starts; a restart whose state is captured when start-up completes).
++func (t *tlaTracer) reserveLocked() *tlaSlot {
++	if t.f == nil {
++		return nil
++	}
++	s := &tlaSlot{pending: true, isEvent: true, env: tlaEnvelope(nil)}
++	t.q = append(t.q, s)
++	return s
++}
++
++func (t *tlaTracer) fillLocked(s *tlaSlot, ev tobj) {
++	if s == nil {
++		return
++	}
++	s.pending = false
++	if ev == nil {
++		s.env = nil
++	} else {
++		s.env[3].V = ev
++	}
++	t.flushLocked()
++}
++
++// keyLocked maps a PeerID to its {name, inc} key.
++func (t *tlaTracer) keyLocked(peerID string) tlaKey {
++	if peerID == "" {
++		return tlaNilKey
++	}
++	if k, ok := t.byID[peerID]; ok {
++		return k
++	}
++	return tlaKey{Name: "unknown:" + peerID, Inc: -1}
++}
++
++func (t *tlaTracer) curIncLocked(name string) int {
++	if id, ok := t.curID[name]; ok {
++		return t.byID[id].Inc
++	}
++	return 0
++}
++
++func tlaAddrName(t *tlaTracer, name, addr string) string {
++	lst := t.addrs[name]
++	for i, a := range lst {
++		if a == addr {
++			return fmt.Sprintf("a%d", i+1)
++		}
++	}
++	t.addrs[name] = append(lst, addr)
++	return fmt.Sprintf("a%d", len(lst)+1)
++}
++
++// ---------------------------------------------------------------------
++// per-node trace state (field TubeNode.tla, added by the patch)
++// ---------------------------------------------------------------------
++
++type tlaPendingEv struct {
++	pre, main *tlaSlot
++	name      string
++	fields    []tkv
++}
++
++type tlaNodeState struct {
++	sentMu      sync.Mutex
++	sent        []tkv // frames sent during the current event-loop step
++	traced      bool  // replica registered with the tracer
++	pend        *tlaPendingEv
++	aeBranch    string   // handleAppendEntries return path
++	restartSlot *tlaSlot // reserved Restart event (non-initial starts)
++	rereg       []string // PeerIDs re-registered by peerJoin during this frame
++}
++
++// tlaRegisterStart is called from Start() as soon as the PeerID is known.
++// It assigns the incarnation (Trace.tla Keys = Server \X 0..MaxInc): the
++// first start of an initial member is incarnation 0 (part of Init); every
++// other start is a Restart with incarnation one more than the spec's inc.
++func (s *TubeNode) tlaRegisterStart() {
++	if !tlaOn() || s.PeerServiceName != TUBE_REPLICA {
++		return
++	}
++	t := tlaT
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	if t.f == nil {
++		return
++	}
++	n := t.starts[s.name]
++	inc := n
++	if !t.initial[s.name] {
++		inc = n + 1
++	}
++	t.starts[s.name] = n + 1
++	t.byID[s.PeerID] = tlaKey{Name: s.name, Inc: inc}
++	t.curID[s.name] = s.PeerID
++	t.down[s.name] = false
++	s.tla.traced = true
++	if inc > 0 {
++		// Restart(n, a): reserve its place now so that dial attempts this
++		// process makes during start-up are ordered after it.
++		s.tla.restartSlot = t.reserveLocked()
++	}
++}
++
++// tlaNoteLoaded records the durable (term, vote) just loaded from disk.
++func (s *TubeNode) tlaNoteLoaded() {
++	if !tlaOn() || !s.tla.traced || s.state == nil {
++		return
++	}
++	t := tlaT
++	t.mu.Lock()
++	t.dur[s.name] = tlaDur{term: s.state.CurrentTerm, vote: s.state.VotedFor}
++	t.mu.Unlock()
++}
++
++// tlaNoteSaved is called by raftStatePersistor.save after the state file
++// was published (persistor.go): the shadow of the durable term/vote.
++func tlaNoteSaved(state *RaftState) {
++	if !tlaOn() || state == nil || state.PeerName == "" {
++		return
++	}
++	t := tlaT
++	t.mu.Lock()
++	t.dur[state.PeerName] = tlaDur{term: state.CurrentTerm, vote: state.VotedFor}
++	t.mu.Unlock()
++}
++
++// tlaStartupDone fills the reserved Restart event just before the main loop.
++func (s *TubeNode) tlaStartupDone() {
++	if !tlaOn() || !s.tla.traced {
++		return
++	}
++	slot := s.tla.restartSlot
++	s.tla.restartSlot = nil
++	if slot == nil {
++		return
++	}
++	raw := s.tlaRawSnapshot()
++	addr := ""
++	if s.MyPeer != nil {
++		addr = s.MyPeer.BaseServerAddr
++	}
++	if addr == "" && s.rpcServerAddr != nil {
++		addr = s.rpcServerAddr.String()
++	}
++	t := tlaT
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	key, ok := t.byID[s.PeerID]
++	if !ok || t.dead[s.PeerID] {
++		t.fillLocked(slot, nil)
++		return
++	}
++	ev := tobj{
++		{"name", "Restart"},
++		{"nid", s.name},
++		{"inc", key.Inc},
++		{"addr", tlaAddrName(t, s.name, addr)},
++		{"state", t.renderStateLocked(s.name, raw)},
++		{"info", t.renderInfoLocked(raw)},
++	}
++	t.fillLocked(slot, ev)
++}
++
++// ---------------------------------------------------------------------
++// state snapshot (section 1.2), read on the node's event-loop goroutine
++// ---------------------------------------------------------------------
++
++type tlaRawPeer struct {
++	id       string
++	mi, lcri int64
++}
++
++type tlaRawState struct {
++	role                                       string
++	term                                       int64
++	votedFor, leader                           string
++	ci, ciTerm, la, lli, llt, compact          int64
++	restartHoldoff, deferred, deferredElection bool
++	cfgTerm, cfgVer, cfgCI                     int64
++	cfgCommitted                               bool
++	members, shadows                           []string
++	parUnknown, parActive                      bool
++	cktall, cktReplica                         []string
++	pendingNames, circuitNames                 []string
++	peers                                      []tlaRawPeer
++}
++
++func tlaRole(r RaftRole) string {
++	switch r {
++	case FOLLOWER:
++		return "FOLLOWER"
++	case CANDIDATE:
++		return "CANDIDATE"
++	case LEADER:
++		return "LEADER"
++	case CLIENT:
++		return "CLIENT"
++	}
++	return fmt.Sprintf("ROLE_%d", int(r))
++}
++
++func tlaNames(mc *MemberConfig) []string {
++	r := make([]string, 0)
++	if mc == nil || mc.PeerNames == nil {
++		return r
++	}
++	for name := range mc.PeerNames.All() {
++		r = append(r, name)
++	}
++	sort.Strings(r)
++	return r
++}
++
++func (s *TubeNode) tlaRawSnapshot() *tlaRawState {
++	r := &tlaRawState{role: tlaRole(s.role), leader: s.leaderID}
++	if s.state != nil {
++		r.term = s.state.CurrentTerm
++		r.votedFor = s.state.VotedFor
++		r.ci = s.state.CommitIndex
++		r.ciTerm = s.state.CommitIndexEntryTerm
++		r.restartHoldoff = time.Now().Before(s.restartVoteDeadline)
++		r.deferred = s.deferredCampaignCh != nil
++		r.deferredElection = s.deferredElection
++		r.la = s.state.LastApplied
++		r.compact = s.state.CompactionDiscardedLast.Index
++		if mc := s.state.MC; mc != nil {
++			r.cfgTerm = mc.ConfigTerm
++			r.cfgVer = mc.ConfigVersion
++			r.cfgCI = mc.CommitIndex
++			r.cfgCommitted = mc.IsCommitted
++		}
++		r.members = tlaNames(s.state.MC)
++		r.shadows = tlaNames(s.state.ShadowReplicas)
++	} else {
++		r.members = make([]string, 0)
++		r.shadows = make([]string, 0)
++	}
++	if s.wal != nil {
++		r.lli, r.llt = s.wal.LastLogIndexAndTerm()
++		if r.lli < 0 {
++			r.lli = 0
++		}
++		if r.lli == 0 {
++			r.llt = 0
++		}
++	}
++	if s.par != nil {
++		r.parUnknown = s.par.unknown
++		r.parActive = s.par.active
++	}
++	r.cktall = make([]string, 0, len(s.cktall))
++	for id := range s.cktall {
++		r.cktall = append(r.cktall, id)
++	}
++	r.cktReplica = make([]string, 0, len(s.cktReplica))
++	for id := range s.cktReplica {
++		r.cktReplica = append(r.cktReplica, id)
++	}
++	r.pendingNames = make([]string, 0)
++	r.circuitNames = make([]string, 0)
++	for name, cktP := range s.cktAllByName {
++		if cktP == nil {
++			continue
++		}
++		if cktP.ckt == nil {
++			r.pendingNames = append(r.pendingNames, name)
++		} else {
++			r.circuitNames = append(r.circuitNames, name)
++		}
++	}
++	sort.Strings(r.pendingNames)
++	sort.Strings(r.circuitNames)
++	for id, info := range s.peers {
++		if info == nil {
++			continue
++		}
++		r.peers = append(r.peers, tlaRawPeer{id: id, mi: info.MatchIndex, lcri: info.LargestCommonRaftIndex})
++	}
++	return r
++}
++
++func tlaSortKeys(ks []tlaKey) []tlaKey {
++	sort.Slice(ks, func(i, j int) bool {
++		if ks[i].Name != ks[j].Name {
++			return ks[i].Name < ks[j].Name
++		}
++		return ks[i].Inc < ks[j].Inc
++	})
++	return ks
++}
++
++func (t *tlaTracer) renderStateLocked(name string, r *tlaRawState) tobj {
++	cktall := make([]tlaKey, 0, len(r.cktall))
++	for _, id := range r.cktall {
++		cktall = append(cktall, t.keyLocked(id))
++	}
++	cktReplica := make([]tlaKey, 0, len(r.cktReplica))
++	for _, id := range r.cktReplica {
++		cktReplica = append(cktReplica, t.keyLocked(id))
++	}
++	st := tobj{
++		{"role", r.role},
++		{"term", r.term},
++		{"votedFor", t.keyLocked(r.votedFor)},
++		{"leader", t.keyLocked(r.leader)},
++		{"commitIndex", r.ci},
++		{"commitTerm", r.ciTerm},
++		{"restartHoldoff", r.restartHoldoff},
++		{"deferred", r.deferred},
++		{"deferredElection", r.deferredElection},
++		{"lastApplied", r.la},
++		{"lli", r.lli},
++		{"llt", r.llt},
++		{"compactIndex", r.compact},
++		{"cfgTerm", r.cfgTerm},
++		{"cfgVer", r.cfgVer},
++		{"members", r.members},
++		{"parUnknown", r.parUnknown},
++		{"cktall", tlaSortKeys(cktall)},
++		{"pendingNames", r.pendingNames},
++		{"circuitNames", r.circuitNames},
++		{"cktReplica", tlaSortKeys(cktReplica)},
++	}
++	if d, ok := t.dur[name]; ok {
++		st = append(st, tkv{"dTerm", d.term}, tkv{"dVote", t.keyLocked(d.vote)})
++	}
++	return st
++}
++
++// renderInfoLocked records membership, recovery and peer diagnostics (kept out
++// of "state", whose every field ValidatePostState checks).  Candidate
++// checks: cfgCommitted ~ config[n].com, cfgCI ~ config[n].ci,
++// shadows ~ shadows[n], peers ~ peers[n] (mi, lcri).
++func (t *tlaTracer) renderInfoLocked(r *tlaRawState) tobj {
++	peers := make([]tobj, 0, len(r.peers))
++	sort.Slice(r.peers, func(i, j int) bool { return r.peers[i].id < r.peers[j].id })
++	for _, p := range r.peers {
++		k := t.keyLocked(p.id)
++		peers = append(peers, tobj{{"name", k.Name}, {"inc", k.Inc}, {"mi", p.mi}, {"lcri", p.lcri}})
++	}
++	return tobj{
++		{"parActive", r.parActive},
++		{"cfgCommitted", r.cfgCommitted},
++		{"cfgCI", r.cfgCI},
++		{"shadows", r.shadows},
++		{"peers", peers},
++	}
++}
++
++// ---------------------------------------------------------------------
++// node events (event-loop goroutine)
++// ---------------------------------------------------------------------
++
++// tlaEmit writes a node event with the post-step state of s.
++func (s *TubeNode) tlaEmit(name string, fields ...tkv) {
++	if !tlaOn() || !s.tla.traced {
++		return
++	}
++	raw := s.tlaRawSnapshot()
++	t := tlaT
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	key, ok := t.byID[s.PeerID]
++	if !ok || t.dead[s.PeerID] {
++		return
++	}
++	ev := tobj{{"name", name}, {"nid", s.name}, {"inc", key.Inc}}
++	ev = append(ev, tkv{"state", t.renderStateLocked(s.name, raw)}, tkv{"info", t.renderInfoLocked(raw)})
++	for _, f := range fields {
++		ev = append(ev, t.resolveLocked(f))
++	}
++	s.tla.sentMu.Lock()
++	sent := s.tla.sent
++	s.tla.sent = nil
++	s.tla.sentMu.Unlock()
++	if len(sent) > 0 {
++		lst := make([]tobj, 0, len(sent))
++		for _, x := range sent {
++			lst = append(lst, t.resolveLocked(x).V.(tobj))
++		}
++		ev = append(ev, tkv{"sent", lst})
++	}
++	if len(s.tla.rereg) > 0 {
++		keys := make([]tlaKey, 0, len(s.tla.rereg))
++		for _, id := range s.tla.rereg {
++			keys = append(keys, t.keyLocked(id))
++		}
++		ev = append(ev, tkv{"peerJoinReRegistered", keys})
++		s.tla.rereg = nil
++	}
++	if p := s.tla.pend; p != nil && p.main != nil {
++		if name == "Compact" && p.pre != nil {
++			t.fillLocked(p.pre, ev)
++			p.pre = nil
++			return
++		}
++		if name == p.name {
++			t.fillLocked(p.pre, nil)
++			t.fillLocked(p.main, ev)
++			return
++		}
++	}
++	t.emitLocked(ev)
++}
++
++// tlaPeerRef defers a PeerID -> key conversion to emission time.
++type tlaPeerRef string
++
++// tlaPeerRec renders as Trace.tla's peerRec {"name","inc","mi","lcri"}.
++type tlaPeerRec struct {
++	id       string
++	mi, lcri int64
++}
++
++// tlaMsgObj builds a message object; values of type tlaPeerRef are mapped.
++type tlaMsgObj tobj
++
++func (t *tlaTracer) resolveLocked(f tkv) tkv {
++	switch v := f.V.(type) {
++	case tlaPeerRef:
++		return tkv{f.K, t.keyLocked(string(v))}
++	case tlaPeerRec:
++		k := t.keyLocked(v.id)
++		return tkv{f.K, tobj{{"name", k.Name}, {"inc", k.Inc}, {"mi", v.mi}, {"lcri", v.lcri}}}
++	case tlaMsgObj:
++		o := make(tobj, 0, len(v))
++		for _, x := range v {
++			o = append(o, t.resolveLocked(x))
++		}
++		return tkv{f.K, o}
++	}
++	return f
++}
++
++// tlaPendSet records the event of the current step; it is written by
++// tlaPendFlush, or earlier by becomeLeader (split becomeLeader, section 2.4).
++func (s *TubeNode) tlaPendSet(name string, fields ...tkv) {
++	if !tlaOn() || !s.tla.traced {
++		return
++	}
++	p := &tlaPendingEv{name: name, fields: fields}
++	// The AE handler can pulse a watchdog, whose work may run before the
++	// handler returns. Reserve the action and its optional nested compaction.
++	if name == "HandleAppendEntries" {
++		tlaT.mu.Lock()
++		p.pre, p.main = tlaT.reserveLocked(), tlaT.reserveLocked()
++		tlaT.mu.Unlock()
++	}
++	s.tla.pend = p
++}
++
++// tlaPendFlush writes the pending event (if becomeLeader has not).
++func (s *TubeNode) tlaPendFlush(extra ...tkv) {
++	if s.tla.pend == nil {
++		return
++	}
++	p := s.tla.pend
++	s.tlaEmit(p.name, append(p.fields, extra...)...)
++	s.tla.pend = nil
++}
++
++// tlaBecomeLeaderBeforeSave: becomeLeader is split into the step that ends
++// with the noop0 broadcast (the triggering HandleVote / PreVotePhase2Timeout
++// event) and BecomeLeaderSave (the deferred saver.save).
++func (s *TubeNode) tlaBecomeLeaderBeforeSave() {
++	s.tlaPendFlush(tkv{"becameLeader", true})
++}
++
++// frame message objects (section 1.4)
++
++func tlaMsgRV(frag *rpc.Fragment, rv *RequestVote) tkv {
++	return tkv{"msg", tlaMsgObj{{"cid", frag.CircuitID}, {"from", tlaPeerRef(frag.FromPeerID)}, {"term", rv.CandidatesTerm}}}
++}
++
++func tlaMsgVote(frag *rpc.Fragment, v *Vote) tkv {
++	return tkv{"msg", tlaMsgObj{{"cid", frag.CircuitID}, {"from", tlaPeerRef(frag.FromPeerID)}, {"term", v.CandidatesTerm},
++		{"granted", v.VoteGranted}}}
++}
++
++func tlaMsgAE(frag *rpc.Fragment, ae *AppendEntries) tkv {
++	return tkv{"msg", tlaMsgObj{{"cid", frag.CircuitID}, {"from", tlaPeerRef(frag.FromPeerID)}, {"term", ae.LeaderTerm},
++		{"prev", ae.PrevLogIndex}, {"nents", len(ae.Entries)}, {"commit", ae.LeaderCommitIndex}}}
++}
++
++func tlaMsgAEA(frag *rpc.Fragment, a *AppendEntriesAck) tkv {
++	return tkv{"msg", tlaMsgObj{{"cid", frag.CircuitID}, {"from", tlaPeerRef(frag.FromPeerID)}, {"term", a.Term},
++		{"rejected", a.Rejected}, {"lcri", a.LargestCommonRaftIndex}, {"last", a.PeerLogLastIndex}}}
++}
++
++func tlaMsgSnap(frag *rpc.Fragment) tkv {
++	return tkv{"msg", tlaMsgObj{{"cid", frag.CircuitID}, {"from", tlaPeerRef(frag.FromPeerID)}, {"part", frag.FragPart}}}
++}
++
++func tlaMsgFrom(frag *rpc.Fragment) tkv {
++	return tkv{"msg", tlaMsgObj{{"cid", frag.CircuitID}, {"from", tlaPeerRef(frag.FromPeerID)}}}
++}
++
++// tlaAckPeerRec: leader's RaftNodeInfo for the acker after the step.
++func (s *TubeNode) tlaAckPeerRec(fromPeerID string) []tkv {
++	info, ok := s.peers[fromPeerID]
++	if !ok || info == nil {
++		return nil
++	}
++	return []tkv{{"peerRec", tlaPeerRec{id: fromPeerID, mi: info.MatchIndex, lcri: info.LargestCommonRaftIndex}}}
++}
++
++// circuit identity for HandleNewCircuit / HandlePeerLeft: (nid, peer, dialer)
++func (s *TubeNode) tlaCktFields(ckt *rpc.Circuit) []tkv {
++	if ckt == nil {
++		return nil
++	}
++	t := tlaT
++	t.mu.Lock()
++	d, a := t.dialerOf[ckt.CircuitID], t.accOf[ckt.CircuitID]
++	t.mu.Unlock()
++	dialer := d == ckt.LocalPeerID || (d == "" && a != "" && a != ckt.LocalPeerID)
++	return []tkv{
++		{"peer", tlaPeerRef(ckt.RemotePeerID)},
++		{"dialer", dialer},
++		{"cid", ckt.CircuitID},
++	}
++}
++
++// tlaNoteReReg: peerJoin re-registered a circuit outside handleNewCircuit.
++func (s *TubeNode) tlaNoteReReg(peerID string) {
++	if !tlaOn() || !s.tla.traced {
++		return
++	}
++	s.tla.rereg = append(s.tla.rereg, peerID)
++}
++
++// ---------------------------------------------------------------------
++// events from other goroutines (no state snapshot)
++// ---------------------------------------------------------------------
++
++// tlaDialBegin reserves the DialAttempt slot of watchdog reconnect: the
++// attempt takes effect when it starts, before the remote can register the
++// new circuit.
++func (s *TubeNode) tlaDialBegin() *tlaSlot {
++	if !tlaOn() || !s.tla.traced {
++		return nil
++	}
++	t := tlaT
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	if t.dead[s.PeerID] {
++		return nil
++	}
++	return t.reserveLocked()
++}
++
++// tlaDialEnd fills the reservation with the attempt's outcome.
++func (s *TubeNode) tlaDialEnd(slot *tlaSlot, target string, ok bool, why string, circuitIDs ...string) {
++	if !tlaOn() || !s.tla.traced {
++		return
++	}
++	t := tlaT
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	key, known := t.byID[s.PeerID]
++	if !known || t.dead[s.PeerID] {
++		if slot != nil {
++			t.fillLocked(slot, nil)
++		}
++		return
++	}
++	ev := tobj{{"name", "DialAttempt"}, {"nid", s.name}, {"inc", key.Inc},
++		{"target", target}, {"ok", ok}, {"serviceUnavailable", strings.Contains(why, "no local peerServiceName")}}
++	if len(circuitIDs) != 0 && circuitIDs[0] != "" {
++		ev = append(ev, tkv{"cid", circuitIDs[0]})
++	}
++	if why != "" {
++		ev = append(ev, tkv{"why", why})
++	}
++	if slot == nil {
++		t.emitLocked(ev)
++		return
++	}
++	t.fillLocked(slot, ev)
++}
++
++// tlaPeerError: the Tube per-circuit reader received a CallPeerError
++// fragment.
++func (s *TubeNode) tlaPeerError(ckt *rpc.Circuit, fragerr *rpc.Fragment) {
++	if !tlaOn() || !s.tla.traced {
++		return
++	}
++	t := tlaT
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	key, ok := t.byID[s.PeerID]
++	if !ok || t.dead[s.PeerID] {
++		return
++	}
++	from := ""
++	if fragerr != nil {
++		from = fragerr.FromPeerID
++	}
++	if from == "" && ckt != nil {
++		from = ckt.RemotePeerID
++	}
++	ev := tobj{{"name", "HandlePeerError"}, {"nid", s.name}, {"inc", key.Inc},
++		{"msg", tobj{{"from", t.keyLocked(from)}}}}
++	if ckt != nil {
++		ev = append(ev, tkv{"cid", ckt.CircuitID})
++	}
++	if fragerr != nil && fragerr.Err != "" {
++		ev = append(ev, tkv{"err", fragerr.Err})
++	}
++	t.emitLocked(ev)
++}
++
++// tlaNodeOfSimName maps simnet endpoint names to node names:
++// "srv_node_0", "simnet://srv_node_0", "auto-cli-from-srv_node_0-to-..."
++func tlaNodeOfSimName(x string) string {
++	x = strings.TrimPrefix(x, "simnet://")
++	if i := strings.Index(x, "://"); i >= 0 {
++		x = x[i+3:]
++	}
++	if strings.HasPrefix(x, "auto-cli-from-") {
++		x = x[len("auto-cli-from-"):]
++		if i := strings.Index(x, "-to-"); i >= 0 {
++			x = x[:i]
++		}
++	}
++	if i := strings.Index(x, "/"); i >= 0 {
++		x = x[:i]
++	}
++	return strings.TrimPrefix(x, "srv_")
++}
++
++// tlaTransportHook receives rpc25519 transport events.
++func tlaTransportHook(e rpc.TLATransportEvent) {
++	t := tlaT
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	if t.f == nil {
++		return
++	}
++	switch e.Name {
++	case "NewCircuit":
++		if e.CallID != "" {
++			if e.IsDialer {
++				t.dialerOf[e.CallID] = e.LocalPeerID
++			} else {
++				t.accOf[e.CallID] = e.LocalPeerID
++			}
++		}
++		return
++
++	case "HandleEndCircuit", "DropUnroutable":
++		key, ok := t.byID[e.LocalPeerID]
++		if !ok || t.dead[e.LocalPeerID] {
++			return
++		}
++		ev := tobj{{"name", e.Name}, {"nid", key.Name}, {"inc", key.Inc},
++			{"msg", tobj{{"from", t.keyLocked(e.FromPeerID)}, {"type", e.MsgType}}},
++			{"cid", e.CallID}}
++		if e.ToPeerID != "" {
++			ev = append(ev, tkv{"to", t.keyLocked(e.ToPeerID)})
++		}
++		t.emitLocked(ev)
++
++	case "DropStaleTarget", "ConnAbort":
++		name := tlaNodeOfSimName(e.ServerName)
++		id, ok := t.curID[name]
++		if !ok || t.down[name] || t.dead[id] {
++			return
++		}
++		key := t.byID[id]
++		ev := tobj{{"name", e.Name}, {"nid", key.Name}, {"inc", key.Inc}}
++		if e.Name == "DropStaleTarget" {
++			ev = append(ev, tkv{"msg", tobj{{"from", t.keyLocked(e.FromPeerID)}, {"type", e.MsgType}}},
++				tkv{"to", t.keyLocked(e.ToPeerID)}, tkv{"cid", e.CallID})
++		}
++		rem := tlaNodeOfSimName(e.RemoteName)
++		ev = append(ev, tkv{"peer", tlaKey{Name: rem, Inc: t.curIncLocked(rem)}},
++			tkv{"conn", e.RemoteName})
++		t.emitLocked(ev)
++	}
++}
++
++// ---------------------------------------------------------------------
++// harness (environment) events, called by the test scenarios
++// ---------------------------------------------------------------------
++
++// TlaCrash records Crash(n) and suppresses every later event of the
++// crashed incarnation. Call it just before cutting the node off.
++// detail fields are informational (e.g. "kind": "process"/"host", or the
++// disk fault the harness applies to the dead node's files).
++func TlaCrash(name string, detail map[string]any) {
++	t := tlaT
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	if t.f == nil {
++		return
++	}
++	id := t.curID[name]
++	key := t.byID[id]
++	ev := tobj{{"name", "Crash"}, {"nid", name}, {"inc", key.Inc}}
++	keys := make([]string, 0, len(detail))
++	for k := range detail {
++		keys = append(keys, k)
++	}
++	sort.Strings(keys)
++	for _, k := range keys {
++		ev = append(ev, tkv{k, detail[k]})
++	}
++	t.emitLocked(ev)
++	t.dead[id] = true
++	t.down[name] = true
++}
++
++// TlaLink records LinkDown(from, to) / LinkUp(from, to) (directional).
++func TlaLink(up bool, from, to string) {
++	t := tlaT
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	if t.f == nil {
++		return
++	}
++	k := [2]string{from, to}
++	if up == !t.linkDown[k] {
++		return // already in that state
++	}
++	t.linkDown[k] = !up
++	name := "LinkDown"
++	if up {
++		name = "LinkUp"
++	}
++	t.emitLocked(tobj{{"name", name}, {"nid", from}, {"inc", t.curIncLocked(from)},
++		{"from", from}, {"to", to}})
++}
++
++// TlaLinksDown returns the directional links currently down.
++func TlaLinksDown() (r [][2]string) {
++	t := tlaT
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	for k, d := range t.linkDown {
++		if d {
++			r = append(r, k)
++		}
++	}
++	sort.Slice(r, func(i, j int) bool {
++		if r[i][0] != r[j][0] {
++			return r[i][0] < r[j][0]
++		}
++		return r[i][1] < r[j][1]
++	})
++	return
++}
++
++// TlaNote writes a free-form harness annotation line ({"tag":"note"}),
++// ignored by Trace.tla; it marks scenario phases for human readers.
++func TlaNote(msg string) {
++	t := tlaT
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	if t.f == nil {
++		return
++	}
++	t.q = append(t.q, &tlaSlot{env: tobj{
++		{"tag", "note"},
++		{"ts", time.Now().UTC().Format(time.RFC3339Nano)},
++		{"wall", tlaWall()},
++		{"note", msg},
++	}})
++	t.flushLocked()
++}
++
++// tlaEmitChangeMembership: ClientChangeMembership(n, op, x) at the leader
++// after changeMembership returns.
++func (s *TubeNode) tlaEmitChangeMembership(tkt *Ticket) {
++	if !tlaOn() || !s.tla.traced || tkt == nil {
++		return
++	}
++	op, target := "add", tkt.AddPeerName
++	if tkt.AddPeerName == "" {
++		op, target = "remove", tkt.RemovePeerName
++	}
++	fields := []tkv{{"op", op}, {"target", target}}
++	if tkt.Err != nil {
++		fields = append(fields, tkv{"err", tkt.Err.Error()})
++	}
++	s.tlaEmit("ClientChangeMembership", fields...)
++}
++
++// ---------------------------------------------------------------------
++// frames sent by a step (informational "sent" list on the next event)
++// ---------------------------------------------------------------------
++
++// tlaStepBegin is called at the top of every event-loop select: frames
++// recorded by an earlier step that emitted no event are discarded.
++func (s *TubeNode) tlaStepBegin() {
++	if !tlaOn() || !s.tla.traced {
++		return
++	}
++	s.tla.sentMu.Lock()
++	s.tla.sent = nil
++	s.tla.sentMu.Unlock()
++	s.tla.rereg = nil
++}
++
++// tlaSendRec captures what a SendOneWay is about to put on a circuit
++// (read before the send: the fragment may be recycled afterwards).
++func (s *TubeNode) tlaSendRec(ckt *rpc.Circuit, frag *rpc.Fragment) *tkv {
++	if !tlaOn() || !s.tla.traced || ckt == nil || frag == nil {
++		return nil
++	}
++	o := tlaMsgObj{}
++	switch frag.FragOp {
++	case AppendEntriesMsg:
++		ae := &AppendEntries{}
++		if _, err := ae.UnmarshalMsg(frag.Payload); err == nil {
++			o = append(o, tkv{"op", "AE"}, tkv{"term", ae.LeaderTerm}, tkv{"prev", ae.PrevLogIndex},
++				tkv{"nents", len(ae.Entries)}, tkv{"commit", ae.LeaderCommitIndex})
++		} else {
++			o = append(o, tkv{"op", "AE"})
++		}
++	case AppendEntriesAckMsg:
++		a := &AppendEntriesAck{}
++		if _, err := a.UnmarshalMsg(frag.Payload); err == nil {
++			o = append(o, tkv{"op", "AEA"}, tkv{"term", a.Term}, tkv{"rejected", a.Rejected},
++				tkv{"lcri", a.LargestCommonRaftIndex}, tkv{"last", a.PeerLogLastIndex})
++		} else {
++			o = append(o, tkv{"op", "AEA"})
++		}
++	case RequestVoteMsg, RequestPreVoteMsg:
++		op := "RV"
++		if frag.FragOp == RequestPreVoteMsg {
++			op = "RPV"
++		}
++		rv := &RequestVote{}
++		if _, err := rv.UnmarshalMsg(frag.Payload); err == nil {
++			o = append(o, tkv{"op", op}, tkv{"term", rv.CandidatesTerm})
++		} else {
++			o = append(o, tkv{"op", op})
++		}
++	case VoteMsg, PreVoteMsg:
++		op := "V"
++		if frag.FragOp == PreVoteMsg {
++			op = "PV"
++		}
++		v := &Vote{}
++		if _, err := v.UnmarshalMsg(frag.Payload); err == nil {
++			o = append(o, tkv{"op", op}, tkv{"term", v.CandidatesTerm}, tkv{"granted", v.VoteGranted})
++		} else {
++			o = append(o, tkv{"op", op})
++		}
++	case StateSnapshotEnclosed:
++		o = append(o, tkv{"op", "SNAP"}, tkv{"part", frag.FragPart})
++	case RequestStateSnapshot:
++		o = append(o, tkv{"op", "RSS"})
++	default:
++		sub := frag.FragSubject
++		if sub == "" {
++			sub = fmt.Sprintf("FragOp%d", frag.FragOp)
++		}
++		o = append(o, tkv{"op", sub})
++	}
++	o = append(o, tkv{"to", tlaPeerRef(ckt.RemotePeerID)}, tkv{"cid", ckt.CircuitID})
++	return &tkv{"sent", o}
++}
++
++// tlaNoteSend appends the captured frame, with the send outcome.
++func (s *TubeNode) tlaNoteSend(rec *tkv, err error) {
++	if rec == nil {
++		return
++	}
++	o := rec.V.(tlaMsgObj)
++	if err != nil {
++		o = append(o, tkv{"err", err.Error()})
++	}
++	s.tla.sentMu.Lock()
++	s.tla.sent = append(s.tla.sent, tkv{"sent", o})
++	s.tla.sentMu.Unlock()
++}
+--- /dev/null
++++ b/tube/tla_trace_test.go
+@@ -0,0 +1,824 @@
++//go:build synctest
++
++package tube
++
++// TLA+ implementation trace scenarios for Trace.tla.
++//
++// Every scenario runs the real Tube code: a disk-mode (NoDisk=false, PAR
++// active) cluster on the in-process simnet network inside a synctest
++// bubble.  The initial members cold-start from a persisted MemberConfig
++// (ConfigTerm 0, ConfigVersion 1, committed) and an empty WAL, exactly
++// the spec's Init with InitMeshed = FALSE: the startup connectToMC leaves
++// a pending, pulsed watchdog toward every other member.  All fault
++// injection goes through simnet (host shutdown, isolation, dropped sends /
++// deaf reads) and is logged as the spec's environment events.
++//
++// One NDJSON file per scenario: $TLA_TRACE_DIR/<scenario>.ndjson
++// (t.TempDir() when TLA_TRACE_DIR is unset).
++//
++// Run from tube/ in the instrumented checkout built by collect.sh.
++//	TLA_TRACE_DIR=/abs/traces go test -tags synctest -run 'TestTLATrace' -v .
++
++import (
++	"context"
++	"encoding/binary"
++	"fmt"
++	"hash/fnv"
++	"os"
++	"path/filepath"
++	"sort"
++	"testing"
++	"time"
++
++	rpc "github.com/glycerine/rpc25519"
++)
++
++type tlaHarness struct {
++	t        *testing.T
++	scenario string
++	c        *TubeCluster
++	cfg      *TubeConfig
++	root     string
++	path     string
++	members  []string // initial MC members
++	all      []string // every node name (members + later joiners)
++	writes   int
++}
++
++const tlaTestNum = 9100 // >= 400 avoids test-only single-node shortcuts
++
++// tlaScenarioSeed: 0 for cold_start_election, else an FNV-1a hash of the name.
++func tlaScenarioSeed(scenario string) int64 {
++	if scenario == "cold_start_election" {
++		return 0
++	}
++	h := fnv.New64a()
++	h.Write([]byte(scenario))
++	return int64(h.Sum64() & 0x7fffffffffffffff)
++}
++
++// newTlaHarness builds nTotal nodes; the first nInit are the initial MC.
++func newTlaHarness(t *testing.T, scenario string, nInit, nTotal int, tweak func(cfg *TubeConfig)) *tlaHarness {
++	h := &tlaHarness{t: t, scenario: scenario}
++	h.root = filepath.Join(t.TempDir(), "data")
++	cfg := NewTubeConfigTest(nTotal, "tla-"+scenario, faketime)
++	// Deterministic per-scenario seed for Tube's election-timeout PRNG and
++	// simnet's tie-breaking, so scenarios differ in election order/timing
++	// (cold_start_election keeps the default all-zero seed).
++	seed := tlaScenarioSeed(scenario)
++	if seed != 0 {
++		var b [32]byte
++		binary.LittleEndian.PutUint64(b[:], uint64(seed))
++		cfg.prng = newPRNG(b)
++		cfg.InitialSimnetScenario = seed
++		cfg.RpcCfg.InitialSimnetScenario = seed
++	}
++	cfg.NoDisk = false // the spec models disk mode only (PAR active)
++	cfg.testNum = tlaTestNum
++	// one client ticket per replicateBatch => one entry per ClientRequest
++	cfg.BatchAccumulateDur = time.Microsecond
++	if tweak != nil {
++		tweak(cfg)
++	}
++	h.cfg = cfg
++	c := NewCluster(t.Name(), cfg)
++	h.c = c
++
++	for i, node := range c.Nodes {
++		h.all = append(h.all, node.name)
++		if i < nInit {
++			h.members = append(h.members, node.name)
++		}
++	}
++	// persisted initial state: MC (ct 0, cv 1, committed) naming every
++	// initial member at its listen address; empty WAL; term 0.
++	mc := c.Nodes[0].NewMemberConfig("tla trace initial MC")
++	mc.ConfigTerm, mc.ConfigVersion, mc.IsCommitted = 0, 1, true
++	for _, name := range h.members {
++		mc.PeerNames.Set(name, &PeerDetail{
++			Name:            name,
++			URL:             "simnet://srv_" + name + "/" + TUBE_REPLICA + "/",
++			Addr:            "simnet://srv_" + name,
++			PeerServiceName: TUBE_REPLICA,
++		})
++	}
++	for i, node := range c.Nodes {
++		node.cfg.DataDir = filepath.Join(h.root, node.name)
++		if err := os.MkdirAll(node.cfg.DataDir, 0700); err != nil {
++			t.Fatal(err)
++		}
++		if i >= nInit {
++			continue // joiners start with no persisted state (empty MC)
++		}
++		// an empty WAL (and PAR sidecar) next to the state: a persisted
++		// state without its WAL files makes PAR fence the node (unknown).
++		wal, err := node.cfg.newRaftWriteAheadLog(filepath.Join(node.cfg.DataDir, "tube.wal.msgp"), false)
++		if err != nil {
++			t.Fatal(err)
++		}
++		if err := wal.close(); err != nil {
++			t.Fatal(err)
++		}
++		st := node.state
++		st.CurrentTerm, st.VotedFor = 0, ""
++		st.MC = mc.Clone()
++		saver, _, err := node.cfg.NewRaftStatePersistor(node.GetPersistorPath(), node, false)
++		if err != nil {
++			t.Fatal(err)
++		}
++		if _, err := saver.save(st); err != nil {
++			t.Fatal(err)
++		}
++		saver.close()
++	}
++
++	dir := os.Getenv("TLA_TRACE_DIR")
++	if dir == "" {
++		dir = t.TempDir()
++	}
++	if err := os.MkdirAll(dir, 0755); err != nil {
++		t.Fatal(err)
++	}
++	h.path = filepath.Join(dir, scenario+".ndjson")
++	err := TlaTraceStart(h.path, h.members, map[string]any{
++		"scenario":           scenario,
++		"allNodes":           h.all,
++		"heartbeatDur":       cfg.HeartbeatDur.String(),
++		"minElectionDur":     cfg.MinElectionDur.String(),
++		"clockDriftBound":    cfg.ClockDriftBound.String(),
++		"batchAccumulateDur": cfg.BatchAccumulateDur.String(),
++		"compactionBytes":    cfg.CompactionThresholdBytes,
++		"noLogCompaction":    cfg.NoLogCompaction,
++		"noDisk":             cfg.NoDisk,
++		"initCfg":            map[string]any{"ct": 0, "cv": 1, "com": true},
++		"seed":               seed,
++		"simnet":             true,
++	})
++	if err != nil {
++		t.Fatal(err)
++	}
++	return h
++}
++
++func (h *tlaHarness) note(format string, args ...any) {
++	msg := fmt.Sprintf(format, args...)
++	TlaNote(msg)
++	h.t.Logf("[%v] %v", h.scenario, msg)
++}
++
++// startInitial brings the initial members up together (the spec's Init has
++// every initial member up): it is InitAndStart split in two phases so that
++// every simnet server is registered before any Tube replica starts and
++// fires its startup dials (otherwise the first node's dials find no server).
++func (h *tlaHarness) startInitial() {
++	n := len(h.members)
++	for i := 0; i < n; i++ { // phase 1: listen
++		s := h.c.Nodes[i]
++		s.started = true
++		s.srvname = "srv_" + s.name
++		s.Srv = rpc.NewServer(s.srvname, s.cfg.RpcCfg)
++		addr, err := s.Srv.Start()
++		if err != nil {
++			h.t.Fatal(err)
++		}
++		s.rpcServerAddr = addr
++	}
++	for i := 0; i < n; i++ { // phase 2: start the replicas back to back
++		s := h.c.Nodes[i]
++		if err := s.Srv.PeerAPI.RegisterPeerServiceFunc(string(s.PeerServiceName), s.Start); err != nil {
++			h.t.Fatal(err)
++		}
++		if _, err := s.Srv.PeerAPI.StartLocalPeer(context.Background(), string(s.PeerServiceName), binVersion, nil, s.name, true); err != nil {
++			h.t.Fatal(err)
++		}
++		h.sleep(20 * time.Millisecond) // permit the first handshakes before opposing dials start
++	}
++	for i := 0; i < n; i++ {
++		s := h.c.Nodes[i]
++		select {
++		case <-s.startupNodeUrlSafeCh.Chan:
++		case <-s.Halt.ReqStop.Chan:
++			h.t.Fatal("node halted during start")
++		}
++	}
++}
++
++// startNode starts a node that was not running (a joiner's first start
++// or a restart after crash): the spec's Restart(n, a).
++func (h *tlaHarness) startNode(i int) {
++	old := h.c.Nodes[i]
++	if old.started {
++		node := NewTubeNode(old.name, &old.cfg)
++		h.c.Nodes[i] = node
++		h.c.Halt.AddChild(node.Halt)
++	}
++	if err := h.c.Nodes[i].InitAndStart(); err != nil {
++		h.t.Fatal(err)
++	}
++}
++
++func (h *tlaHarness) simnet() *rpc.Simnet {
++	return h.cfg.RpcCfg.GetSimnet()
++}
++
++// settle is a placeholder for a quiescence point.  It must not call
++// synctest.Wait(): simnet's scheduler calls it on every tick, and two
++// concurrent Wait calls in one bubble panic ("wait already in progress").
++func (h *tlaHarness) settle() {}
++
++func (h *tlaHarness) sleep(d time.Duration) {
++	time.Sleep(d)
++}
++
++func (h *tlaHarness) look(i int) *Inspection {
++	look := h.c.Nodes[i].Inspect()
++	if look != nil && look.State != nil && look.State.KVstore != nil {
++		look.State.KVstore.Close()
++	}
++	return look
++}
++
++// leader polls until exactly one running node is LEADER (up to limit).
++func (h *tlaHarness) leader(limit time.Duration, down map[int]bool) (int, bool) {
++	deadline := time.Now().Add(limit)
++	for {
++		lead := -1
++		n := 0
++		for i := range h.c.Nodes {
++			if down[i] || !h.c.Nodes[i].started {
++				continue
++			}
++			if l := h.look(i); l != nil && l.Role == LEADER {
++				lead = i
++				n++
++			}
++		}
++		if n == 1 {
++			return lead, true
++		}
++		if time.Now().After(deadline) {
++			return -1, false
++		}
++		time.Sleep(100 * time.Millisecond)
++	}
++}
++
++// write submits one client write on the current leader and waits for it.
++func (h *tlaHarness) write(lead int, limit time.Duration) error {
++	h.writes++
++	ctx, cancel := context.WithTimeout(context.Background(), limit)
++	defer cancel()
++	key := Key(fmt.Sprintf("k%d", h.writes))
++	_, err := h.c.Nodes[lead].Write(ctx, "", key, Val(fmt.Sprintf("v%d", h.writes)), 0, nil, "", 0, false)
++	return err
++}
++
++func (h *tlaHarness) writes3(lead int) {
++	for j := 0; j < 3; j++ {
++		if err := h.write(lead, 5*time.Second); err != nil {
++			h.note("write on %v failed: %v", h.c.Nodes[lead].name, err)
++			return
++		}
++	}
++}
++
++// crash powers off node i's host: its network goes dark at once (no
++// orderly close frames reach anyone; the peers' connection ends stay
++// half-open), then the process is stopped.  Crash(n).
++//
++// simnet cannot produce a process crash on a live host (FIN/RST to the
++// peers): its message-level read returns a remote close as an ordinary
++// message, so a peer's read loop never fails (no ConnAbort).  detail
++// fields are logged on the Crash event (e.g. the disk fault applied).
++func (h *tlaHarness) crash(i int, detail map[string]any) {
++	node := h.c.Nodes[i]
++	h.settle()
++	if detail == nil {
++		detail = map[string]any{}
++	}
++	detail["kind"] = "hostPowerOff"
++	TlaCrash(node.name, detail)
++	if _, err := h.simnet().AlterHost(node.srvname, rpc.SHUTDOWN); err != nil {
++		h.t.Logf("AlterHost SHUTDOWN %v: %v", node.srvname, err)
++	}
++	node.Close()
++	h.settle()
++}
++
++// walPath is node i's WAL file; its PAR identifier sidecar is walPath+".parlog".
++func (h *tlaHarness) walPath(i int) string {
++	return filepath.Join(h.c.Nodes[i].cfg.DataDir, "tube.wal.msgp")
++}
++
++// tearLastIdentifier removes the last published PAR identifier of a dead
++// node's WAL: the state a crash between the entry fsync and the identifier
++// publication leaves (the spec's torn append, idLen = Len(log) - 1).
++func (h *tlaHarness) tearLastIdentifier(i int) {
++	par := h.walPath(i) + ".parlog"
++	fi, err := os.Stat(par)
++	if err != nil {
++		h.t.Fatal(err)
++	}
++	if fi.Size() < maxParRecord {
++		h.t.Fatalf("no identifier to tear in %v (size %v)", par, fi.Size())
++	}
++	if err := os.Truncate(par, fi.Size()-maxParRecord); err != nil {
++		h.t.Fatal(err)
++	}
++}
++
++// loseWAL deletes a dead node's WAL and identifier sidecar, keeping its
++// persisted RaftState (disk loss of the log files).
++func (h *tlaHarness) loseWAL(i int) {
++	for _, p := range []string{h.walPath(i), h.walPath(i) + ".parlog"} {
++		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
++			h.t.Fatal(err)
++		}
++	}
++}
++
++// isolate cuts node i off from everyone (both directions).
++func (h *tlaHarness) isolate(i int) {
++	node := h.c.Nodes[i]
++	h.settle()
++	if _, err := h.simnet().AlterHost(node.srvname, rpc.ISOLATE); err != nil {
++		h.t.Fatal(err)
++	}
++	for _, other := range h.all {
++		if other == node.name {
++			continue
++		}
++		TlaLink(false, node.name, other)
++		TlaLink(false, other, node.name)
++	}
++}
++
++// dropSends: node i's outgoing frames are dropped (asymmetric NIC failure).
++func (h *tlaHarness) dropSends(i int) {
++	node := h.c.Nodes[i]
++	h.settle()
++	node.DropSends(1)
++	for _, other := range h.all {
++		if other != node.name {
++			TlaLink(false, node.name, other)
++		}
++	}
++}
++
++// deafReads: node i cannot receive (asymmetric NIC failure).
++func (h *tlaHarness) deafReads(i int) {
++	node := h.c.Nodes[i]
++	h.settle()
++	node.DeafToReads(1)
++	for _, other := range h.all {
++		if other != node.name {
++			TlaLink(false, other, node.name)
++		}
++	}
++}
++
++// heal restores every link; frames held back during the fault are
++// delivered (TCP retransmission), as in the spec where they stay queued.
++func (h *tlaHarness) heal() {
++	h.settle()
++	for _, l := range TlaLinksDown() {
++		TlaLink(true, l[0], l[1])
++	}
++	if err := h.simnet().AllHealthy(false, true); err != nil {
++		h.t.Fatal(err)
++	}
++}
++
++func (h *tlaHarness) finish() {
++	h.settle()
++	lines, counts := TlaTraceStop()
++	names := make([]string, 0, len(counts))
++	for k := range counts {
++		names = append(names, k)
++	}
++	sort.Strings(names)
++	summary := ""
++	for _, k := range names {
++		summary += fmt.Sprintf(" %v=%v", k, counts[k])
++	}
++	h.t.Logf("[%v] trace %v: %v events:%v", h.scenario, h.path, lines, summary)
++	h.c.Close()
++}
++
++func (h *tlaHarness) idx(name string) int {
++	for i, node := range h.c.Nodes {
++		if node.name == name {
++			return i
++		}
++	}
++	return -1
++}
++
++// ---------------------------------------------------------------------
++// scenarios
++// ---------------------------------------------------------------------
++
++// Cold start of a 3-node cluster: startup dials and circuit registration
++// (duplicate circuits from the two-way dials), pre-vote, election, noop0
++// commit, client writes, heartbeats, and the 20 s audit GC.
++func TestTLATrace_cold_start_election(t *testing.T) {
++	onlyBubbled(t, func(t *testing.T) {
++		h := newTlaHarness(t, "cold_start_election", 3, 3, nil)
++		h.startInitial()
++		lead, ok := h.leader(30*time.Second, nil)
++		if !ok {
++			h.note("no leader elected")
++			h.finish()
++			t.Fatal("no leader elected")
++		}
++		h.note("leader %v elected", h.c.Nodes[lead].name)
++		h.sleep(time.Second)
++		h.writes3(lead)
++		h.sleep(25 * time.Second) // heartbeats + AuditGC at 20 s
++		h.writes3(lead)
++		h.sleep(2 * time.Second)
++		h.finish()
++	})
++}
++
++// Leader crash: the survivors elect a new leader; the old leader restarts
++// with a new PeerID (incarnation 1) and rejoins as a follower.
++func TestTLATrace_leader_crash_restart(t *testing.T) {
++	onlyBubbled(t, func(t *testing.T) {
++		h := newTlaHarness(t, "leader_crash_restart", 3, 3, nil)
++		h.startInitial()
++		lead, ok := h.leader(30*time.Second, nil)
++		if !ok {
++			h.finish()
++			t.Fatal("no leader elected")
++		}
++		h.sleep(time.Second)
++		h.writes3(lead)
++		h.note("crash leader %v", h.c.Nodes[lead].name)
++		h.crash(lead, nil)
++		down := map[int]bool{lead: true}
++		lead2, ok := h.leader(40*time.Second, down)
++		if ok {
++			h.note("new leader %v", h.c.Nodes[lead2].name)
++			h.writes3(lead2)
++		} else {
++			h.note("no new leader among survivors")
++		}
++		h.sleep(3 * time.Second)
++		h.note("restart %v", h.c.Nodes[lead].name)
++		h.startNode(lead)
++		h.sleep(15 * time.Second)
++		if l, ok := h.leader(20*time.Second, nil); ok {
++			h.writes3(l)
++		}
++		h.sleep(5 * time.Second)
++		h.finish()
++	})
++}
++
++// Follower crash and restart: writes continue on the majority; the
++// restarted follower (new PeerID) is caught up by AppendEntries.
++func TestTLATrace_follower_crash_restart(t *testing.T) {
++	onlyBubbled(t, func(t *testing.T) {
++		h := newTlaHarness(t, "follower_crash_restart", 3, 3, nil)
++		h.startInitial()
++		lead, ok := h.leader(30*time.Second, nil)
++		if !ok {
++			h.finish()
++			t.Fatal("no leader elected")
++		}
++		h.sleep(time.Second)
++		h.writes3(lead)
++		f := (lead + 1) % 3
++		h.note("crash follower %v", h.c.Nodes[f].name)
++		h.crash(f, nil)
++		h.sleep(2 * time.Second)
++		h.writes3(lead)
++		h.sleep(3 * time.Second)
++		h.note("restart follower %v", h.c.Nodes[f].name)
++		h.startNode(f)
++		h.sleep(15 * time.Second)
++		if l, ok := h.leader(20*time.Second, nil); ok {
++			h.writes3(l)
++		}
++		h.sleep(5 * time.Second)
++		h.finish()
++	})
++}
++
++// Symmetric partition of the leader: the majority elects a new leader in
++// a higher term; after healing, the old leader steps down and catches up.
++func TestTLATrace_leader_isolate_heal(t *testing.T) {
++	onlyBubbled(t, func(t *testing.T) {
++		h := newTlaHarness(t, "leader_isolate_heal", 3, 3, nil)
++		h.startInitial()
++		lead, ok := h.leader(30*time.Second, nil)
++		if !ok {
++			h.finish()
++			t.Fatal("no leader elected")
++		}
++		h.sleep(time.Second)
++		h.writes3(lead)
++		h.note("isolate leader %v", h.c.Nodes[lead].name)
++		h.isolate(lead)
++		h.sleep(12 * time.Second)
++		for i := range h.c.Nodes {
++			if i == lead {
++				continue
++			}
++			if l := h.look(i); l != nil && l.Role == LEADER {
++				h.note("majority leader %v", h.c.Nodes[i].name)
++				h.writes3(i)
++				break
++			}
++		}
++		h.note("heal")
++		h.heal()
++		h.sleep(15 * time.Second)
++		if l, ok := h.leader(20*time.Second, nil); ok {
++			h.writes3(l)
++		}
++		h.sleep(3 * time.Second)
++		h.finish()
++	})
++}
++
++// Asymmetric NIC failure at a follower: it still receives the leader's
++// AppendEntries but none of its frames get out; then the link heals.
++func TestTLATrace_follower_drop_sends(t *testing.T) {
++	onlyBubbled(t, func(t *testing.T) {
++		h := newTlaHarness(t, "follower_drop_sends", 3, 3, nil)
++		h.startInitial()
++		lead, ok := h.leader(30*time.Second, nil)
++		if !ok {
++			h.finish()
++			t.Fatal("no leader elected")
++		}
++		h.sleep(time.Second)
++		h.writes3(lead)
++		f := (lead + 1) % 3
++		h.note("follower %v drops all sends", h.c.Nodes[f].name)
++		h.dropSends(f)
++		h.writes3(lead)
++		h.sleep(10 * time.Second)
++		h.note("heal")
++		h.heal()
++		h.sleep(10 * time.Second)
++		if l, ok := h.leader(20*time.Second, nil); ok {
++			h.writes3(l)
++		}
++		h.sleep(3 * time.Second)
++		h.finish()
++	})
++}
++
++// Asymmetric NIC failure at the leader: it can send (heartbeats keep the
++// followers' timers quiet) but receives nothing (no acks, no pongs).
++func TestTLATrace_leader_deaf(t *testing.T) {
++	onlyBubbled(t, func(t *testing.T) {
++		h := newTlaHarness(t, "leader_deaf", 3, 3, nil)
++		h.startInitial()
++		lead, ok := h.leader(30*time.Second, nil)
++		if !ok {
++			h.finish()
++			t.Fatal("no leader elected")
++		}
++		h.sleep(time.Second)
++		h.writes3(lead)
++		h.note("leader %v deaf to all reads", h.c.Nodes[lead].name)
++		h.deafReads(lead)
++		h.sleep(15 * time.Second)
++		h.note("heal")
++		h.heal()
++		h.sleep(10 * time.Second)
++		if l, ok := h.leader(20*time.Second, nil); ok {
++			h.writes3(l)
++		}
++		h.sleep(3 * time.Second)
++		h.finish()
++	})
++}
++
++// Membership change: a fourth replica (empty MC) is started and added by
++// the leader (ClientChangeMembership add), then a follower is removed.
++func TestTLATrace_membership_add_remove(t *testing.T) {
++	onlyBubbled(t, func(t *testing.T) {
++		h := newTlaHarness(t, "membership_add_remove", 3, 4, nil)
++		h.startInitial()
++		lead, ok := h.leader(30*time.Second, nil)
++		if !ok {
++			h.finish()
++			t.Fatal("no leader elected")
++		}
++		h.sleep(time.Second)
++		h.writes3(lead)
++
++		h.note("start joiner node_3")
++		h.startNode(3)
++		h.sleep(2 * time.Second)
++		leader := h.c.Nodes[lead]
++		joiner := h.c.Nodes[3]
++		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
++		insp, _, err := leader.AddPeerIDToCluster(ctx, false, false, joiner.name, joiner.PeerID,
++			TUBE_REPLICA, joiner.BaseServerHostPort(), leader.URL, 20*time.Second)
++		cancel()
++		if insp != nil && insp.State != nil && insp.State.KVstore != nil {
++			insp.State.KVstore.Close()
++		}
++		h.note("add node_3: err=%v", err)
++		h.sleep(5 * time.Second)
++		if l, ok := h.leader(20*time.Second, nil); ok {
++			lead = l
++			h.writes3(lead)
++		}
++
++		// remove a follower that is not the leader
++		victim := (lead + 1) % 3
++		v := h.c.Nodes[victim]
++		leader = h.c.Nodes[lead]
++		ctx, cancel = context.WithTimeout(context.Background(), 20*time.Second)
++		insp, _, err = leader.RemovePeerIDFromCluster(ctx, false, false, v.name, v.PeerID,
++			TUBE_REPLICA, v.BaseServerHostPort(), leader.URL, 20*time.Second)
++		cancel()
++		if insp != nil && insp.State != nil && insp.State.KVstore != nil {
++			insp.State.KVstore.Close()
++		}
++		h.note("remove %v: err=%v", v.name, err)
++		h.sleep(5 * time.Second)
++		if l, ok := h.leader(20*time.Second, nil); ok {
++			h.writes3(l)
++		}
++		h.sleep(5 * time.Second)
++		h.finish()
++	})
++}
++
++// Log compaction and state-snapshot catch-up: every leader WAL append
++// compacts (tiny threshold); a crashed follower falls behind the leader's
++// compaction base and is restored by InstallSnapshot on restart.
++func TestTLATrace_compaction_snapshot(t *testing.T) {
++	onlyBubbled(t, func(t *testing.T) {
++		h := newTlaHarness(t, "compaction_snapshot", 3, 3, func(cfg *TubeConfig) {
++			cfg.CompactionThresholdBytes = 1
++		})
++		h.startInitial()
++		lead, ok := h.leader(30*time.Second, nil)
++		if !ok {
++			h.finish()
++			t.Fatal("no leader elected")
++		}
++		h.sleep(time.Second)
++		h.writes3(lead)
++		f := (lead + 1) % 3
++		h.note("crash follower %v", h.c.Nodes[f].name)
++		h.crash(f, nil)
++		h.sleep(time.Second)
++		h.writes3(lead)
++		h.writes3(lead)
++		h.sleep(2 * time.Second)
++		h.note("restart follower %v", h.c.Nodes[f].name)
++		h.startNode(f)
++		h.sleep(15 * time.Second)
++		if l, ok := h.leader(20*time.Second, nil); ok {
++			h.writes3(l)
++		}
++		h.sleep(5 * time.Second)
++		h.finish()
++	})
++}
++
++// A follower dies between an entry's fsync and the publication of its PAR
++// identifier (simulated by removing the last identifier from the dead
++// node's sidecar).  On restart PAR fences it (unknown) until the missing
++// identifier is rebuilt from a donor replica (ParRecoverFromDonor).
++func TestTLATrace_follower_torn_wal_restart(t *testing.T) {
++	onlyBubbled(t, func(t *testing.T) {
++		h := newTlaHarness(t, "follower_torn_wal_restart", 3, 3, nil)
++		h.startInitial()
++		lead, ok := h.leader(30*time.Second, nil)
++		if !ok {
++			h.finish()
++			t.Fatal("no leader elected")
++		}
++		h.sleep(time.Second)
++		h.writes3(lead)
++		h.sleep(time.Second)
++		f := (lead + 1) % 3
++		h.note("crash follower %v and tear its last WAL identifier", h.c.Nodes[f].name)
++		h.crash(f, map[string]any{"diskFault": "lastIdentifierTorn", "tornIdentifiers": 1})
++		h.tearLastIdentifier(f)
++		h.sleep(2 * time.Second)
++		h.writes3(lead)
++		h.note("restart follower %v", h.c.Nodes[f].name)
++		h.startNode(f)
++		h.sleep(15 * time.Second)
++		if l, ok := h.leader(20*time.Second, nil); ok {
++			h.writes3(l)
++		}
++		h.sleep(5 * time.Second)
++		h.finish()
++	})
++}
++
++// A follower loses its WAL files (disk fault) but keeps its RaftState.
++// On restart PAR fences it; it asks the leader for a verified snapshot
++// (ParRequestSnapshot -> HandleRequestStateSnapshot -> HandleStateSnapshot).
++func TestTLATrace_follower_wal_loss_restart(t *testing.T) {
++	onlyBubbled(t, func(t *testing.T) {
++		h := newTlaHarness(t, "follower_wal_loss_restart", 3, 3, nil)
++		h.startInitial()
++		lead, ok := h.leader(30*time.Second, nil)
++		if !ok {
++			h.finish()
++			t.Fatal("no leader elected")
++		}
++		h.sleep(time.Second)
++		h.writes3(lead)
++		h.sleep(time.Second)
++		f := (lead + 1) % 3
++		h.note("crash follower %v and delete its WAL files", h.c.Nodes[f].name)
++		h.crash(f, map[string]any{"diskFault": "walLost"})
++		h.loseWAL(f)
++		h.sleep(2 * time.Second)
++		h.writes3(lead)
++		h.note("restart follower %v", h.c.Nodes[f].name)
++		h.startNode(f)
++		h.sleep(15 * time.Second)
++		if l, ok := h.leader(20*time.Second, nil); ok {
++			h.writes3(l)
++		}
++		h.sleep(5 * time.Second)
++		h.finish()
++	})
++}
++
++// Divergent logs (Raft Fig. 7/8): the isolated leader appends a client
++// entry it can never commit; the majority elects a new leader that commits
++// different entries; after the heal the old leader steps down and its
++// uncommitted suffix is overwritten (HeartbeatReject / Mismatch / Overwrite).
++func TestTLATrace_leader_isolate_divergent_overwrite(t *testing.T) {
++	onlyBubbled(t, func(t *testing.T) {
++		h := newTlaHarness(t, "leader_isolate_divergent_overwrite", 3, 3, nil)
++		h.startInitial()
++		lead, ok := h.leader(30*time.Second, nil)
++		if !ok {
++			h.finish()
++			t.Fatal("no leader elected")
++		}
++		h.sleep(time.Second)
++		h.writes3(lead)
++		h.note("isolate leader %v", h.c.Nodes[lead].name)
++		h.isolate(lead)
++		err := h.write(lead, 2*time.Second) // appended at the old leader, never committed
++		h.note("write on isolated old leader %v: err=%v", h.c.Nodes[lead].name, err)
++		h.sleep(8 * time.Second)
++		for i := range h.c.Nodes {
++			if i == lead {
++				continue
++			}
++			if l := h.look(i); l != nil && l.Role == LEADER {
++				h.note("majority leader %v", h.c.Nodes[i].name)
++				h.writes3(i)
++				break
++			}
++		}
++		h.note("heal")
++		h.heal()
++		h.sleep(12 * time.Second)
++		if l, ok := h.leader(20*time.Second, nil); ok {
++			h.writes3(l)
++		}
++		h.sleep(3 * time.Second)
++		h.finish()
++	})
++}
++
++// A well-formed, uncommitted WAL tail above every local protection point
++// can recover its missing identifier from its own bytes on the next start.
++func TestTLATrace_interrupted_uncommitted_tail(t *testing.T) {
++	onlyBubbled(t, func(t *testing.T) {
++		h := newTlaHarness(t, "interrupted_uncommitted_tail", 3, 3, nil)
++		h.startInitial()
++		leader, ok := h.leader(30*time.Second, nil)
++		if !ok {
++			h.finish()
++			t.Fatal("no leader elected")
++		}
++		h.writes3(leader)
++		h.isolate(leader)
++		_ = h.write(leader, 250*time.Millisecond)
++		before := h.look(leader)
++		if before.LastLogIndex <= before.State.CommitIndex {
++			h.finish()
++			t.Fatal("no uncommitted WAL tail")
++		}
++		h.crash(leader, map[string]any{"diskFault": "lastIdentifierTorn", "tornIdentifiers": 1})
++		h.tearLastIdentifier(leader)
++		h.sleep(2 * time.Second)
++		h.heal()
++		h.startNode(leader)
++		h.sleep(2 * time.Second)
++		h.sleep(4 * time.Second)
++		h.finish()
++	})
++}

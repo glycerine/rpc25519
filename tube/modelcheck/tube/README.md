@@ -1,59 +1,137 @@
 # Model checking Tube
 
-[tube.tla](tube.tla) models Tube at Go commit `a66e9b9c`. It consolidates
-the Raft/transport, KV, czar and model-checking modules from Specular run
-`20261122-010209-d9f6`. Source line references refer to that commit. Later
-Go changes need corresponding model updates. The run's `Trace.tla` and
-NDJSON traces serve a separate purpose of replaying recorded executions.
-This model uses only the standard TLA+ modules.
+[tube.tla](tube.tla) models the Tube implementation at `44d0b71d`. It started
+from Specular run `20261122-010209-d9f6`, which analyzed `a66e9b9c`. The
+reference module uses only the standard TLA+ modules. The
+[coverage table](coverage.md) maps the 119 intervening commits to Go functions,
+model actions and abstraction limits. Inherited line numbers and finding IDs in
+the module refer to the historical run. Use the Go function names to navigate
+the current implementation.
 
-## Run the safety check
+## Run a check
 
-From the repository root, with `TLA2TOOLS_JAR` set to the path of
-`tla2tools.jar`, run
+Set `TLA2TOOLS_JAR` to a local `tla2tools.jar`. A Specular installation includes
+one in its `lib/` directory. From the repository root, run
 
 ```sh
 cd tube/modelcheck/tube
-java -cp "$TLA2TOOLS_JAR" tlc2.TLC -config tube.cfg tube.tla
+python3 check.py quick packet-storage
+python3 check.py --list
 ```
 
-[tube.cfg](tube.cfg) explores two connected voters with budgets for one
-election timeout, one heartbeat and one client write. Both voters can apply
-the write. TLC checks election safety, log matching, leader completeness,
-state machine safety, leader append-only behavior and structural invariants.
-Crash, partition and reconfiguration budgets start at zero. A quiet cluster
-can exhaust its timer budgets, so the configuration allows terminal states.
+The first command explores a two-voter election and checks bounded packet,
+snapshot and WAL scenarios. The runner uses a temporary directory for TLC state
+and returns a failing exit status when a safety or progress check fails. Each
+profile defines its actions, properties, bounds and any assumed scheduling.
+[Profile definitions](checks/profiles.ini)
 
-## Check a different behavior
+| To check | Run with `python3 check.py` |
+| --- | --- |
+| Replication, client writes and Raft safety across all interleavings within the two-voter bounds | `raft --workers 4 --heap 2g` |
+| A committed write applied at both voters | `--witness raft` |
+| Vote persistence, deferred campaigns and post-restart commitment | `restart-vote restart-delay singleton-wal post-restart-progress` |
+| Membership acknowledgements, step-down and the startup unanimity deadline | `membership startup-unanimity` |
+| Operator overrides, bootstrap and restart with a cleared configuration | `admin-cases bootstrap` |
+| Plain and extra-ChaCha framing, circuit identity and redirected ticket outcomes | `transport transport-psk handshake identity redirect caller-timeout` |
+| Deterministic KV apply, duplicate requests, CAS and leased tables | `kv kv-cases` |
+| Czar grants, leadership handoff and Hermes recovery after message loss | `czar-contacts czar-handoff hermes-replay hermes-publication` |
+| Sample three-voter schedules with reconfiguration, crash, restart, compaction and link failure | `raft-faults` |
 
-Copy `tube.cfg`, choose the specification, and set the bounds and properties
-for that behavior. Each entry point advances the subsystem in its row.
+Use `--show-config PROFILE` to see the exact TLC input. A witness check succeeds
+only when TLC reaches the named condition. A profile with `simulation` samples
+schedules. Other profiles exhaust their bounded state graphs or search for a
+named witness. `packet-storage` starts from selected boundary states.
+`post-restart-progress` starts from initialization, elects a singleton, crashes
+and restarts it, and checks that it commits again.
 
-| TLC specification | Behavior | Example check |
-| --- | --- | --- |
-| `MCSpec` | Raft elections and replication over circuits, membership changes, snapshots and PAR recovery | `INVARIANT ElectionSafety` |
-| `MCSpecKV` | KV replicas independently apply one committed log order, with leases and sessions | `INVARIANT KVDeterminism` |
-| `MCSpecCzar` | Czar clients acquire and renew leases through a linearizable CAS register | `INVARIANT CzAtMostOneCzarBelief` |
-| `LiveSpec` | Raft and transport with the run's fairness assumptions | `PROPERTY PeerConnectivityRestored` |
-| `LiveSpecCzar` | Czar with fair client steps, CAS processing and clock ticks | `PROPERTY EventuallyCzar` |
+For direct use with TLC or the Toolbox, [tube.cfg](tube.cfg) starts two
+connected voters, permits one election, one heartbeat and one client request,
+and checks the five classic Raft properties, WAL and quorum consistency,
+and ticket and transport properties. The fault and reconfiguration budgets
+are zero. Deadlock checking is disabled because a quiet cluster can exhaust
+its timer budget. Run the full two-voter check with
 
-Replace the default Raft checks when selecting KV or czar. Some diagnostic
-properties have known counterexamples at the modeled revision. For liveness,
-use exhaustive search and check the property's premises and any `BoundHit`
-escape against the chosen bounds.
+```sh
+java -XX:+UseParallelGC -Xmx2g -cp "$TLA2TOOLS_JAR" tlc2.TLC \
+  -workers 4 -config tube.cfg tube.tla
+```
 
-The original run's `spec/MC.cfg` and `spec/MC_hunt_*.cfg` also select these
-entry points. To reuse one, pass its path to `-config` and use `tube.tla` as
-the module. Add `-deadlock` for those archived configurations to allow
-quiescence when the budgets run out. Some contain `VIEW MCView`, which
-merges states with different remaining budgets. Omit that line to check
-the full bounded state graph.
+## What each specification covers
 
-## Check an extension
+| Entry point | Behavior and assumptions |
+| --- | --- |
+| `Spec`, `MCSpec` | Raft elections, quorum evidence, replication and compaction, multipart snapshots, PAR recovery, logless membership, client completion and circuit transport interact in one state machine. `MCSpec` adds timer, fault and resource bounds. |
+| `MCSpecAdmin` | Adds forced membership changes, empty configuration, self-bootstrap and operator restart with `-zap`. Operator intervention can replace the ordinary voting configuration. |
+| `KV_Spec`, `MCSpecKV` | Replicas receive one committed command order. Shipping, apply, snapshot restore, local reads and replies can occur at different times. The model has a representative key and a table rename destination, and models clocks in ticks. |
+| `Cz_Spec`, `MCSpecCzar` | Czar and member clients use one linearizable leased CAS register. Requests, application, replies, direct pings, member grants, reports and expiration are separate steps. |
+| `MCSpecHermes` | Czar publishes membership and grants to Hermes. Replicas consume them independently. The model covers one key, unicast acknowledgements and nonconflicting reads, writes and read-modify-write operations. |
+| `LiveSpec`, `LiveSpecCzar` | Add explicit scheduling and time assumptions. Choose properties and bounds appropriate to the proposed progress guarantee. |
 
-For a new property, put a module next to `tube.tla`. For example,
-`TubeExtension.tla` can check whether every applied index fits in the modeled
-log, which retains its compacted prefix as history.
+For progress checks, inspect the healthy-majority premise and the terminal
+state or repeating cycle. Exhausted terms, circuits or queue capacity can
+prevent recovery within a bounded model. The historical `VIEW MCView`
+projection merges states with different remaining fault budgets. The supplied
+safety profiles use full state.
+
+## Replay the Go implementation
+
+The collector exports the selected Git revision into a fresh directory, applies
+the trace hooks there, and runs the instrumented Go scenarios with the
+repository’s `synctest` build tag. The replay uses `tla2tools.jar` and
+`CommunityModules-deps.jar` from the same Specular `lib/` directory.
+
+```sh
+# From tube/modelcheck/tube
+export TLA_LIB="$(dirname "$TLA2TOOLS_JAR")"
+trace_output="$(mktemp -d)/tube-run"
+bash trace/collect.sh ../../.. 44d0b71d "$trace_output" cold_start_election
+bash trace/replay.sh tube.tla "$trace_output/traces/cold_start_election.ndjson"
+```
+
+Omit `cold_start_election` from the collector command to run all twelve Go
+scenarios. Each produces an NDJSON file in `traces/` and a Go log in `logs/`
+under the output directory. Replay checks the recorded event order and
+post-state against actions in `tube.tla`. Observations include term, vote, log
+tail, applied and committed indexes, commit term, membership, circuit identity,
+and the durable vote on events that report it. The trace adapter allows
+unobserved transport and clock steps between logged events. For a later source
+revision, rebase the hooks when an instrumented Go function changes.
+[Trace adapter](trace/Trace.tla)
+
+## Validation at this revision
+
+TLC matched 5,978 recorded events across all twelve Go scenarios at
+`44d0b71d`. The trace fixtures stagger restored process starts by 20 ms. In
+the interrupted-uncommitted-tail case, they heal the partition before restart
+so the test observes local WAL recovery and the later leader overwrite. A
+control trace with an altered commit term failed validation.
+
+The full two-voter configuration in `tube.cfg` completed at depth 40 across
+1,266,052 distinct states with all configured properties satisfied. The separate
+administrative profile checked 940,460 distinct states at depth 29.
+The Go regression checks covered 85 Tube, 25 RPC/transport and five Hermes
+top-level tests. The modeled `Extends` result also agreed with
+`TermsRLE.Extends` on 10,000 bounded leader/follower log pairs, including
+compaction boundaries. The three-voter `raft-faults` profile sampled 300
+schedules of 100 steps. The KV, czar and Hermes checks exercise their own
+model interfaces. The implementation traces cover Raft and transport.
+
+## Known session result
+
+`python3 check.py kv-session-diagnostic` reports a `KVSessDeterminism`
+violation. A leader serves a session read locally. After failover the client
+retries that serial through the log. At applied index 3, the former leader's
+cache hit leaves its maximum applied serial at 0 and its session deadline at
+tick 3. The new leader records serial 1 and deadline 4. The corresponding Go
+branches are `leaderServedLocalRead`, `appliedSessionDuplicate` and the
+duplicate path in `commitWhatWeCan`. This is a model counterexample with
+source-level support. End-to-end confirmation in Go remains open.
+[Scenario](checks/SessionProjection.tla)
+
+## Extend the model
+
+To add a property, create a sibling module. The retained logical log includes
+the compacted prefix for these checks.
 
 ```tla
 ------------------------- MODULE TubeExtension -------------------------
@@ -63,15 +141,28 @@ AppliedWithinLog == \A n \in Server : lastApplied[n] <= Len(log[n])
 ========================================================================
 ```
 
-Copy `tube.cfg` to `extension.cfg`, add `AppliedWithinLog` to its
-`INVARIANTS` list, and run
+Copy `tube.cfg` to `extension.cfg`, add `AppliedWithinLog` to the
+`INVARIANTS` list, then run
 
 ```sh
 java -cp "$TLA2TOOLS_JAR" tlc2.TLC -config extension.cfg TubeExtension.tla
 ```
 
-For a Raft behavior change, wire a new transition into both `CoreNext` and
-the corresponding bounded dispatcher under `MCNext`. For new state, update
-`CoreInit`, its variable tuple, and each action that updates or preserves
-it. KV and czar have corresponding `KV_Next` / `MCKVNext` and
-`Cz_Next` / `MCCzNext` pairs.
+To experiment with a new Raft action in a sibling module, define
+`MyCoreAction` over the existing `coreVars`. Assign or preserve every core
+variable. The following composition lets TLC interleave that action with the
+ordinary bounded protocol and keep the other layers at rest.
+
+```tla
+ExtensionNext == MCNext \/ (MyCoreAction /\ BaseOnly /\ NoFc)
+ExtensionSpec == MCInit /\ [][ExtensionNext]_mcVars
+```
+
+Select `SPECIFICATION ExtensionSpec` in the copied configuration. Supply a
+bound when the new action can create arbitrarily many states.
+
+For a behavior change, edit the corresponding action in `tube.tla`. Connect
+new actions to the relevant reference and bounded dispatchers, such as
+`CoreNext` and `MCNext` for Raft. Include each new state variable in its tuple,
+initialization, updates and unchanged clauses. Add a focused profile that
+checks the property and reaches the changed path. [Update properties](Update.tla)
