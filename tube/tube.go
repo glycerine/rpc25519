@@ -6454,6 +6454,9 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		if !s.cfg.NoLogCompaction && !didCompact {
 			_, _, err := s.wal.Compact(s.state.LastApplied, &s.state.CompactionDiscardedLast, s)
 			panicOn(err)
+			//if s.cfg.isTest && s.cfg.testNum == 104 {
+			//	vv("raft log compaction happened")
+			//}
 		}
 	}
 	//if true {

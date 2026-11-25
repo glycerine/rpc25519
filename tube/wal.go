@@ -1019,7 +1019,11 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 		//
 
 		if s.logSizeOnDisk() > s.compactionThresholdBytes { // over 6MB, then compact (if compact on).
-			s.maybeCompact(lastAppliedIndex, syncme, node)
+			didCompact := s.maybeCompact(lastAppliedIndex, syncme, node)
+			_ = didCompact
+			//if didCompact && s.isTest && s.testNum == 104 {
+			//	vv("raft log compaction happened")
+			//}
 		}
 	}
 	return

@@ -154,7 +154,7 @@ func runMemberFuzz(t *testing.T, seed, writes int64, initial int) {
 		}
 
 		if acked == 1 || acked%1_000 == 0 {
-			t.Logf("seed %d: %d/%d writes acknowledged at committed index %d, %d voters, %d additions, %d removals, %d faults, %d swizzles",
+			t.Logf("seed %v: %v/%v writes acknowledged at committed index %v, %v voters, %v additions, %v removals, %v faults, %v swizzles",
 				seed, acked, writes, lastIndex, len(voters), adds, removes, faults.count, faults.swizzles)
 		}
 	}
@@ -169,7 +169,7 @@ func runMemberFuzz(t *testing.T, seed, writes int64, initial int) {
 func startMemberFuzzReplica(t *testing.T, c *TubeCluster, seed, writes int64) {
 	t.Helper()
 	i := len(c.Nodes)
-	name := fmt.Sprintf("node_%d", i)
+	name := fmt.Sprintf("node_%v", i)
 	cfg := *c.Cfg
 	oracle := chainBlockStream{rng: newPRNG(intSeedToBytes(seed))}
 	cfg.testApplyUserDefinedOp = func(node *TubeNode, cmd *Ticket) { applyChainBlock(t, node, cmd, &oracle, writes) }

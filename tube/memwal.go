@@ -164,7 +164,12 @@ func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftL
 		// get rid of any not overwritten garbage.
 	}
 	if !s.noLogCompaction && s.logSizeOnDisk() > s.compactionThresholdBytes {
-		s.maybeCompact(lastAppliedIndex, syncme, nil)
+		didCompact := s.maybeCompact(lastAppliedIndex, syncme, nil)
+		_ = didCompact
+		//if didCompact && s.isTest && s.testNum == 104 {
+		//vv("raft log compaction happened")
+		//}
+
 	}
 
 	return
