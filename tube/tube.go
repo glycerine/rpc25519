@@ -5269,7 +5269,9 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	err = s.SendOneWay(ckt, frag, tkt.waitForValid, 0)
 	_ = err // don't panic on halting.
 	if err != nil {
-		alwaysPrintf("%v non nil error '%v' on Redirect to '%v'", s.me(), err, ckt.RemotePeerID)
+		if err.Error() != "rpc25519 error: context cancelled: Circuit." { // avoid noise in tests, this is common when node is isolated in fault simulation.
+			alwaysPrintf("%v non nil error '%v' on Redirect to '%v'", s.me(), err, ckt.RemotePeerID)
+		}
 		tkt.Stage += ":redirectToLeader_error_on_SendOneWay"
 		// Neither sent nor queued: stash it for a later leader if
 		// the caller asked to wait, else finish it with the error;
