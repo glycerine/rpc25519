@@ -9090,7 +9090,9 @@ func (s *TubeNode) sendAppendEntriesEmptyHeartbeat(peerID, peerName, peerService
 	err = s.SendOneWay(ckt, aeFrag, -1, 0)
 	_ = err // don't panic on halting.
 	if err != nil {
-		alwaysPrintf("%v non nil error on heartbeat to '%v': '%v'", s.me(), ckt.RemotePeerName, err)
+		if err.Error() != "rpc25519 error: context cancelled: Circuit." { // avoid noise in tests, this is the common shutdown path.
+			alwaysPrintf("%v non nil error on heartbeat to '%v': '%v'", s.me(), ckt.RemotePeerName, err)
+		}
 		// saw lots of trying to reconnect to auto-cli, which
 		// seems bad/unlikely to succeed. try forcing reconnect
 		// to get a new ckt to the actual server?
@@ -9227,7 +9229,9 @@ func (s *TubeNode) bcastAppendEntries(es []*RaftLogEntry, prevLogIndex, prevLogT
 
 		_ = err // don't panic on halting.
 		if err != nil {
-			alwaysPrintf("%v non nil error '%v' on heartbeat to '%v'", s.me(), err, ckt.RemotePeerID)
+			if err.Error() != "rpc25519 error: context cancelled: Circuit." { // avoid noise in tests, this is common when node is isolated in fault simulation.
+				alwaysPrintf("%v non nil error '%v' on heartbeat to '%v'", s.me(), err, ckt.RemotePeerID)
+			}
 		}
 		info.UnackedPing.Sent = time.Now()
 		info.UnackedPing.Term = ae.LeaderTerm

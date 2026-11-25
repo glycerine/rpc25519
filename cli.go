@@ -389,7 +389,9 @@ func clientReadLoopShouldContinue(err error) bool {
 	// errors) leaves us mid-frame or spinning on a stored error:
 	// stop, as the server's read loop does (CR-D-31). The deferred
 	// cleanup closes the client and its circuits.
-	alwaysPrintf("client read loop stopping on error: '%v'", err)
+	if err != ErrShutdown2 { // avoid super noisy and common shut down report at end of tests.
+		alwaysPrintf("client read loop stopping on error: '%v'", err)
+	}
 	return false
 }
 
